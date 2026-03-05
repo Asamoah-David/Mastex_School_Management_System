@@ -1,0 +1,10 @@
+Django>=4.2
+djangorestframework
+djangorestframework-simplejwt
+requests
+stripe
+reportlab
+matplotlib
+python-dotenv
+gunicorn
+whitenoise

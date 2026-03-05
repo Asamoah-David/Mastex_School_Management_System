@@ -1,0 +1,21 @@
+import requests
+from django.conf import settings
+
+FLW_BASE_URL = "https://api.flutterwave.com/v3"
+
+def initialize_payment(amount, email, tx_ref, redirect_url):
+    headers = {
+        "Authorization": f"Bearer {settings.FLW_SECRET_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "tx_ref": tx_ref,
+        "amount": amount,
+        "currency": "GHS",
+        "redirect_url": redirect_url,
+        "payment_options": "mobilemoneyghana,card",
+        "customer": {"email": email},
+        "customizations": {"title": "School Payment", "description": "School Fees or Subscription Payment"}
+    }
+    response = requests.post(f"{FLW_BASE_URL}/payments", json=data, headers=headers)
+    return response.json()

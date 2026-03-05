@@ -1,0 +1,21 @@
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table
+from reportlab.lib.styles import getSampleStyleSheet
+import io
+
+def generate_report(student, results):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    elements.append(Paragraph(f"Report Card: {student}", styles['Title']))
+
+    data = [["Subject", "Score", "Grade"]]
+    for r in results:
+        data.append([r.subject.name, r.score, r.grade()])
+
+    table = Table(data)
+    elements.append(table)
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer

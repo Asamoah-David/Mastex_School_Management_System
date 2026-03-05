@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+echo "Starting Django Docker container..."
+
+# Apply migrations
+echo "Applying migrations..."
+python manage.py migrate
+
+# Collect static files
+echo "Collecting static files..."
+python manage.py collectstatic --noinput
+
+# Start cron service
+echo "Starting cron service..."
+service cron start
+
+# Start Gunicorn server
+echo "Starting Gunicorn..."
+exec gunicorn schoolms.wsgi:application --bind 0.0.0.0:8000 --workers 4

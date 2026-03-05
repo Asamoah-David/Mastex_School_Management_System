@@ -1,0 +1,32 @@
+# Use official Python 3.11 image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies + cron
+RUN apt-get update && \
+    apt-get install -y cron gcc libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . .
+
+# Copy cron file
+COPY cronjob /etc/cron.d/finance-cron
+
+# Give execution rights on the cron job
+RUN chmod 0644 /etc/cron.d/finance-cron
+
+# Apply cron job
+RUN crontab /etc/cron.d/finance-cron
+
+# Expose port
+EXPOSE 8000
+
+# Run entrypoint script
+ENTRYPOINT ["./docker-entrypoint.sh"]

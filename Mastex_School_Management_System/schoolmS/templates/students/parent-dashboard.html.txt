@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Parent Dashboard</h2>
+<ul>
+{% for child in children %}
+    <li>{{ child.user.get_full_name }} - {{ child.admission_number }}</li>
+{% endfor %}
+</ul>
+{% endblock %}

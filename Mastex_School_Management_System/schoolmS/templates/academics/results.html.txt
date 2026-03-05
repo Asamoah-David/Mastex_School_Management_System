@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Results Dashboard</h2>
+<table>
+<tr><th>Subject</th><th>Score</th><th>Grade</th></tr>
+{% for result in results %}
+<tr><td>{{ result.subject.name }}</td><td>{{ result.score }}</td><td>{{ result.grade }}</td></tr>
+{% endfor %}
+</table>
+{% endblock %}

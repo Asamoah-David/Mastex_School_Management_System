@@ -1,0 +1,5 @@
+from .utils import ask_ai
+
+def student_performance_summary(student_name, avg_score):
+    prompt = f"Give a professional performance comment for student {student_name} with average score {avg_score}."
+    return ask_ai(prompt)

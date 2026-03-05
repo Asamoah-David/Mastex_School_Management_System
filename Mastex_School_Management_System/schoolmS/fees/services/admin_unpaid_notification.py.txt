@@ -1,0 +1,16 @@
+from core.services.sms_service import SMSService
+from django.conf import settings
+
+
+def notify_admin_unpaid_fee(student):
+
+    message = f"""
+ALERT
+
+Student: {student.name}
+Parent: {student.parent_name}
+
+has unpaid school fees.
+"""
+
+    SMSService.send_sms(settings.ADMIN_PHONE, message)
