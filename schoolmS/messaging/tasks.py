@@ -1,0 +1,6 @@
+from .utils import send_sms
+
+def bulk_sms(students, message):
+    for student in students:
+        if student.user.phone:
+            send_sms(student.user.phone, message)

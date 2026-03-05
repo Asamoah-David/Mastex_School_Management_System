@@ -1,0 +1,8 @@
+def is_school_admin(user):
+    return user.role == "admin"
+
+def is_teacher(user):
+    return user.role == "teacher"
+
+def is_parent(user):
+    return user.role == "parent"

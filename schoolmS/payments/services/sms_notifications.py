@@ -1,0 +1,28 @@
+from core.services.sms_service import SMSService
+
+
+def send_payment_success_sms(student, amount):
+
+    message = f"""
+Hello {student.parent_name},
+
+Payment of GHS {amount} for {student.name}'s school fees was successful.
+
+Thank you.
+"""
+
+    SMSService.send_sms(student.parent_phone, message)
+
+
+
+def send_payment_failed_sms(student, amount):
+
+    message = f"""
+Hello {student.parent_name},
+
+Your payment of GHS {amount} for {student.name}'s school fees failed.
+
+Please retry the payment in the school portal.
+"""
+
+    SMSService.send_sms(student.parent_phone, message)

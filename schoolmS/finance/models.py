@@ -1,0 +1,15 @@
+from django.db import models
+from students.models import Student
+from schools.models import School
+
+class Fee(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    amount = models.FloatField()
+    paid = models.BooleanField(default=False)
+    stripe_payment_id = models.CharField(max_length=255, blank=True, null=True)
+    flutterwave_tx_ref = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student} - {self.amount} GHS"

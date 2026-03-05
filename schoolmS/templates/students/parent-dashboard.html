@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Parent Dashboard</h2>
+
+{% if children %}
+    <table class="child-list">
+        <thead>
+            <tr>
+                <th>Full Name</th>
+                <th>Admission Number</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for child in children %}
+                <tr>
+                    <td>{{ child.user.get_full_name }}</td>
+                    <td>{{ child.admission_number }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No children registered under your account yet.</p>
+{% endif %}
+
+{% endblock %}

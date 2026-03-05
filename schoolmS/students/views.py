@@ -1,0 +1,8 @@
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from .models import Student
+
+@login_required
+def parent_dashboard(request):
+    children = Student.objects.filter(parent=request.user)
+    return render(request, 'students/parent_dashboard.html', {'children': children})

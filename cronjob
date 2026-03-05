@@ -1,0 +1,2 @@
+# Run retry_unpaid management command every day at 2am
+0 2 * * * root cd /app && /usr/local/bin/python manage.py retry_unpaid >> /var/log/cron.log 2>&1

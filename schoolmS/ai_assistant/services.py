@@ -1,0 +1,5 @@
+from .utils import ask_ai
+
+def generate_comment(student_name, avg_score):
+    prompt = f"Provide a professional comment for {student_name} with average score {avg_score}"
+    return ask_ai(prompt)
