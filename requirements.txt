@@ -8,3 +8,4 @@ matplotlib
 python-dotenv
 gunicorn
 whitenoise
+dj-database-url
