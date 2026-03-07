@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Sign in · Mastex SchoolOS{% endblock %}
+{% block page_title %}Welcome back{% endblock %}
+{% block page_subtitle %}Use your school administrator or parent credentials to access the platform.{% endblock %}
+
+{% block content %}
+<form method="post" class="content-grid" style="max-width:420px;">
+    {% csrf_token %}
+    <section class="metric" style="width:100%;">
+        <div class="metric-label">Account details</div>
+
+        <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:0.4rem;">
+            <div>
+                <label for="id_username" style="display:block;font-size:0.8rem;color:var(--text-soft);margin-bottom:0.2rem;">
+                    Username
+                </label>
+                <input
+                    id="id_username"
+                    name="username"
+                    type="text"
+                    required
+                    autocomplete="username"
+                    style="width:100%;padding:0.5rem 0.6rem;border-radius:0.55rem;border:1px solid rgba(148,163,184,0.6);background:rgba(15,23,42,0.9);color:var(--text-main);"
+                />
+            </div>
+
+            <div>
+                <label for="id_password" style="display:block;font-size:0.8rem;color:var(--text-soft);margin-bottom:0.2rem;">
+                    Password
+                </label>
+                <input
+                    id="id_password"
+                    name="password"
+                    type="password"
+                    required
+                    autocomplete="current-password"
+                    style="width:100%;padding:0.5rem 0.6rem;border-radius:0.55rem;border:1px solid rgba(148,163,184,0.6);background:rgba(15,23,42,0.9);color:var(--text-main);"
+                />
+            </div>
+        </div>
+
+        <div class="button-row mt-sm" style="justify-content:flex-start;">
+            <button type="submit" class="btn btn-primary">
+                Sign in
+            </button>
+        </div>
+    </section>
+</form>
+{% endblock %}
+
