@@ -1,11 +1,16 @@
-from twilio.rest import Client
-from django.conf import settings
+from services.sms_service import SMSService
+
 
 def send_sms(to, message):
-    client = Client(settings.TWILIO_SID, settings.TWILIO_AUTH_TOKEN)
-    message = client.messages.create(
-        body=message,
-        from_=settings.TWILIO_FROM_NUMBER,
-        to=to
-    )
-    return message.sid
+    """
+    Convenience wrapper used by other apps for sending SMS.
+    Delegates to the central SMSService implementation.
+    """
+    return SMSService.send_sms(to, message)
+
+
+def send_sms_notification(to, message):
+    """
+    Backwards-compatible alias; prefer send_sms going forward.
+    """
+    return SMSService.send_sms(to, message)

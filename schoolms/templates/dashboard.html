@@ -1,7 +1,40 @@
 {% extends "base.html" %}
+
+{% block title %}Admin Dashboard · Mastex SchoolOS{% endblock %}
+{% block page_title %}Admin overview{% endblock %}
+{% block page_subtitle %}Monitor key school metrics and subscription performance in real time.{% endblock %}
+
 {% block content %}
-<h2>Admin Dashboard</h2>
-<p>Total Schools: {{ total_schools }}</p>
-<p>Total Students: {{ total_students }}</p>
-<p>MRR: {{ mrr }} GHS</p>
+<div class="content-grid">
+    <section class="metric">
+        <div class="metric-label">Active schools</div>
+        <div class="metric-value">{{ total_schools|default:"0" }}</div>
+        <div class="metric-caption">
+            Institutions currently running on Mastex SchoolOS.
+        </div>
+    </section>
+
+    <section class="metric">
+        <div class="metric-label">Total students</div>
+        <div class="metric-value">{{ total_students|default:"0" }}</div>
+        <div class="metric-caption">
+            Learners managed across all schools.
+        </div>
+    </section>
+
+    <section class="metric">
+        <div class="metric-label">Monthly recurring revenue</div>
+        <div class="metric-value">{{ mrr|default:"0" }} GHS</div>
+        <div class="metric-caption">
+            Billed this month across all active subscriptions.
+        </div>
+    </section>
+</div>
+
+<div class="button-row mt-sm">
+    <span class="tag">
+        <span class="tag-bullet"></span>
+        Financial health &amp; operations
+    </span>
+</div>
 {% endblock %}

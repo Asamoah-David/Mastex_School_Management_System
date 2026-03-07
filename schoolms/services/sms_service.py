@@ -3,27 +3,21 @@ from django.conf import settings
 
 
 class SMSService:
-
     @staticmethod
-    def send_sms(phone, message):
-
-        url = settings.MNOTIFY_URL
-
-        payload = {
-            "recipient": phone,
+    def send_sms(to, message):
+        url = "https://api.mnotify.com/api/sms/quick"
+        headers = {
+            "Authorization": f"Bearer {settings.MNOTIFY_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        data = {
+            "recipient": [to],
             "sender": settings.MNOTIFY_SENDER_ID,
             "message": message,
-            "key": settings.MNOTIFY_API_KEY
+            "is_schedule": False,
         }
-
-        try:
-            response = requests.post(url, data=payload)
-
-            if response.status_code == 200:
-                return True
-
-            return False
-
-        except Exception as e:
-            print("SMS Error:", str(e))
-            return False
+        resp = requests.post(url, json=data, headers=headers)
+        if resp.status_code != 200:
+            # log or raise as appropriate
+            raise RuntimeError(f"MNotify error: {resp.text}")
+        return resp.json()

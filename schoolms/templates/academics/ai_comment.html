@@ -1,5 +1,25 @@
 {% extends "base.html" %}
+
+{% block title %}AI Performance Comment · Mastex SchoolOS{% endblock %}
+{% block page_title %}AI-generated performance insight{% endblock %}
+{% block page_subtitle %}Contextual feedback generated from student assessment data.{% endblock %}
+
 {% block content %}
-<h2>AI Performance Comment</h2>
-<p>{{ comment }}</p>
+<div class="content-grid">
+    <section class="metric">
+        <div class="metric-label">Summary comment</div>
+        <div class="metric-value" style="font-size:0.9rem; font-weight:500;">
+            {{ comment }}
+        </div>
+        <div class="metric-caption">
+            Share this with parents or attach it to term reports as a professional narrative.
+        </div>
+    </section>
+</div>
+
+<div class="button-row mt-sm">
+    <button class="btn btn-secondary" type="button">
+        Generate another variation
+    </button>
+</div>
 {% endblock %}

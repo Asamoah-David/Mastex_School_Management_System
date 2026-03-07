@@ -1,10 +1,41 @@
 {% extends "base.html" %}
+
+{% block title %}Academic Results · Mastex SchoolOS{% endblock %}
+{% block page_title %}Academic performance{% endblock %}
+{% block page_subtitle %}Subject-level performance overview for the selected student or class.{% endblock %}
+
 {% block content %}
-<h2>Results Dashboard</h2>
-<table>
-<tr><th>Subject</th><th>Score</th><th>Grade</th></tr>
-{% for result in results %}
-<tr><td>{{ result.subject.name }}</td><td>{{ result.score }}</td><td>{{ result.grade }}</td></tr>
-{% endfor %}
-</table>
+<div class="table-card">
+    {% if results %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Score</th>
+                    <th>Grade</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                    <tr>
+                        <td>{{ result.subject.name }}</td>
+                        <td>{{ result.score }}</td>
+                        <td>{{ result.grade }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            There are no assessment records available yet for this context.
+        </div>
+    {% endif %}
+</div>
+
+<div class="button-row mt-sm">
+    <span class="tag">
+        <span class="tag-bullet"></span>
+        Powered by continuous assessment data
+    </span>
+</div>
 {% endblock %}

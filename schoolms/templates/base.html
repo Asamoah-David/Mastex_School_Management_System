@@ -1,15 +1,589 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>School Management System</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}School Management System{% endblock %}</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --bg-elevated: #020617;
+            --card-bg: #0b1120;
+            --accent: #22c55e;
+            --accent-soft: rgba(34, 197, 94, 0.1);
+            --accent-strong: rgba(34, 197, 94, 0.3);
+            --danger: #f97373;
+            --border-subtle: rgba(148, 163, 184, 0.4);
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+            --text-soft: #6b7280;
+            --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.85);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #1e293b 0, #020617 45%, #020617 100%);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .app-shell {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            min-height: 100vh;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            backdrop-filter: blur(18px);
+            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.92));
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .nav {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-mark {
+            width: 34px;
+            height: 34px;
+            border-radius: 0.9rem;
+            background: radial-gradient(circle at 20% 0, #4ade80 0, #22c55e 35%, #16a34a 55%, #0f766e 85%);
+            box-shadow:
+                0 0 0 1px rgba(34, 197, 94, 0.3),
+                0 16px 38px rgba(34, 197, 94, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #022c22;
+            font-size: 0.9rem;
+        }
+
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+        }
+
+        .brand-title {
+            font-size: 1.05rem;
+            font-weight: 650;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-soft);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pill {
+            padding: 0.25rem 0.7rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .pill-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: radial-gradient(circle at 30% 0, #bbf7d0 0, #22c55e 55%, #15803d 100%);
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+        }
+
+        .user-pill {
+            padding: 0.4rem 0.9rem;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .user-avatar {
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: radial-gradient(circle at 30% 0, #e5e7eb 0, #9ca3af 45%, #4b5563 100%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #020617;
+        }
+
+        .layout {
+            max-width: 1120px;
+            margin: 1.5rem auto 2.5rem;
+            padding: 0 1.25rem 0.5rem;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 900px) {
+            .layout {
+                grid-template-columns: 240px minmax(0, 1fr);
+            }
+        }
+
+        .sidebar {
+            display: none;
+        }
+
+        @media (min-width: 900px) {
+            .sidebar {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+
+        .sidebar-card {
+            border-radius: 1.1rem;
+            background: radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.16) 0, rgba(15, 23, 42, 0.95) 45%, rgba(15, 23, 42, 1) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            padding: 1rem;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+        }
+
+        .sidebar-section-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: var(--text-soft);
+            margin-bottom: 0.75rem;
+        }
+
+        .nav-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .nav-item {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            padding: 0.5rem 0.65rem;
+            border-radius: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: default;
+        }
+
+        .nav-item--active {
+            background: radial-gradient(circle at 0 0, var(--accent-soft) 0, rgba(15, 23, 42, 0.98) 42%);
+            border: 1px solid var(--accent-strong);
+            color: #e5ffe9;
+        }
+
+        .nav-item-label {
+            display: flex;
+            flex-direction: column;
+            gap: 0.08rem;
+        }
+
+        .nav-item-title {
+            font-weight: 500;
+            font-size: 0.82rem;
+        }
+
+        .nav-item-subtitle {
+            font-size: 0.73rem;
+            color: var(--text-soft);
+        }
+
+        .nav-badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.55);
+            color: var(--text-soft);
+            background: rgba(15, 23, 42, 0.85);
+        }
+
+        .nav-footer {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px dashed rgba(148, 163, 184, 0.4);
+            font-size: 0.75rem;
+            color: var(--text-soft);
+        }
+
+        .main-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.1rem;
+        }
+
+        .page-heading {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .page-title {
+            font-size: 1.35rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+
+        .page-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-soft);
+        }
+
+        .page-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.75rem;
+            color: var(--text-soft);
+        }
+
+        .page-meta-pill {
+            padding: 0.25rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(15, 23, 42, 0.85);
+        }
+
+        .content-card {
+            border-radius: 1.1rem;
+            background: radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.16) 0, rgba(15, 23, 42, 0.98) 40%, rgba(15, 23, 42, 1) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            padding: 1.1rem 1.1rem 1.2rem;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .metric {
+            border-radius: 0.9rem;
+            padding: 0.75rem 0.8rem;
+            background: radial-gradient(circle at 0 0, rgba(34, 197, 94, 0.12) 0, rgba(15, 23, 42, 0.8) 45%);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-soft);
+            margin-bottom: 0.35rem;
+        }
+
+        .metric-value {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .metric-caption {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-soft);
+        }
+
+        .table-card {
+            margin-top: 0.6rem;
+            border-radius: 0.9rem;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+        }
+
+        thead {
+            background: radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.24) 0, rgba(15, 23, 42, 1) 55%);
+        }
+
+        th,
+        td {
+            padding: 0.6rem 0.85rem;
+            text-align: left;
+        }
+
+        th {
+            font-weight: 500;
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-soft);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(15, 23, 42, 0.85);
+        }
+
+        tbody tr:hover {
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        .empty-state {
+            padding: 0.9rem 1rem;
+            font-size: 0.86rem;
+            color: var(--text-soft);
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            font-size: 0.74rem;
+            color: var(--text-soft);
+            background: rgba(15, 23, 42, 0.85);
+        }
+
+        .tag-bullet {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: radial-gradient(circle at 30% 0, #bbf7d0 0, #4ade80 60%, #166534 100%);
+        }
+
+        .button-row {
+            margin-top: 0.8rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.9rem;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #022c22;
+            box-shadow:
+                0 10px 25px rgba(34, 197, 94, 0.3),
+                0 0 0 1px rgba(34, 197, 94, 0.6);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            transform: translateY(-1px);
+            box-shadow:
+                0 14px 30px rgba(34, 197, 94, 0.35),
+                0 0 0 1px rgba(34, 197, 94, 0.75);
+        }
+
+        .btn-secondary {
+            background: rgba(15, 23, 42, 0.95);
+            color: var(--text-main);
+            border-color: rgba(148, 163, 184, 0.5);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(15, 23, 42, 1);
+            border-color: rgba(148, 163, 184, 0.8);
+            transform: translateY(-1px);
+        }
+
+        .badge-pill {
+            padding: 0.18rem 0.6rem;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            font-size: 0.72rem;
+            color: var(--text-soft);
+        }
+
+        .mt-sm {
+            margin-top: 0.6rem;
+        }
+
+        footer {
+            padding: 0.9rem 1.5rem 1.3rem;
+            border-top: 1px solid rgba(30, 64, 175, 0.65);
+            background: radial-gradient(circle at 50% 0, rgba(37, 99, 235, 0.16) 0, #020617 55%);
+            font-size: 0.78rem;
+            color: var(--text-soft);
+        }
+
+        .footer-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+        }
+
+        .footer-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+        }
+
+        .footer-link {
+            text-decoration: none;
+            color: var(--text-soft);
+        }
+
+        .footer-link:hover {
+            color: var(--text-main);
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>SchoolMS</h1>
-    </header>
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+    <div class="app-shell">
+        <header>
+            <div class="nav">
+                <div class="brand">
+                    <div class="brand-mark">MS</div>
+                    <div class="brand-text">
+                        <div class="brand-title">Mastex SchoolOS</div>
+                        <div class="brand-subtitle">Unified school administration suite</div>
+                    </div>
+                </div>
+                <div class="nav-actions">
+                    <div class="pill">
+                        <span class="pill-dot"></span>
+                        LIVE SCHOOL INSTANCE
+                    </div>
+                    <div class="user-pill">
+                        <span class="user-avatar">SA</span>
+                        <span>Signed in</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="layout">
+            <aside class="sidebar">
+                <div class="sidebar-card">
+                    <div class="sidebar-section-title">Navigation</div>
+                    <ul class="nav-list">
+                        <li class="nav-item nav-item--active">
+                            <div class="nav-item-label">
+                                <span class="nav-item-title">Overview</span>
+                                <span class="nav-item-subtitle">Key metrics at a glance</span>
+                            </div>
+                            <span class="nav-badge">Admin</span>
+                        </li>
+                        <li class="nav-item">
+                            <div class="nav-item-label">
+                                <span class="nav-item-title">Students</span>
+                                <span class="nav-item-subtitle">Admissions & guardians</span>
+                            </div>
+                        </li>
+                        <li class="nav-item">
+                            <div class="nav-item-label">
+                                <span class="nav-item-title">Fees & Billing</span>
+                                <span class="nav-item-subtitle">Subscriptions & unpaid fees</span>
+                            </div>
+                        </li>
+                        <li class="nav-item">
+                            <div class="nav-item-label">
+                                <span class="nav-item-title">Messaging</span>
+                                <span class="nav-item-subtitle">Bulk SMS & alerts</span>
+                            </div>
+                        </li>
+                    </ul>
+                    <div class="nav-footer">
+                        Smart, secure, and automated tools to keep your school running smoothly.
+                    </div>
+                </div>
+            </aside>
+
+            <section class="main-panel">
+                <div class="page-heading">
+                    <div>
+                        <div class="page-title">
+                            {% block page_title %}Dashboard{% endblock %}
+                        </div>
+                        <div class="page-subtitle">
+                            {% block page_subtitle %}Track schools, students, billing, and communication in one place.{% endblock %}
+                        </div>
+                    </div>
+                    <div class="page-meta">
+                        <div class="page-meta-pill">Today · {{ now|default:"" }}</div>
+                    </div>
+                </div>
+
+                <div class="content-card">
+                    {% block content %}{% endblock %}
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="footer-inner">
+                <div>Mastex SchoolOS &mdash; modern school management platform.</div>
+                <div class="footer-links">
+                    <span class="badge-pill">Secure · Stripe · Flutterwave · MNotify</span>
+                </div>
+            </div>
+        </footer>
+    </div>
 </body>
 </html>

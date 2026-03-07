@@ -1,26 +1,41 @@
 {% extends "base.html" %}
+
+{% block title %}Parent Dashboard · Mastex SchoolOS{% endblock %}
+{% block page_title %}Parent overview{% endblock %}
+{% block page_subtitle %}View your children, their enrollment details, and stay connected to the school.{% endblock %}
+
 {% block content %}
-<h2>Parent Dashboard</h2>
-
-{% if children %}
-    <table class="child-list">
-        <thead>
-            <tr>
-                <th>Full Name</th>
-                <th>Admission Number</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for child in children %}
+<div class="table-card">
+    {% if children %}
+        <table>
+            <thead>
                 <tr>
-                    <td>{{ child.user.get_full_name }}</td>
-                    <td>{{ child.admission_number }}</td>
+                    <th>Student</th>
+                    <th>Admission number</th>
                 </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>No children registered under your account yet.</p>
-{% endif %}
+            </thead>
+            <tbody>
+                {% for child in children %}
+                    <tr>
+                        <td>{{ child.user.get_full_name }}</td>
+                        <td>{{ child.admission_number }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            No children are currently linked to this parent account yet.
+        </div>
+    {% endif %}
+</div>
 
+<div class="button-row mt-sm">
+    <button class="btn btn-primary" type="button">
+        View fee statements
+    </button>
+    <button class="btn btn-secondary" type="button">
+        Update contact details
+    </button>
+</div>
 {% endblock %}
