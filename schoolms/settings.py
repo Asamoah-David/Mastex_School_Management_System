@@ -20,7 +20,13 @@ def env(name, default=None, required=False):
 
 SECRET_KEY = env("SECRET_KEY", "unsafe-local-secret")
 DEBUG = env("DEBUG", "True") == "True"
-ALLOWED_HOSTS = env("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
+# Always allow Render hosts in addition to any explicit env values
+_default_hosts = "localhost,127.0.0.1,.onrender.com"
+_env_hosts = env("ALLOWED_HOSTS", _default_hosts)
+ALLOWED_HOSTS = sorted(
+    {h.strip() for h in _env_hosts.split(",") if h.strip()}
+)
 
 INSTALLED_APPS = [
     "django.contrib.admin",

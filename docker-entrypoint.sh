@@ -1,4 +1,3 @@
-// filepath: c:\Users\Bernard\Desktop\Mastex_School_Management_System\docker-entrypoint.sh
 #!/bin/bash
 set -e
 
