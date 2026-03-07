@@ -21,12 +21,11 @@ def env(name, default=None, required=False):
 SECRET_KEY = env("SECRET_KEY", "unsafe-local-secret")
 DEBUG = env("DEBUG", "True") == "True"
 
-# Always allow Render hosts in addition to any explicit env values
-_default_hosts = "localhost,127.0.0.1,.onrender.com"
-_env_hosts = env("ALLOWED_HOSTS", _default_hosts)
-ALLOWED_HOSTS = sorted(
-    {h.strip() for h in _env_hosts.split(",") if h.strip()}
-)
+# Always allow localhost and Render; merge with any explicit env values
+_required = {"localhost", "127.0.0.1", ".onrender.com"}
+_env_hosts = env("ALLOWED_HOSTS", "")
+_extra = {h.strip() for h in _env_hosts.split(",") if h.strip()}
+ALLOWED_HOSTS = sorted(_required | _extra)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
