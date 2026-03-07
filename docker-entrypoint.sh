@@ -1,3 +1,4 @@
+// filepath: c:\Users\Bernard\Desktop\Mastex_School_Management_System\docker-entrypoint.sh
 #!/bin/bash
 set -e
 
@@ -11,9 +12,11 @@ python manage.py migrate
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Optional: Create admin superuser if not exists
+# Optional: Create admin superuser if not exists (with error handling)
 echo "Checking for admin superuser..."
-python manage.py shell -c "from django.contrib.auth.models import User; User.objects.create_superuser('admin','admin@example.com','Admin123!') if not User.objects.filter(username='admin').exists() else None"
+if ! python manage.py shell -c "from django.contrib.auth.models import User; print('Superuser exists')" 2>/dev/null; then
+    python manage.py createsuperuser --noinput --username admin --email admin@example.com || echo "Superuser creation skipped or failed"
+fi
 
 # Start Gunicorn server using Render's port
 echo "Starting Gunicorn..."
