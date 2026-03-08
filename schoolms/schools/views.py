@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
 from accounts.models import User
 from .models import School
@@ -10,8 +11,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+@login_required
 def school_register(request):
-    """Public school registration page for SaaS onboarding."""
+    """School registration page - requires login."""
     if request.method == "POST":
         # School details
         school_name = request.POST.get("school_name", "").strip()
