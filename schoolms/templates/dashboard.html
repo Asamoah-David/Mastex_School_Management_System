@@ -40,9 +40,16 @@
 </div>
 
 <div class="button-row mt-sm">
+    {% if school %}
+    <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Register staff</a>
+    <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register student</a>
+    <a href="{% url 'operations:attendance_mark' %}" class="btn btn-secondary">Mark attendance</a>
+    <a href="/admin/finance/fee/" class="btn btn-secondary">View fees</a>
+    {% else %}
     <a href="/admin/schools/school/add/" class="btn btn-primary">Add school</a>
     <a href="/admin/students/student/add/" class="btn btn-secondary">Add student</a>
     <a href="/admin/finance/fee/" class="btn btn-secondary">View fees</a>
+    {% endif %}
 </div>
 
 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid rgba(148,163,184,0.3);">

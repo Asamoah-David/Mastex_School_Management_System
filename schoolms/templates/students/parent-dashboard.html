@@ -2,7 +2,7 @@
 
 {% block title %}Parent Dashboard · Mastex SchoolOS{% endblock %}
 {% block page_title %}Parent overview{% endblock %}
-{% block page_subtitle %}View your children, their enrollment details, and stay connected to the school.{% endblock %}
+{% block page_subtitle %}View your children, their enrollment details, and pay fees.{% endblock %}
 
 {% block content %}
 <div class="table-card">
@@ -11,13 +11,15 @@
             <thead>
                 <tr>
                     <th>Student</th>
-                    <th>Admission number</th>
+                    <th>Class</th>
+                    <th>Admission Number</th>
                 </tr>
             </thead>
             <tbody>
                 {% for child in children %}
                     <tr>
                         <td>{{ child.user.get_full_name }}</td>
+                        <td>{{ child.class_name }}</td>
                         <td>{{ child.admission_number }}</td>
                     </tr>
                 {% endfor %}
@@ -30,10 +32,54 @@
     {% endif %}
 </div>
 
+{% if fees_by_child %}
+<h3 class="section-title">Fee Statements</h3>
+{% for child in children %}
+    <div class="content-card mt-1">
+        <h4 class="section-title-green">{{ child.user.get_full_name }} - {{ child.class_name }}</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fee in fees %}
+                    {% if fee.student_id == child.id %}
+                    <tr>
+                        <td>{{ fee.amount }} GHS</td>
+                        <td>
+                            {% if fee.paid %}
+                            <span class="tag tag-paid">
+                                <span class="tag-bullet"></span>
+                                Paid
+                            </span>
+                            {% else %}
+                            <span class="tag tag-unpaid">
+                                <span class="tag-bullet"></span>
+                                Unpaid
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not fee.paid %}
+                            <a href="{% url 'finance:pay_with_flutterwave' fee.id %}" class="btn btn-primary btn-pay">Pay Now</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endfor %}
+{% endif %}
+
 <div class="button-row mt-sm">
-    <button class="btn btn-primary" type="button">
-        View fee statements
-    </button>
     <button class="btn btn-secondary" type="button">
         Update contact details
     </button>

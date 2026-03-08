@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Parents · Mastex SchoolOS{% endblock %}
+{% block page_title %}Parents{% endblock %}
+{% block page_subtitle %}Manage parent accounts for {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="button-row">
+    <a href="{% url 'accounts:parent_register' %}" class="btn btn-primary">Add Parent</a>
+    <a href="{% url 'accounts:user_management' %}" class="btn btn-secondary">Back to Users</a>
+</div>
+
+<div class="table-card mt-1">
+    {% if parents %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for parent in parents %}
+                    <tr>
+                        <td>{{ parent.get_full_name }}</td>
+                        <td>{{ parent.username }}</td>
+                        <td>{{ parent.email }}</td>
+                        <td>{{ parent.phone|default:"-" }}</td>
+                        <td>
+                            <a href="{% url 'accounts:parent_detail' parent.id %}" class="btn btn-secondary">View</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            No parents registered yet. <a href="{% url 'accounts:parent_register' %}">Add a parent</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

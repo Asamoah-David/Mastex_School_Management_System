@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}User Management · Mastex SchoolOS{% endblock %}
+{% block page_title %}User Management{% endblock %}
+{% block page_subtitle %}Manage staff, parents, and students for {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-grid">
+    <a href="{% url 'accounts:staff_list' %}" class="metric">
+        <div class="metric-label">Staff</div>
+        <div class="metric-value">{{ staff_count }}</div>
+        <div class="metric-caption">Teachers & administrators</div>
+    </a>
+    
+    <a href="{% url 'accounts:parent_list' %}" class="metric">
+        <div class="metric-label">Parents</div>
+        <div class="metric-value">{{ parent_count }}</div>
+        <div class="metric-caption">Registered parents</div>
+    </a>
+    
+    <a href="{% url 'students:student_list' %}" class="metric">
+        <div class="metric-label">Students</div>
+        <div class="metric-value">{{ student_count }}</div>
+        <div class="metric-caption">Enrolled students</div>
+    </a>
+</div>
+
+<div class="button-row mt-sm">
+    <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Add Staff</a>
+    <a href="{% url 'accounts:parent_register' %}" class="btn btn-primary">Add Parent</a>
+    <a href="{% url 'students:student_register' %}" class="btn btn-primary">Add Student</a>
+</div>
+
+<hr>
+
+<h3 class="mb-1">Quick Links</h3>
+<div class="button-row">
+    <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">View All Staff</a>
+    <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">View All Parents</a>
+    <a href="{% url 'students:student_list' %}" class="btn btn-secondary">View All Students</a>
+</div>
+{% endblock %}

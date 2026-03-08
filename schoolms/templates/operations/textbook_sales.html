@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Textbook sales · Mastex SchoolOS{% endblock %}
+{% block page_title %}Textbook sales{% endblock %}
+{% block page_subtitle %}{{ school.name }}.{% endblock %}
+{% block content %}
+<div class="table-card">
+    {% if sales %}
+    <table>
+        <thead>
+            <tr><th>Student</th><th>Textbook</th><th>Qty</th><th>Amount (GHS)</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+            {% for s in sales %}
+            <tr>
+                <td>{{ s.student.user.get_full_name|default:s.student.admission_number }}</td>
+                <td>{{ s.textbook.title }}</td>
+                <td>{{ s.quantity }}</td>
+                <td>{{ s.amount }}</td>
+                <td>{{ s.sale_date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No textbook sales yet.</div>
+    {% endif %}
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:textbook_list' %}" class="btn btn-secondary">Back to textbooks</a>
+</div>
+{% endblock %}

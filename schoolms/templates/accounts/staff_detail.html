@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ staff.get_full_name|default:staff.username }} · Mastex SchoolOS{% endblock %}
+{% block page_title %}{{ staff.get_full_name|default:staff.username }}{% endblock %}
+{% block page_subtitle %}Staff profile.{% endblock %}
+{% block content %}
+<div class="content-grid" style="grid-template-columns: 1fr;">
+    <section class="metric">
+        <div class="metric-label">Username</div>
+        <div class="metric-value">{{ staff.username }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Role</div>
+        <div class="metric-value">{{ staff.get_role_display }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Email</div>
+        <div class="metric-value">{{ staff.email|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Phone</div>
+        <div class="metric-value">{{ staff.phone|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">School</div>
+        <div class="metric-value">{{ staff.school.name|default:"—" }}</div>
+    </section>
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">Back to staff list</a>
+</div>
+{% endblock %}

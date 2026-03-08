@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Attendance · Mastex SchoolOS{% endblock %}
+{% block page_title %}Attendance{% endblock %}
+{% block page_subtitle %}Records for {{ school.name }}.{% endblock %}
+{% block content %}
+<div class="button-row">
+    <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">Mark attendance</a>
+</div>
+<div class="table-card">
+    {% if attendances %}
+    <table>
+        <thead>
+            <tr><th>Student</th><th>Date</th><th>Status</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+            {% for a in attendances %}
+            <tr>
+                <td>{{ a.student.user.get_full_name|default:a.student.admission_number }}</td>
+                <td>{{ a.date }}</td>
+                <td>{{ a.get_status_display }}</td>
+                <td>{{ a.notes|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No attendance records. <a href="{% url 'operations:attendance_mark' %}">Mark attendance</a>.</div>
+    {% endif %}
+</div>
+{% endblock %}

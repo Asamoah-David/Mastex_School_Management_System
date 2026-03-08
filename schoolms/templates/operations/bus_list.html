@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Bus · Mastex SchoolOS{% endblock %}
+{% block page_title %}Bus routes{% endblock %}
+{% block page_subtitle %}{{ school.name }}.{% endblock %}
+{% block content %}
+<div class="table-card">
+    {% if routes %}
+    <table>
+        <thead>
+            <tr><th>Route</th><th>Fee per term (GHS)</th></tr>
+        </thead>
+        <tbody>
+            {% for r in routes %}
+            <tr>
+                <td>{{ r.name }}</td>
+                <td>{{ r.fee_per_term }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No bus routes. Add them in <a href="/admin/operations/busroute/">Django Admin</a>.</div>
+    {% endif %}
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:bus_payments' %}" class="btn btn-secondary">View bus payments</a>
+</div>
+{% endblock %}

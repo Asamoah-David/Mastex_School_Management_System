@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Send Message · Mastex SchoolOS{% endblock %}
+{% block page_title %}Send SMS Message{% endblock %}
+{% block page_subtitle %}Send announcements to parents and students via SMS{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="id_recipient_type">Recipients</label>
+            <select id="id_recipient_type" name="recipient_type" required>
+                <option value="parents">All Parents</option>
+                <option value="students">All Students</option>
+                <option value="all">All Parents and Students</option>
+            </select>
+        </div>
+        
+        <div class="form-group mt-1">
+            <label for="id_message">Message</label>
+            <textarea id="id_message" name="message" rows="5" required placeholder="Enter your message here..."></textarea>
+        </div>
+        
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Send Message</button>
+        </div>
+    </form>
+</div>
+
+<div class="info-box">
+    <strong>Note:</strong> Messages are sent via MNotify SMS service. Ensure you have configured your MNOTIFY_API_KEY and MNOTIFY_SENDER_ID in the environment variables.
+</div>
+{% endblock %}

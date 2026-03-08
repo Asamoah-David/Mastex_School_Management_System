@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ student.user.get_full_name|default:student.user.username }} · Mastex SchoolOS{% endblock %}
+{% block page_title %}{{ student.user.get_full_name|default:student.user.username }}{% endblock %}
+{% block page_subtitle %}Admission: {{ student.admission_number }}{% endblock %}
+{% block content %}
+<div class="content-grid" style="grid-template-columns: 1fr;">
+    <section class="metric">
+        <div class="metric-label">Admission number</div>
+        <div class="metric-value">{{ student.admission_number }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Class</div>
+        <div class="metric-value">{{ student.class_name|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Email</div>
+        <div class="metric-value">{{ student.user.email|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Parent</div>
+        <div class="metric-value">{{ student.parent.get_full_name|default:student.parent.username|default:"—" }}</div>
+    </section>
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'students:student_list' %}" class="btn btn-secondary">Back to students</a>
+</div>
+{% endblock %}

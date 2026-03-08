@@ -1,0 +1,212 @@
+/* Mastex SchoolOS - Additional Styles */
+
+/* Form styles */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.85rem;
+    color: #9ca3af;
+    margin-bottom: 0.35rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.6rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    background: rgba(15, 23, 42, 0.9);
+    color: #e5e7eb;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+/* Utility classes */
+.mt-sm {
+    margin-top: 0.6rem;
+}
+
+.mt-1 {
+    margin-top: 1rem;
+}
+
+.mb-1 {
+    margin-bottom: 1rem;
+}
+
+/* Info box */
+.info-box {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    font-size: 0.85rem;
+    color: #9ca3af;
+}
+
+.info-box strong {
+    color: #e5e7eb;
+}
+
+/* Grid for forms */
+.form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 600px) {
+    .form-grid-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Links in content */
+.content-link {
+    color: #22c55e;
+    text-decoration: none;
+}
+
+.content-link:hover {
+    text-decoration: underline;
+}
+
+/* Headings */
+h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #e5e7eb;
+}
+
+/* Horizontal rule */
+hr {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* Metric link */
+.metric {
+    display: block;
+    text-decoration: none;
+}
+
+/* Message styles */
+.messages {
+    margin-bottom: 1rem;
+}
+
+.message-box {
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    background: rgba(249, 115, 115, 0.15);
+    color: #f97373;
+    font-size: 0.85rem;
+}
+
+/* Grid for details */
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+/* Detail card */
+.detail-card {
+    padding: 0.5rem;
+}
+
+.detail-label {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    margin-bottom: 0.25rem;
+}
+
+.detail-value {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #e5e7eb;
+}
+
+/* Fee status tags */
+.tag-paid {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: #22c55e;
+}
+
+.tag-unpaid {
+    background: rgba(249, 115, 115, 0.2);
+    border-color: #f97373;
+}
+
+.tag-paid .tag-bullet,
+.tag-unpaid .tag-bullet {
+    background: currentColor;
+}
+
+.tag-paid .tag-bullet {
+    background: #22c55e;
+}
+
+.tag-unpaid .tag-bullet {
+    background: #f97373;
+}
+
+/* Pay button */
+.btn-pay {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.75rem;
+}
+
+/* Links */
+a.content-link {
+    color: #22c55e;
+    text-decoration: none;
+}
+
+a.content-link:hover {
+    text-decoration: underline;
+}
+
+/* Section headings */
+.section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #e5e7eb;
+}
+
+.section-title-green {
+    font-size: 0.95rem;
+    color: #22c55e;
+    margin-bottom: 0.5rem;
+}
+
+/* Login link */
+.login-link {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+/* Form heading */
+.form-heading {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    color: #e5e7eb;
+}

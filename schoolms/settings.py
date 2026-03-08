@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent  # Points to schoolms/
 
+# Developer Information
+DEVELOPER_NAME = "ASAMOAH DAVID"
+DEVELOPER_EMAIL = "asamoadavi6917@6917"
+
 # Add schoolms/ to Python path for app imports
 sys.path.insert(0, str(BASE_DIR))
 
@@ -47,6 +51,7 @@ INSTALLED_APPS = [
     "schools",
     "services",
     "students",
+    "operations",
 ]
 
 MIDDLEWARE = [
@@ -130,15 +135,25 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", "")
 
 # security settings (Render terminates TLS; trust X-Forwarded-Proto)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # Required for POST requests (admin login, forms) behind Render's HTTPS
-CSRF_TRUSTED_ORIGINS = [
-    "https://mastex-school-management-sys.onrender.com",
-]
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
+# Add any custom ALLOWED_HOSTS to CSRF_TRUSTED_ORIGINS
+_csrf_origins = {f"https://{host}" for host in ALLOWED_HOSTS if host not in {"localhost", "127.0.0.1"}}
+CSRF_TRUSTED_ORIGINS = sorted(_csrf_origins | {f"https://{h}.onrender.com" for h in ALLOWED_HOSTS if ".onrender.com" in h})
+
+# Only enable security settings in production
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+else:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_BROWSER_XSS_FILTER = False
+    SECURE_CONTENT_TYPE_NOSNIFF = False
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

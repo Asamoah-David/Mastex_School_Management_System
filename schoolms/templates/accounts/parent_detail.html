@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Parent Details · Mastex SchoolOS{% endblock %}
+{% block page_title %}Parent Details{% endblock %}
+{% block page_subtitle %}{{ parent.get_full_name }} - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <h3 class="form-heading">Parent Information</h3>
+    <div class="detail-grid">
+        <div class="detail-card">
+            <div class="detail-label">Name</div>
+            <div class="detail-value">{{ parent.get_full_name }}</div>
+        </div>
+        <div class="detail-card">
+            <div class="detail-label">Username</div>
+            <div class="detail-value">{{ parent.username }}</div>
+        </div>
+        <div class="detail-card">
+            <div class="detail-label">Email</div>
+            <div class="detail-value">{{ parent.email|default:"-" }}</div>
+        </div>
+        <div class="detail-card">
+            <div class="detail-label">Phone</div>
+            <div class="detail-value">{{ parent.phone|default:"-" }}</div>
+        </div>
+    </div>
+</div>
+
+<h3 class="section-title">Linked Children</h3>
+<div class="table-card">
+    {% if children %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Admission Number</th>
+                    <th>Class</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for child in children %}
+                    <tr>
+                        <td>{{ child.user.get_full_name }}</td>
+                        <td>{{ child.admission_number }}</td>
+                        <td>{{ child.class_name }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            No children linked to this parent yet.
+        </div>
+    {% endif %}
+</div>
+
+<div class="button-row mt-sm">
+    <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">Back to Parents</a>
+</div>
+{% endblock %}

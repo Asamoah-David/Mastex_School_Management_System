@@ -1,0 +1,75 @@
+{% extends "base_login.html" %}
+
+{% block title %}Register School · Mastex SchoolOS{% endblock %}
+
+{% block content %}
+<form method="post" action="{% url 'school_register' %}">
+    {% csrf_token %}
+    
+    <h3 class="form-heading">School Information</h3>
+    
+    <div class="form-group">
+        <label for="id_school_name">School Name *</label>
+        <input id="id_school_name" name="school_name" type="text" required />
+    </div>
+    
+    <div class="form-group">
+        <label for="id_school_email">School Email</label>
+        <input id="id_school_email" name="school_email" type="email" />
+    </div>
+    
+    <div class="form-group">
+        <label for="id_school_phone">School Phone</label>
+        <input id="id_school_phone" name="school_phone" type="text" />
+    </div>
+    
+    <div class="form-group">
+        <label for="id_school_address">School Address</label>
+        <input id="id_school_address" name="school_address" type="text" />
+    </div>
+    
+    <h3 class="form-heading">Admin Account</h3>
+    
+    <div class="form-grid-2">
+        <div class="form-group">
+            <label for="id_admin_first_name">First Name</label>
+            <input id="id_admin_first_name" name="admin_first_name" type="text" />
+        </div>
+        <div class="form-group">
+            <label for="id_admin_last_name">Last Name</label>
+            <input id="id_admin_last_name" name="admin_last_name" type="text" />
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="id_admin_email">Admin Email</label>
+        <input id="id_admin_email" name="admin_email" type="email" />
+    </div>
+    
+    <div class="form-group">
+        <label for="id_admin_phone">Admin Phone</label>
+        <input id="id_admin_phone" name="admin_phone" type="text" />
+    </div>
+    
+    <div class="form-group">
+        <label for="id_username">Username *</label>
+        <input id="id_username" name="username" type="text" required />
+    </div>
+    
+    <div class="form-group">
+        <label for="id_password">Password *</label>
+        <input id="id_password" name="password" type="password" required />
+    </div>
+    
+    <div class="form-group">
+        <label for="id_confirm_password">Confirm Password *</label>
+        <input id="id_confirm_password" name="confirm_password" type="password" required />
+    </div>
+    
+    <button type="submit" class="btn btn-primary">Register School</button>
+    
+    <p class="login-link">
+        Already have an account? <a href="{% url 'accounts:login' %}" class="content-link">Sign in</a>
+    </p>
+</form>
+{% endblock %}

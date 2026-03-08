@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Staff · Mastex SchoolOS{% endblock %}
+{% block page_title %}Staff{% endblock %}
+{% block page_subtitle %}Teachers and school administrators.{% endblock %}
+{% block content %}
+<div class="button-row">
+    <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Register new staff</a>
+</div>
+<div class="table-card">
+    {% if staff_list %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Email</th>
+                {% if not school %}<th>School</th>{% endif %}
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in staff_list %}
+            <tr>
+                <td>{{ s.get_full_name|default:s.username }}</td>
+                <td>{{ s.username }}</td>
+                <td>{{ s.get_role_display }}</td>
+                <td>{{ s.email|default:"—" }}</td>
+                {% if not school %}<td>{{ s.school.name|default:"—" }}</td>{% endif %}
+                <td><a href="{% url 'accounts:staff_detail' s.pk %}" class="btn btn-secondary">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No staff registered yet. <a href="{% url 'accounts:staff_register' %}">Register staff</a>.</div>
+    {% endif %}
+</div>
+{% endblock %}

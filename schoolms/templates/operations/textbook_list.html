@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Textbooks · Mastex SchoolOS{% endblock %}
+{% block page_title %}Textbooks for sale{% endblock %}
+{% block page_subtitle %}{{ school.name }}.{% endblock %}
+{% block content %}
+<div class="table-card">
+    {% if books %}
+    <table>
+        <thead>
+            <tr><th>Title</th><th>Price (GHS)</th><th>Stock</th><th>ISBN</th></tr>
+        </thead>
+        <tbody>
+            {% for b in books %}
+            <tr>
+                <td>{{ b.title }}</td>
+                <td>{{ b.price }}</td>
+                <td>{{ b.stock }}</td>
+                <td>{{ b.isbn|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No textbooks. Add them in <a href="/admin/operations/textbook/">Django Admin</a>.</div>
+    {% endif %}
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:textbook_sales' %}" class="btn btn-secondary">View sales</a>
+</div>
+{% endblock %}

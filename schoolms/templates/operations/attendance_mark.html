@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Mark attendance · Mastex SchoolOS{% endblock %}
+{% block page_title %}Mark attendance{% endblock %}
+{% block page_subtitle %}{{ school.name }} — {{ date }}{% endblock %}
+{% block content %}
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="date" value="{{ date }}" />
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr><th>Student</th><th>Admission no.</th><th>Class</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                {% for s in students %}
+                <tr>
+                    <td>{{ s.user.get_full_name|default:s.user.username }}</td>
+                    <td>{{ s.admission_number }}</td>
+                    <td>{{ s.class_name|default:"—" }}</td>
+                    <td>
+                        <select name="status_{{ s.id }}">
+                            <option value="present" {% if s.attendance_status == "present" %}selected{% endif %}>Present</option>
+                            <option value="absent" {% if s.attendance_status == "absent" %}selected{% endif %}>Absent</option>
+                            <option value="late" {% if s.attendance_status == "late" %}selected{% endif %}>Late</option>
+                            <option value="excused" {% if s.attendance_status == "excused" %}selected{% endif %}>Excused</option>
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="button-row mt-sm">
+        <button type="submit" class="btn btn-primary">Save attendance</button>
+        <a href="{% url 'operations:attendance_list' %}" class="btn btn-secondary">Back</a>
+    </div>
+</form>
+{% endblock %}

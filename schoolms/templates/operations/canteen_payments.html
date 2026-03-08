@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Canteen payments · Mastex SchoolOS{% endblock %}
+{% block page_title %}Canteen payments{% endblock %}
+{% block page_subtitle %}{{ school.name }}.{% endblock %}
+{% block content %}
+<div class="table-card">
+    {% if payments %}
+    <table>
+        <thead>
+            <tr><th>Student</th><th>Amount (GHS)</th><th>Description</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+            {% for p in payments %}
+            <tr>
+                <td>{{ p.student.user.get_full_name|default:p.student.admission_number }}</td>
+                <td>{{ p.amount }}</td>
+                <td>{{ p.description|default:"—" }}</td>
+                <td>{{ p.payment_date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No canteen payments yet.</div>
+    {% endif %}
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:canteen_list' %}" class="btn btn-secondary">Back to canteen</a>
+</div>
+{% endblock %}

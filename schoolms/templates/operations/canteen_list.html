@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Canteen · Mastex SchoolOS{% endblock %}
+{% block page_title %}Canteen items{% endblock %}
+{% block page_subtitle %}{{ school.name }}.{% endblock %}
+{% block content %}
+<div class="table-card">
+    {% if items %}
+    <table>
+        <thead>
+            <tr><th>Item</th><th>Price (GHS)</th><th>Available</th></tr>
+        </thead>
+        <tbody>
+            {% for i in items %}
+            <tr>
+                <td>{{ i.name }}</td>
+                <td>{{ i.price }}</td>
+                <td>{{ i.is_available|yesno:"Yes,No" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No canteen items. Add them in <a href="/admin/operations/canteenitem/">Django Admin</a>.</div>
+    {% endif %}
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:canteen_payments' %}" class="btn btn-secondary">View payments</a>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Bus payments · Mastex SchoolOS{% endblock %}
+{% block page_title %}Bus payments{% endblock %}
+{% block page_subtitle %}{{ school.name }}.{% endblock %}
+{% block content %}
+<div class="table-card">
+    {% if payments %}
+    <table>
+        <thead>
+            <tr><th>Student</th><th>Amount (GHS)</th><th>Term</th><th>Paid</th></tr>
+        </thead>
+        <tbody>
+            {% for p in payments %}
+            <tr>
+                <td>{{ p.student.user.get_full_name|default:p.student.admission_number }}</td>
+                <td>{{ p.amount }}</td>
+                <td>{{ p.term_period|default:"—" }}</td>
+                <td>{{ p.paid|yesno:"Yes,No" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No bus payments yet.</div>
+    {% endif %}
+</div>
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:bus_list' %}" class="btn btn-secondary">Back to bus</a>
+</div>
+{% endblock %}

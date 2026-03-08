@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}My portal · Mastex SchoolOS{% endblock %}
+{% block page_title %}Student portal{% endblock %}
+{% block page_subtitle %}Your information and links.{% endblock %}
+{% block content %}
+{% if student %}
+<div class="content-grid" style="grid-template-columns: 1fr;">
+    <section class="metric">
+        <div class="metric-label">Admission number</div>
+        <div class="metric-value">{{ student.admission_number }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Class</div>
+        <div class="metric-value">{{ student.class_name|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">School</div>
+        <div class="metric-value">{{ student.school.name }}</div>
+    </section>
+</div>
+<p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-soft);">Use the menu to view results, pay fees, or contact the school.</p>
+{% else %}
+<div class="empty-state">No student record linked to your account. Please contact your school.</div>
+{% endif %}
+{% endblock %}
