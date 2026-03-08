@@ -1,7 +1,14 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
+
+
+def logout_view(request):
+    """Log out and redirect to login page (works with GET for link-based logout)."""
+    logout(request)
+    return redirect("accounts:login")
+
 
 def login_view(request):
     if request.method == "POST":
