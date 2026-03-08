@@ -6,34 +6,54 @@
 <div class="button-row">
     <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Register new staff</a>
 </div>
+
+{% if staff_by_role %}
+    {% for role_name, role_staff in staff_by_role.items %}
+    <div class="role-section">
+        <h3 class="role-header">{{ role_name }}s</h3>
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        {% if not school %}<th>School</th>{% endif %}
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in role_staff %}
+                    <tr>
+                        <td>{{ s.get_full_name|default:s.username }}</td>
+                        <td>{{ s.username }}</td>
+                        <td>{{ s.email|default:"—" }}</td>
+                        {% if not school %}<td>{{ s.school.name|default:"—" }}</td>{% endif %}
+                        <td><a href="{% url 'accounts:staff_detail' s.pk %}" class="btn btn-secondary">View</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
 <div class="table-card">
-    {% if staff_list %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Email</th>
-                {% if not school %}<th>School</th>{% endif %}
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for s in staff_list %}
-            <tr>
-                <td>{{ s.get_full_name|default:s.username }}</td>
-                <td>{{ s.username }}</td>
-                <td>{{ s.get_role_display }}</td>
-                <td>{{ s.email|default:"—" }}</td>
-                {% if not school %}<td>{{ s.school.name|default:"—" }}</td>{% endif %}
-                <td><a href="{% url 'accounts:staff_detail' s.pk %}" class="btn btn-secondary">View</a></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
     <div class="empty-state">No staff registered yet. <a href="{% url 'accounts:staff_register' %}">Register staff</a>.</div>
-    {% endif %}
 </div>
+{% endif %}
+
+<style>
+.role-section {
+    margin-top: 1rem;
+}
+.role-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #22c55e;
+    margin: 0.5rem 0;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(34, 197, 94, 0.3);
+}
+</style>
 {% endblock %}

@@ -88,7 +88,16 @@ def staff_list(request):
         staff = User.objects.filter(school=school, role__in=("admin", "teacher")).order_by("role", "username")
     else:
         staff = User.objects.filter(role__in=("admin", "teacher")).select_related("school").order_by("school", "username")
-    return render(request, "accounts/staff_list.html", {"staff_list": staff, "school": school})
+    
+    # Group staff by role
+    staff_by_role = {}
+    for s in staff:
+        role = s.get_role_display()  # This gets the display name like "Admin" or "Teacher"
+        if role not in staff_by_role:
+            staff_by_role[role] = []
+        staff_by_role[role].append(s)
+    
+    return render(request, "accounts/staff_list.html", {"staff_list": staff, "staff_by_role": staff_by_role, "school": school})
 
 
 @login_required
@@ -161,6 +170,7 @@ def parent_register(request):
         last_name = request.POST.get("last_name", "").strip()
         password = request.POST.get("password", "")
         phone = request.POST.get("phone", "").strip() or None
+        parent_type = request.POST.get("parent_type", "").strip() or None
         
         if username and password:
             if not User.objects.filter(username=username).exists():
@@ -173,6 +183,7 @@ def parent_register(request):
                     role="parent",
                     school=school,
                     phone=phone,
+                    parent_type=parent_type,
                 )
                 return redirect("accounts:parent_list")
     return render(request, "accounts/parent_register.html", {"school": school})

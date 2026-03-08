@@ -58,7 +58,16 @@ def student_list(request):
     if not school:
         return redirect("home")
     students = Student.objects.filter(school=school).select_related("user", "parent").order_by("class_name", "admission_number")
-    return render(request, "students/student_list.html", {"students": students, "school": school})
+    
+    # Group students by class
+    students_by_class = {}
+    for student in students:
+        class_name = student.class_name or "Unassigned"
+        if class_name not in students_by_class:
+            students_by_class[class_name] = []
+        students_by_class[class_name].append(student)
+    
+    return render(request, "students/student_list.html", {"students": students, "students_by_class": students_by_class, "school": school})
 
 
 @login_required

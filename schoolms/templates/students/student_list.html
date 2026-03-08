@@ -6,32 +6,52 @@
 <div class="button-row">
     <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register new student</a>
 </div>
+
+{% if students_by_class %}
+    {% for class_name, class_students in students_by_class.items %}
+    <div class="class-section">
+        <h3 class="class-header">{{ class_name }}</h3>
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Admission no.</th>
+                        <th>Parent</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in class_students %}
+                    <tr>
+                        <td>{{ s.user.get_full_name|default:s.user.username }}</td>
+                        <td>{{ s.admission_number }}</td>
+                        <td>{{ s.parent.get_full_name|default:s.parent.username|default:"—" }}</td>
+                        <td><a href="{% url 'students:student_detail' s.pk %}" class="btn btn-secondary">View</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
 <div class="table-card">
-    {% if students %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Admission no.</th>
-                <th>Class</th>
-                <th>Parent</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for s in students %}
-            <tr>
-                <td>{{ s.user.get_full_name|default:s.user.username }}</td>
-                <td>{{ s.admission_number }}</td>
-                <td>{{ s.class_name|default:"—" }}</td>
-                <td>{{ s.parent.get_full_name|default:s.parent.username|default:"—" }}</td>
-                <td><a href="{% url 'students:student_detail' s.pk %}" class="btn btn-secondary">View</a></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
     <div class="empty-state">No students yet. <a href="{% url 'students:student_register' %}">Register a student</a>.</div>
-    {% endif %}
 </div>
+{% endif %}
+
+<style>
+.class-section {
+    margin-top: 1rem;
+}
+.class-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #22c55e;
+    margin: 0.5rem 0;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(34, 197, 94, 0.3);
+}
+</style>
 {% endblock %}
