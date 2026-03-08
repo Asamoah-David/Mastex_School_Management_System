@@ -10,19 +10,89 @@
 {% block extrastyle %}
 {{ block.super }}
 <style>
-    #header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-bottom: 1px solid rgba(34, 197, 94, 0.4); }
+    /* Header styling */
+    #header { 
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+        border-bottom: 1px solid rgba(34, 197, 94, 0.4); 
+    }
+    #header a { color: #ffffff !important; }
     #branding h1 a { color: #22c55e !important; font-weight: 600; }
     #branding h1 a:hover { color: #4ade80 !important; }
-    .module h2, .module caption { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important; color: #ffffff !important; font-weight: 600 !important; }
+    
+    /* Module headers - green bg with white text */
+    .module h2, .module caption { 
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important; 
+        color: #ffffff !important; 
+        font-weight: 600 !important; 
+    }
+    
+    /* App headers in changelist */
+    .app-schoolms table thead th, 
+    .app-accounts table thead th,
+    .app-students table thead th,
+    .app-finance table thead th,
+    .app-academics table thead th,
+    .app-operations table thead th {
+        background: #0f172a !important;
+        color: #ffffff !important;
+    }
+    
+    /* Model section headers */
+    .model-group th {
+        background: #1e293b !important;
+        color: #22c55e !important;
+    }
+    
+    /* Links */
     a:link, a:visited { color: #22c55e !important; }
     a:hover { color: #4ade80 !important; }
     #user-tools a:hover { color: #4ade80 !important; }
-    .button, input[type=submit] { background: linear-gradient(135deg, #22c55e, #16a34a) !important; color: #ffffff !important; border: none !important; font-weight: 600 !important; }
-    .button:hover, input[type=submit]:hover { background: linear-gradient(135deg, #4ade80, #22c55e) !important; }
-    .submit-row input { color: #ffffff !important; }
-    input[type=text], input[type=password], input[type=email], select, textarea { background: #1e293b !important; color: #ffffff !important; border: 1px solid #475569 !important; }
+    
+    /* Buttons */
+    .button, input[type=submit], .submit-row input { 
+        background: linear-gradient(135deg, #22c55e, #16a34a) !important; 
+        color: #ffffff !important; 
+        border: none !important; 
+        font-weight: 600 !important; 
+    }
+    .button:hover, input[type=submit]:hover { 
+        background: linear-gradient(135deg, #4ade80, #22c55e) !important; 
+    }
+    
+    /* Form inputs */
+    input[type=text], input[type=password], input[type=email], select, textarea { 
+        background: #1e293b !important; 
+        color: #ffffff !important; 
+        border: 1px solid #475569 !important; 
+    }
+    
+    /* Labels */
     label { color: #94a3b8 !important; }
+    
+    /* Form rows */
     .form-row { border-bottom: 1px solid #334155 !important; }
+    
+    /* Table headers */
+    thead th { 
+        background: #0f172a !important; 
+        color: #ffffff !important; 
+    }
+    
+    /* Change list headers */
+    #result_list thead th {
+        background: #0f172a !important;
+        color: #ffffff !important;
+    }
+    
+    /* Text colors */
+    .text, p { color: #e5e7eb !important; }
+    
+    /* Deleted message */
+    .success { 
+        background: rgba(34, 197, 94, 0.2) !important; 
+        color: #22c55e !important; 
+        border: 1px solid #22c55e !important;
+    }
 </style>
 {% endblock %}
 

@@ -3,11 +3,16 @@
 {% block page_title %}Textbooks for sale{% endblock %}
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
+<div class="button-row">
+    <a href="/admin/operations/textbook/add/" class="btn btn-primary">Add Textbook</a>
+    <a href="{% url 'operations:textbook_sales' %}" class="btn btn-secondary">View Sales</a>
+</div>
+
 <div class="table-card">
     {% if books %}
     <table>
         <thead>
-            <tr><th>Title</th><th>Price (GHS)</th><th>Stock</th><th>ISBN</th></tr>
+            <tr><th>Title</th><th>Price (GHS)</th><th>Stock</th><th>ISBN</th><th></th></tr>
         </thead>
         <tbody>
             {% for b in books %}
@@ -16,15 +21,24 @@
                 <td>{{ b.price }}</td>
                 <td>{{ b.stock }}</td>
                 <td>{{ b.isbn|default:"—" }}</td>
+                <td><a href="{% url 'operations:textbook_delete' b.pk %}" class="btn btn-danger btn-sm">Delete</a></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <div class="empty-state">No textbooks. Add them in <a href="/admin/operations/textbook/">Django Admin</a>.</div>
+    <div class="empty-state">No textbooks. Click "Add Textbook" to create one.</div>
     {% endif %}
 </div>
-<div class="button-row mt-sm">
-    <a href="{% url 'operations:textbook_sales' %}" class="btn btn-secondary">View sales</a>
-</div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
+}
+</style>
 {% endblock %}

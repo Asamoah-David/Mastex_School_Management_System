@@ -131,3 +131,63 @@ def textbook_sales(request):
         return redirect("home")
     sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")[:200]
     return render(request, "operations/textbook_sales.html", {"sales": sales, "school": school})
+
+
+@login_required
+def canteen_item_delete(request, pk):
+    """Delete a canteen item."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    item = get_object_or_404(CanteenItem, pk=pk, school=school)
+    if request.method == "POST":
+        item.delete()
+        from django.contrib import messages
+        messages.success(request, "Canteen item deleted successfully!")
+        return redirect("operations:canteen_list")
+    return render(request, "operations/confirm_delete.html", {"object": item, "type": "canteen item"})
+
+
+@login_required
+def bus_route_delete(request, pk):
+    """Delete a bus route."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    route = get_object_or_404(BusRoute, pk=pk, school=school)
+    if request.method == "POST":
+        route.delete()
+        from django.contrib import messages
+        messages.success(request, "Bus route deleted successfully!")
+        return redirect("operations:bus_list")
+    return render(request, "operations/confirm_delete.html", {"object": route, "type": "bus route"})
+
+
+@login_required
+def textbook_delete(request, pk):
+    """Delete a textbook."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    book = get_object_or_404(Textbook, pk=pk, school=school)
+    if request.method == "POST":
+        book.delete()
+        from django.contrib import messages
+        messages.success(request, "Textbook deleted successfully!")
+        return redirect("operations:textbook_list")
+    return render(request, "operations/confirm_delete.html", {"object": book, "type": "textbook"})
+
+
+@login_required
+def attendance_delete(request, pk):
+    """Delete an attendance record."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    attendance = get_object_or_404(StudentAttendance, pk=pk, school=school)
+    if request.method == "POST":
+        attendance.delete()
+        from django.contrib import messages
+        messages.success(request, "Attendance record deleted successfully!")
+        return redirect("operations:attendance_list")
+    return render(request, "operations/confirm_delete.html", {"object": attendance, "type": "attendance record"})

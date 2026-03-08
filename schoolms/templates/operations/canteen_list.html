@@ -3,11 +3,16 @@
 {% block page_title %}Canteen items{% endblock %}
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
+<div class="button-row">
+    <a href="/admin/operations/canteenitem/add/" class="btn btn-primary">Add Item</a>
+    <a href="{% url 'operations:canteen_payments' %}" class="btn btn-secondary">View Payments</a>
+</div>
+
 <div class="table-card">
     {% if items %}
     <table>
         <thead>
-            <tr><th>Item</th><th>Price (GHS)</th><th>Available</th></tr>
+            <tr><th>Item</th><th>Price (GHS)</th><th>Available</th><th></th></tr>
         </thead>
         <tbody>
             {% for i in items %}
@@ -15,15 +20,24 @@
                 <td>{{ i.name }}</td>
                 <td>{{ i.price }}</td>
                 <td>{{ i.is_available|yesno:"Yes,No" }}</td>
+                <td><a href="{% url 'operations:canteen_item_delete' i.pk %}" class="btn btn-danger btn-sm">Delete</a></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <div class="empty-state">No canteen items. Add them in <a href="/admin/operations/canteenitem/">Django Admin</a>.</div>
+    <div class="empty-state">No canteen items. Click "Add Item" to create one.</div>
     {% endif %}
 </div>
-<div class="button-row mt-sm">
-    <a href="{% url 'operations:canteen_payments' %}" class="btn btn-secondary">View payments</a>
-</div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
+}
+</style>
 {% endblock %}

@@ -3,26 +3,40 @@
 {% block page_title %}Bus routes{% endblock %}
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
+<div class="button-row">
+    <a href="/admin/operations/busroute/add/" class="btn btn-primary">Add Route</a>
+    <a href="{% url 'operations:bus_payments' %}" class="btn btn-secondary">View Payments</a>
+</div>
+
 <div class="table-card">
     {% if routes %}
     <table>
         <thead>
-            <tr><th>Route</th><th>Fee per term (GHS)</th></tr>
+            <tr><th>Route</th><th>Fee per term (GHS)</th><th></th></tr>
         </thead>
         <tbody>
             {% for r in routes %}
             <tr>
                 <td>{{ r.name }}</td>
                 <td>{{ r.fee_per_term }}</td>
+                <td><a href="{% url 'operations:bus_route_delete' r.pk %}" class="btn btn-danger btn-sm">Delete</a></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <div class="empty-state">No bus routes. Add them in <a href="/admin/operations/busroute/">Django Admin</a>.</div>
+    <div class="empty-state">No bus routes. Click "Add Route" to create one.</div>
     {% endif %}
 </div>
-<div class="button-row mt-sm">
-    <a href="{% url 'operations:bus_payments' %}" class="btn btn-secondary">View bus payments</a>
-</div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
+}
+</style>
 {% endblock %}
