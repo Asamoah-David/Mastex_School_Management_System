@@ -15,6 +15,7 @@
             --accent-soft: rgba(34, 197, 94, 0.1);
             --accent-strong: rgba(34, 197, 94, 0.3);
             --danger: #f97373;
+            --success: #22c55e;
             --border-subtle: rgba(148, 163, 184, 0.4);
             --text-main: #e5e7eb;
             --text-muted: #9ca3af;
@@ -455,6 +456,17 @@
             transform: translateY(-1px);
         }
 
+        .btn-print {
+            background: rgba(59, 130, 246, 0.9);
+            color: white;
+            border-color: rgba(59, 130, 246, 0.6);
+        }
+
+        .btn-print:hover {
+            background: rgba(59, 130, 246, 1);
+            border-color: rgba(59, 130, 246, 0.8);
+        }
+
         .badge-pill {
             padding: 0.18rem 0.6rem;
             border-radius: 999px;
@@ -517,6 +529,19 @@
             background: rgba(15, 23, 42, 0.9);
             border: 1px solid rgba(148, 163, 184, 0.4);
         }
+
+        /* Success messages - green instead of red */
+        .messages .message-box.success {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; color: black; }
+            .content-card, .table-card { box-shadow: none; border: 1px solid #ccc; }
+        }
     </style>
 </head>
 <body>
@@ -538,7 +563,6 @@
                     </div>
                     <a href="{% url 'accounts:logout' %}" class="btn btn-secondary btn-danger">Log out</a>
                     {% else %}
-                    <a href="{% url 'school_register' %}" class="btn btn-secondary">Register School</a>
                     <a href="{% url 'accounts:login' %}" class="btn btn-primary">Sign in</a>
                     {% endif %}
                 </div>
@@ -556,7 +580,7 @@
                                     <span class="nav-item-title">Overview</span>
                                     <span class="nav-item-subtitle">Key metrics at a glance</span>
                                 </div>
-                                <span class="nav-badge">Admin</span>
+                                <span class="nav-badge">{% if not user.school %}Admin{% else %}School{% endif %}</span>
                             </a>
                         </li>
                         {% if user.school %}
@@ -617,6 +641,14 @@
                             </a>
                         </li>
                         <li>
+                            <a href="{% url 'accounts:parent_list' %}" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Parents</span>
+                                    <span class="nav-item-subtitle">Manage parents</span>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
                             <a href="{% url 'messaging:send_message' %}" class="nav-item">
                                 <div class="nav-item-label">
                                     <span class="nav-item-title">Messaging</span>
@@ -624,40 +656,42 @@
                                 </div>
                             </a>
                         </li>
-                        {% else %}
                         <li>
-                            <a href="/admin/schools/school/" class="nav-item">
+                            <a href="{% url 'ai_assistant:chat' %}" class="nav-item">
                                 <div class="nav-item-label">
-                                    <span class="nav-item-title">Schools</span>
-                                    <span class="nav-item-subtitle">Manage schools</span>
+                                    <span class="nav-item-title">AI Assistant</span>
+                                    <span class="nav-item-subtitle">Get AI help</span>
                                 </div>
                             </a>
                         </li>
-                        <li>
-                            <a href="/admin/students/student/" class="nav-item">
-                                <div class="nav-item-label">
-                                    <span class="nav-item-title">Students</span>
-                                    <span class="nav-item-subtitle">All students</span>
-                                </div>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="/admin/finance/fee/" class="nav-item">
-                                <div class="nav-item-label">
-                                    <span class="nav-item-title">Fees & Billing</span>
-                                    <span class="nav-item-subtitle">All fees</span>
-                                </div>
-                            </a>
-                        </li>
-                        {% endif %}
+                        {% if user.is_superuser %}
                         <li>
                             <a href="/admin/" class="nav-item">
                                 <div class="nav-item-label">
-                                    <span class="nav-item-title">Django Admin</span>
+                                    <span class="nav-item-title">Mastex Admin</span>
                                     <span class="nav-item-subtitle">Full admin</span>
                                 </div>
                             </a>
                         </li>
+                        {% endif %}
+                        {% else %}
+                        <li>
+                            <a href="{% url 'school_register' %}" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Register School</span>
+                                    <span class="nav-item-subtitle">Add new school</span>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/admin/" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Mastex Admin</span>
+                                    <span class="nav-item-subtitle">Full admin</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% endif %}
                     </ul>
                     <div class="nav-footer">
                         Smart, secure, and automated tools to keep your school running smoothly.

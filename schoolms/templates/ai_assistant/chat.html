@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}AI Assistant · Mastex SchoolOS{% endblock %}
+{% block page_title %}AI Assistant{% endblock %}
+{% block page_subtitle %}Get help with school management using AI{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <p>Ask the AI assistant any questions about school management, student records, fees, or any other topic.</p>
+    
+    <form method="post" class="mt-1">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="id_message">Your Question</label>
+            <textarea id="id_message" name="message" rows="4" placeholder="How do I add a new student?"></textarea>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Ask AI</button>
+        </div>
+    </form>
+    
+    {% if user_message %}
+    <div class="mt-1">
+        <div class="form-group">
+            <label>Your Question:</label>
+            <div style="padding: 0.75rem; background: rgba(15,23,42,0.9); border-radius: 0.5rem; margin-top: 0.25rem;">
+                {{ user_message }}
+            </div>
+        </div>
+        
+        <div class="form-group mt-1">
+            <label>AI Response:</label>
+            <div style="padding: 0.75rem; background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.4); border-radius: 0.5rem; margin-top: 0.25rem; color: #22c55e;">
+                {{ ai_response|linebreaks }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
