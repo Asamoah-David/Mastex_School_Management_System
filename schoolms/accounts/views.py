@@ -9,7 +9,7 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user:
             login(request, user)
-            return redirect("dashboard")
+            return redirect("home")
     return render(request, "accounts/login.html")
 
 @login_required
