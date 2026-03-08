@@ -63,7 +63,10 @@
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            text-decoration: none;
+            color: inherit;
         }
+        .brand:hover { opacity: 0.9; }
 
         .brand-mark {
             width: 34px;
@@ -210,8 +213,10 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            cursor: default;
+            text-decoration: none;
+            transition: background 0.15s, color 0.15s;
         }
+        .nav-item:hover { color: var(--text-main); background: rgba(148,163,184,0.08); }
 
         .nav-item--active {
             background: radial-gradient(circle at 0 0, var(--accent-soft) 0, rgba(15, 23, 42, 0.98) 42%);
@@ -492,28 +497,46 @@
         .footer-link:hover {
             color: var(--text-main);
         }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--danger);
+            border-color: rgba(249, 115, 115, 0.6);
+        }
+        .btn-danger:hover {
+            background: rgba(249, 115, 115, 0.15);
+            border-color: var(--danger);
+        }
+        code {
+            font-size: 0.85em;
+            padding: 0.15rem 0.4rem;
+            border-radius: 0.35rem;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+        }
     </style>
 </head>
 <body>
     <div class="app-shell">
         <header>
             <div class="nav">
-                <div class="brand">
+                <a href="{% url 'home' %}" class="brand">
                     <div class="brand-mark">MS</div>
                     <div class="brand-text">
                         <div class="brand-title">Mastex SchoolOS</div>
                         <div class="brand-subtitle">Unified school administration suite</div>
                     </div>
-                </div>
+                </a>
                 <div class="nav-actions">
+                    {% if user.is_authenticated %}
                     <div class="pill">
                         <span class="pill-dot"></span>
-                        LIVE SCHOOL INSTANCE
+                        {{ user.get_full_name|default:user.username }}
                     </div>
-                    <div class="user-pill">
-                        <span class="user-avatar">SA</span>
-                        <span>Signed in</span>
-                    </div>
+                    <a href="{% url 'accounts:logout' %}" class="btn btn-secondary btn-danger">Log out</a>
+                    {% else %}
+                    <a href="{% url 'accounts:login' %}" class="btn btn-primary">Sign in</a>
+                    {% endif %}
                 </div>
             </div>
         </header>
@@ -523,30 +546,46 @@
                 <div class="sidebar-card">
                     <div class="sidebar-section-title">Navigation</div>
                     <ul class="nav-list">
-                        <li class="nav-item nav-item--active">
-                            <div class="nav-item-label">
-                                <span class="nav-item-title">Overview</span>
-                                <span class="nav-item-subtitle">Key metrics at a glance</span>
-                            </div>
-                            <span class="nav-badge">Admin</span>
+                        <li>
+                            <a href="{% url 'home' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'home' %}nav-item--active{% endif %}">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Overview</span>
+                                    <span class="nav-item-subtitle">Key metrics at a glance</span>
+                                </div>
+                                <span class="nav-badge">Admin</span>
+                            </a>
                         </li>
-                        <li class="nav-item">
-                            <div class="nav-item-label">
-                                <span class="nav-item-title">Students</span>
-                                <span class="nav-item-subtitle">Admissions & guardians</span>
-                            </div>
+                        <li>
+                            <a href="/admin/schools/school/" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Schools</span>
+                                    <span class="nav-item-subtitle">Manage schools & subscriptions</span>
+                                </div>
+                            </a>
                         </li>
-                        <li class="nav-item">
-                            <div class="nav-item-label">
-                                <span class="nav-item-title">Fees & Billing</span>
-                                <span class="nav-item-subtitle">Subscriptions & unpaid fees</span>
-                            </div>
+                        <li>
+                            <a href="/admin/students/student/" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Students</span>
+                                    <span class="nav-item-subtitle">Admissions & guardians</span>
+                                </div>
+                            </a>
                         </li>
-                        <li class="nav-item">
-                            <div class="nav-item-label">
-                                <span class="nav-item-title">Messaging</span>
-                                <span class="nav-item-subtitle">Bulk SMS & alerts</span>
-                            </div>
+                        <li>
+                            <a href="/admin/finance/fee/" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Fees & Billing</span>
+                                    <span class="nav-item-subtitle">Subscriptions & unpaid fees</span>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/admin/" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">Django Admin</span>
+                                    <span class="nav-item-subtitle">Full admin interface</span>
+                                </div>
+                            </a>
                         </li>
                     </ul>
                     <div class="nav-footer">

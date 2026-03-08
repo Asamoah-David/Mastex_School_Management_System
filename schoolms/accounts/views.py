@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
+from django.db.models import Sum
 
 def login_view(request):
     if request.method == "POST":
@@ -16,4 +17,20 @@ def login_view(request):
 def dashboard(request):
     if request.user.role == "parent":
         return redirect("students:parent_dashboard")
-    return render(request, "dashboard.html")
+
+    from schools.models import School
+    from students.models import Student
+    from finance.models import Fee
+
+    total_schools = School.objects.filter(is_active=True).count()
+    total_students = Student.objects.count()
+    paid_fees = Fee.objects.filter(paid=True).aggregate(total=Sum("amount"))["total"] or 0
+    unpaid_count = Fee.objects.filter(paid=False).count()
+
+    context = {
+        "total_schools": total_schools,
+        "total_students": total_students,
+        "mrr": int(paid_fees),
+        "unpaid_fees_count": unpaid_count,
+    }
+    return render(request, "dashboard.html", context)
