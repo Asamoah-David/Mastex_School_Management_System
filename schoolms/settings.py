@@ -128,7 +128,12 @@ FLW_WEBHOOK_SECRET = env("FLW_WEBHOOK_SECRET", "")
 # OpenAI
 OPENAI_API_KEY = env("OPENAI_API_KEY", "")
 
-# security settings
+# security settings (Render terminates TLS; trust X-Forwarded-Proto)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# Required for POST requests (admin login, forms) behind Render's HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    "https://mastex-school-management-sys.onrender.com",
+]
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
