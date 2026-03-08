@@ -10,6 +10,6 @@ ROLE_CHOICES = (
 )
 
 class User(AbstractUser):
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="admin")
     school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True, null=True)

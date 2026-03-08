@@ -11,11 +11,18 @@ python manage.py migrate
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Optional: Create admin superuser if not exists (with error handling)
+# Create admin superuser if none exists (requires DJANGO_SUPERUSER_PASSWORD in env)
 echo "Checking for admin superuser..."
-if ! python manage.py shell -c "from django.contrib.auth.models import User; print('Superuser exists')" 2>/dev/null; then
-    python manage.py createsuperuser --noinput --username admin --email admin@example.com || echo "Superuser creation skipped or failed"
-fi
+python manage.py shell -c "
+import os
+from accounts.models import User
+pwd = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
+if not User.objects.filter(is_superuser=True).exists() and pwd:
+    User.objects.create_superuser('admin', 'admin@example.com', password=pwd)
+    print('Superuser created.')
+else:
+    print('Superuser already exists.')
+"
 
 # Start Gunicorn server using Render's port
 echo "Starting Gunicorn..."
