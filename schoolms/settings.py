@@ -23,7 +23,8 @@ def env(name, default=None, required=False):
     return val
 
 SECRET_KEY = env("SECRET_KEY", "unsafe-local-secret")
-DEBUG = env("DEBUG", "True") == "True"
+# Force DEBUG=True for local development unless DATABASE_URL is set (production)
+DEBUG = not bool(os.getenv("DATABASE_URL"))
 
 # Always allow localhost and Render; merge with any explicit env values
 _required = {"localhost", "127.0.0.1", ".onrender.com"}
@@ -87,16 +88,25 @@ TEMPLATES = [
 WSGI_APPLICATION = "schoolms.wsgi.application"
 
 # default database for local dev; overridden by DATABASE_URL below
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "schoolms",
-        "USER": "postgres",
-        "PASSWORD": "postgres",
-        "HOST": "db",
-        "PORT": "5432",
+# Use SQLite for local development (when DEBUG=True), PostgreSQL for production
+if DEBUG:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "schoolms",
+            "USER": "postgres",
+            "PASSWORD": "postgres",
+            "HOST": "db",
+            "PORT": "5432",
+        }
+    }
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -160,6 +170,28 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
 ]
 
+# Logging configuration
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "ERROR",
+    },
+    "loggers": {
+        "schools": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+    },
+}
+
 # Auth redirects
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
@@ -169,5 +201,5 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 import dj_database_url
 
 database_url = os.getenv("DATABASE_URL")
-if database_url:
+if database_url and database_url.strip():
     DATABASES["default"] = dj_database_url.config(default=database_url)
