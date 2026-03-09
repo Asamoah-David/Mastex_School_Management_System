@@ -99,13 +99,28 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3 mb-2">
-                            <a href="{% url 'accounts:staff_list' %}" class="btn btn-primary btn-block">
+                            <a href="{% url 'students:student_register' %}" class="btn btn-primary btn-block">
+                                <i class="fas fa-user-plus"></i> Add Student
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary btn-block">
+                                <i class="fas fa-user-tie"></i> Add Staff
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{% url 'accounts:staff_list' %}" class="btn btn-info btn-block">
                                 <i class="fas fa-users"></i> Manage Staff
                             </a>
                         </div>
                         <div class="col-md-3 mb-2">
                             <a href="{% url 'students:student_list' %}" class="btn btn-info btn-block">
                                 <i class="fas fa-user-graduate"></i> Manage Students
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{% url 'students:promote_students' %}" class="btn btn-warning btn-block">
+                                <i class="fas fa-graduation-cap"></i> Promote Students
                             </a>
                         </div>
                         <div class="col-md-3 mb-2">

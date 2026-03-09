@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard · Mastex SchoolOS{% endblock %}
-{% block page_title %}Admin overview{% endblock %}
-{% block page_subtitle %}Monitor key school metrics and subscription performance in real time.{% endblock %}
+{% block title %}Super Admin Dashboard · Mastex SchoolOS{% endblock %}
+{% block page_title %}Super Admin Dashboard{% endblock %}
+{% block page_subtitle %}Manage all schools on the platform.{% endblock %}
 
 {% block content %}
 <div class="content-grid">
@@ -19,6 +19,22 @@
         <div class="metric-value">{{ total_students|default:"0" }}</div>
         <div class="metric-caption">
             Learners managed across all schools.
+        </div>
+    </section>
+
+    <section class="metric">
+        <div class="metric-label">Total staff</div>
+        <div class="metric-value">{{ total_staff|default:"0" }}</div>
+        <div class="metric-caption">
+            Teachers and administrators across all schools.
+        </div>
+    </section>
+
+    <section class="metric">
+        <div class="metric-label">Total parents</div>
+        <div class="metric-value">{{ total_parents|default:"0" }}</div>
+        <div class="metric-caption">
+            Parents registered on the platform.
         </div>
     </section>
 
@@ -40,41 +56,29 @@
 </div>
 
 <div class="button-row mt-sm">
-    {% if school %}
-    <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Register staff</a>
-    <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register student</a>
-    <a href="{% url 'operations:attendance_mark' %}" class="btn btn-secondary">Mark attendance</a>
-    <a href="/admin/finance/fee/" class="btn btn-secondary">View fees</a>
-    {% else %}
-    <a href="{% url 'school_register' %}" class="btn btn-primary">Register School</a>
-    <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Register Staff</a>
-    <a href="{% url 'students:student_register' %}" class="btn btn-secondary">Add Student</a>
-    <a href="/admin/finance/fee/" class="btn btn-secondary">Manage Fees</a>
-    {% endif %}
+    <a href="{% url 'school_register' %}" class="btn btn-primary">Add New School</a>
+    <a href="/admin/schools/school/" class="btn btn-secondary">Manage Schools</a>
+    <a href="/admin/accounts/user/" class="btn btn-secondary">Manage Users</a>
 </div>
 
 <hr class="section-divider">
 
-<h3 class="section-subtitle">How schools, parents & staff get access (SaaS)</h3>
+<h3 class="section-subtitle">Platform Overview</h3>
 <div class="content-grid single-column">
     <section class="metric metric-info">
-        <div class="metric-label">1. Schools</div>
-        <div class="metric-value">You add a school in Django Admin → Schools. Each school gets a unique subdomain and Stripe/Flutterwave billing. The school admin is created and invited.</div>
+        <div class="metric-label">Managing Schools</div>
+        <div class="metric-value">Each school operates independently with its own data, staff, students, and fee structure.</div>
     </section>
     <section class="metric metric-info">
-        <div class="metric-label">2. Staff (teachers, school admins)</div>
-        <div class="metric-value">Created under Accounts → Users with <code>school</code> and <code>role</code> set. They log in at the same URL and see only their school's data.</div>
+        <div class="metric-label">School Access</div>
+        <div class="metric-value">School admins and staff log in here and are redirected to their school-specific dashboard where they manage their own students, fees, and operations.</div>
     </section>
     <section class="metric metric-info">
-        <div class="metric-label">3. Parents</div>
-        <div class="metric-value">When a Student is linked to a parent (User with role=parent), the parent logs in and sees their children on the Parent Dashboard. You create parent users and link them to students.</div>
-    </section>
-    <section class="metric metric-info">
-        <div class="metric-label">4. Students</div>
-        <div class="metric-value">Each student has a User (role=student) linked via Student.user. Students can log in to view results and pay fees.</div>
+        <div class="metric-label">Parent & Student Access</div>
+        <div class="metric-value">Parents and students also log in through this portal and see their respective dashboards (Parent Portal or Student Portal).</div>
     </section>
 </div>
 <p class="help-text">
-    <strong>Next step:</strong> Add a School, then create Users (staff/parents/students) and link them. Use Django Admin for full CRUD. For a public school signup flow, you can add a registration page later.
+    <strong>Note:</strong> School staff, students, and parents are managed by each school's admin through their school dashboard. Use Django Admin for platform-wide user management.
 </p>
 {% endblock %}

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import parent_dashboard, student_list, student_detail, student_register, student_delete
+from .views import parent_dashboard, student_list, student_detail, student_register, student_delete, promote_students
 
 app_name = "students"
 
@@ -9,4 +9,5 @@ urlpatterns = [
     path("detail/<int:pk>/", student_detail, name="student_detail"),
     path("register/", student_register, name="student_register"),
     path("delete/<int:pk>/", student_delete, name="student_delete"),
+    path("promote/", promote_students, name="promote_students"),
 ]

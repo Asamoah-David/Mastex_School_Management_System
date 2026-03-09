@@ -11,34 +11,25 @@
     {% for role_name, role_staff in staff_by_role.items %}
     <div class="role-section">
         <h3 class="role-header">{{ role_name }}s</h3>
-        <div class="table-card">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        {% if not school %}<th>School</th>{% endif %}
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in role_staff %}
-                    <tr>
-                        <td>{{ s.get_full_name|default:s.username }}</td>
-                        <td>{{ s.username }}</td>
-                        <td>{{ s.email|default:"—" }}</td>
-                        <td>{{ s.phone|default:"—" }}</td>
-                        {% if not school %}<td>{{ s.school.name|default:"—" }}</td>{% endif %}
-                        <td>
-                            <a href="{% url 'accounts:staff_detail' s.pk %}" class="btn btn-secondary btn-sm">View</a>
-                            <a href="{% url 'accounts:staff_delete' s.pk %}" class="btn btn-danger btn-sm">Delete</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="staff-grid">
+            {% for s in role_staff %}
+            <div class="staff-card">
+                <div class="staff-avatar">
+                    {{ s.first_name|default:s.username|truncatechars:1|upper }}
+                </div>
+                <div class="staff-info">
+                    <div class="staff-name">{{ s.get_full_name|default:s.username }}</div>
+                    <div class="staff-role">{{ s.get_role_display }}</div>
+                    <div class="staff-details">
+                        <span><i class="fas fa-envelope"></i> {{ s.email|default:"—" }}</span>
+                        <span><i class="fas fa-phone"></i> {{ s.phone|default:"—" }}</span>
+                    </div>
+                </div>
+                <div class="staff-actions">
+                    <a href="{% url 'accounts:staff_detail' s.pk %}" class="btn btn-secondary btn-sm">View</a>
+                </div>
+            </div>
+            {% endfor %}
         </div>
     </div>
     {% endfor %}
@@ -58,13 +49,73 @@
     padding: 0.25rem 0;
     border-bottom: 1px solid rgba(34, 197, 94, 0.3);
 }
-.btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+.staff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
 }
-.btn-danger {
-    background: linear-gradient(135deg, #f97373, #dc2626) !important;
-    color: #ffffff !important;
+.staff-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.staff-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    border-color: rgba(34, 197, 94, 0.4);
+}
+.staff-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+.staff-info {
+    flex: 1;
+    min-width: 0;
+}
+.staff-name {
+    font-weight: 600;
+    color: #e5e7eb;
+    font-size: 1rem;
+}
+.staff-role {
+    color: #22c55e;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+.staff-details {
+    font-size: 0.8rem;
+    color: #9ca3af;
+}
+.staff-details span {
+    display: block;
+    margin-top: 0.15rem;
+}
+.staff-details i {
+    width: 16px;
+    margin-right: 0.35rem;
+}
+.staff-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.btn-sm {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
 }
 </style>
-{% endblock %}

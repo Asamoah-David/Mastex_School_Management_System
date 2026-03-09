@@ -242,3 +242,37 @@ def student_delete(request, pk):
         "type": "student",
         "cancel_url": "students:student_list"
     })
+
+
+@login_required
+def promote_students(request):
+    """Promote all students to the next class."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    if request.method == "POST":
+        # Get current class names and map to next class
+        current_class = request.POST.get("current_class", "").strip()
+        new_class = request.POST.get("new_class", "").strip()
+        
+        if current_class and new_class:
+            # Update all students in the current class to the new class
+            updated_count = Student.objects.filter(
+                school=school, 
+                class_name=current_class
+            ).update(class_name=new_class)
+            
+            messages.success(request, f"Successfully promoted {updated_count} students from {current_class} to {new_class}.")
+            return redirect("students:student_list")
+        else:
+            messages.error(request, "Please select both current class and new class.")
+    
+    # Get all unique class names for this school
+    classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
+    classes = [c for c in classes if c]  # Remove empty values
+    
+    return render(request, "students/promote.html", {"school": school, "classes": classes})
