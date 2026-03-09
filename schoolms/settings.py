@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "services",
     "students",
     "operations",
+    "templatetags.apps.TemplatetagsConfig",
 ]
 
 MIDDLEWARE = [
