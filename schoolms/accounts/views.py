@@ -5,27 +5,32 @@ from django.contrib import messages
 from django.db.models import Sum
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
+from django.urls import reverse
 
 from accounts.models import User
 from schools.models import School
 
 
 def logout_view(request):
-    """Log out and redirect to login page (works with GET for link-based logout)."""
+    """Log out and redirect to login page."""
     logout(request)
-    return redirect("accounts:login")
+    return redirect(f"{reverse('accounts:login')}?logged_out=1")
 
 
 def login_view(request):
     # If already logged in, redirect to appropriate dashboard
-    if request.user.is_authenticated:
+    # Skip this check for login page itself to avoid redirect loops
+    if request.user.is_authenticated and not request.path.endswith('login'):
         if request.user.role in ["parent", "student"]:
             return redirect("portal")
         elif request.user.role in ["school_admin", "teacher", "staff"]:
             return redirect("accounts:school_dashboard")
         elif request.user.is_superuser or request.user.role == "super_admin":
             return redirect("home")
-        return redirect("accounts:login")
+    
+    # Handle logout
+    if request.GET.get('logged_out') == '1':
+        messages.success(request, "You have been logged out successfully.")
     
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
@@ -39,8 +44,6 @@ def login_view(request):
         
         if user is not None:
             login(request, user)
-            # Log successful login
-            print(f"User {user.username} logged in successfully with role: {user.role}")
             
             if user.role in ["parent", "student"]:
                 return redirect("portal")
@@ -49,12 +52,9 @@ def login_view(request):
             elif user.is_superuser or user.role == "super_admin":
                 return redirect("home")
             else:
-                # Default fallback
                 return redirect("home")
         else:
-            # Authentication failed
             messages.error(request, "Invalid username or password. Please try again.")
-            print(f"Failed login attempt for username: {username}")
     
     return render(request, "accounts/login.html")
 
