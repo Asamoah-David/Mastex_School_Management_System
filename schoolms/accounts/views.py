@@ -18,9 +18,12 @@ def logout_view(request):
 
 
 def login_view(request):
+    # Handle logout message
+    if request.GET.get('logged_out') == '1':
+        messages.success(request, "You have been logged out successfully.")
+    
     # If already logged in, redirect to appropriate dashboard
-    # Skip this check for login page itself to avoid redirect loops
-    if request.user.is_authenticated and not request.path.endswith('login'):
+    if request.user.is_authenticated:
         if request.user.role in ["parent", "student"]:
             return redirect("portal")
         elif request.user.role in ["school_admin", "teacher", "staff"]:
@@ -28,10 +31,7 @@ def login_view(request):
         elif request.user.is_superuser or request.user.role == "super_admin":
             return redirect("home")
     
-    # Handle logout
-    if request.GET.get('logged_out') == '1':
-        messages.success(request, "You have been logged out successfully.")
-    
+    # Process login form
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
