@@ -141,3 +141,112 @@ class TextbookSale(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.textbook.title} x{self.quantity}"
+
+
+# Library Management
+class LibraryBook(models.Model):
+    """Library book catalog"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    isbn = models.CharField(max_length=20, unique=True)
+    title = models.CharField(max_length=200)
+    author = models.CharField(max_length=100)
+    publisher = models.CharField(max_length=100, blank=True)
+    category = models.CharField(max_length=50, blank=True)  # Fiction, Science, etc.
+    total_copies = models.PositiveIntegerField(default=1)
+    available_copies = models.PositiveIntegerField(default=1)
+    shelf_location = models.CharField(max_length=50, blank=True)  # e.g., "A-12"
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} by {self.author}"
+
+
+class LibraryIssue(models.Model):
+    """Track book borrowing"""
+    STATUS_CHOICES = (
+        ('issued', 'Issued'),
+        ('returned', 'Returned'),
+        ('overdue', 'Overdue'),
+        ('lost', 'Lost'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    book = models.ForeignKey(LibraryBook, on_delete=models.CASCADE)
+    issue_date = models.DateField()
+    due_date = models.DateField()
+    return_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='issued')
+    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="issued_books")
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-issue_date"]
+
+    def __str__(self):
+        return f"{self.student} - {self.book.title}"
+
+
+# Hostel Management
+class Hostel(models.Model):
+    """Hostel/Dormitory information"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    type = models.CharField(max_length=50)  # Boys, Girls, Mixed
+    total_beds = models.PositiveIntegerField(default=50)
+    warden_name = models.CharField(max_length=100, blank=True)
+    warden_phone = models.CharField(max_length=20, blank=True)
+    fee_per_term = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    def __str__(self):
+        return f"{self.name} ({self.type})"
+
+
+class HostelRoom(models.Model):
+    """Individual rooms in hostel"""
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="rooms")
+    room_number = models.CharField(max_length=20)
+    floor = models.PositiveIntegerField(default=1)
+    total_beds = models.PositiveIntegerField(default=4)
+    current_occupancy = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("hostel", "room_number")
+
+    def __str__(self):
+        return f"{self.hostel.name} - Room {self.room_number}"
+
+
+class HostelAssignment(models.Model):
+    """Track student hostel assignments"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE)
+    room = models.ForeignKey(HostelRoom, on_delete=models.SET_NULL, null=True, blank=True)
+    bed_number = models.CharField(max_length=10, blank=True)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-start_date"]
+
+    def __str__(self):
+        return f"{self.student} - {self.hostel.name}"
+
+
+class HostelFee(models.Model):
+    """Hostel fee tracking"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    term = models.CharField(max_length=50)  # e.g., "Term 1 2025"
+    paid = models.BooleanField(default=False)
+    payment_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-id"]
+
+    def __str__(self):
+        return f"{self.student} - {self.hostel.name} - {self.term}"
