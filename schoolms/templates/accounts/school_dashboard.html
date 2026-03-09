@@ -143,13 +143,15 @@
                 </div>
                 <div class="card-body">
                     {% if upcoming_events %}
-                        <ul class="list-group">{% for event in upcoming_events %}
-                            <li class="list-group-item">
-                                <strong>{{ event.title }}</strong>
-                                <br>
-                                <small class="text-muted">{{ event.start_date|date:"M d, Y" }} - {{ event.get_event_type_display }}</small>
-                            </li>{% endfor %}
-                        </ul>
+                    <div class="list-group">
+                        {% for event in upcoming_events %}
+                        <div class="list-group-item">
+                            <strong>{{ event.title }}</strong>
+                            <br>
+                            <small class="text-muted">{{ event.start_date|date:"M d, Y" }} - {{ event.get_event_type_display }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
                     {% else %}
                         <p class="text-muted">No upcoming events</p>
                     {% endif %}
@@ -168,7 +170,7 @@
                             <span>GHS {{ paid_fees }}</span>
                         </div>
                         <div class="progress">
-                            <div class="progress-bar bg-success" role="progressbar" title="Fees Collected" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100" style="width: 75%"></div>
+                            <div class="progress-bar bg-success progress-fees-collected" role="progressbar" title="Fees Collected"></div>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -177,7 +179,7 @@
                             <span>GHS {{ total_fees|add:paid_fees|default:0 }}</span>
                         </div>
                         <div class="progress">
-                            <div class="progress-bar bg-danger" role="progressbar" title="Outstanding Fees" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" style="width: 25%"></div>
+                            <div class="progress-bar bg-danger progress-fees-outstanding" role="progressbar" title="Outstanding Fees"></div>
                         </div>
                     </div>
                 </div>

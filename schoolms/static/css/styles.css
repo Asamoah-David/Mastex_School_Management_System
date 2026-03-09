@@ -254,3 +254,12 @@ a.content-link:hover {
     color: #22c55e;
     border: 1px solid #22c55e;
 }
+
+/* Progress bar widths for school dashboard */
+.progress-fees-collected {
+    width: 75%;
+}
+
+.progress-fees-outstanding {
+    width: 25%;
+}
