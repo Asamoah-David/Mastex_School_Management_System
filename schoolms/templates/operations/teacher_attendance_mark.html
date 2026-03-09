@@ -28,7 +28,7 @@
                                 <tr>
                                     <td>{{ teacher.get_full_name|default:teacher.username }}</td>
                                     <td>
-                                        <select name="status_{{ teacher.id }}" class="form-control">
+                                        <select name="status_{{ teacher.id }}" class="form-control" title="Select attendance status">
                                             <option value="present" {% if teacher.attendance_status == 'present' %}selected{% endif %}>Present</option>
                                             <option value="absent" {% if teacher.attendance_status == 'absent' %}selected{% endif %}>Absent</option>
                                             <option value="late" {% if teacher.attendance_status == 'late' %}selected{% endif %}>Late</option>
