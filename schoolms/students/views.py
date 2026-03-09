@@ -1,6 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
+from django.contrib import messages
 
 from .models import Student
 from accounts.models import User
@@ -215,3 +216,29 @@ def student_register(request):
                 return redirect("students:student_list")
     parents = User.objects.filter(school=school, role="parent").order_by("username")
     return render(request, "students/student_register.html", {"school": school, "parents": parents})
+
+
+@login_required
+def student_delete(request, pk):
+    """Delete a student."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    student = get_object_or_404(Student, pk=pk, school=school)
+    
+    if request.method == "POST":
+        # Also delete the associated user
+        user = student.user
+        student.delete()
+        user.delete()
+        messages.success(request, f"Student '{user.get_full_name() or user.username}' has been deleted.")
+        return redirect("students:student_list")
+    
+    return render(request, "students/confirm_delete.html", {
+        "object": student,
+        "type": "student",
+        "cancel_url": "students:student_list"
+    })

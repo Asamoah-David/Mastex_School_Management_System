@@ -10,20 +10,41 @@
 {% block extrastyle %}
 {{ block.super }}
 <style>
+    /* Reset and base */
+    * { box-sizing: border-box; }
+    
     /* Header styling */
     #header { 
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
-        border-bottom: 1px solid rgba(34, 197, 94, 0.4); 
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important; 
+        border-bottom: 1px solid rgba(34, 197, 94, 0.4) !important;
+        padding: 0.75rem 1rem !important;
     }
     #header a { color: #ffffff !important; }
-    #branding h1 a { color: #22c55e !important; font-weight: 600; }
+    #header .user-tools { color: #94a3b8 !important; }
+    #branding h1 { margin: 0 !important; }
+    #branding h1 a { 
+        color: #22c55e !important; 
+        font-weight: 700 !important; 
+        font-size: 1.5rem !important;
+        text-decoration: none !important;
+    }
     #branding h1 a:hover { color: #4ade80 !important; }
+    
+    /* Breadcrumbs */
+    #breadcrumbs {
+        background: #0f172a !important;
+        color: #94a3b8 !important;
+        padding: 0.5rem 1rem !important;
+    }
+    #breadcrumbs a { color: #22c55e !important; }
     
     /* Module headers - green bg with white text */
     .module h2, .module caption { 
         background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important; 
         color: #ffffff !important; 
         font-weight: 600 !important; 
+        padding: 0.75rem 1rem !important;
+        border-radius: 0.5rem 0.5rem 0 0 !important;
     }
     
     /* App headers in changelist */
@@ -54,28 +75,47 @@
         color: #ffffff !important; 
         border: none !important; 
         font-weight: 600 !important; 
+        border-radius: 0.5rem !important;
+        padding: 0.5rem 1rem !important;
     }
     .button:hover, input[type=submit]:hover { 
         background: linear-gradient(135deg, #4ade80, #22c55e) !important; 
+    }
+    .button.default {
+        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
     }
     
     /* Form inputs */
     input[type=text], input[type=password], input[type=email], select, textarea { 
         background: #1e293b !important; 
         color: #ffffff !important; 
-        border: 1px solid #475569 !important; 
+        border: 1px solid #475569 !important;
+        border-radius: 0.5rem !important;
+        padding: 0.5rem !important;
+    }
+    input:focus, select:focus, textarea:focus {
+        border-color: #22c55e !important;
+        box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2) !important;
     }
     
     /* Labels */
     label { color: #94a3b8 !important; }
     
     /* Form rows */
-    .form-row { border-bottom: 1px solid #334155 !important; }
+    .form-row { 
+        border-bottom: 1px solid #334155 !important;
+        padding: 1rem !important;
+    }
+    .form-row:hover {
+        background: rgba(34, 197, 94, 0.05) !important;
+    }
     
     /* Table headers */
     thead th { 
         background: #0f172a !important; 
-        color: #ffffff !important; 
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        padding: 0.75rem !important;
     }
     
     /* Change list headers */
@@ -84,14 +124,134 @@
         color: #ffffff !important;
     }
     
-    /* Text colors */
-    .text, p { color: #e5e7eb !important; }
+    /* Results table */
+    #result_list tbody tr {
+        border-bottom: 1px solid #334155 !important;
+    }
+    #result_list tbody tr:hover {
+        background: rgba(34, 197, 94, 0.1) !important;
+    }
     
-    /* Deleted message */
+    /* Pagination */
+    .paginator {
+        background: #0f172a !important;
+        color: #94a3b8 !important;
+        padding: 0.75rem !important;
+    }
+    .paginator a {
+        background: #1e293b !important;
+        color: #22c55e !important;
+        padding: 0.5rem 0.75rem !important;
+        border-radius: 0.5rem !important;
+        margin: 0 0.25rem !important;
+    }
+    
+    /* Messages */
     .success { 
         background: rgba(34, 197, 94, 0.2) !important; 
         color: #22c55e !important; 
         border: 1px solid #22c55e !important;
+        border-radius: 0.5rem !important;
+    }
+    .error { 
+        background: rgba(239, 68, 68, 0.2) !important; 
+        color: #ef4444 !important; 
+        border: 1px solid #ef4444 !important;
+    }
+    
+    /* Calendar */
+    .calendarbox {
+        background: #1e293b !important;
+        border: 1px solid #475569 !important;
+    }
+    .calendar {
+        background: #0f172a !important;
+    }
+    .calendar table {
+        color: #ffffff !important;
+    }
+    .calendar td {
+        color: #94a3b8 !important;
+    }
+    .calendar caption {
+        color: #22c55e !important;
+    }
+    
+    /* Selector */
+    .selector {
+        background: #1e293b !important;
+    }
+    .selector-available, .selector-chosen {
+        background: #0f172a !important;
+    }
+    .selector-chooser li {
+        background: #1e293b !important;
+    }
+    
+    /* Object tools */
+    .object-tools {
+        background: transparent !important;
+    }
+    .object-tools a {
+        background: #22c55e !important;
+        color: #ffffff !important;
+        border-radius: 0.5rem !important;
+    }
+    .object-tools a:hover {
+        background: #4ade80 !important;
+    }
+    
+    /* Dashboard */
+    #content {
+        background: #020617 !important;
+    }
+    
+    /* Tabs */
+    .ui-tabs .ui-tabs-nav {
+        background: #0f172a !important;
+    }
+    .ui-tabs .ui-tabs-nav li a {
+        color: #94a3b8 !important;
+    }
+    .ui-tabs .ui-tabs-nav li.ui-tabs-selected a {
+        color: #22c55e !important;
+    }
+    
+    /* Inline */
+    .inline-group {
+        background: #1e293b !important;
+        border: 1px solid #334155 !important;
+        border-radius: 0.5rem !important;
+    }
+    .inline-group thead {
+        background: #0f172a !important;
+    }
+    
+    /* Delete confirmation */
+    #content.confirm {
+        background: #0f172a !important;
+    }
+    .errornote {
+        background: rgba(239, 68, 68, 0.2) !important;
+        color: #ef4444 !important;
+        border: 1px solid #ef4444 !important;
+    }
+    
+    /* Search */
+    #search-form input[type=submit] {
+        background: #22c55e !important;
+        color: #ffffff !important;
+    }
+    
+    /* Row actions */
+    .row-actions {
+        color: #94a3b8 !important;
+    }
+    
+    /* Tooltips */
+    .help {
+        background: #1e293b !important;
+        color: #94a3b8 !important;
     }
 </style>
 {% endblock %}

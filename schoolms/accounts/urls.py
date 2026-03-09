@@ -1,8 +1,8 @@
 from django.urls import path
 from .views import (
     login_view, logout_view, dashboard, 
-    staff_list, staff_detail, staff_register,
-    parent_list, parent_register, parent_detail,
+    staff_list, staff_detail, staff_register, staff_delete,
+    parent_list, parent_register, parent_detail, parent_delete,
     user_management
 )
 
@@ -16,7 +16,9 @@ urlpatterns = [
     path("staff/", staff_list, name="staff_list"),
     path("staff/register/", staff_register, name="staff_register"),
     path("staff/<int:pk>/", staff_detail, name="staff_detail"),
+    path("staff/<int:pk>/delete/", staff_delete, name="staff_delete"),
     path("parents/", parent_list, name="parent_list"),
     path("parents/register/", parent_register, name="parent_register"),
     path("parents/<int:pk>/", parent_detail, name="parent_detail"),
+    path("parents/<int:pk>/delete/", parent_delete, name="parent_delete"),
 ]

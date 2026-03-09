@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% block title %}Send Message · Mastex SchoolOS{% endblock %}
-{% block page_title %}Send SMS Message{% endblock %}
-{% block page_subtitle %}Send announcements to parents and students via SMS{% endblock %}
+{% block page_title %}Send Message{% endblock %}
+{% block page_subtitle %}Send SMS or Email to parents and students{% endblock %}
 
 {% block content %}
 <div class="content-card">
@@ -10,12 +10,25 @@
         {% csrf_token %}
         
         <div class="form-group">
+            <label for="id_message_type">Message Type</label>
+            <select id="id_message_type" name="message_type" required>
+                <option value="sms">SMS</option>
+                <option value="email">Email</option>
+            </select>
+        </div>
+        
+        <div class="form-group mt-1">
             <label for="id_recipient_type">Recipients</label>
             <select id="id_recipient_type" name="recipient_type" required>
                 <option value="parents">All Parents</option>
                 <option value="students">All Students</option>
                 <option value="all">All Parents and Students</option>
             </select>
+        </div>
+        
+        <div class="form-group mt-1 email-field" style="display:none;">
+            <label for="id_subject">Email Subject</label>
+            <input id="id_subject" name="subject" type="text" placeholder="Enter email subject" />
         </div>
         
         <div class="form-group mt-1">
@@ -28,4 +41,15 @@
         </div>
     </form>
 </div>
+
+<script>
+document.getElementById('id_message_type').addEventListener('change', function() {
+    const emailFields = document.querySelectorAll('.email-field');
+    if (this.value === 'email') {
+        emailFields.forEach(f => f.style.display = 'block');
+    } else {
+        emailFields.forEach(f => f.style.display = 'none');
+    }
+});
+</script>
 {% endblock %}

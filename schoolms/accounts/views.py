@@ -225,3 +225,49 @@ def user_management(request):
         "student_count": student_count,
     }
     return render(request, "accounts/user_management.html", context)
+
+
+@login_required
+def staff_delete(request, pk):
+    """Delete a staff member."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    staff = get_object_or_404(User, pk=pk, school=school, role__in=("admin", "teacher"))
+    
+    if request.method == "POST":
+        staff.delete()
+        messages.success(request, f"Staff member '{staff.username}' has been deleted.")
+        return redirect("accounts:staff_list")
+    
+    return render(request, "accounts/confirm_delete.html", {
+        "object": staff,
+        "type": "staff member",
+        "cancel_url": "accounts:staff_list"
+    })
+
+
+@login_required
+def parent_delete(request, pk):
+    """Delete a parent."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    parent = get_object_or_404(User, pk=pk, school=school, role="parent")
+    
+    if request.method == "POST":
+        parent.delete()
+        messages.success(request, f"Parent '{parent.username}' has been deleted.")
+        return redirect("accounts:parent_list")
+    
+    return render(request, "accounts/confirm_delete.html", {
+        "object": parent,
+        "type": "parent",
+        "cancel_url": "accounts:parent_list"
+    })

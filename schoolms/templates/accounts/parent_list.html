@@ -1,45 +1,66 @@
 {% extends "base.html" %}
-
 {% block title %}Parents · Mastex SchoolOS{% endblock %}
 {% block page_title %}Parents{% endblock %}
-{% block page_subtitle %}Manage parent accounts for {{ school.name }}{% endblock %}
-
+{% block page_subtitle %}Registered parents of your school.{% endblock %}
 {% block content %}
 <div class="button-row">
-    <a href="{% url 'accounts:parent_register' %}" class="btn btn-primary">Add Parent</a>
-    <a href="{% url 'accounts:user_management' %}" class="btn btn-secondary">Back to Users</a>
+    <a href="{% url 'accounts:parent_register' %}" class="btn btn-primary">Register new parent</a>
 </div>
 
-<div class="table-card mt-1">
-    {% if parents %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for parent in parents %}
-                    <tr>
-                        <td>{{ parent.get_full_name }}</td>
-                        <td>{{ parent.username }}</td>
-                        <td>{{ parent.email }}</td>
-                        <td>{{ parent.phone|default:"-" }}</td>
-                        <td>
-                            <a href="{% url 'accounts:parent_detail' parent.id %}" class="btn btn-secondary">View</a>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <div class="empty-state">
-            No parents registered yet. <a href="{% url 'accounts:parent_register' %}">Add a parent</a>
-        </div>
-    {% endif %}
+{% if parents %}
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Parent Type</th>
+                <th>Children</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for parent in parents %}
+            <tr>
+                <td>{{ parent.get_full_name|default:parent.username }}</td>
+                <td>{{ parent.username }}</td>
+                <td>{{ parent.email|default:"—" }}</td>
+                <td>{{ parent.phone|default:"—" }}</td>
+                <td>{{ parent.get_parent_type_display|default:"—" }}</td>
+                <td>
+                    {% with children_count=parent.student_set.count %}
+                        {% if children_count > 0 %}
+                            <a href="{% url 'accounts:parent_detail' parent.pk %}">{{ children_count }} child(ren)</a>
+                        {% else %}
+                            —
+                        {% endif %}
+                    {% endwith %}
+                </td>
+                <td>
+                    <a href="{% url 'accounts:parent_detail' parent.pk %}" class="btn btn-secondary btn-sm">View</a>
+                    <a href="{% url 'accounts:parent_delete' parent.pk %}" class="btn btn-danger btn-sm">Delete</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
+{% else %}
+<div class="table-card">
+    <div class="empty-state">No parents registered yet. <a href="{% url 'accounts:parent_register' %}">Register parent</a>.</div>
+</div>
+{% endif %}
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
+}
+</style>
 {% endblock %}

@@ -18,7 +18,7 @@
                         <th>Name</th>
                         <th>Admission no.</th>
                         <th>Parent</th>
-                        <th></th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -27,7 +27,10 @@
                         <td>{{ s.user.get_full_name|default:s.user.username }}</td>
                         <td>{{ s.admission_number }}</td>
                         <td>{{ s.parent.get_full_name|default:s.parent.username|default:"—" }}</td>
-                        <td><a href="{% url 'students:student_detail' s.pk %}" class="btn btn-secondary">View</a></td>
+                        <td>
+                            <a href="{% url 'students:student_detail' s.pk %}" class="btn btn-secondary btn-sm">View</a>
+                            <a href="{% url 'students:student_delete' s.pk %}" class="btn btn-danger btn-sm">Delete</a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -52,6 +55,14 @@
     margin: 0.5rem 0;
     padding: 0.25rem 0;
     border-bottom: 1px solid rgba(34, 197, 94, 0.3);
+}
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
 }
 </style>
 {% endblock %}
