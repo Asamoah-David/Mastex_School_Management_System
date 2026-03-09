@@ -22,7 +22,7 @@ def login_view(request):
     if request.user.is_authenticated:
         if request.user.role in ["parent", "student"]:
             return redirect("/portal/")
-        elif request.user.role in ["school_admin", "teacher", "staff"]:
+        elif request.user.role in ["admin", "school_admin", "teacher", "staff"]:
             return redirect("/accounts/school-dashboard/")
         elif request.user.is_superuser or request.user.role == "super_admin":
             return redirect("/")
@@ -43,7 +43,7 @@ def login_view(request):
             
             if user.role in ["parent", "student"]:
                 return redirect("/portal/")
-            elif user.role in ["school_admin", "teacher", "staff"]:
+            elif user.role in ["admin", "school_admin", "teacher", "staff"]:
                 return redirect("/accounts/school-dashboard/")
             elif user.is_superuser or user.role == "super_admin":
                 return redirect("/")
@@ -62,7 +62,7 @@ def dashboard(request):
         return redirect("portal")
     
     # School admins, teachers, and staff get school admin dashboard
-    if request.user.role in ["school_admin", "teacher", "staff"]:
+    if request.user.role in ["admin", "school_admin", "teacher", "staff"]:
         return redirect("accounts:school_dashboard")
     
     # Super admins and superusers get the main dashboard
@@ -110,8 +110,8 @@ def dashboard(request):
 @login_required
 def school_dashboard(request):
     """Custom dashboard for school admins, teachers, and staff."""
-    # Only school staff can access
-    if not request.user.is_staff_member and not request.user.is_school_admin:
+    # Only school staff can access (role "admin" is also a school admin)
+    if not request.user.is_staff_member and not request.user.is_school_admin and request.user.role != "admin":
         return redirect("home")
     
     school = getattr(request.user, "school", None)
