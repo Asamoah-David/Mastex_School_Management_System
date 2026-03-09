@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Mark Teacher Attendance{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Mark Teacher Attendance - {{ date }}</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="date" value="{{ date }}">
+                        
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Teacher Name</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for teacher in teachers %}
+                                <tr>
+                                    <td>{{ teacher.get_full_name|default:teacher.username }}</td>
+                                    <td>
+                                        <select name="status_{{ teacher.id }}" class="form-control">
+                                            <option value="present" {% if teacher.attendance_status == 'present' %}selected{% endif %}>Present</option>
+                                            <option value="absent" {% if teacher.attendance_status == 'absent' %}selected{% endif %}>Absent</option>
+                                            <option value="late" {% if teacher.attendance_status == 'late' %}selected{% endif %}>Late</option>
+                                            <option value="excused" {% if teacher.attendance_status == 'excused' %}selected{% endif %}>Excused</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center text-muted">No teachers found for this school.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        
+                        {% if teachers %}
+                        <button type="submit" class="btn btn-primary">Save Attendance</button>
+                        {% endif %}
+                        <a href="{% url 'operations:teacher_attendance_list' %}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

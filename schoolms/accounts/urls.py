@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    login_view, logout_view, dashboard, 
+    login_view, logout_view, dashboard, school_dashboard,
     staff_list, staff_detail, staff_register, staff_delete,
     parent_list, parent_register, parent_detail, parent_delete,
     user_management
@@ -12,6 +12,7 @@ urlpatterns = [
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("dashboard/", dashboard, name="dashboard"),
+    path("school-dashboard/", school_dashboard, name="school_dashboard"),
     path("users/", user_management, name="user_management"),
     path("staff/", staff_list, name="staff_list"),
     path("staff/register/", staff_register, name="staff_register"),

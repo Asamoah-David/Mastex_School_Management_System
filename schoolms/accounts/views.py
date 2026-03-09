@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Sum
 from django.contrib.auth.hashers import make_password
+from django.utils import timezone
 
 from accounts.models import User
 from schools.models import School
@@ -30,46 +31,113 @@ def login_view(request):
 
 @login_required
 def dashboard(request):
-    if request.user.role == "parent":
+    # Redirect parents and students to their portal
+    if request.user.role in ["parent", "student"]:
         return redirect("portal")
-    if request.user.role == "student":
-        return redirect("portal")
+    
+    # School admins, teachers, and staff get school admin dashboard
+    if request.user.role in ["school_admin", "teacher", "staff"]:
+        return redirect("accounts:school_dashboard")
+    
+    # Super admins and superusers get the main dashboard
+    if request.user.is_superuser or request.user.role == "super_admin":
+        from schools.models import School
+        from students.models import Student
+        from finance.models import Fee
 
-    from schools.models import School
+        school = getattr(request.user, "school", None)
+        
+        # Check if superuser (platform admin)
+        is_superuser = request.user.is_superuser
+        
+        if school:
+            total_schools = 1
+            total_students = Student.objects.filter(school=school).count()
+            total_staff = User.objects.filter(school=school, role__in=("school_admin", "teacher", "staff")).count()
+            total_parents = User.objects.filter(school=school, role="parent").count()
+            paid_fees = Fee.objects.filter(school=school, paid=True).aggregate(total=Sum("amount"))["total"] or 0
+            unpaid_count = Fee.objects.filter(school=school, paid=False).count()
+        else:
+            total_schools = School.objects.filter(is_active=True).count()
+            total_students = Student.objects.count()
+            total_staff = User.objects.filter(role__in=("school_admin", "teacher", "staff")).count()
+            total_parents = User.objects.filter(role="parent").count()
+            paid_fees = Fee.objects.filter(paid=True).aggregate(total=Sum("amount"))["total"] or 0
+            unpaid_count = Fee.objects.filter(paid=False).count()
+
+        context = {
+            "total_schools": total_schools,
+            "total_students": total_students,
+            "total_staff": total_staff,
+            "total_parents": total_parents,
+            "mrr": int(paid_fees),
+            "unpaid_fees_count": unpaid_count,
+            "school": school,
+            "is_superuser": is_superuser,
+        }
+        return render(request, "dashboard.html", context)
+    
+    # Default redirect
+    return redirect("accounts:login")
+
+
+@login_required
+def school_dashboard(request):
+    """Custom dashboard for school admins, teachers, and staff."""
+    # Only school staff can access
+    if not request.user.is_staff_member and not request.user.is_school_admin:
+        return redirect("home")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
     from students.models import Student
     from finance.models import Fee
-
-    school = getattr(request.user, "school", None)
+    from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
     
-    # Check if superuser (platform admin)
-    is_superuser = request.user.is_superuser
+    # Get school statistics
+    total_students = Student.objects.filter(school=school).count()
+    male_students = Student.objects.filter(school=school, user__gender='male').count() if 'gender' in [f.name for f in Student._meta.get_fields()] else 0
+    female_students = Student.objects.filter(school=school, user__gender='female').count() if 'gender' in [f.name for f in Student._meta.get_fields()] else 0
     
-    if school:
-        total_schools = 1
-        total_students = Student.objects.filter(school=school).count()
-        total_staff = User.objects.filter(school=school, role__in=("admin", "teacher")).count()
-        total_parents = User.objects.filter(school=school, role="parent").count()
-        paid_fees = Fee.objects.filter(school=school, paid=True).aggregate(total=Sum("amount"))["total"] or 0
-        unpaid_count = Fee.objects.filter(school=school, paid=False).count()
-    else:
-        total_schools = School.objects.filter(is_active=True).count()
-        total_students = Student.objects.count()
-        total_staff = User.objects.filter(role__in=("admin", "teacher")).count()
-        total_parents = User.objects.filter(role="parent").count()
-        paid_fees = Fee.objects.filter(paid=True).aggregate(total=Sum("amount"))["total"] or 0
-        unpaid_count = Fee.objects.filter(paid=False).count()
-
+    # Get gender from user model if available
+    try:
+        male_students = Student.objects.filter(school=school, user__gender='male').count()
+        female_students = Student.objects.filter(school=school, user__gender='female').count()
+    except:
+        male_students = 0
+        female_students = 0
+    
+    total_staff = User.objects.filter(school=school, role__in=("school_admin", "teacher", "staff")).count()
+    teachers_count = User.objects.filter(school=school, role="teacher").count()
+    
+    # Get recent attendance
+    today = timezone.now().date()
+    present_today = StudentAttendance.objects.filter(school=school, date=today, status="present").count()
+    
+    # Get upcoming calendar events
+    upcoming_events = AcademicCalendar.objects.filter(school=school, start_date__gte=today)[:5]
+    
+    # Fee statistics
+    total_fees = Fee.objects.filter(school=school).aggregate(total=Sum("amount"))["total"] or 0
+    paid_fees = Fee.objects.filter(school=school, paid=True).aggregate(total=Sum("amount"))["total"] or 0
+    unpaid_fees = Fee.objects.filter(school=school, paid=False).count()
+    
     context = {
-        "total_schools": total_schools,
-        "total_students": total_students,
-        "total_staff": total_staff,
-        "total_parents": total_parents,
-        "mrr": int(paid_fees),
-        "unpaid_fees_count": unpaid_count,
         "school": school,
-        "is_superuser": is_superuser,
+        "total_students": total_students,
+        "male_students": male_students,
+        "female_students": female_students,
+        "total_staff": total_staff,
+        "teachers_count": teachers_count,
+        "present_today": present_today,
+        "upcoming_events": upcoming_events,
+        "total_fees": int(total_fees),
+        "paid_fees": int(paid_fees),
+        "unpaid_fees": unpaid_fees,
     }
-    return render(request, "dashboard.html", context)
+    return render(request, "accounts/school_dashboard.html", context)
 
 
 def _user_can_manage_school(request):

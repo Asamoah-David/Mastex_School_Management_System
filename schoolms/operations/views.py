@@ -8,6 +8,8 @@ from students.models import Student
 from accounts.models import User
 from .models import (
     StudentAttendance,
+    TeacherAttendance,
+    AcademicCalendar,
     CanteenItem,
     CanteenPayment,
     BusRoute,
@@ -191,3 +193,125 @@ def attendance_delete(request, pk):
         messages.success(request, "Attendance record deleted successfully!")
         return redirect("operations:attendance_list")
     return render(request, "operations/confirm_delete.html", {"object": attendance, "type": "attendance record"})
+
+
+# Teacher Attendance Views
+@login_required
+def teacher_attendance_list(request):
+    """List teacher attendance records."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    from_date = request.GET.get("from") or timezone.now().date()
+    to_date = request.GET.get("to") or timezone.now().date()
+    qs = TeacherAttendance.objects.filter(school=school, date__gte=from_date, date__lte=to_date).select_related(
+        "teacher", "marked_by"
+    )
+    return render(
+        request,
+        "operations/teacher_attendance_list.html",
+        {"attendances": qs, "school": school, "from_date": from_date, "to_date": to_date},
+    )
+
+
+@login_required
+def teacher_attendance_mark(request):
+    """Mark teacher attendance (School Admin only)."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    # Only school admins can mark teacher attendance
+    if not request.user.is_school_admin and not request.user.is_superuser:
+        return redirect("home")
+    
+    if request.method == "POST":
+        date = request.POST.get("date") or timezone.now().date()
+        for key, value in request.POST.items():
+            if key.startswith("status_"):
+                try:
+                    teacher_id = key.replace("status_", "")
+                    teacher = User.objects.get(id=teacher_id, school=school, role="teacher")
+                    TeacherAttendance.objects.update_or_create(
+                        teacher=teacher, date=date, defaults={"school": school, "status": value, "marked_by": request.user}
+                    )
+                except (User.DoesNotExist, ValueError):
+                    pass
+        return redirect("operations:teacher_attendance_list")
+    
+    date = request.GET.get("date") or timezone.now().date()
+    teachers = list(User.objects.filter(school=school, role="teacher").order_by("first_name", "last_name"))
+    existing = {a.teacher_id: a.status for a in TeacherAttendance.objects.filter(school=school, date=date)}
+    for t in teachers:
+        t.attendance_status = existing.get(t.id, "present")
+    
+    return render(
+        request,
+        "operations/teacher_attendance_mark.html",
+        {"teachers": teachers, "school": school, "date": date},
+    )
+
+
+# Academic Calendar Views
+@login_required
+def calendar_list(request):
+    """List academic calendar events."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    events = AcademicCalendar.objects.filter(school=school).order_by("start_date")
+    return render(request, "operations/calendar_list.html", {"events": events, "school": school})
+
+
+@login_required
+def calendar_create(request):
+    """Create academic calendar event."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    # Only school admins can create calendar events
+    if not request.user.is_school_admin and not request.user.is_superuser:
+        return redirect("home")
+    
+    if request.method == "POST":
+        title = request.POST.get("title")
+        event_type = request.POST.get("event_type")
+        start_date = request.POST.get("start_date")
+        end_date = request.POST.get("end_date") or None
+        description = request.POST.get("description", "")
+        
+        if title and event_type and start_date:
+            AcademicCalendar.objects.create(
+                school=school,
+                title=title,
+                event_type=event_type,
+                start_date=start_date,
+                end_date=end_date,
+                description=description,
+            )
+            from django.contrib import messages
+            messages.success(request, "Calendar event created successfully!")
+            return redirect("operations:calendar_list")
+    
+    return render(request, "operations/calendar_form.html", {"school": school})
+
+
+@login_required
+def calendar_delete(request, pk):
+    """Delete academic calendar event."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    # Only school admins can delete calendar events
+    if not request.user.is_school_admin and not request.user.is_superuser:
+        return redirect("home")
+    
+    event = get_object_or_404(AcademicCalendar, pk=pk, school=school)
+    if request.method == "POST":
+        event.delete()
+        from django.contrib import messages
+        messages.success(request, "Calendar event deleted successfully!")
+        return redirect("operations:calendar_list")
+    return render(request, "operations/confirm_delete.html", {"object": event, "type": "calendar event"})

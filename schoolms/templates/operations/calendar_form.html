@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Create Calendar Event{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Create Academic Calendar Event</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Event Title</label>
+                            <input type="text" class="form-control" id="title" name="title" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="event_type" class="form-label">Event Type</label>
+                            <select class="form-control" id="event_type" name="event_type" required>
+                                <option value="">Select Event Type</option>
+                                <option value="term_start">Term Start</option>
+                                <option value="term_end">Term End</option>
+                                <option value="exam_start">Exams Start</option>
+                                <option value="exam_end">Exams End</option>
+                                <option value="holiday">Holiday</option>
+                                <option value="event">School Event</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="end_date" class="form-label">End Date (Optional)</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Create Event</button>
+                        <a href="{% url 'operations:calendar' %}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
