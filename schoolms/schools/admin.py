@@ -1,6 +1,5 @@
 from django.contrib import admin
-from django.db import models
-from django.db.models import Count
+from django.db.models import Count, Q
 from .models import School
 
 
@@ -16,23 +15,19 @@ class SchoolAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.annotate(
-            staff_count=Count('user', filter=models.Q(user__role__in=['admin', 'teacher'])),
+            staff_count=Count('user', filter=Q(role__in=['admin', 'teacher'])),
             student_count=Count('student'),
-            parent_count=Count('user', filter=models.Q(user__role='parent'))
+            parent_count=Count('user', filter=Q(role='parent'))
         )
     
     def staff_count(self, obj):
-        return obj.staff_count
+        return getattr(obj, 'staff_count', 0)
     staff_count.short_description = "Staff"
     
     def student_count(self, obj):
-        return obj.student_count
+        return getattr(obj, 'student_count', 0)
     student_count.short_description = "Students"
     
     def parent_count(self, obj):
-        return obj.parent_count
+        return getattr(obj, 'parent_count', 0)
     parent_count.short_description = "Parents"
-
-
-# Import models for the query
-from django.db import models
