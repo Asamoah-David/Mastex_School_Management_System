@@ -14,22 +14,18 @@ from schools.models import School
 def logout_view(request):
     """Log out and redirect to login page."""
     logout(request)
-    return redirect(f"{reverse('accounts:login')}?logged_out=1")
+    return redirect("/accounts/login/")
 
 
 def login_view(request):
-    # Handle logout message
-    if request.GET.get('logged_out') == '1':
-        messages.success(request, "You have been logged out successfully.")
-    
     # If already logged in, redirect to appropriate dashboard
     if request.user.is_authenticated:
         if request.user.role in ["parent", "student"]:
-            return redirect("portal")
+            return redirect("/portal/")
         elif request.user.role in ["school_admin", "teacher", "staff"]:
-            return redirect("accounts:school_dashboard")
+            return redirect("/accounts/school-dashboard/")
         elif request.user.is_superuser or request.user.role == "super_admin":
-            return redirect("home")
+            return redirect("/")
     
     # Process login form
     if request.method == "POST":
@@ -46,15 +42,15 @@ def login_view(request):
             login(request, user)
             
             if user.role in ["parent", "student"]:
-                return redirect("portal")
+                return redirect("/portal/")
             elif user.role in ["school_admin", "teacher", "staff"]:
-                return redirect("accounts:school_dashboard")
+                return redirect("/accounts/school-dashboard/")
             elif user.is_superuser or user.role == "super_admin":
-                return redirect("home")
+                return redirect("/")
             else:
-                return redirect("home")
+                return redirect("/")
         else:
-            messages.error(request, "Invalid username or password. Please try again.")
+            messages.error(request, "Invalid username or password.")
     
     return render(request, "accounts/login.html")
 
