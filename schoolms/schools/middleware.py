@@ -7,34 +7,20 @@ class SchoolMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Skip middleware for login/logout, registration, and static files
-        exempt_paths = [
-            '/accounts/login/',
-            '/accounts/logout/',
-            '/login/',
-            '/logout/',
-            '/register/',
-            '/admin/login/',
-            '/static/',
-            '/media/',
-        ]
-        
-        # Check if the path is exempt
-        is_exempt = False
-        for path in exempt_paths:
-            if request.path.startswith(path):
-                is_exempt = True
-                break
-        
-        if is_exempt:
+        # Skip all middleware processing for these paths
+        if request.path in ['/accounts/login/', '/accounts/logout/', '/login/', '/logout/', '/register/', '/admin/login/']:
             return self.get_response(request)
         
-        # Try to get school from subdomain
-        host = request.get_host().split(':')[0]
-        subdomain = host.split('.')[0]
+        # Skip for paths starting with these
+        if any(request.path.startswith(path) for path in ['/static/', '/media/', '/admin/jsi18n/']):
+            return self.get_response(request)
         
-        # Don't try to get school for base domain (like localhost or render)
-        if subdomain and subdomain != 'localhost' and 'onrender' not in host:
+        # Try to get school from subdomain only for non-base domains
+        host = request.get_host().split(':')[0]
+        
+        # Only try subdomain lookup for actual subdomains (not localhost or render)
+        if '.' in host and 'localhost' not in host and 'onrender' not in host:
+            subdomain = host.split('.')[0]
             try:
                 request.school = School.objects.get(subdomain=subdomain)
             except School.DoesNotExist:
