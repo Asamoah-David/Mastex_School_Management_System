@@ -1,10 +1,13 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 
-{% block title %}Parent Dashboard · Mastex SchoolOS{% endblock %}
-{% block page_title %}Parent overview{% endblock %}
-{% block page_subtitle %}View your children, their enrollment details, and pay fees.{% endblock %}
+{% block title %}My Children · Mastex SchoolOS{% endblock %}
+{% block page_title %}My Children{% endblock %}
+{% block page_subtitle %}View your children's progress, results, and pay fees.{% endblock %}
 
 {% block content %}
+
+<!-- Children List -->
 <div class="table-card">
     {% if children %}
         <table>
@@ -13,15 +16,21 @@
                     <th>Student</th>
                     <th>Class</th>
                     <th>Admission Number</th>
+                    <th>Average</th>
+                    <th>Position</th>
                 </tr>
             </thead>
             <tbody>
                 {% for child in children %}
+                    {% with stats=stats_by_child|get_item:child.id %}
                     <tr>
                         <td>{{ child.user.get_full_name }}</td>
                         <td>{{ child.class_name }}</td>
                         <td>{{ child.admission_number }}</td>
+                        <td>{{ stats.average|default:"—" }}</td>
+                        <td>{{ stats.position|default:"—" }}</td>
                     </tr>
+                    {% endwith %}
                 {% endfor %}
             </tbody>
         </table>
@@ -32,11 +41,68 @@
     {% endif %}
 </div>
 
-{% if fees_by_child %}
-<h3 class="section-title">Fee Statements</h3>
+<!-- Results for Each Child -->
+{% if results_by_child %}
+<h3 style="margin-top: 1.5rem; color: #22c55e;">Academic Results</h3>
 {% for child in children %}
+    {% with child_results=results_by_child|get_item:child.id %}
+    {% if child_results %}
     <div class="content-card mt-1">
-        <h4 class="section-title-green">{{ child.user.get_full_name }} - {{ child.class_name }}</h4>
+        <h4 style="color: #22c55e; margin: 0 0 0.5rem 0;">{{ child.user.get_full_name }} - {{ child.class_name }}</h4>
+        
+        {% with stats=stats_by_child|get_item:child.id %}
+        <div class="content-grid" style="margin-bottom: 1rem;">
+            <div class="metric">
+                <div class="metric-label">Average Score</div>
+                <div class="metric-value">{{ stats.average|default:"—" }}%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Position</div>
+                <div class="metric-value">{{ stats.position|default:"—" }}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Subjects</div>
+                <div class="metric-value">{{ stats.total_subjects|default:0 }}</div>
+            </div>
+        </div>
+        {% endwith %}
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Exam Type</th>
+                    <th>Term</th>
+                    <th>Score</th>
+                    <th>Grade</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in child_results %}
+                <tr>
+                    <td>{{ r.subject.name }}</td>
+                    <td>{{ r.exam_type.name|default:"—" }}</td>
+                    <td>{{ r.term.name|default:"—" }}</td>
+                    <td>{{ r.score }}</td>
+                    <td><span class="tag" style="background: rgba(34,197,94,0.2); color: #22c55e; border-color: #22c55e;">{{ r.grade }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endwith %}
+{% endfor %}
+{% endif %}
+
+<!-- Fee Statements -->
+{% if fees_by_child %}
+<h3 style="margin-top: 1.5rem; color: #22c55e;">Fee Statements</h3>
+{% for child in children %}
+    {% with child_fees=fees_by_child|get_item:child.id %}
+    {% if child_fees %}
+    <div class="content-card mt-1">
+        <h4 style="margin: 0 0 0.5rem 0;">{{ child.user.get_full_name }} - {{ child.class_name }}</h4>
         <table>
             <thead>
                 <tr>
@@ -46,42 +112,31 @@
                 </tr>
             </thead>
             <tbody>
-                {% for fee in fees %}
-                    {% if fee.student_id == child.id %}
-                    <tr>
-                        <td>{{ fee.amount }} GHS</td>
-                        <td>
-                            {% if fee.paid %}
-                            <span class="tag tag-paid">
-                                <span class="tag-bullet"></span>
-                                Paid
-                            </span>
-                            {% else %}
-                            <span class="tag tag-unpaid">
-                                <span class="tag-bullet"></span>
-                                Unpaid
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if not fee.paid %}
-                            <a href="{% url 'finance:pay_with_flutterwave' fee.id %}" class="btn btn-primary btn-pay">Pay Now</a>
-                            {% else %}
-                            <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endif %}
+                {% for fee in child_fees %}
+                <tr>
+                    <td>{{ fee.amount }} GHS</td>
+                    <td>
+                        {% if fee.paid %}
+                        <span class="tag" style="background: rgba(34,197,94,0.2); color: #22c55e; border-color: #22c55e;">Paid</span>
+                        {% else %}
+                        <span class="tag" style="background: rgba(249,115,115,0.2); color: #f97373; border-color: #f97373;">Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not fee.paid %}
+                        <a href="{% url 'finance:pay_with_flutterwave' fee.id %}" class="btn btn-primary btn-sm">Pay Now</a>
+                        {% else %}
+                        <span style="color: #6b7280;">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% endif %}
+    {% endwith %}
 {% endfor %}
 {% endif %}
 
-<div class="button-row mt-sm">
-    <button class="btn btn-secondary" type="button">
-        Update contact details
-    </button>
-</div>
 {% endblock %}

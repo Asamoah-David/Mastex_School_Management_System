@@ -1,12 +1,13 @@
 {% extends "base.html" %}
-{% block title %}My portal · Mastex SchoolOS{% endblock %}
-{% block page_title %}Student portal{% endblock %}
-{% block page_subtitle %}Your information and links.{% endblock %}
+{% block title %}My Portal · Mastex SchoolOS{% endblock %}
+{% block page_title %}My Portal{% endblock %}
+{% block page_subtitle %}Welcome, {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
+
 {% block content %}
 {% if student %}
-<div class="content-grid" style="grid-template-columns: 1fr;">
+<div class="content-grid">
     <section class="metric">
-        <div class="metric-label">Admission number</div>
+        <div class="metric-label">Admission Number</div>
         <div class="metric-value">{{ student.admission_number }}</div>
     </section>
     <section class="metric">
@@ -18,7 +19,97 @@
         <div class="metric-value">{{ student.school.name }}</div>
     </section>
 </div>
-<p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-soft);">Use the menu to view results, pay fees, or contact the school.</p>
+
+<!-- Academic Performance -->
+<h3 style="margin-top: 1.5rem; color: #22c55e;">Academic Performance</h3>
+
+{% if stats.average %}
+<div class="content-grid" style="margin-top: 0.5rem;">
+    <section class="metric">
+        <div class="metric-label">Average Score</div>
+        <div class="metric-value">{{ stats.average }}%</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Position in Class</div>
+        <div class="metric-value">{{ stats.position|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Subjects</div>
+        <div class="metric-value">{{ stats.total_subjects }}</div>
+    </section>
+</div>
+{% endif %}
+
+<!-- Results by Term/Exam -->
+{% if terms or exam_types %}
+<div class="filter-row" style="margin: 1rem 0; display: flex; gap: 1rem; flex-wrap: wrap;">
+    {% if terms %}
+    <div>
+        <label style="font-size: 0.8rem; color: #9ca3af;">Filter by Term:</label>
+        <select onchange="filterResults(this.value, 'term')" style="margin-left: 0.5rem; padding: 0.3rem; background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 0.3rem;">
+            <option value="">All Terms</option>
+            {% for term in terms %}
+            <option value="{{ term.id }}">{{ term.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    {% if exam_types %}
+    <div>
+        <label style="font-size: 0.8rem; color: #9ca3af;">Filter by Exam:</label>
+        <select onchange="filterResults(this.value, 'exam')" style="margin-left: 0.5rem; padding: 0.3rem; background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 0.3rem;">
+            <option value="">All Exams</option>
+            {% for exam in exam_types %}
+            <option value="{{ exam.id }}">{{ exam.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if results %}
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Exam Type</th>
+                <th>Term</th>
+                <th>Score</th>
+                <th>Grade</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td>{{ r.subject.name }}</td>
+                <td>{{ r.exam_type.name|default:"—" }}</td>
+                <td>{{ r.term.name|default:"—" }}</td>
+                <td>{{ r.score }}</td>
+                <td><span class="tag" style="background: rgba(34,197,94,0.2); color: #22c55e; border-color: #22c55e;">{{ r.grade }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state" style="margin-top: 1rem;">No results yet. Results will appear here after teachers upload them.</div>
+{% endif %}
+
+<script>
+function filterResults(value, type) {
+    // Simple client-side filtering - reloads page with filters
+    const url = new URL(window.location.href);
+    if (value) {
+        url.searchParams.set(type + '_id', value);
+    } else {
+        url.searchParams.delete(type + '_id');
+    }
+    window.location.href = url;
+}
+</script>
+
 {% else %}
 <div class="empty-state">No student record linked to your account. Please contact your school.</div>
 {% endif %}
