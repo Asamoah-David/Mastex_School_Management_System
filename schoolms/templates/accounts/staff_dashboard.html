@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Staff Dashboard - {{ school.name }}{% endblock %}
+
+{% block page_title %}Staff Dashboard{% endblock %}
+{% block page_subtitle %}Welcome back, {{ user.get_full_name|default:user.username }}{% endblock %}
+
+{% block content %}
+<!-- Staff Statistics Grid -->
+<div class="dashboard-grid-4">
+    <!-- Total Students -->
+    <div class="metric metric-blue">
+        <div class="metric-label">Total Students</div>
+        <div class="metric-value metric-value-lg color-blue">{{ total_students }}</div>
+    </div>
+
+    <!-- Present Today -->
+    <div class="metric metric-green">
+        <div class="metric-label">Present Today</div>
+        <div class="metric-value metric-value-lg color-green">{{ present_today }}</div>
+    </div>
+
+    <!-- Absent Today -->
+    <div class="metric metric-red">
+        <div class="metric-label">Absent Today</div>
+        <div class="metric-value metric-value-lg color-red">{{ absent_today }}</div>
+    </div>
+
+    <!-- Attendance Recorded -->
+    <div class="metric metric-purple">
+        <div class="metric-label">Attendance Recorded</div>
+        <div class="metric-value metric-value-lg color-purple">{{ recent_attendance }}</div>
+    </div>
+</div>
+
+<!-- Quick Actions Section -->
+<div class="content-card card-margin-top">
+    <h3 class="section-title">Quick Actions</h3>
+    <div class="quick-actions-grid">
+        <a href="{% url 'students:student_list' %}" class="btn btn-secondary">
+            View Students
+        </a>
+        <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">
+            Mark Attendance
+        </a>
+        <a href="{% url 'operations:calendar' %}" class="btn btn-secondary">
+            Academic Calendar
+        </a>
+        <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary">
+            Send Messages
+        </a>
+        <a href="{% url 'ai_assistant:chat' %}" class="btn btn-secondary">
+            AI Assistant
+        </a>
+    </div>
+</div>
+
+<!-- Bottom Section: Upcoming Events -->
+<div class="bottom-grid">
+    <!-- Upcoming Events -->
+    <div class="content-card">
+        <h3 class="section-title">Upcoming Events</h3>
+        {% if upcoming_events %}
+        <div class="flex-col gap-1">
+            {% for event in upcoming_events %}
+            <div class="event-item">
+                <div class="event-title">{{ event.title }}</div>
+                <div class="event-date">{{ event.start_date|date:"M d, Y" }} - {{ event.get_event_type_display }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">No upcoming events</div>
+        {% endif %}
+    </div>
+
+    <!-- Today's Attendance Summary -->
+    <div class="content-card">
+        <h3 class="section-title">Today's Summary</h3>
+        <div class="summary-section">
+            <div class="summary-row">
+                <span class="color-green">Present</span>
+                <span class="color-white">{{ present_today }} students</span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar-success progress-75 height-full"></div>
+            </div>
+        </div>
+        <div class="summary-section">
+            <div class="summary-row">
+                <span class="color-red">Absent</span>
+                <span class="color-white">{{ absent_today }} students</span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar-danger progress-25 height-full"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

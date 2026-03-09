@@ -3,201 +3,133 @@
 
 {% block title %}School Dashboard - {{ school.name }}{% endblock %}
 
+{% block page_title %}School Dashboard{% endblock %}
+{% block page_subtitle %}Overview and statistics for {{ school.name }}{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <!-- School Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h2 class="mb-1">{{ school.name }}</h2>
-                    <p class="mb-0">School Admin Dashboard</p>
-                </div>
-            </div>
-        </div>
+<!-- Statistics Cards Grid -->
+<div class="dashboard-grid">
+    <!-- Total Students -->
+    <div class="metric metric-blue">
+        <div class="metric-label">Total Students</div>
+        <div class="metric-value metric-value-lg color-blue">{{ total_students }}</div>
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-primary">{{ total_students }}</h3>
-                    <p class="text-muted mb-0">Total Students</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-info">{{ male_students }}</h3>
-                    <p class="text-muted mb-0">Male Students</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-pink">{{ female_students }}</h3>
-                    <p class="text-muted mb-0">Female Students</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-success">{{ total_staff }}</h3>
-                    <p class="text-muted mb-0">Total Staff</p>
-                </div>
-            </div>
-        </div>
+    <!-- Male Students -->
+    <div class="metric metric-blue">
+        <div class="metric-label">Male Students</div>
+        <div class="metric-value metric-value-lg color-blue-light">{{ male_students }}</div>
     </div>
 
-    <!-- Second Row -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-warning">{{ teachers_count }}</h3>
-                    <p class="text-muted mb-0">Teachers</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-success">{{ present_today }}</h3>
-                    <p class="text-muted mb-0">Present Today</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-success">{{ paid_fees }}</h3>
-                    <p class="text-muted mb-0">Fees Collected (GHS)</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3 class="text-danger">{{ unpaid_fees }}</h3>
-                    <p class="text-muted mb-0">Unpaid Fees</p>
-                </div>
-            </div>
-        </div>
+    <!-- Female Students -->
+    <div class="metric metric-pink">
+        <div class="metric-label">Female Students</div>
+        <div class="metric-value metric-value-lg color-pink">{{ female_students }}</div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Quick Actions</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'students:student_register' %}" class="btn btn-primary btn-block">
-                                <i class="fas fa-user-plus"></i> Add Student
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary btn-block">
-                                <i class="fas fa-user-tie"></i> Add Staff
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'accounts:staff_list' %}" class="btn btn-info btn-block">
-                                <i class="fas fa-users"></i> Manage Staff
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'students:student_list' %}" class="btn btn-info btn-block">
-                                <i class="fas fa-user-graduate"></i> Manage Students
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'students:promote_students' %}" class="btn btn-warning btn-block">
-                                <i class="fas fa-graduation-cap"></i> Promote Students
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'operations:attendance_mark' %}" class="btn btn-warning btn-block">
-                                <i class="fas fa-calendar-check"></i> Mark Attendance
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'messaging:send_message' %}" class="btn btn-success btn-block">
-                                <i class="fas fa-envelope"></i> Send Messages
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'operations:calendar' %}" class="btn btn-secondary btn-block">
-                                <i class="fas fa-calendar-alt"></i> Academic Calendar
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{% url 'accounts:parent_list' %}" class="btn btn-dark btn-block">
-                                <i class="fas fa-user-friends"></i> Manage Parents
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- Total Staff -->
+    <div class="metric metric-purple">
+        <div class="metric-label">Total Staff</div>
+        <div class="metric-value metric-value-lg color-purple">{{ total_staff }}</div>
     </div>
 
+    <!-- Teachers -->
+    <div class="metric metric-green">
+        <div class="metric-label">Teachers</div>
+        <div class="metric-value metric-value-lg color-green">{{ teachers_count }}</div>
+    </div>
+
+    <!-- Present Today -->
+    <div class="metric metric-green">
+        <div class="metric-label">Present Today</div>
+        <div class="metric-value metric-value-lg color-green-light">{{ present_today }}</div>
+    </div>
+
+    <!-- Fees Collected -->
+    <div class="metric metric-green">
+        <div class="metric-label">Fees Collected (GHS)</div>
+        <div class="metric-value metric-value-lg color-green">{{ paid_fees }}</div>
+    </div>
+
+    <!-- Unpaid Fees -->
+    <div class="metric metric-red">
+        <div class="metric-label">Unpaid Fees</div>
+        <div class="metric-value metric-value-lg color-red">{{ unpaid_fees }}</div>
+    </div>
+</div>
+
+<!-- Quick Actions Section -->
+<div class="content-card card-margin-top">
+    <h3 class="section-title">Quick Actions</h3>
+    <div class="quick-actions-grid">
+        <a href="{% url 'students:student_register' %}" class="btn btn-primary">
+            <span class="icon-add">+</span> Add Student
+        </a>
+        <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">
+            <span class="icon-add">+</span> Add Staff
+        </a>
+        <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">
+            Manage Staff
+        </a>
+        <a href="{% url 'students:student_list' %}" class="btn btn-secondary">
+            Manage Students
+        </a>
+        <a href="{% url 'students:promote_students' %}" class="btn btn-secondary">
+            Promote Students
+        </a>
+        <a href="{% url 'operations:attendance_mark' %}" class="btn btn-secondary">
+            Mark Attendance
+        </a>
+        <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary">
+            Send Messages
+        </a>
+        <a href="{% url 'operations:calendar' %}" class="btn btn-secondary">
+            Academic Calendar
+        </a>
+        <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">
+            Manage Parents
+        </a>
+    </div>
+</div>
+
+<!-- Bottom Section: Upcoming Events & Fee Overview -->
+<div class="bottom-grid">
     <!-- Upcoming Events -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Upcoming Events</h5>
-                </div>
-                <div class="card-body">
-                    {% if upcoming_events %}
-                    <div class="list-group">
-                        {% for event in upcoming_events %}
-                        <div class="list-group-item">
-                            <strong>{{ event.title }}</strong>
-                            <br>
-                            <small class="text-muted">{{ event.start_date|date:"M d, Y" }} - {{ event.get_event_type_display }}</small>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                        <p class="text-muted">No upcoming events</p>
-                    {% endif %}
-                </div>
+    <div class="content-card">
+        <h3 class="section-title">Upcoming Events</h3>
+        {% if upcoming_events %}
+        <div class="flex-col gap-1">
+            {% for event in upcoming_events %}
+            <div class="event-item">
+                <div class="event-title">{{ event.title }}</div>
+                <div class="event-date">{{ event.start_date|date:"M d, Y" }} - {{ event.get_event_type_display }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">No upcoming events</div>
+        {% endif %}
+    </div>
+
+    <!-- Fee Overview -->
+    <div class="content-card">
+        <h3 class="section-title">Fee Overview</h3>
+        <div class="summary-section">
+            <div class="summary-row">
+                <span class="color-green">Collected</span>
+                <span class="color-white">GHS {{ paid_fees }}</span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar-success progress-75 height-full"></div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Fee Overview</h5>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>Collected</span>
-                            <span>GHS {{ paid_fees }}</span>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-bar bg-success progress-fees-collected" role="progressbar" title="Fees Collected"></div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>Outstanding</span>
-                            <span>GHS {{ total_fees|add:paid_fees|default:0 }}</span>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-bar bg-danger progress-fees-outstanding" role="progressbar" title="Outstanding Fees"></div>
-                        </div>
-                    </div>
-                </div>
+        <div class="summary-section">
+            <div class="summary-row">
+                <span class="color-red">Outstanding</span>
+                <span class="color-white">GHS {{ unpaid_fees }}</span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar-danger progress-25 height-full"></div>
             </div>
         </div>
     </div>
