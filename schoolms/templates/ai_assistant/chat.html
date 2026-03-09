@@ -23,18 +23,35 @@
     <div class="mt-1">
         <div class="form-group">
             <label>Your Question:</label>
-            <div style="padding: 0.75rem; background: rgba(15,23,42,0.9); border-radius: 0.5rem; margin-top: 0.25rem;">
+            <div class="ai-message-box">
                 {{ user_message }}
             </div>
         </div>
         
         <div class="form-group mt-1">
             <label>AI Response:</label>
-            <div style="padding: 0.75rem; background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.4); border-radius: 0.5rem; margin-top: 0.25rem; color: #22c55e;">
+            <div class="ai-response-box">
                 {{ ai_response|linebreaks }}
             </div>
         </div>
     </div>
     {% endif %}
 </div>
+
+<style>
+.ai-message-box {
+    padding: 0.75rem;
+    background: rgba(15,23,42,0.9);
+    border-radius: 0.5rem;
+    margin-top: 0.25rem;
+}
+.ai-response-box {
+    padding: 0.75rem;
+    background: rgba(34,197,94,0.15);
+    border: 1px solid rgba(34,197,94,0.4);
+    border-radius: 0.5rem;
+    margin-top: 0.25rem;
+    color: #22c55e;
+}
+</style>
 {% endblock %}

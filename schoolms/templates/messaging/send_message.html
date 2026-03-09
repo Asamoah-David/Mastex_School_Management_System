@@ -26,7 +26,7 @@
             </select>
         </div>
         
-        <div class="form-group mt-1 email-field" style="display:none;">
+        <div class="form-group mt-1 email-field">
             <label for="id_subject">Email Subject</label>
             <input id="id_subject" name="subject" type="text" placeholder="Enter email subject" />
         </div>
@@ -43,13 +43,20 @@
 </div>
 
 <script>
-document.getElementById('id_message_type').addEventListener('change', function() {
+document.addEventListener('DOMContentLoaded', function() {
+    const messageType = document.getElementById('id_message_type');
     const emailFields = document.querySelectorAll('.email-field');
-    if (this.value === 'email') {
-        emailFields.forEach(f => f.style.display = 'block');
-    } else {
-        emailFields.forEach(f => f.style.display = 'none');
-    }
+    
+    // Hide email fields by default
+    emailFields.forEach(f => f.style.display = 'none');
+    
+    messageType.addEventListener('change', function() {
+        if (this.value === 'email') {
+            emailFields.forEach(f => f.style.display = 'block');
+        } else {
+            emailFields.forEach(f => f.style.display = 'none');
+        }
+    });
 });
 </script>
 {% endblock %}

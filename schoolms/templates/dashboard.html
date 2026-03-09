@@ -53,28 +53,28 @@
     {% endif %}
 </div>
 
-<hr style="margin: 1.5rem 0; border: none; border-top: 1px solid rgba(148,163,184,0.3);">
+<hr class="section-divider">
 
-<h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;">How schools, parents & staff get access (SaaS)</h3>
-<div class="content-grid" style="grid-template-columns: 1fr;">
-    <section class="metric" style="border-color: rgba(148,163,184,0.4);">
+<h3 class="section-subtitle">How schools, parents & staff get access (SaaS)</h3>
+<div class="content-grid single-column">
+    <section class="metric metric-info">
         <div class="metric-label">1. Schools</div>
-        <div class="metric-value" style="font-size: 0.9rem; font-weight: 500;">You add a school in Django Admin → Schools. Each school gets a unique subdomain and Stripe/Flutterwave billing. The school admin is created and invited.</div>
+        <div class="metric-value">You add a school in Django Admin → Schools. Each school gets a unique subdomain and Stripe/Flutterwave billing. The school admin is created and invited.</div>
     </section>
-    <section class="metric" style="border-color: rgba(148,163,184,0.4);">
+    <section class="metric metric-info">
         <div class="metric-label">2. Staff (teachers, school admins)</div>
-        <div class="metric-value" style="font-size: 0.9rem; font-weight: 500;">Created under Accounts → Users with <code>school</code> and <code>role</code> set. They log in at the same URL and see only their school's data.</div>
+        <div class="metric-value">Created under Accounts → Users with <code>school</code> and <code>role</code> set. They log in at the same URL and see only their school's data.</div>
     </section>
-    <section class="metric" style="border-color: rgba(148,163,184,0.4);">
+    <section class="metric metric-info">
         <div class="metric-label">3. Parents</div>
-        <div class="metric-value" style="font-size: 0.9rem; font-weight: 500;">When a Student is linked to a parent (User with role=parent), the parent logs in and sees their children on the Parent Dashboard. You create parent users and link them to students.</div>
+        <div class="metric-value">When a Student is linked to a parent (User with role=parent), the parent logs in and sees their children on the Parent Dashboard. You create parent users and link them to students.</div>
     </section>
-    <section class="metric" style="border-color: rgba(148,163,184,0.4);">
+    <section class="metric metric-info">
         <div class="metric-label">4. Students</div>
-        <div class="metric-value" style="font-size: 0.9rem; font-weight: 500;">Each student has a User (role=student) linked via Student.user. Students can log in to view results and pay fees.</div>
+        <div class="metric-value">Each student has a User (role=student) linked via Student.user. Students can log in to view results and pay fees.</div>
     </section>
 </div>
-<p style="font-size: 0.8rem; color: var(--text-soft); margin-top: 0.5rem;">
+<p class="help-text">
     <strong>Next step:</strong> Add a School, then create Users (staff/parents/students) and link them. Use Django Admin for full CRUD. For a public school signup flow, you can add a registration page later.
 </p>
 {% endblock %}
