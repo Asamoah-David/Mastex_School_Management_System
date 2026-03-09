@@ -580,10 +580,35 @@
                                     <span class="nav-item-title">Overview</span>
                                     <span class="nav-item-subtitle">Key metrics at a glance</span>
                                 </div>
-                                <span class="nav-badge">{% if not user.school %}Admin{% else %}School{% endif %}</span>
+                                <span class="nav-badge">
+                                    {% if user.role == "student" %}Student
+                                    {% elif user.role == "parent" %}Parent
+                                    {% elif user.role == "teacher" %}Teacher
+                                    {% elif user.role == "admin" %}Admin
+                                    {% elif user.is_superuser %}Superadmin
+                                    {% else %}School{% endif %}
+                                </span>
                             </a>
                         </li>
-                        {% if user.school %}
+                        {% if user.role == "student" %}
+                        <li>
+                            <a href="{% url 'portal' %}" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">My Portal</span>
+                                    <span class="nav-item-subtitle">View my details</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% elif user.role == "parent" %}
+                        <li>
+                            <a href="{% url 'portal' %}" class="nav-item">
+                                <div class="nav-item-label">
+                                    <span class="nav-item-title">My Children</span>
+                                    <span class="nav-item-subtitle">View my children</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% elif user.role == "teacher" or user.role == "admin" %}
                         <li>
                             <a href="{% url 'accounts:user_management' %}" class="nav-item">
                                 <div class="nav-item-label">
