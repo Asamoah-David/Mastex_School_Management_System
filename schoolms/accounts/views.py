@@ -17,15 +17,45 @@ def logout_view(request):
 
 
 def login_view(request):
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-        user = authenticate(request, username=username, password=password)
-        if user:
-            login(request, user)
-            if user.role == "parent" or user.role == "student":
-                return redirect("portal")
+    # If already logged in, redirect to appropriate dashboard
+    if request.user.is_authenticated:
+        if request.user.role in ["parent", "student"]:
+            return redirect("portal")
+        elif request.user.role in ["school_admin", "teacher", "staff"]:
+            return redirect("accounts:school_dashboard")
+        elif request.user.is_superuser or request.user.role == "super_admin":
             return redirect("home")
+        return redirect("accounts:login")
+    
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+        
+        if not username or not password:
+            messages.error(request, "Please enter both username and password.")
+            return render(request, "accounts/login.html")
+        
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            # Log successful login
+            print(f"User {user.username} logged in successfully with role: {user.role}")
+            
+            if user.role in ["parent", "student"]:
+                return redirect("portal")
+            elif user.role in ["school_admin", "teacher", "staff"]:
+                return redirect("accounts:school_dashboard")
+            elif user.is_superuser or user.role == "super_admin":
+                return redirect("home")
+            else:
+                # Default fallback
+                return redirect("home")
+        else:
+            # Authentication failed
+            messages.error(request, "Invalid username or password. Please try again.")
+            print(f"Failed login attempt for username: {username}")
+    
     return render(request, "accounts/login.html")
 
 
