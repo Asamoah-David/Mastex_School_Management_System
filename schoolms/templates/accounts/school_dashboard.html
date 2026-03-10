@@ -72,13 +72,16 @@
             Manage Staff
         </a>
         <a href="{% url 'students:student_list' %}" class="btn btn-secondary">
-            Manage Students
+            View All Students
         </a>
         <a href="{% url 'students:promote_students' %}" class="btn btn-secondary">
             Promote Students
         </a>
         <a href="{% url 'operations:attendance_mark' %}" class="btn btn-secondary">
             Mark Attendance
+        </a>
+        <a href="{% url 'academics:result_upload' %}" class="btn btn-primary">
+            Upload Results
         </a>
         <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary">
             Send Messages
