@@ -308,3 +308,8 @@ a.content-link:hover {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
 }
+
+/* Table card overflow */
+.table-card-scroll {
+    overflow-x: auto;
+}

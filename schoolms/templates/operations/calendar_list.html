@@ -8,13 +8,13 @@
 
 {% block content %}
 <div class="content-card">
-    <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3 style="margin: 0;">Events</h3>
+    <div class="calendar-header">
+        <h3>Events</h3>
         <a href="{% url 'operations:calendar_create' %}" class="btn btn-primary">+ Add Event</a>
     </div>
     
     {% if events %}
-    <div class="table-card" style="overflow-x: auto;">
+    <div class="table-card table-card-scroll">
         <table>
             <thead>
                 <tr>
