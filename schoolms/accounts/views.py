@@ -170,7 +170,7 @@ def _user_can_manage_school(request):
     """School admin or teacher can manage their school; superuser can manage any."""
     if request.user.is_superuser:
         return True
-    return request.user.role in ("admin", "teacher") and getattr(request.user, "school_id", None)
+    return request.user.role in ("admin", "school_admin", "teacher", "staff") and getattr(request.user, "school_id", None)
 
 
 @login_required
