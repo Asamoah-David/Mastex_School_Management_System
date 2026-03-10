@@ -51,7 +51,7 @@
     </form>
     
     {% if students and selected_class and selected_subject and selected_exam_type and selected_term %}
-    <div style="margin-top: 1.5rem;">
+    <div class="result-section">
         <h4>Enter Scores for {{ selected_class }} - {{ selected_subject }} - {{ selected_exam_type }} - {{ selected_term }}</h4>
         <p class="text-muted">Enter scores (0-100) for each student. Existing scores are pre-filled.</p>
         
@@ -86,7 +86,7 @@
                             <input type="number" name="score_student_{{ student.id }}" 
                                    value="{{ existing_results|get_item:student.id|default:'' }}"
                                    min="0" max="100" step="0.1" 
-                                   style="width: 80px; padding: 0.5rem;"
+                                   class="result-score-input"
                                    placeholder="Score">
                         </td>
                     </tr>
@@ -94,7 +94,7 @@
                 </tbody>
             </table>
             
-            <div style="margin-top: 1rem; text-align: right;">
+            <div class="result-actions">
                 <button type="submit" class="btn btn-primary">Save All Scores</button>
             </div>
         </form>

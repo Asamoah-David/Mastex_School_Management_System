@@ -263,3 +263,48 @@ a.content-link:hover {
 .progress-fees-outstanding {
     width: 25%;
 }
+
+/* Calendar and Result Upload specific styles */
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.calendar-header h3 {
+    margin: 0;
+}
+
+.result-section {
+    margin-top: 1.5rem;
+}
+
+.result-section-title {
+    margin-bottom: 0.5rem;
+    color: #22c55e;
+}
+
+.result-entry-table {
+    margin-top: 1rem;
+}
+
+.result-score-input {
+    width: 80px;
+    padding: 0.5rem;
+}
+
+.result-actions {
+    margin-top: 1rem;
+    text-align: right;
+}
+
+.text-muted {
+    color: #6b7280;
+}
+
+/* Small button */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
