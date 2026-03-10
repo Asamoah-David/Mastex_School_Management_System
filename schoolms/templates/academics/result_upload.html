@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Upload Results - {{ school.name }}{% endblock %}
+
+{% block page_title %}Upload Results{% endblock %}
+{% block page_subtitle %}Enter student scores for exams and class work{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <!-- Filter Form -->
+    <form method="get" class="filter-form">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="class">Class</label>
+                <select name="class" id="class" onchange="this.form.submit()">
+                    <option value="">Select Class</option>
+                    {% for c in classes %}
+                    <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="subject">Subject</label>
+                <select name="subject" id="subject" onchange="this.form.submit()">
+                    <option value="">Select Subject</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}" {% if selected_subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="exam_type">Exam Type</label>
+                <select name="exam_type" id="exam_type" onchange="this.form.submit()">
+                    <option value="">Select Exam Type</option>
+                    {% for e in exam_types %}
+                    <option value="{{ e.id }}" {% if selected_exam_type == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="term">Term</label>
+                <select name="term" id="term" onchange="this.form.submit()">
+                    <option value="">Select Term</option>
+                    {% for t in terms %}
+                    <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}{% if t.is_current %} (Current){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    
+    {% if students and selected_class and selected_subject and selected_exam_type and selected_term %}
+    <div style="margin-top: 1.5rem;">
+        <h4>Enter Scores for {{ selected_class }} - {{ selected_subject }} - {{ selected_exam_type }} - {{ selected_term }}</h4>
+        <p class="text-muted">Enter scores (0-100) for each student. Existing scores are pre-filled.</p>
+        
+        <form method="post" class="result-entry-form">
+            {% csrf_token %}
+            <input type="hidden" name="subject" value="{{ selected_subject }}">
+            <input type="hidden" name="exam_type" value="{{ selected_exam_type }}">
+            <input type="hidden" name="term" value="{{ selected_term }}">
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Admission No.</th>
+                        <th>Student Name</th>
+                        <th>Current Score</th>
+                        <th>New Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td>{{ student.admission_number }}</td>
+                        <td>{{ student.user.get_full_name }}</td>
+                        <td>
+                            {% if student.id in existing_results %}
+                            <span class="tag tag-success">{{ existing_results|get_item:student.id }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <input type="number" name="score_student_{{ student.id }}" 
+                                   value="{{ existing_results|get_item:student.id|default:'' }}"
+                                   min="0" max="100" step="0.1" 
+                                   style="width: 80px; padding: 0.5rem;"
+                                   placeholder="Score">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 1rem; text-align: right;">
+                <button type="submit" class="btn btn-primary">Save All Scores</button>
+            </div>
+        </form>
+    </div>
+    {% elif selected_class and not selected_subject %}
+    <div class="empty-state">
+        Please select a subject to continue.
+    </div>
+    {% elif selected_class and selected_subject and not selected_exam_type %}
+    <div class="empty-state">
+        Please select an exam type to continue.
+    </div>
+    {% elif selected_class and selected_subject and selected_exam_type and not selected_term %}
+    <div class="empty-state">
+        Please select a term to continue.
+    </div>
+    {% elif not selected_class %}
+    <div class="empty-state">
+        Please select a class to see students.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
