@@ -8,7 +8,10 @@ from django.utils import timezone
 from django.urls import reverse
 
 from accounts.models import User
-from schools.models import School
+from schools.models import School  # Moved import to top
+from students.models import Student  # Moved import to top
+from finance.models import Fee  # Moved import to top
+from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar # Needed for school_dashboard
 
 
 def logout_view(request):
@@ -21,11 +24,11 @@ def login_view(request):
     # If already logged in, redirect to appropriate dashboard
     if request.user.is_authenticated:
         if request.user.role in ["parent", "student"]:
-            return redirect("/portal/")
+            return redirect("portal") # Use named URL for consistency
         elif request.user.role in ["admin", "school_admin", "teacher", "staff"]:
-            return redirect("/accounts/school-dashboard/")
+            return redirect("accounts:school_dashboard") # Use named URL for consistency
         elif request.user.is_superuser or request.user.role == "super_admin":
-            return redirect("/")
+            return redirect("home") # Use named URL for consistency (home points to accounts:dashboard)
     
     # Process login form
     if request.method == "POST":
@@ -42,13 +45,14 @@ def login_view(request):
             login(request, user)
             
             if user.role in ["parent", "student"]:
-                return redirect("/portal/")
+                return redirect("portal")
             elif user.role in ["admin", "school_admin", "teacher", "staff"]:
-                return redirect("/accounts/school-dashboard/")
+                return redirect("accounts:school_dashboard")
             elif user.is_superuser or user.role == "super_admin":
-                return redirect("/")
+                return redirect("home")
             else:
-                return redirect("/")
+                # Fallback for unexpected roles, redirect to home
+                return redirect("home")
         else:
             messages.error(request, "Invalid username or password.")
     
@@ -67,10 +71,6 @@ def dashboard(request):
     
     # Super admins and superusers get the main dashboard
     if request.user.is_superuser or request.user.role == "super_admin":
-        from schools.models import School
-        from students.models import Student
-        from finance.models import Fee
-
         school = getattr(request.user, "school", None)
         
         # Check if superuser (platform admin)
@@ -103,8 +103,14 @@ def dashboard(request):
         }
         return render(request, "dashboard.html", context)
     
-    # Default redirect
-    return redirect("accounts:login")
+    # If an authenticated user somehow reaches here without a specific role redirect,
+    # redirect them to their school dashboard or a default authenticated page.
+    # Given the existing role checks, this line should ideally not be reached by authenticated users.
+    # However, as a failsafe, we can direct them to school_dashboard if they are staff or admin
+    # or to a generic home if not.
+    if request.user.is_staff or request.user.is_superuser: # is_staff covers school_admin, teacher, staff, and superuser
+        return redirect("accounts:school_dashboard")
+    return redirect("home") # Redirect to a safe default for authenticated but unassigned users
 
 
 @login_required
@@ -112,15 +118,17 @@ def school_dashboard(request):
     """Custom dashboard for school admins, teachers, and staff."""
     # Only school staff can access (role "admin" is also a school admin)
     if not request.user.is_staff_member and not request.user.is_school_admin and request.user.role != "admin":
-        return redirect("home")
+        return redirect("accounts:dashboard") # Redirect to accounts:dashboard instead of home for clarity
     
     school = getattr(request.user, "school", None)
     if not school:
-        return redirect("home")
+        # If a staff member somehow doesn't have a school, redirect them to main dashboard
+        return redirect("accounts:dashboard")
     
-    from students.models import Student
-    from finance.models import Fee
-    from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
+    # Imports for models that are now at the top of the file
+    # from students.models import Student
+    # from finance.models import Fee
+    # from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
     
     # Get school statistics
     total_students = Student.objects.filter(school=school).count()
@@ -131,7 +139,7 @@ def school_dashboard(request):
     try:
         male_students = Student.objects.filter(school=school, user__gender='male').count()
         female_students = Student.objects.filter(school=school, user__gender='female').count()
-    except:
+    except Exception: # Catch broader exception to prevent 500s from field lookups
         male_students = 0
         female_students = 0
     
@@ -291,7 +299,7 @@ def parent_detail(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    from students.models import Student
+    # from students.models import Student # Moved to top
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
     children = Student.objects.filter(parent=parent).select_related("user", "school")
     return render(request, "accounts/parent_detail.html", {"parent": parent, "children": children})
@@ -309,7 +317,7 @@ def user_management(request):
     # Get counts
     staff_count = User.objects.filter(school=school, role__in=("admin", "teacher")).count()
     parent_count = User.objects.filter(school=school, role="parent").count()
-    from students.models import Student
+    # from students.models import Student # Moved to top
     student_count = Student.objects.filter(school=school).count()
     
     context = {

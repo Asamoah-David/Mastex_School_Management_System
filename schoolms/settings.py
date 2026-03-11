@@ -207,7 +207,7 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "noreply@schoolms.com")
 
 # Auth redirects
 LOGIN_URL = "/accounts/login/"
-LOGIN_REDIRECT_URL = "/"
+LOGIN_REDIRECT_URL = "/accounts/dashboard/" # Changed to direct to accounts:dashboard
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 # override with DATABASE_URL (Render provides this in production)
