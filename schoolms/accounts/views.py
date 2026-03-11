@@ -24,11 +24,11 @@ def login_view(request):
     # If already logged in, redirect to appropriate dashboard
     if request.user.is_authenticated:
         if request.user.role in ["parent", "student"]:
-            return redirect("portal") # Use named URL for consistency
+            return redirect("portal")
         elif request.user.role in ["admin", "school_admin", "teacher", "staff"]:
-            return redirect("accounts:school_dashboard") # Use named URL for consistency
+            return redirect("accounts:school_dashboard")
         elif request.user.is_superuser or request.user.role == "super_admin":
-            return redirect("home") # Use named URL for consistency (home points to accounts:dashboard)
+            return redirect("accounts:dashboard")
     
     # Process login form
     if request.method == "POST":
@@ -49,10 +49,10 @@ def login_view(request):
             elif user.role in ["admin", "school_admin", "teacher", "staff"]:
                 return redirect("accounts:school_dashboard")
             elif user.is_superuser or user.role == "super_admin":
-                return redirect("home")
+                return redirect("accounts:dashboard")
             else:
-                # Fallback for unexpected roles, redirect to home
-                return redirect("home")
+                # Fallback for unexpected roles, redirect to dashboard
+                return redirect("accounts:dashboard")
         else:
             messages.error(request, "Invalid username or password.")
     
@@ -70,7 +70,7 @@ def dashboard(request):
         return redirect("accounts:school_dashboard")
     
     # Super admins and superusers get the main dashboard
-    if request.user.is_superuser or request.user.role == "super_admin":
+    if request.user.is_superuser or request.user.role == "super_admin" or request.user.is_staff:
         school = getattr(request.user, "school", None)
         
         # Check if superuser (platform admin)

@@ -9,11 +9,11 @@ class SchoolMiddleware:
 
     def __call__(self, request):
         # Skip all middleware processing for these paths
-        if request.path in ["/accounts/login/", "/accounts/logout/", "/login/", "/logout/", "/register/", "/admin/login/"]:
+        if request.path in ["/accounts/login/", "/accounts/logout/", "/login/", "/logout/", "/register/", "/admin/login/", "/portal/"]:
             return self.get_response(request)
         
         # Skip for paths starting with these
-        if any(request.path.startswith(path) for path in ["/static/", "/media/", "/admin/jsi18n/"]):
+        if any(request.path.startswith(path) for path in ["/static/", "/media/", "/admin/jsi18n/", "/portal"]):
             return self.get_response(request)
         
         # Try to get school from subdomain only for non-base domains
