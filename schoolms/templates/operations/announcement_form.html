@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}New Announcement - {{ school.name }}{% endblock %}
+{% block page_title %}New Announcement{% endblock %}
+{% block page_subtitle %}Create a school announcement{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Title</label>
+            <input type="text" name="title" required maxlength="200" style="width:100%;padding:0.5rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Content</label>
+            <textarea name="content" rows="5" required style="width:100%;padding:0.5rem;"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Audience</label>
+            <select name="target_audience" style="padding:0.5rem;">
+                <option value="all">Everyone</option>
+                <option value="parents">Parents</option>
+                <option value="students">Students</option>
+                <option value="staff">Staff Only</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label><input type="checkbox" name="is_pinned"> Pin to top</label>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Create</button>
+            <a href="{% url 'operations:announcement_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Exam Schedule - {{ school.name }}{% endblock %}
+{% block page_title %}Exam Schedule{% endblock %}
+{% block page_subtitle %}Exam timetable by term{% endblock %}
+
+{% block content %}
+<div class="button-row mt-sm">
+    <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+</div>
+
+<div class="content-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+            <a href="{% url 'academics:exam_schedule_create' %}" class="btn btn-primary">+ Schedule Exam</a>
+            {% if terms %}
+            <form method="get" style="display:inline;margin-left:0.5rem;">
+                <select name="term" onchange="this.form.submit()" style="padding:0.4rem;">
+                    <option value="">All terms</option>
+                    {% for t in terms %}
+                    <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% if exams %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr><th>Subject</th><th>Term</th><th>Date</th><th>Time</th><th>Room</th></tr>
+            </thead>
+            <tbody>
+                {% for e in exams %}
+                <tr>
+                    <td>{{ e.subject.name }}</td>
+                    <td>{{ e.term.name }}</td>
+                    <td>{{ e.exam_date|date:"M d, Y" }}</td>
+                    <td>{% if e.start_time %}{{ e.start_time|time:"H:i" }}{% if e.end_time %} - {{ e.end_time|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
+                    <td>{{ e.room|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No exams scheduled yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

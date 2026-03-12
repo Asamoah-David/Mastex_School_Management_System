@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Report Card - {{ student.user.get_full_name }}{% endblock %}
+{% block page_title %}Report Card{% endblock %}
+{% block page_subtitle %}{{ student.user.get_full_name|default:student.user.username }} - {{ student.class_name }}{% endblock %}
+
+{% block content %}
+<div class="button-row mt-sm">
+    <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+</div>
+
+<div class="content-card">
+    <div class="content-grid" style="margin-bottom:1.5rem;">
+        <div class="metric"><div class="metric-label">Admission No</div><div class="metric-value">{{ student.admission_number }}</div></div>
+        <div class="metric"><div class="metric-label">Class</div><div class="metric-value">{{ student.class_name }}</div></div>
+        <div class="metric"><div class="metric-label">Average</div><div class="metric-value">{{ average }}%</div></div>
+    </div>
+    <form method="get" style="margin-bottom:1rem;">
+        <select name="term" onchange="this.form.submit()" style="padding:0.5rem;">
+            <option value="">All terms</option>
+            {% for t in terms %}
+            <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    {% if results %}
+    <div class="table-card">
+        <table>
+            <thead><tr><th>Subject</th><th>Exam Type</th><th>Term</th><th>Score</th><th>Grade</th></tr></thead>
+            <tbody>
+                {% for r in results %}
+                <tr>
+                    <td>{{ r.subject.name }}</td>
+                    <td>{{ r.exam_type.name|default:"-" }}</td>
+                    <td>{{ r.term.name|default:"-" }}</td>
+                    <td>{{ r.score }}</td>
+                    <td><span class="tag">{{ r.grade }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No results for selected term.</div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Platform Dashboard · Mastex SchoolOS{% endblock %}
+{% block page_title %}Platform Dashboard{% endblock %}
+{% block page_subtitle %}High-level overview of schools and users{% endblock %}
+
+{% block content %}
+<div class="content-grid">
+    <section class="metric">
+        <div class="metric-label">Active Schools</div>
+        <div class="metric-value">{{ total_schools }}</div>
+        <div class="metric-caption">Schools currently on the platform</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Total Students</div>
+        <div class="metric-value">{{ total_students }}</div>
+        <div class="metric-caption">Across all schools</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Staff</div>
+        <div class="metric-value">{{ total_staff }}</div>
+        <div class="metric-caption">School admins, teachers, staff</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Parents</div>
+        <div class="metric-value">{{ total_parents }}</div>
+        <div class="metric-caption">Linked parent accounts</div>
+    </section>
+</div>
+
+<div class="content-card" style="margin-top:1.2rem;">
+    <h3 class="section-title">Quick Links</h3>
+    <div class="button-row">
+        <a href="/admin/" class="btn btn-secondary">Django Admin</a>
+        <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary">Activity Log</a>
+    </div>
+</div>
+{% endblock %}
+

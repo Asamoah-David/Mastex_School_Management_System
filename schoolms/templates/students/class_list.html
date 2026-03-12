@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Classes - {{ school.name }}{% endblock %}
+{% block page_title %}Classes{% endblock %}
+{% block page_subtitle %}Manage classes and class teachers{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div style="margin-bottom:1rem;">
+        <a href="{% url 'students:class_create' %}" class="btn btn-primary">+ Add Class</a>
+    </div>
+    {% if classes %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Class Teacher</th><th>Capacity</th><th>Students</th></tr>
+            </thead>
+            <tbody>
+                {% for c in classes %}
+                <tr>
+                    <td>{{ c.name }}</td>
+                    <td>{{ c.class_teacher.get_full_name|default:"-" }}</td>
+                    <td>{{ c.capacity|default:"-" }}</td>
+                    <td>{{ c.student_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No classes defined. Add classes to organize students.</div>
+    {% endif %}
+</div>
+{% endblock %}

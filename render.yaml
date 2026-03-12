@@ -1,0 +1,16 @@
+# Render Blueprint (optional). Use this if you deploy as Native Environment instead of Docker.
+# If you use Docker, leave "Docker" selected in Render dashboard; migrations run automatically in docker-entrypoint.sh.
+#
+# For Native Environment (no Docker): set these in Render dashboard so migrations run on every deploy:
+#   Build Command:  pip install -r requirements.txt
+#   Start Command:  python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn schoolms.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 2
+#
+# Required env vars on Render: SECRET_KEY, DATABASE_URL (auto-set if you add a PostgreSQL instance), ALLOWED_HOSTS (optional).
+services:
+  - type: web
+    name: schoolms
+    # Use Docker so migrations run automatically in docker-entrypoint.sh (no manual shell needed).
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
