@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ staff.get_full_name|default:staff.username }} · Mastex SchoolOS{% endblock %}
 {% block page_title %}{{ staff.get_full_name|default:staff.username }}{% endblock %}
-{% block page_subtitle %}Staff profile.{% endblock %}
+{% block page_subtitle %}Staff profile · Status: {% if staff.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
 {% block content %}
 <div class="content-grid" style="grid-template-columns: 1fr;">
     <section class="metric">
@@ -27,5 +27,14 @@
 </div>
 <div class="button-row mt-sm">
     <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">Back to staff list</a>
+    <a href="{% url 'accounts:reset_user_password' staff.id %}?next={% url 'accounts:staff_detail' staff.id %}" class="btn btn-warning">Reset password</a>
+    {% if staff.is_active %}
+        <a href="{% url 'accounts:staff_delete' staff.id %}" class="btn btn-danger">Deactivate</a>
+    {% else %}
+        <a href="{% url 'accounts:staff_reactivate' staff.id %}" class="btn btn-success">Reactivate</a>
+    {% endif %}
+    {% if request.user.is_superuser or request.user.is_super_admin %}
+        <a href="{% url 'accounts:superuser_edit_credentials' staff.id %}?next={% url 'accounts:staff_detail' staff.id %}" class="btn btn-primary">Edit login</a>
+    {% endif %}
 </div>
 {% endblock %}

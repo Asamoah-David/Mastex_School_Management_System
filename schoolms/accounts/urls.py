@@ -1,9 +1,22 @@
 from django.urls import path
 from .views import (
-    login_view, logout_view, dashboard, school_dashboard,
-    staff_list, staff_detail, staff_register, staff_delete,
-    parent_list, parent_register, parent_detail, parent_delete,
-    user_management
+    login_view,
+    logout_view,
+    dashboard,
+    school_dashboard,
+    staff_list,
+    staff_detail,
+    staff_register,
+    staff_delete,
+    staff_reactivate,
+    parent_list,
+    parent_register,
+    parent_detail,
+    parent_delete,
+    parent_reactivate,
+    user_management,
+    reset_user_password,
+    superuser_edit_credentials,
 )
 
 app_name = "accounts"
@@ -18,8 +31,17 @@ urlpatterns = [
     path("staff/register/", staff_register, name="staff_register"),
     path("staff/<int:pk>/", staff_detail, name="staff_detail"),
     path("staff/<int:pk>/delete/", staff_delete, name="staff_delete"),
+    path("staff/<int:pk>/reactivate/", staff_reactivate, name="staff_reactivate"),
     path("parents/", parent_list, name="parent_list"),
     path("parents/register/", parent_register, name="parent_register"),
     path("parents/<int:pk>/", parent_detail, name="parent_detail"),
     path("parents/<int:pk>/delete/", parent_delete, name="parent_delete"),
+    path("parents/<int:pk>/reactivate/", parent_reactivate, name="parent_reactivate"),
+    # Admin-led password reset and credential changes
+    path("users/<int:pk>/reset-password/", reset_user_password, name="reset_user_password"),
+    path(
+        "superuser/users/<int:pk>/credentials/",
+        superuser_edit_credentials,
+        name="superuser_edit_credentials",
+    ),
 ]

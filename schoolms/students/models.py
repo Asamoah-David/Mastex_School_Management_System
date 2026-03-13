@@ -28,12 +28,38 @@ class SchoolClass(models.Model):
 
 
 class Student(models.Model):
+    STATUS_CHOICES = (
+        ("active", "Active"),
+        ("graduated", "Graduated / Alumni"),
+        ("withdrawn", "Withdrawn / Transferred"),
+        ("dismissed", "Dismissed / Expelled"),
+    )
+
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     admission_number = models.CharField(max_length=50)
     class_name = models.CharField(max_length=50, blank=True)  # e.g. "Primary 3A", "Form 2"
-    parent = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="children")
+    parent = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="children",
+        limit_choices_to={"role": "parent"},
+    )
     date_enrolled = models.DateField(null=True, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="active",
+        help_text="Use this instead of deleting students so history is preserved.",
+    )
+    exit_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date the student left, graduated, or was dismissed.",
+    )
 
     # Health Information
     blood_group = models.CharField(max_length=10, blank=True, null=True)  # e.g., "A+", "O-"
@@ -48,6 +74,13 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} ({self.admission_number})"
+
+    @property
+    def is_active_student(self) -> bool:
+        """
+        Convenience flag combining the student record and linked user.
+        """
+        return self.status == "active" and bool(getattr(self.user, "is_active", True))
 
 
 class StudentAchievement(models.Model):
@@ -135,3 +168,35 @@ class StudentDiscipline(models.Model):
 
     def __str__(self):
         return f"{self.student.user.get_full_name()} - {self.title}"
+
+
+class AbsenceRequest(models.Model):
+    """Student-requested permission to be absent from school."""
+
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    )
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="absence_requests")
+    date = models.DateField(help_text="Date the student will be absent.")
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="absence_requests_reviewed",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.student.user.get_full_name()} - {self.date} ({self.status})"

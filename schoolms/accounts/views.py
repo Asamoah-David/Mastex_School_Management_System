@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.db.models import Sum
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 from django.urls import reverse
 
 from accounts.models import User
@@ -396,7 +397,11 @@ def user_management(request):
 
 @login_required
 def staff_delete(request, pk):
-    """Delete a staff member."""
+    """
+    Deactivate a staff member instead of deleting them.
+
+    This keeps their historical data (attendance, results, etc.) while blocking login.
+    """
     if not _user_is_school_admin(request):
         return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
@@ -406,20 +411,61 @@ def staff_delete(request, pk):
     staff = get_object_or_404(User, pk=pk, school=school, role__in=("admin", "teacher"))
     
     if request.method == "POST":
-        staff.delete()
-        messages.success(request, f"Staff member '{staff.username}' has been deleted.")
+        staff.is_active = False
+        staff.save(update_fields=["is_active"])
+        messages.success(
+            request,
+            f"Staff member '{staff.username}' has been deactivated and can no longer log into the system.",
+        )
         return redirect("accounts:staff_list")
     
     return render(request, "accounts/confirm_delete.html", {
         "object": staff,
-        "type": "staff member",
+        "type": "staff member (deactivation)",
         "cancel_url": "accounts:staff_list"
     })
 
 
 @login_required
+def staff_reactivate(request, pk):
+    """
+    Reactivate a previously deactivated staff member.
+    """
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    staff = get_object_or_404(User, pk=pk, school=school, role__in=("admin", "teacher"))
+
+    if request.method == "POST":
+        staff.is_active = True
+        staff.save(update_fields=["is_active"])
+        messages.success(
+            request,
+            f"Staff member '{staff.username}' has been reactivated and can log into the system again.",
+        )
+        return redirect("accounts:staff_detail", pk=staff.pk)
+
+    return render(
+        request,
+        "accounts/confirm_delete.html",
+        {
+            "object": staff,
+            "type": "staff reactivation",
+            "cancel_url": "accounts:staff_detail",
+        },
+    )
+
+
+@login_required
 def parent_delete(request, pk):
-    """Delete a parent."""
+    """
+    Deactivate a parent instead of deleting them.
+
+    This keeps their links to students and payments while blocking login.
+    """
     if not _user_is_school_admin(request):
         return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
@@ -429,12 +475,159 @@ def parent_delete(request, pk):
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
     
     if request.method == "POST":
-        parent.delete()
-        messages.success(request, f"Parent '{parent.username}' has been deleted.")
+        parent.is_active = False
+        parent.save(update_fields=["is_active"])
+        messages.success(
+            request,
+            f"Parent '{parent.username}' has been deactivated and can no longer log into the system.",
+        )
         return redirect("accounts:parent_list")
     
     return render(request, "accounts/confirm_delete.html", {
         "object": parent,
-        "type": "parent",
+        "type": "parent (deactivation)",
         "cancel_url": "accounts:parent_list"
     })
+
+
+@login_required
+def parent_reactivate(request, pk):
+    """
+    Reactivate a previously deactivated parent account.
+    """
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    parent = get_object_or_404(User, pk=pk, school=school, role="parent")
+
+    if request.method == "POST":
+        parent.is_active = True
+        parent.save(update_fields=["is_active"])
+        messages.success(
+            request,
+            f"Parent '{parent.username}' has been reactivated and can log into the system again.",
+        )
+        return redirect("accounts:parent_detail", pk=parent.pk)
+
+    return render(
+        request,
+        "accounts/confirm_delete.html",
+        {
+            "object": parent,
+            "type": "parent reactivation",
+            "cancel_url": "accounts:parent_detail",
+        },
+    )
+
+
+@login_required
+def reset_user_password(request, pk):
+    """
+    Allow school admins and platform admins to reset a user's password.
+
+    This is the main way to help parents, students, staff, and school admins
+    who have forgotten their login details.
+    """
+    user = request.user
+    target_user = get_object_or_404(User, pk=pk)
+
+    # Permission check:
+    # - Platform superuser or super_admin can reset anyone.
+    # - School admins can only reset users in their own school.
+    is_platform_admin = user.is_superuser or getattr(user, "is_super_admin", False)
+    same_school = getattr(user, "school_id", None) and user.school_id == getattr(target_user, "school_id", None)
+    is_school_level_admin = is_school_admin(user) and same_school
+
+    if not (is_platform_admin or is_school_level_admin):
+        messages.error(request, "You do not have permission to reset this user's password.")
+        return redirect("accounts:school_dashboard")
+
+    if request.method == "POST":
+        new_password = get_random_string(10)
+        target_user.set_password(new_password)
+        target_user.save()
+
+        messages.success(
+            request,
+            f"Password for user '{target_user.username}' has been reset. "
+            f"New password: {new_password}",
+        )
+
+        # Redirect back to an appropriate detail page if possible
+        next_url = request.GET.get("next")
+        if next_url:
+            return redirect(next_url)
+
+        if target_user.role in ("admin", "teacher"):
+            return redirect("accounts:staff_detail", pk=target_user.pk)
+        if target_user.role == "parent":
+            return redirect("accounts:parent_detail", pk=target_user.pk)
+
+        return redirect("accounts:dashboard")
+
+    return render(
+        request,
+        "accounts/confirm_delete.html",
+        {
+            "object": target_user,
+            "type": "password reset",
+            "cancel_url": "accounts:dashboard",
+        },
+    )
+
+
+@login_required
+def superuser_edit_credentials(request, pk):
+    """
+    Allow platform superusers / super_admins to change usernames, emails,
+    and passwords for any user, including school admins.
+    """
+    if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
+        messages.error(request, "Only platform administrators can edit login credentials at this level.")
+        return redirect("accounts:dashboard")
+
+    target_user = get_object_or_404(User, pk=pk)
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        email = request.POST.get("email", "").strip()
+        phone = request.POST.get("phone", "").strip()
+        password = request.POST.get("password", "")
+
+        if username and username != target_user.username:
+            # Avoid collisions
+            if User.objects.exclude(pk=target_user.pk).filter(username=username).exists():
+                messages.error(request, "Another user already has that username.")
+                return redirect("accounts:superuser_edit_credentials", pk=target_user.pk)
+            target_user.username = username
+
+        if email:
+            target_user.email = email
+        if phone:
+            target_user.phone = phone
+
+        if password:
+            target_user.set_password(password)
+
+        target_user.save()
+        messages.success(request, f"Login credentials for '{target_user.username}' have been updated.")
+
+        next_url = request.GET.get("next")
+        if next_url:
+            return redirect(next_url)
+
+        if target_user.role in ("admin", "teacher"):
+            return redirect("accounts:staff_detail", pk=target_user.pk)
+        if target_user.role == "parent":
+            return redirect("accounts:parent_detail", pk=target_user.pk)
+
+        return redirect("accounts:dashboard")
+
+    return render(
+        request,
+        "accounts/staff_login_edit.html",
+        {"target_user": target_user},
+    )

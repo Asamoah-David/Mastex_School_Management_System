@@ -1,5 +1,19 @@
 from django.urls import path
-from .views import parent_dashboard, student_list, student_detail, student_register, student_delete, promote_students, class_list, class_create
+from .views import (
+    parent_dashboard,
+    student_list,
+    student_detail,
+    student_register,
+    student_delete,
+    student_reactivate,
+    promote_students,
+    class_list,
+    class_create,
+    absence_request_create,
+    my_absence_requests,
+    absence_requests_review,
+    absence_request_decide,
+)
 
 app_name = "students"
 
@@ -9,7 +23,17 @@ urlpatterns = [
     path("detail/<int:pk>/", student_detail, name="student_detail"),
     path("register/", student_register, name="student_register"),
     path("delete/<int:pk>/", student_delete, name="student_delete"),
+    path("reactivate/<int:pk>/", student_reactivate, name="student_reactivate"),
     path("promote/", promote_students, name="promote_students"),
     path("classes/", class_list, name="class_list"),
     path("classes/create/", class_create, name="class_create"),
+    # Student absence requests
+    path("absence/request/", absence_request_create, name="absence_request_create"),
+    path("absence/my/", my_absence_requests, name="my_absence_requests"),
+    path("absence/review/", absence_requests_review, name="absence_requests_review"),
+    path(
+        "absence/<int:pk>/<str:decision>/",
+        absence_request_decide,
+        name="absence_request_decide",
+    ),
 ]

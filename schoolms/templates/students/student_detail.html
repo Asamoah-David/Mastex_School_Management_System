@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ student.user.get_full_name|default:student.user.username }} · Mastex SchoolOS{% endblock %}
 {% block page_title %}{{ student.user.get_full_name|default:student.user.username }}{% endblock %}
-{% block page_subtitle %}Admission: {{ student.admission_number }}{% endblock %}
+{% block page_subtitle %}Admission: {{ student.admission_number }} · Status: {{ student.get_status_display }}{% endblock %}
 {% block content %}
 <div class="content-grid" style="grid-template-columns: 1fr;">
     <section class="metric">
@@ -24,5 +24,10 @@
 <div class="button-row mt-sm">
     <a href="{% url 'academics:report_card' student.id %}" class="btn btn-primary">View Report Card</a>
     <a href="{% url 'students:student_list' %}" class="btn btn-secondary">Back to students</a>
+    {% if student.user.is_active %}
+        <a href="{% url 'students:student_delete' student.id %}" class="btn btn-danger">Deactivate student</a>
+    {% else %}
+        <a href="{% url 'students:student_reactivate' student.id %}" class="btn btn-success">Reactivate student</a>
+    {% endif %}
 </div>
 {% endblock %}

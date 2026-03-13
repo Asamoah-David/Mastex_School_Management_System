@@ -2,6 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
+from django.utils import timezone
 
 from .models import (
     Student,
@@ -9,6 +10,7 @@ from .models import (
     StudentAchievement,
     StudentActivity,
     StudentDiscipline,
+    AbsenceRequest,
 )
 from accounts.models import User
 from accounts.permissions import user_can_manage_school, is_school_admin
@@ -379,7 +381,12 @@ def student_register(request):
 
 @login_required
 def student_delete(request, pk):
-    """Delete a student."""
+    """
+    Deactivate a student instead of hard-deleting.
+
+    - Marks the linked user as inactive so they cannot log in.
+    - Updates the student's status and exit_date so history is preserved.
+    """
     if not _user_can_manage_school(request):
         return redirect("home")
     school = getattr(request.user, "school", None)
@@ -389,18 +396,71 @@ def student_delete(request, pk):
     student = get_object_or_404(Student, pk=pk, school=school)
     
     if request.method == "POST":
-        # Also delete the associated user
         user = student.user
-        student.delete()
-        user.delete()
-        messages.success(request, f"Student '{user.get_full_name() or user.username}' has been deleted.")
-        return redirect("students:student_list")
+
+        # Mark student as no longer active in the school
+        if student.status == "active":
+            student.status = "withdrawn"
+        if not student.exit_date:
+            student.exit_date = timezone.now().date()
+        student.save()
+
+        # Deactivate login without deleting history
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+
+        messages.success(
+            request,
+            f"Student '{user.get_full_name() or user.username}' has been deactivated and archived. "
+            "They can no longer log into the system, but their records are kept.",
+        )
+        return redirect("students:student_detail", pk=student.pk)
     
     return render(request, "students/confirm_delete.html", {
         "object": student,
-        "type": "student",
+        "type": "student (deactivation)",
         "cancel_url": "students:student_list"
     })
+
+
+@login_required
+def student_reactivate(request, pk):
+    """
+    Reactivate a previously deactivated student and restore login access.
+    """
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    student = get_object_or_404(Student, pk=pk, school=school)
+
+    if request.method == "POST":
+        user = student.user
+
+        student.status = "active"
+        # Keep exit_date as history; do not clear it automatically
+        student.save()
+
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+
+        messages.success(
+            request,
+            f"Student '{user.get_full_name() or user.username}' has been reactivated and can log in again.",
+        )
+        return redirect("students:student_detail", pk=student.pk)
+
+    return render(
+        request,
+        "students/confirm_delete.html",
+        {
+            "object": student,
+            "type": "student reactivation",
+            "cancel_url": "students:student_detail",
+        },
+    )
 
 
 @login_required
@@ -471,3 +531,137 @@ def class_create(request):
                 pass
     teachers = User.objects.filter(school=school, role__in=["admin", "teacher"]).order_by("first_name", "last_name")
     return render(request, "students/class_form.html", {"school": school, "teachers": teachers})
+
+
+@login_required
+def absence_request_create(request):
+    """
+    Allow a logged-in student to request permission to be absent.
+    """
+    if getattr(request.user, "role", None) != "student":
+        return redirect("home")
+
+    try:
+        student = Student.objects.select_related("school", "user").get(user=request.user)
+    except Student.DoesNotExist:
+        messages.error(request, "No student record is linked to this account.")
+        return redirect("home")
+
+    if not student.is_active_student:
+        messages.error(request, "Inactive or exited students cannot request absence.")
+        return redirect("home")
+
+    if request.method == "POST":
+        date_str = request.POST.get("date", "").strip()
+        reason = request.POST.get("reason", "").strip()
+
+        if not date_str or not reason:
+            messages.error(request, "Please provide both a date and a reason.")
+        else:
+            try:
+                # Parse date from the HTML date input (YYYY-MM-DD)
+                absence_date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                messages.error(request, "Invalid date format.")
+            else:
+                AbsenceRequest.objects.create(
+                    school=student.school,
+                    student=student,
+                    date=absence_date,
+                    reason=reason,
+                )
+                messages.success(request, "Your absence request has been submitted for approval.")
+                return redirect("students:my_absence_requests")
+
+    return render(
+        request,
+        "students/absence_request_form.html",
+        {
+            "student": student,
+        },
+    )
+
+
+@login_required
+def my_absence_requests(request):
+    """
+    Student view: list their own absence requests.
+    """
+    if getattr(request.user, "role", None) != "student":
+        return redirect("home")
+
+    try:
+        student = Student.objects.get(user=request.user)
+    except Student.DoesNotExist:
+        return render(
+            request,
+            "students/absence_request_list_student.html",
+            {"student": None, "requests": []},
+        )
+
+    requests = student.absence_requests.select_related("decided_by").all()
+    return render(
+        request,
+        "students/absence_request_list_student.html",
+        {"student": student, "requests": requests},
+    )
+
+
+@login_required
+def absence_requests_review(request):
+    """
+    Staff / school admin view: see absence requests for their school.
+    """
+    if not _user_can_manage_school(request) and not getattr(request.user, "is_super_admin", False):
+        return redirect("home")
+
+    school = getattr(request.user, "school", None)
+
+    if school:
+        qs = AbsenceRequest.objects.filter(school=school)
+    else:
+        # Super admins can see all schools
+        qs = AbsenceRequest.objects.select_related("school")
+
+    status_filter = request.GET.get("status") or ""
+    if status_filter in {"pending", "approved", "rejected"}:
+        qs = qs.filter(status=status_filter)
+
+    requests_qs = qs.select_related("student", "student__user", "decided_by").order_by("-created_at")
+    return render(
+        request,
+        "students/absence_request_list_staff.html",
+        {"requests": requests_qs, "school": school, "status_filter": status_filter},
+    )
+
+
+@login_required
+def absence_request_decide(request, pk, decision):
+    """
+    Approve or reject an absence request.
+    """
+    if not _user_can_manage_school(request) and not getattr(request.user, "is_super_admin", False):
+        return redirect("home")
+
+    school = getattr(request.user, "school", None)
+
+    if school:
+        absence_request = get_object_or_404(AbsenceRequest, pk=pk, school=school)
+    else:
+        absence_request = get_object_or_404(AbsenceRequest, pk=pk)
+
+    if absence_request.status != "pending":
+        messages.info(request, "This request has already been reviewed.")
+        return redirect("students:absence_requests_review")
+
+    if decision not in {"approve", "reject"}:
+        messages.error(request, "Invalid decision.")
+        return redirect("students:absence_requests_review")
+
+    absence_request.status = "approved" if decision == "approve" else "rejected"
+    absence_request.decided_by = request.user
+    absence_request.decided_at = timezone.now()
+    absence_request.save()
+
+    messages.success(request, f"Absence request has been {absence_request.status}.")
+    return redirect("students:absence_requests_review")

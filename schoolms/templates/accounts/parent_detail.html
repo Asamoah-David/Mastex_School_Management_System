@@ -2,7 +2,7 @@
 
 {% block title %}Parent Details · Mastex SchoolOS{% endblock %}
 {% block page_title %}Parent Details{% endblock %}
-{% block page_subtitle %}{{ parent.get_full_name }} - {{ school.name }}{% endblock %}
+{% block page_subtitle %}{{ parent.get_full_name }} - {{ school.name }} · Status: {% if parent.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
 
 {% block content %}
 <div class="content-card">
@@ -57,5 +57,11 @@
 
 <div class="button-row mt-sm">
     <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">Back to Parents</a>
+    <a href="{% url 'accounts:reset_user_password' parent.id %}?next={% url 'accounts:parent_detail' parent.id %}" class="btn btn-warning">Reset password</a>
+    {% if parent.is_active %}
+        <a href="{% url 'accounts:parent_delete' parent.id %}" class="btn btn-danger">Deactivate</a>
+    {% else %}
+        <a href="{% url 'accounts:parent_reactivate' parent.id %}" class="btn btn-success">Reactivate</a>
+    {% endif %}
 </div>
 {% endblock %}
