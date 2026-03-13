@@ -4,17 +4,14 @@ from django.contrib import messages
 from django.conf import settings
 from django.core.mail import send_mail
 from accounts.models import User
+from accounts.permissions import user_can_manage_school
 from students.models import Student
 from .utils import send_sms
 
 
 def _user_can_manage_school(request):
-    """Check if user can manage school."""
-    if not request.user.is_authenticated:
-        return False
-    if request.user.is_superuser:
-        return True
-    return request.user.role in ("admin", "teacher") and getattr(request.user, "school_id", None)
+    """Use shared permission helper for school-scoped messaging."""
+    return user_can_manage_school(request.user)
 
 
 def _send_email(to_email, subject, message):

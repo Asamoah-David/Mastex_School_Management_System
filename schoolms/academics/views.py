@@ -5,7 +5,8 @@ from django.db.models import Q
 
 from students.models import Student
 from schools.models import School
-from .models import Subject, ExamType, Term, Result
+from accounts.permissions import user_can_manage_school
+from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule
 
 
 def _get_school(request):
@@ -16,22 +17,62 @@ def _get_school(request):
 
 
 def _user_can_manage_school(request):
-    """Check if user can manage school (admin or teacher)."""
-    if request.user.is_superuser:
-        return True
-    return request.user.role in ("admin", "teacher") and getattr(request.user, "school_id", None)
+    """Delegate to central permission helper for consistency."""
+    return user_can_manage_school(request.user)
 
 
 @login_required
 def result_upload(request):
-    """Upload student results - for teachers."""
+    """Upload student results - for teachers and school admins.
+
+    This view is hardened so that:
+    - Users without a school see a clear message instead of a 500 or confusing redirect.
+    - Only school-linked staff (teacher / admin roles) and platform super admins can save results.
+    """
     school = _get_school(request)
-    if not school:
-        return redirect("home")
-    
-    # Only admins and teachers can upload results
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    user = request.user
+
+    # No school attached
+    if not school and not getattr(user, "is_super_admin", False):
+        return render(
+            request,
+            "academics/result_upload.html",
+            {
+                "school": None,
+                "classes": [],
+                "subjects": [],
+                "exam_types": [],
+                "terms": [],
+                "students": [],
+                "selected_class": None,
+                "selected_subject": None,
+                "selected_exam_type": None,
+                "selected_term": None,
+                "existing_results": {},
+                "error": "Your account is not linked to any school yet. Please contact an administrator.",
+            },
+        )
+
+    # Only admins, teachers, and super admins can upload results
+    if not _user_can_manage_school(request) and not getattr(user, "is_super_admin", False):
+        return render(
+            request,
+            "academics/result_upload.html",
+            {
+                "school": school,
+                "classes": [],
+                "subjects": [],
+                "exam_types": [],
+                "terms": [],
+                "students": [],
+                "selected_class": None,
+                "selected_subject": None,
+                "selected_exam_type": None,
+                "selected_term": None,
+                "existing_results": {},
+                "error": "You do not have permission to upload results.",
+            },
+        )
     
     # Get query parameters
     class_name = request.GET.get("class")
@@ -182,3 +223,174 @@ def result_list(request):
     }
     
     return render(request, "academics/result_list.html", context)
+
+
+@login_required
+def grade_boundary_list(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    boundaries = GradeBoundary.objects.filter(school=school).order_by("-min_score")
+    return render(request, "academics/grade_boundary_list.html", {"boundaries": boundaries, "school": school})
+
+
+@login_required
+def grade_boundary_create(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    if request.method == "POST":
+        grade = request.POST.get("grade", "").strip()
+        try:
+            min_s = float(request.POST.get("min_score", 0))
+            max_s = float(request.POST.get("max_score", 100))
+            if grade and 0 <= min_s <= max_s <= 100:
+                GradeBoundary.objects.update_or_create(
+                    school=school, grade=grade,
+                    defaults={"min_score": min_s, "max_score": max_s}
+                )
+                messages.success(request, f"Grade {grade} boundary saved.")
+                return redirect("academics:grade_boundary_list")
+        except (ValueError, TypeError):
+            pass
+    return redirect("academics:grade_boundary_list")
+
+
+@login_required
+def homework_list(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    class_filter = request.GET.get("class")
+    qs = Homework.objects.filter(school=school).select_related("subject", "created_by").order_by("-due_date")
+    if class_filter:
+        qs = qs.filter(class_name=class_filter)
+    classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
+    classes = [c for c in classes if c]
+    return render(request, "academics/homework_list.html", {"homework": qs, "school": school, "classes": classes})
+
+
+@login_required
+def homework_create(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        desc = request.POST.get("description", "").strip()
+        class_name = request.POST.get("class_name", "").strip()
+        subject_id = request.POST.get("subject")
+        due = request.POST.get("due_date")
+        if title and class_name and subject_id and due:
+            try:
+                subject = Subject.objects.get(id=subject_id, school=school)
+                from datetime import datetime
+                due_d = datetime.strptime(due, "%Y-%m-%d").date()
+                Homework.objects.create(
+                    school=school, subject=subject, class_name=class_name,
+                    title=title, description=desc, due_date=due_d, created_by=request.user
+                )
+                messages.success(request, "Homework added.")
+                return redirect("academics:homework_list")
+            except (Subject.DoesNotExist, ValueError):
+                pass
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
+    classes = [c for c in classes if c]
+    return render(request, "academics/homework_form.html", {"school": school, "subjects": subjects, "classes": classes})
+
+
+@login_required
+def exam_schedule_list(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    term_id = request.GET.get("term")
+    qs = ExamSchedule.objects.filter(school=school).select_related("term", "subject").order_by("exam_date", "start_time")
+    if term_id:
+        qs = qs.filter(term_id=term_id)
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+    return render(
+        request,
+        "academics/exam_schedule_list.html",
+        {"exams": qs, "school": school, "terms": terms, "selected_term": term_id},
+    )
+
+
+@login_required
+def exam_schedule_create(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    if request.method == "POST":
+        term_id = request.POST.get("term")
+        subject_id = request.POST.get("subject")
+        exam_date = request.POST.get("exam_date")
+        start = request.POST.get("start_time") or None
+        end = request.POST.get("end_time") or None
+        room = request.POST.get("room", "").strip()
+        notes = request.POST.get("notes", "").strip()
+        if term_id and subject_id and exam_date:
+            try:
+                from datetime import datetime
+                term = Term.objects.get(id=term_id, school=school)
+                subject = Subject.objects.get(id=subject_id, school=school)
+                exam_d = datetime.strptime(exam_date, "%Y-%m-%d").date()
+                st = None
+                en = None
+                if start and start.strip():
+                    st = datetime.strptime(start.strip(), "%H:%M").time()
+                if end and end.strip():
+                    en = datetime.strptime(end.strip(), "%H:%M").time()
+                ExamSchedule.objects.create(
+                    school=school, term=term, subject=subject,
+                    exam_date=exam_d, start_time=st, end_time=en, room=room, notes=notes
+                )
+                messages.success(request, "Exam scheduled.")
+                return redirect("academics:exam_schedule_list")
+            except (Term.DoesNotExist, Subject.DoesNotExist, ValueError, TypeError):
+                pass
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    return render(request, "academics/exam_schedule_form.html", {"school": school, "terms": terms, "subjects": subjects})
+
+
+@login_required
+def report_card_view(request, student_id):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    student = get_object_or_404(Student, id=student_id, school=school)
+    term_id = request.GET.get("term")
+    results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("term", "subject")
+    if term_id:
+        results = results.filter(term_id=term_id)
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+    total = sum(r.score for r in results) if results else 0
+    avg = (total / len(results)) if results else 0
+    from academics.models import get_grade_for_score
+    grades = [get_grade_for_score(school, r.score) for r in results]
+    return render(
+        request,
+        "academics/report_card.html",
+        {
+            "student": student,
+            "results": results,
+            "terms": terms,
+            "average": round(avg, 1),
+            "school": school,
+            "selected_term": term_id,
+        },
+    )

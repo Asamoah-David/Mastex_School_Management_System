@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}School Settings - {{ school.name }}{% endblock %}
+{% block page_title %}School Settings{% endblock %}
+{% block page_subtitle %}Update school profile{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>School Name</label>
+            <input type="text" name="name" value="{{ school.name }}" required style="width:100%;padding:0.5rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Email</label>
+            <input type="email" name="email" value="{{ school.email|default:'' }}" style="width:100%;padding:0.5rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Phone</label>
+            <input type="text" name="phone" value="{{ school.phone|default:'' }}" style="width:100%;padding:0.5rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Address</label>
+            <textarea name="address" rows="2" style="width:100%;padding:0.5rem;">{{ school.address|default:'' }}</textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Logo URL (optional)</label>
+            <input type="url" name="logo_url" value="{{ school.logo_url|default:'' }}" placeholder="https://..." style="width:100%;padding:0.5rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Academic Year (e.g. 2024/2025)</label>
+            <input type="text" name="academic_year" value="{{ school.academic_year|default:'' }}" style="width:100%;padding:0.5rem;">
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

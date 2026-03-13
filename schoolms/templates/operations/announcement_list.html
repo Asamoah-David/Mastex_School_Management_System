@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Announcements - {{ school.name }}{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+{% block page_subtitle %}School announcements and notices{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h3>Announcements</h3>
+        {% if user.role == "admin" or user.role == "school_admin" or user.is_superuser %}
+        <a href="{% url 'operations:announcement_create' %}" class="btn btn-primary">+ New Announcement</a>
+        {% endif %}
+    </div>
+    {% if announcements %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr><th>Title</th><th>Audience</th><th>Date</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for a in announcements %}
+                <tr>
+                    <td>{% if a.is_pinned %}<span class="tag">Pinned</span> {% endif %}{{ a.title }}</td>
+                    <td>{{ a.get_target_audience_display }}</td>
+                    <td>{{ a.created_at|date:"M d, Y" }}</td>
+                    <td>
+                        <a href="{% url 'operations:announcement_delete' a.pk %}" class="btn btn-secondary btn-sm" onclick="return confirm('Delete this announcement?')">Delete</a>
+                    </td>
+                </tr>
+                <tr><td colspan="4" style="font-size:0.85rem;color:var(--text-soft);padding:0.5rem 0.85rem;">{{ a.content|truncatewords:30 }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No announcements yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

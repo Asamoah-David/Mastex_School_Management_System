@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import Student
+from .models import Student, SchoolClass
+
+
+@admin.register(SchoolClass)
+class SchoolClassAdmin(admin.ModelAdmin):
+    list_display = ("name", "school", "class_teacher", "capacity")
+    list_filter = ("school",)
+    raw_id_fields = ("class_teacher",)
 
 
 @admin.register(Student)

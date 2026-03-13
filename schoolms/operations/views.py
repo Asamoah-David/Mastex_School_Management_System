@@ -16,6 +16,9 @@ from .models import (
     BusPayment,
     Textbook,
     TextbookSale,
+    Announcement,
+    StaffLeave,
+    ActivityLog,
 )
 
 
@@ -315,3 +318,132 @@ def calendar_delete(request, pk):
         messages.success(request, "Calendar event deleted successfully!")
         return redirect("operations:calendar_list")
     return render(request, "operations/confirm_delete.html", {"object": event, "type": "calendar event"})
+
+
+def _redirect_no_school(request):
+    return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+
+
+# Announcements
+@login_required
+def announcement_list(request):
+    school = _require_school(request)
+    if not school:
+        return _redirect_no_school(request)
+    announcements = Announcement.objects.filter(school=school).select_related("created_by").order_by("-is_pinned", "-created_at")
+    return render(request, "operations/announcement_list.html", {"announcements": announcements, "school": school})
+
+
+@login_required
+def announcement_create(request):
+    school = _require_school(request)
+    if not school:
+        return _redirect_no_school(request)
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:announcement_list")
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        content = request.POST.get("content", "").strip()
+        target = request.POST.get("target_audience", "all")
+        is_pinned = request.POST.get("is_pinned") == "on"
+        if title and content:
+            Announcement.objects.create(
+                school=school, title=title, content=content,
+                target_audience=target, is_pinned=is_pinned, created_by=request.user
+            )
+            from django.contrib import messages
+            messages.success(request, "Announcement created.")
+            return redirect("operations:announcement_list")
+    return render(request, "operations/announcement_form.html", {"school": school})
+
+
+@login_required
+def announcement_delete(request, pk):
+    school = _require_school(request)
+    if not school:
+        return _redirect_no_school(request)
+    ann = get_object_or_404(Announcement, pk=pk, school=school)
+    if request.method == "POST":
+        ann.delete()
+        from django.contrib import messages
+        messages.success(request, "Announcement deleted.")
+        return redirect("operations:announcement_list")
+    return render(request, "operations/confirm_delete.html", {"object": ann, "type": "announcement"})
+
+
+# Staff Leave
+@login_required
+def staff_leave_list(request):
+    school = _require_school(request)
+    if not school:
+        return _redirect_no_school(request)
+    from accounts.permissions import is_school_admin
+    is_admin = request.user.is_superuser or is_school_admin(request.user)
+    if is_admin:
+        leaves = StaffLeave.objects.filter(school=school).select_related("staff", "reviewed_by").order_by("-start_date")
+    else:
+        leaves = StaffLeave.objects.filter(school=school, staff=request.user).select_related("staff", "reviewed_by").order_by("-start_date")
+    return render(request, "operations/staff_leave_list.html", {"leaves": leaves, "school": school, "is_admin": is_admin})
+
+
+@login_required
+def staff_leave_create(request):
+    school = _require_school(request)
+    if not school:
+        return _redirect_no_school(request)
+    if request.method == "POST":
+        start = request.POST.get("start_date")
+        end = request.POST.get("end_date")
+        reason = request.POST.get("reason", "").strip()
+        if start and end:
+            try:
+                from datetime import datetime
+                start_d = datetime.strptime(start, "%Y-%m-%d").date()
+                end_d = datetime.strptime(end, "%Y-%m-%d").date()
+                if start_d <= end_d:
+                    StaffLeave.objects.create(
+                        school=school, staff=request.user,
+                        start_date=start_d, end_date=end_d, reason=reason
+                    )
+                    from django.contrib import messages
+                    messages.success(request, "Leave request submitted.")
+                    return redirect("operations:staff_leave_list")
+            except ValueError:
+                pass
+    return render(request, "operations/staff_leave_form.html", {"school": school})
+
+
+@login_required
+def staff_leave_review(request, pk):
+    school = _require_school(request)
+    if not school:
+        return _redirect_no_school(request)
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:staff_leave_list")
+    leave = get_object_or_404(StaffLeave, pk=pk, school=school)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action in ("approved", "rejected"):
+            leave.status = action
+            leave.reviewed_by = request.user
+            leave.reviewed_at = timezone.now()
+            leave.save()
+            from django.contrib import messages
+            messages.success(request, f"Leave {action}.")
+            return redirect("operations:staff_leave_list")
+    return redirect("operations:staff_leave_list")
+
+
+# Activity Log (admin only)
+@login_required
+def activity_log_list(request):
+    school = _require_school(request)
+    if not school:
+        return _redirect_no_school(request)
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("accounts:school_dashboard")
+    logs = ActivityLog.objects.filter(school=school).select_related("user").order_by("-created_at")[:200]
+    return render(request, "operations/activity_log_list.html", {"logs": logs, "school": school})

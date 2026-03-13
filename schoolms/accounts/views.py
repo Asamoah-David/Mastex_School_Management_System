@@ -8,10 +8,11 @@ from django.utils import timezone
 from django.urls import reverse
 
 from accounts.models import User
-from schools.models import School  # Moved import to top
-from students.models import Student  # Moved import to top
-from finance.models import Fee  # Moved import to top
-from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar # Needed for school_dashboard
+from accounts.permissions import user_can_manage_school, is_school_admin
+from schools.models import School
+from students.models import Student
+from finance.models import Fee
+from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
 
 
 def logout_view(request):
@@ -20,15 +21,38 @@ def logout_view(request):
     return redirect("/accounts/login/")
 
 
-def login_view(request):
-    # If already logged in, redirect to appropriate dashboard
+def home(request):
+    """
+    Smart entry point for the whole site.
+
+    - If not logged in, send to the login page.
+    - If logged in, send to the appropriate dashboard/portal based on role.
+    This avoids redirect loops when a user already has a session.
+    """
+    # Make the root URL a stable landing page: render the login page directly
+    # when unauthenticated instead of redirecting. This reduces redirect hops
+    # and prevents proxy-level redirect loops from blocking the login screen.
     if request.user.is_authenticated:
-        if request.user.role in ["parent", "student"]:
+        role = getattr(request.user, "role", None)
+        if role in ["parent", "student"]:
             return redirect("portal")
-        elif request.user.role in ["admin", "school_admin", "teacher", "staff"]:
+        if role in ["admin", "school_admin", "teacher", "staff"]:
             return redirect("accounts:school_dashboard")
-        elif request.user.is_superuser or request.user.role == "super_admin":
+        if getattr(request.user, "is_superuser", False) or role == "super_admin":
             return redirect("accounts:dashboard")
+    return login_view(request)
+
+def login_view(request):
+    # If already logged in, send to the right place once (no loop)
+    if request.user.is_authenticated:
+        role = getattr(request.user, "role", None)
+        if role in ["parent", "student"]:
+            return redirect("portal")
+        if role in ["admin", "school_admin", "teacher", "staff"]:
+            return redirect("accounts:school_dashboard")
+        if getattr(request.user, "is_superuser", False) or role == "super_admin":
+            return redirect("accounts:dashboard")
+        return redirect("accounts:dashboard")
     
     # Process login form
     if request.method == "POST":
@@ -43,34 +67,31 @@ def login_view(request):
         
         if user is not None:
             login(request, user)
-            
-            if user.role in ["parent", "student"]:
+            role = getattr(user, "role", None)
+            if role in ["parent", "student"]:
                 return redirect("portal")
-            elif user.role in ["admin", "school_admin", "teacher", "staff"]:
+            if role in ["admin", "school_admin", "teacher", "staff"]:
                 return redirect("accounts:school_dashboard")
-            elif user.is_superuser or user.role == "super_admin":
+            if user.is_superuser or role == "super_admin":
                 return redirect("accounts:dashboard")
-            else:
-                # Fallback for unexpected roles, redirect to dashboard
-                return redirect("accounts:dashboard")
-        else:
-            messages.error(request, "Invalid username or password.")
+            return redirect("accounts:dashboard")
+        messages.error(request, "Invalid username or password.")
     
     return render(request, "accounts/login.html")
 
 
 @login_required
 def dashboard(request):
-    # Redirect parents and students to their portal
-    if request.user.role in ["parent", "student"]:
+    # Redirect parents and students to their unified portal
+    if getattr(request.user, "role", None) in ["parent", "student"]:
         return redirect("portal")
-    
-    # School admins, teachers, and staff get school admin dashboard
-    if request.user.role in ["admin", "school_admin", "teacher", "staff"]:
-        return redirect("accounts:school_dashboard")
-    
+
     # Super admins and superusers get the main dashboard
-    if request.user.is_superuser or request.user.role == "super_admin" or request.user.is_staff:
+    if (
+        getattr(request.user, "is_superuser", False)
+        or getattr(request.user, "role", None) == "super_admin"
+        or getattr(request.user, "is_staff", False)
+    ):
         school = getattr(request.user, "school", None)
         
         # Check if superuser (platform admin)
@@ -103,27 +124,27 @@ def dashboard(request):
         }
         return render(request, "dashboard.html", context)
     
-    # If an authenticated user somehow reaches here without a specific role redirect,
-    # redirect them to their school dashboard or a default authenticated page.
-    # Given the existing role checks, this line should ideally not be reached by authenticated users.
-    # However, as a failsafe, we can direct them to school_dashboard if they are staff or admin
-    # or to a generic home if not.
-    if request.user.is_staff or request.user.is_superuser: # is_staff covers school_admin, teacher, staff, and superuser
-        return redirect("accounts:school_dashboard")
-    return redirect("home") # Redirect to a safe default for authenticated but unassigned users
+    # Fallback: render a minimal dashboard instead of creating redirect loops.
+    return render(request, "dashboard.html", {"school": None, "is_superuser": False})
 
 
 @login_required
 def school_dashboard(request):
     """Custom dashboard for school admins, teachers, and staff."""
-    # Only school staff can access (role "admin" is also a school admin)
-    if not request.user.is_staff_member and not request.user.is_school_admin and request.user.role != "admin":
-        return redirect("accounts:dashboard") # Redirect to accounts:dashboard instead of home for clarity
+    # Only school staff can access. Avoid redirect loops by checking roles first.
+    allowed_roles = {"admin", "school_admin", "teacher", "staff"}
+    is_allowed_role = getattr(request.user, "role", None) in allowed_roles
+    is_staff_flag = getattr(request.user, "is_staff_member", False)
+    is_school_admin_flag = getattr(request.user, "is_school_admin", False)
+
+    if not (is_allowed_role or is_staff_flag or is_school_admin_flag):
+        # Non-staff users (e.g. parents, students) → main dashboard (one redirect only)
+        return redirect("accounts:dashboard")
     
     school = getattr(request.user, "school", None)
     if not school:
-        # If a staff member somehow doesn't have a school, redirect them to main dashboard
-        return redirect("accounts:dashboard")
+        # Render a static page instead of redirecting to avoid any redirect loop
+        return render(request, "accounts/no_school.html")
     
     # Imports for models that are now at the top of the file
     # from students.models import Student
@@ -132,14 +153,21 @@ def school_dashboard(request):
     
     # Get school statistics
     total_students = Student.objects.filter(school=school).count()
-    male_students = Student.objects.filter(school=school, user__gender='male').count() if 'gender' in [f.name for f in Student._meta.get_fields()] else 0
-    female_students = Student.objects.filter(school=school, user__gender='female').count() if 'gender' in [f.name for f in Student._meta.get_fields()] else 0
-    
-    # Get gender from user model if available
+
+    # Get gender distribution defensively; fall back to zeros if the field does not exist.
     try:
-        male_students = Student.objects.filter(school=school, user__gender='male').count()
-        female_students = Student.objects.filter(school=school, user__gender='female').count()
-    except Exception: # Catch broader exception to prevent 500s from field lookups
+        field_names = [f.name for f in Student._meta.get_fields()]
+        if "user" in field_names:
+            male_students = Student.objects.filter(
+                school=school, user__gender="male"
+            ).count()
+            female_students = Student.objects.filter(
+                school=school, user__gender="female"
+            ).count()
+        else:
+            male_students = 0
+            female_students = 0
+    except Exception:
         male_students = 0
         female_students = 0
     
@@ -175,10 +203,18 @@ def school_dashboard(request):
 
 
 def _user_can_manage_school(request):
-    """School admin or teacher can manage their school; superuser can manage any."""
-    if request.user.is_superuser:
+    """Backward-compatible wrapper around central permission helper."""
+    return user_can_manage_school(request.user)
+
+
+def _user_is_school_admin(request):
+    """Helper for actions that only school admins (or above) should perform."""
+    user = request.user
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser or getattr(user, "is_super_admin", False):
         return True
-    return request.user.role in ("admin", "school_admin", "teacher", "staff") and getattr(request.user, "school_id", None)
+    return is_school_admin(user)
 
 
 @login_required
@@ -216,8 +252,9 @@ def staff_detail(request, pk):
 
 @login_required
 def staff_register(request):
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    # Only school admins (or platform admins) can create staff accounts
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
@@ -248,8 +285,9 @@ def staff_register(request):
 @login_required
 def parent_list(request):
     """List all parents for the school."""
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    # Only school admins (or platform admins) can manage parents
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
@@ -260,8 +298,8 @@ def parent_list(request):
 @login_required
 def parent_register(request):
     """Register a new parent for the school."""
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
@@ -294,8 +332,8 @@ def parent_register(request):
 @login_required
 def parent_detail(request, pk):
     """View parent details and their linked children."""
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
@@ -308,8 +346,8 @@ def parent_detail(request, pk):
 @login_required
 def user_management(request):
     """User management dashboard for school admins."""
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
@@ -332,8 +370,8 @@ def user_management(request):
 @login_required
 def staff_delete(request, pk):
     """Delete a staff member."""
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
@@ -355,8 +393,8 @@ def staff_delete(request, pk):
 @login_required
 def parent_delete(request, pk):
     """Delete a parent."""
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")

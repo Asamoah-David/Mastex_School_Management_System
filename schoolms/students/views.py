@@ -3,22 +3,28 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
 
-from .models import Student
+from .models import (
+    Student,
+    SchoolClass,
+    StudentAchievement,
+    StudentActivity,
+    StudentDiscipline,
+)
 from accounts.models import User
+from accounts.permissions import user_can_manage_school, is_school_admin
 from schools.models import School
 
 
 def _user_can_manage_school(request):
-    if request.user.is_superuser:
-        return True
-    return request.user.role in ("admin", "teacher") and getattr(request.user, "school_id", None)
+    """Use central permission helper for consistency across apps."""
+    return user_can_manage_school(request.user)
 
 
 @login_required
 def parent_dashboard(request):
     try:
         from finance.models import Fee
-        from academics.models import Result, ExamType, Term
+        from academics.models import Result, ExamType, Term, ExamSchedule
         
         children = Student.objects.filter(parent=request.user).select_related("school", "user")
         
@@ -29,6 +35,11 @@ def parent_dashboard(request):
                 "fees_by_child": {},
                 "results_by_child": {},
                 "stats_by_child": {},
+                "achievements_by_child": {},
+                "activities_by_child": {},
+                "discipline_by_child": {},
+                "announcements": [],
+                "attendance_by_child": {},
                 "terms": [],
                 "exam_types": [],
             })
@@ -76,18 +87,77 @@ def parent_dashboard(request):
             else:
                 stats_by_child[child.id] = {"average": None, "position": None, "total_subjects": 0}
         
-        # Get available terms and exam types
-        schools = [c.school for c in children]
+        # Enrich portal with achievements, activities, and discipline records
+        achievements_by_child = {}
+        activities_by_child = {}
+        discipline_by_child = {}
+
+        achievements = (
+            StudentAchievement.objects.filter(student_id__in=children_ids)
+            .select_related("student", "student__user")
+            .order_by("-date_achieved")
+        )
+        for ach in achievements:
+            achievements_by_child.setdefault(ach.student_id, []).append(ach)
+
+        activities = (
+            StudentActivity.objects.filter(student_id__in=children_ids)
+            .select_related("student", "student__user")
+            .order_by("-start_date")
+        )
+        for act in activities:
+            activities_by_child.setdefault(act.student_id, []).append(act)
+
+        discipline_records = (
+            StudentDiscipline.objects.filter(student_id__in=children_ids)
+            .select_related("student", "student__user", "reported_by")
+            .order_by("-incident_date")
+        )
+        for rec in discipline_records:
+            discipline_by_child.setdefault(rec.student_id, []).append(rec)
+
+        # Announcements for parents (from children's schools)
+        from operations.models import Announcement
+        from operations.models import StudentAttendance
+        from django.utils import timezone
+        schools = list({c.school for c in children})
+        announcements = Announcement.objects.filter(
+            school__in=schools,
+            target_audience__in=["all", "parents"]
+        ).select_related("school", "created_by").order_by("-is_pinned", "-created_at")[:10] if schools else []
+
+        # Attendance summary per child (recent 14 days)
+        attendance_by_child = {}
+        for child in children:
+            recent = StudentAttendance.objects.filter(
+                student=child, date__gte=timezone.now().date() - timezone.timedelta(days=14)
+            ).order_by("-date")
+            attendance_by_child[child.id] = list(recent[:14])
+
+        # Get available terms, exam types, and exam schedule (per school)
         terms = Term.objects.filter(school__in=schools).order_by("-is_current", "-id") if schools else []
         exam_types = ExamType.objects.filter(school__in=schools) if schools else []
-        
+        exam_schedule = (
+            ExamSchedule.objects.filter(school__in=schools, term__in=terms)
+            .select_related("subject", "term")
+            .order_by("exam_date", "start_time")
+            if schools and terms
+            else []
+        )
+
         return render(request, "students/parent_dashboard.html", {
             "children": children,
+            "announcements": announcements,
+            "attendance_by_child": attendance_by_child,
             "fees_by_child": fees_by_child,
             "results_by_child": results_by_child,
             "stats_by_child": stats_by_child,
+            "achievements_by_child": achievements_by_child,
+            "activities_by_child": activities_by_child,
+            "discipline_by_child": discipline_by_child,
             "terms": terms,
             "exam_types": exam_types,
+            "exam_schedule": exam_schedule,
         })
     except Exception as e:
         # If any error, still show the page with empty data
@@ -96,8 +166,14 @@ def parent_dashboard(request):
             "fees_by_child": {},
             "results_by_child": {},
             "stats_by_child": {},
+            "achievements_by_child": {},
+            "activities_by_child": {},
+            "discipline_by_child": {},
+            "announcements": [],
+            "attendance_by_child": {},
             "terms": [],
             "exam_types": [],
+            "exam_schedule": [],
         })
 
 
@@ -111,8 +187,9 @@ def portal(request):
             student = Student.objects.get(user=request.user)
             # Get results for this student
             from academics.models import Result, ExamType, Term
+
             results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("-id")
-            
+
             # Calculate average and position
             stats = {}
             if results:
@@ -135,13 +212,50 @@ def portal(request):
             # Get available terms and exam types
             terms = Term.objects.filter(school=student.school).order_by("-is_current", "-id")
             exam_types = ExamType.objects.filter(school=student.school)
-            
+
+            # Announcements for students
+            from operations.models import Announcement
+            from operations.models import StudentAttendance
+            from django.utils import timezone
+            announcements = Announcement.objects.filter(
+                school=student.school,
+                target_audience__in=["all", "students"]
+            ).select_related("created_by").order_by("-is_pinned", "-created_at")[:10]
+
+            # Recent attendance
+            recent_attendance = list(
+                StudentAttendance.objects.filter(
+                    student=student,
+                    date__gte=timezone.now().date() - timezone.timedelta(days=14)
+                ).order_by("-date")[:14]
+            )
+
+            # Enrich portal with achievements, activities, and discipline records
+            achievements = (
+                StudentAchievement.objects.filter(student=student)
+                .order_by("-date_achieved")
+            )
+            activities = (
+                StudentActivity.objects.filter(student=student)
+                .order_by("-start_date")
+            )
+            discipline_records = (
+                StudentDiscipline.objects.filter(student=student)
+                .select_related("reported_by")
+                .order_by("-incident_date")
+            )
+
             return render(request, "students/student_portal.html", {
                 "student": student,
                 "results": results,
                 "stats": stats,
                 "terms": terms,
                 "exam_types": exam_types,
+                "achievements": achievements,
+                "activities": activities,
+                "discipline_records": discipline_records,
+                "announcements": announcements,
+                "recent_attendance": recent_attendance,
             })
         except Student.DoesNotExist:
             return render(request, "students/student_portal.html", {"student": None})
@@ -150,22 +264,67 @@ def portal(request):
 
 @login_required
 def student_list(request):
-    if not _user_can_manage_school(request):
-        return redirect("home")
+    """
+    List students for the current school.
+
+    - School admins / staff see their own school's students.
+    - Platform super admins (no attached school) see students across all schools.
+    - If a user is not allowed or not attached to any school, show a friendly
+      empty state instead of redirecting in circles.
+    """
+    if not _user_can_manage_school(request) and not getattr(request.user, "is_super_admin", False):
+        return render(
+            request,
+            "students/student_list.html",
+            {
+                "students": [],
+                "students_by_class": {},
+                "school": None,
+                "no_access": True,
+            },
+        )
+
     school = getattr(request.user, "school", None)
-    if not school:
-        return redirect("home")
-    students = Student.objects.filter(school=school).select_related("user", "parent").order_by("class_name", "admission_number")
-    
-    # Group students by class
+
+    # Super admin without a school: show a cross-school view
+    if not school and getattr(request.user, "is_super_admin", False):
+        students = (
+            Student.objects.select_related("user", "parent", "school")
+            .order_by("school__name", "class_name", "admission_number")
+        )
+    elif school:
+        students = (
+            Student.objects.filter(school=school)
+            .select_related("user", "parent")
+            .order_by("class_name", "admission_number")
+        )
+    else:
+        # School-scoped user but no school attached: show explanatory state
+        return render(
+            request,
+            "students/student_list.html",
+            {
+                "students": [],
+                "students_by_class": {},
+                "school": None,
+                "no_school": True,
+            },
+        )
+
+    # Group students by class for display
     students_by_class = {}
     for student in students:
         class_name = student.class_name or "Unassigned"
         if class_name not in students_by_class:
             students_by_class[class_name] = []
         students_by_class[class_name].append(student)
-    
-    return render(request, "students/student_list.html", {"students": students, "students_by_class": students_by_class, "school": school})
+
+    # For a global (super admin) view, pass school=None; template handles this.
+    return render(
+        request,
+        "students/student_list.html",
+        {"students": students, "students_by_class": students_by_class, "school": school},
+    )
 
 
 @login_required
@@ -276,3 +435,39 @@ def promote_students(request):
     classes = [c for c in classes if c]  # Remove empty values
     
     return render(request, "students/promote.html", {"school": school, "classes": classes})
+
+
+@login_required
+def class_list(request):
+    """List and manage classes (school admin only)."""
+    if not is_school_admin(request.user) and not request.user.is_superuser:
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+    classes = SchoolClass.objects.filter(school=school).select_related("class_teacher").order_by("name")
+    return render(request, "students/class_list.html", {"classes": classes, "school": school})
+
+
+@login_required
+def class_create(request):
+    if not is_school_admin(request.user) and not request.user.is_superuser:
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        capacity = request.POST.get("capacity") or None
+        teacher_id = request.POST.get("class_teacher") or None
+        if name:
+            try:
+                cap = int(capacity) if capacity else 40
+                teacher = User.objects.get(pk=teacher_id, school=school) if teacher_id else None
+                SchoolClass.objects.get_or_create(school=school, name=name, defaults={"capacity": cap, "class_teacher": teacher})
+                messages.success(request, f"Class {name} created.")
+                return redirect("students:class_list")
+            except (User.DoesNotExist, ValueError):
+                pass
+    teachers = User.objects.filter(school=school, role__in=["admin", "teacher"]).order_by("first_name", "last_name")
+    return render(request, "students/class_form.html", {"school": school, "teachers": teachers})

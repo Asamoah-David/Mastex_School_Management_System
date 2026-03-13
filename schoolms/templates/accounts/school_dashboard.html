@@ -62,6 +62,7 @@
 <div class="content-card card-margin-top">
     <h3 class="section-title">Quick Actions</h3>
     <div class="quick-actions-grid">
+        {% if user.role in "admin school_admin" %}
         <a href="{% url 'students:student_register' %}" class="btn btn-primary">
             <span class="icon-add">+</span> Add Student
         </a>
@@ -71,15 +72,26 @@
         <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">
             Manage Staff
         </a>
+        <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">
+            Manage Parents
+        </a>
+        {% endif %}
+
         <a href="{% url 'students:student_list' %}" class="btn btn-secondary">
             View All Students
         </a>
         <a href="{% url 'students:promote_students' %}" class="btn btn-secondary">
             Promote Students
         </a>
-        <a href="{% url 'operations:attendance_mark' %}" class="btn btn-secondary">
-            Mark Attendance
+        {% if user.is_school_admin %}
+        <a href="{% url 'operations:teacher_attendance_mark' %}" class="btn btn-secondary">
+            Mark Teacher Attendance
         </a>
+        {% else %}
+        <a href="{% url 'operations:attendance_mark' %}" class="btn btn-secondary">
+            Mark Student Attendance
+        </a>
+        {% endif %}
         <a href="{% url 'academics:result_upload' %}" class="btn btn-primary">
             Upload Results
         </a>
@@ -88,9 +100,6 @@
         </a>
         <a href="{% url 'operations:calendar' %}" class="btn btn-secondary">
             Academic Calendar
-        </a>
-        <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">
-            Manage Parents
         </a>
     </div>
 </div>
@@ -136,5 +145,24 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Credentials & Support Information -->
+<div class="content-card card-margin-top">
+    <h3 class="section-title">Login Credentials & Support</h3>
+    <p style="font-size: 0.9rem; color: #9ca3af;">
+        All users (staff, parents, and students) access Mastex SchoolOS with
+        usernames and passwords that <strong>you or your admin team assign</strong>
+        when registering them. There is no public registration or automatic
+        account creation.
+    </p>
+    <ul style="font-size: 0.9rem; color: #e5e7eb; padding-left: 1.2rem; margin-top: 0.5rem;">
+        <li>Use <strong>“Add Staff”</strong>, <strong>“Manage Parents”</strong>, and
+            <strong>“Add Student”</strong> to create and update user accounts.</li>
+        <li>If a user forgets their username or password, they should contact the school
+            office. You can then look up their account and change their password safely.</li>
+        <li>For new schools joining the platform, the platform super admin creates the
+            first school admin account and shares the login credentials securely.</li>
+    </ul>
 </div>
 {% endblock %}

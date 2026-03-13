@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Request Leave - {{ school.name }}{% endblock %}
+{% block page_title %}Request Leave{% endblock %}
+{% block page_subtitle %}Submit a leave request{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Start Date</label>
+            <input type="date" name="start_date" required style="padding:0.5rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>End Date</label>
+            <input type="date" name="end_date" required style="padding:0.5rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Reason</label>
+            <textarea name="reason" rows="3" style="width:100%;padding:0.5rem;"></textarea>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Submit</button>
+            <a href="{% url 'operations:staff_leave_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

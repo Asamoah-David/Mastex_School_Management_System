@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Homework - {{ school.name }}{% endblock %}
+{% block page_title %}Homework{% endblock %}
+{% block page_subtitle %}Assignments by class{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+            <a href="{% url 'academics:homework_create' %}" class="btn btn-primary">+ Add Homework</a>
+            {% if classes %}
+            <form method="get" style="display:inline;margin-left:0.5rem;">
+                <select name="class" onchange="this.form.submit()" style="padding:0.4rem;">
+                    <option value="">All classes</option>
+                    {% for c in classes %}
+                    <option value="{{ c }}" {% if request.GET.class == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% if homework %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr><th>Title</th><th>Subject</th><th>Class</th><th>Due Date</th></tr>
+            </thead>
+            <tbody>
+                {% for h in homework %}
+                <tr>
+                    <td>{{ h.title }}</td>
+                    <td>{{ h.subject.name }}</td>
+                    <td>{{ h.class_name }}</td>
+                    <td>{{ h.due_date|date:"M d, Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No homework assigned yet.</div>
+    {% endif %}
+</div>
+{% endblock %}
