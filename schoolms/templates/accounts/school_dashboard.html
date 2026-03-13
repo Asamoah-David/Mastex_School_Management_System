@@ -69,17 +69,11 @@
         <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">
             <span class="icon-add">+</span> Add Staff
         </a>
-        <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">
-            Manage Staff
-        </a>
         <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">
             Manage Parents
         </a>
         {% endif %}
 
-        <a href="{% url 'students:student_list' %}" class="btn btn-secondary">
-            View All Students
-        </a>
         <a href="{% url 'students:promote_students' %}" class="btn btn-secondary">
             Promote Students
         </a>
