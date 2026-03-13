@@ -250,7 +250,6 @@
                         {% if user.is_authenticated %}
                             {% if user.role == "student" %}
                             <li><a href="{% url 'portal' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">My Portal</span><span class="nav-item-subtitle">View my details</span></div></a></li>
-                            <li><a href="{% url 'students:my_absence_requests' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">My Absence Requests</span><span class="nav-item-subtitle">Request time off</span></div></a></li>
                             {% elif user.role == "parent" %}
                             <li><a href="{% url 'portal' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">My Children</span><span class="nav-item-subtitle">View my children</span></div></a></li>
                             {% elif user.role == "teacher" %}
@@ -260,7 +259,6 @@
                             <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
                             <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
                             <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span><span class="nav-item-subtitle">My leave</span></div></a></li>
-                            <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Review student requests</span></div></a></li>
                             <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send messages</span></div></a></li>
                             <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
                             {% elif user.role == "school_admin" %}
@@ -273,7 +271,6 @@
                             <li><a href="{% url 'students:class_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Classes</span><span class="nav-item-subtitle">Manage classes</span></div></a></li>
                             <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
                             <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span><span class="nav-item-subtitle">Leave requests</span></div></a></li>
-                            <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Review student requests</span></div></a></li>
                             <li><a href="{% url 'academics:grade_boundary_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Grade Boundaries</span><span class="nav-item-subtitle">Grading scale</span></div></a></li>
                             <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Homework</span><span class="nav-item-subtitle">Assignments</span></div></a></li>
                             <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
@@ -292,7 +289,6 @@
                             <li><a href="{% url 'students:class_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Classes</span><span class="nav-item-subtitle">Manage classes</span></div></a></li>
                             <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
                             <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span><span class="nav-item-subtitle">Leave requests</span></div></a></li>
-                            <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Review student requests</span></div></a></li>
                             <li><a href="{% url 'academics:grade_boundary_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Grade Boundaries</span><span class="nav-item-subtitle">Grading scale</span></div></a></li>
                             <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Homework</span><span class="nav-item-subtitle">Assignments</span></div></a></li>
                             <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
