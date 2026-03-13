@@ -14,7 +14,7 @@
             <a href="{% url 'academics:exam_schedule_create' %}" class="btn btn-primary">+ Schedule Exam</a>
             <form method="get" style="display:inline;margin-left:0.5rem;">
                 {% if terms %}
-                <select name="term" onchange="this.form.submit()" style="padding:0.4rem;">
+                <select name="term" onchange="this.form.submit()" title="Filter by term" style="padding:0.4rem;">
                     <option value="">All terms</option>
                     {% for t in terms %}
                     <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
@@ -22,7 +22,7 @@
                 </select>
                 {% endif %}
                 {% if classes %}
-                <select name="class" onchange="this.form.submit()" style="padding:0.4rem;margin-left:0.25rem;">
+                <select name="class" onchange="this.form.submit()" title="Filter by class" style="padding:0.4rem;margin-left:0.25rem;">
                     <option value="">All classes</option>
                     {% for c in classes %}
                     <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>

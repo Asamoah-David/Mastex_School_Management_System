@@ -8,8 +8,8 @@
     <form method="post">
         {% csrf_token %}
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Term</label>
-            <select name="term" required style="padding:0.5rem;">
+            <label for="term">Term</label>
+            <select id="term" name="term" required title="Select the academic term" style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for t in terms %}
                 <option value="{{ t.id }}">{{ t.name }}</option>
@@ -17,8 +17,8 @@
             </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Subject</label>
-            <select name="subject" required style="padding:0.5rem;">
+            <label for="subject">Subject</label>
+            <select id="subject" name="subject" required title="Select the subject" style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for s in subjects %}
                 <option value="{{ s.id }}">{{ s.name }}</option>
@@ -26,8 +26,8 @@
             </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Class / Group</label>
-            <select name="class_name" style="padding:0.5rem;">
+            <label for="class_name">Class / Group</label>
+            <select id="class_name" name="class_name" title="Select the class or group" style="padding:0.5rem;">
                 <option value="">All classes</option>
                 {% for c in classes %}
                 <option value="{{ c }}">{{ c }}</option>
@@ -38,24 +38,24 @@
             </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Exam Date</label>
-            <input type="date" name="exam_date" required style="padding:0.5rem;">
+            <label for="exam_date">Exam Date</label>
+            <input type="date" id="exam_date" name="exam_date" required title="Enter the exam date" style="padding:0.5rem;">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Start Time (optional)</label>
-            <input type="time" name="start_time" style="padding:0.5rem;">
+            <label for="start_time">Start Time (optional)</label>
+            <input type="time" id="start_time" name="start_time" title="Enter the start time" style="padding:0.5rem;">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>End Time (optional)</label>
-            <input type="time" name="end_time" style="padding:0.5rem;">
+            <label for="end_time">End Time (optional)</label>
+            <input type="time" id="end_time" name="end_time" title="Enter the end time" style="padding:0.5rem;">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Room</label>
-            <input type="text" name="room" maxlength="50" style="padding:0.5rem;">
+            <label for="room">Room</label>
+            <input type="text" id="room" name="room" maxlength="50" title="Enter the room number" style="padding:0.5rem;">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Notes</label>
-            <textarea name="notes" rows="2" style="width:100%;padding:0.5rem;"></textarea>
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" rows="2" title="Enter any additional notes" style="width:100%;padding:0.5rem;"></textarea>
         </div>
         <div class="button-row">
             <button type="submit" class="btn btn-primary">Schedule</button>

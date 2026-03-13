@@ -225,39 +225,33 @@
 
         {% if child_achievements %}
         <h5>Achievements & Awards</h5>
-        <ul class="list-compact">
-            {% for a in child_achievements|slice:":5" %}
+        <ul class="list-compact">{% for a in child_achievements|slice:":5" %}
             <li>
                 <strong>{{ a.title }}</strong>
                 <span class="text-muted">({{ a.get_achievement_type_display }}, {{ a.date_achieved }})</span>
             </li>
-            {% endfor %}
-        </ul>
+            {% endfor %}</ul>
         {% endif %}
 
         {% if child_activities %}
         <h5>Activities & Clubs</h5>
-        <ul class="list-compact">
-            {% for act in child_activities|slice:":5" %}
+        <ul class="list-compact">{% for act in child_activities|slice:":5" %}
             <li>
                 <strong>{{ act.activity_name }}</strong>
                 <span class="text-muted">({{ act.get_activity_type_display }}{% if act.position %}, {{ act.position }}{% endif %})</span>
             </li>
-            {% endfor %}
-        </ul>
+            {% endfor %}</ul>
         {% endif %}
 
         {% if child_discipline %}
         <h5>Behavior & Discipline</h5>
-        <ul class="list-compact">
-            {% for rec in child_discipline|slice:":5" %}
+        <ul class="list-compact">{% for rec in child_discipline|slice:":5" %}
             <li>
                 <strong>{{ rec.get_incident_type_display }}</strong>
                 <span class="text-muted">({{ rec.incident_date }})</span>
                 – {{ rec.title }}
             </li>
-            {% endfor %}
-        </ul>
+            {% endfor %}</ul>
         {% endif %}
     </div>
     {% endif %}
