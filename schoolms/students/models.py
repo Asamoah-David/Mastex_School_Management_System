@@ -3,6 +3,30 @@ from accounts.models import User
 from schools.models import School
 
 
+class SchoolClass(models.Model):
+    """Structured class/section with capacity and class teacher."""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)  # e.g. "Form 1A", "Primary 3B"
+    capacity = models.PositiveIntegerField(default=40, blank=True, null=True)
+    class_teacher = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="classes_taught", limit_choices_to={"role__in": ["admin", "teacher"]}
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("school", "name")
+        verbose_name = "Class"
+        verbose_name_plural = "Classes"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.school.name})"
+
+    def student_count(self):
+        return Student.objects.filter(school=self.school, class_name=self.name).count()
+
+
 class Student(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     user = models.OneToOneField(User, on_delete=models.CASCADE)

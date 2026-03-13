@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Subject, Result, Timetable, ExamType, Term
+from .models import Subject, Result, Timetable, ExamType, Term, GradeBoundary, Homework, ExamSchedule
 
 
 @admin.register(Subject)
@@ -31,3 +31,22 @@ class ResultAdmin(admin.ModelAdmin):
 class TimetableAdmin(admin.ModelAdmin):
     list_display = ("class_name", "subject", "day", "start_time", "end_time", "school")
     list_filter = ("school", "day")
+
+
+@admin.register(GradeBoundary)
+class GradeBoundaryAdmin(admin.ModelAdmin):
+    list_display = ("grade", "min_score", "max_score", "school")
+    list_filter = ("school",)
+
+
+@admin.register(Homework)
+class HomeworkAdmin(admin.ModelAdmin):
+    list_display = ("title", "subject", "class_name", "due_date", "school")
+    list_filter = ("school", "class_name")
+    raw_id_fields = ("created_by",)
+
+
+@admin.register(ExamSchedule)
+class ExamScheduleAdmin(admin.ModelAdmin):
+    list_display = ("subject", "term", "exam_date", "start_time", "end_time", "school")
+    list_filter = ("school", "term")

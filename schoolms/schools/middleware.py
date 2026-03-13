@@ -8,12 +8,14 @@ class SchoolMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Skip all middleware processing for these paths
-        if request.path in ["/accounts/login/", "/accounts/logout/", "/login/", "/logout/", "/register/", "/admin/login/", "/portal/"]:
+        # Skip all middleware processing for these paths (no redirects on login/dashboard)
+        skip_paths = [
+            "/", "/accounts/login/", "/accounts/logout/", "/accounts/dashboard/", "/accounts/school-dashboard/",
+            "/login/", "/logout/", "/register/", "/admin/login/", "/portal/",
+        ]
+        if request.path in skip_paths:
             return self.get_response(request)
-        
-        # Skip for paths starting with these
-        if any(request.path.startswith(path) for path in ["/static/", "/media/", "/admin/jsi18n/", "/portal"]):
+        if any(request.path.startswith(p) for p in ["/static/", "/media/", "/admin/jsi18n/", "/portal"]):
             return self.get_response(request)
         
         # Try to get school from subdomain only for non-base domains

@@ -3,9 +3,26 @@
 
 {% block title %}My Children · Mastex SchoolOS{% endblock %}
 {% block page_title %}My Children{% endblock %}
-{% block page_subtitle %}View your children's progress, results, and pay fees.{% endblock %}
+{% block page_subtitle %}View your children's progress, results, fees, and exams.{% endblock %}
 
 {% block content %}
+
+<div class="button-row mt-sm">
+    <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+</div>
+
+{% if announcements %}
+<div class="content-card">
+    <h3 class="section-title">Announcements</h3>
+    {% for a in announcements %}
+    <div style="margin-bottom:1rem;padding:0.75rem;background:rgba(15,23,42,0.9);border-radius:0.5rem;border:1px solid rgba(148,163,184,0.3);">
+        <strong>{{ a.title }}</strong>
+        <span class="text-muted" style="font-size:0.8rem;"> — {{ a.created_at|date:"M d, Y" }}{% if a.school %} · {{ a.school.name }}{% endif %}</span>
+        <p style="margin:0.5rem 0 0 0;font-size:0.9rem;">{{ a.content|truncatewords:50 }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
 <!-- Children List -->
 <div class="table-card">
@@ -139,6 +156,115 @@
 {% endfor %}
 {% endif %}
 
+<!-- Exam Schedule (per school/term) -->
+{% if exam_schedule %}
+<h3 class="section-title">Exam Schedule</h3>
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Subject</th>
+                <th>Term</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exam in exam_schedule %}
+            <tr>
+                <td>{{ exam.exam_date|date:"M d, Y" }}</td>
+                <td>
+                    {% if exam.start_time %}
+                        {{ exam.start_time|time:"H:i" }}
+                        {% if exam.end_time %}- {{ exam.end_time|time:"H:i" }}{% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>{{ exam.subject.name }}</td>
+                <td>{{ exam.term.name }}</td>
+                <td>{{ exam.notes|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Attendance Summary per Child -->
+{% if attendance_by_child %}
+<h3 class="section-title">Recent Attendance</h3>
+{% for child in children %}
+    {% with child_att=attendance_by_child|get_item:child.id %}
+    {% if child_att %}
+    <div class="content-card mt-1">
+        <h4 class="section-title-green">{{ child.user.get_full_name }}</h4>
+        <table style="font-size:0.85rem;">
+            <thead><tr><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for a in child_att %}
+                <tr><td>{{ a.date|date:"M d, Y" }}</td><td><span class="tag">{{ a.get_status_display }}</span></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endwith %}
+{% endfor %}
+{% endif %}
+
+<!-- Holistic Profile: Achievements, Activities & Discipline -->
+{% if achievements_by_child or activities_by_child or discipline_by_child %}
+<h3 class="section-title">Holistic Progress</h3>
+{% for child in children %}
+    {% with child_achievements=achievements_by_child|get_item:child.id child_activities=activities_by_child|get_item:child.id child_discipline=discipline_by_child|get_item:child.id %}
+    {% if child_achievements or child_activities or child_discipline %}
+    <div class="content-card mt-1">
+        <h4 class="section-title-green">{{ child.user.get_full_name }} - Whole Child View</h4>
+
+        {% if child_achievements %}
+        <h5>Achievements & Awards</h5>
+        <ul class="list-compact">
+            {% for a in child_achievements|slice:":5" %}
+            <li>
+                <strong>{{ a.title }}</strong>
+                <span class="text-muted">({{ a.get_achievement_type_display }}, {{ a.date_achieved }})</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if child_activities %}
+        <h5>Activities & Clubs</h5>
+        <ul class="list-compact">
+            {% for act in child_activities|slice:":5" %}
+            <li>
+                <strong>{{ act.activity_name }}</strong>
+                <span class="text-muted">({{ act.get_activity_type_display }}{% if act.position %}, {{ act.position }}{% endif %})</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if child_discipline %}
+        <h5>Behavior & Discipline</h5>
+        <ul class="list-compact">
+            {% for rec in child_discipline|slice:":5" %}
+            <li>
+                <strong>{{ rec.get_incident_type_display }}</strong>
+                <span class="text-muted">({{ rec.incident_date }})</span>
+                – {{ rec.title }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
+{% endfor %}
+{% endif %}
+
 <style>
 .section-title {
     margin-top: 1.5rem;
@@ -150,6 +276,14 @@
 }
 .text-muted {
     color: #6b7280;
+}
+.list-compact {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.2rem;
+    font-size: 0.9rem;
+}
+.list-compact li + li {
+    margin-top: 0.15rem;
 }
 </style>
 {% endblock %}

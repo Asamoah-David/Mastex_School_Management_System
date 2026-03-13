@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}No school assigned{% endblock %}
+{% block page_title %}No school assigned{% endblock %}
+{% block page_subtitle %}Your account is not linked to a school yet.{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <p class="section-title">You're signed in as staff, but no school is assigned to your account.</p>
+    <p style="color: var(--text-muted); margin-top: 0.5rem;">
+        Ask your platform or school administrator to assign you to a school. You can also
+        <a href="{% url 'accounts:logout' %}">sign out</a> and use another account.
+    </p>
+</div>
+{% endblock %}

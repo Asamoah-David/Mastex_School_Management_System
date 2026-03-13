@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Fees · {{ school.name|default:"Platform" }}{% endblock %}
+{% block page_title %}Fees{% endblock %}
+{% block page_subtitle %}Mark offline payments as paid.{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    {% if not fees %}
+    <div class="empty-state">
+        There are currently no unpaid fees to manage.
+    </div>
+    {% else %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>School</th>
+                    <th>Amount (GHS)</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fee in fees %}
+                <tr>
+                    <td>{{ fee.student.user.get_full_name|default:fee.student.user.username }}</td>
+                    <td>{{ fee.student.class_name|default:"—" }}</td>
+                    <td>{{ fee.school.name }}</td>
+                    <td>{{ fee.amount }}</td>
+                    <td>
+                        {% if fee.paid %}
+                        <span class="tag tag-success">Paid</span>
+                        {% else %}
+                        <span class="tag tag-unpaid">Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not fee.paid %}
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="fee_id" value="{{ fee.id }}">
+                            <input type="hidden" name="action" value="mark_paid">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                Mark as paid
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

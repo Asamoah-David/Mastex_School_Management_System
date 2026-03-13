@@ -61,24 +61,30 @@
     <a href="/admin/accounts/user/" class="btn btn-secondary">Manage Users</a>
 </div>
 
-<hr class="section-divider">
-
-<h3 class="section-subtitle">Platform Overview</h3>
-<div class="content-grid single-column">
-    <section class="metric metric-info">
-        <div class="metric-label">Managing Schools</div>
-        <div class="metric-value">Each school operates independently with its own data, staff, students, and fee structure.</div>
-    </section>
-    <section class="metric metric-info">
-        <div class="metric-label">School Access</div>
-        <div class="metric-value">School admins and staff log in here and are redirected to their school-specific dashboard where they manage their own students, fees, and operations.</div>
-    </section>
-    <section class="metric metric-info">
-        <div class="metric-label">Parent & Student Access</div>
-        <div class="metric-value">Parents and students also log in through this portal and see their respective dashboards (Parent Portal or Student Portal).</div>
-    </section>
+<div class="content-card" style="margin-top: 1.2rem;">
+    <h3 class="section-title">Platform Control Center</h3>
+    <div class="content-grid">
+        <div>
+            <p style="font-size:0.9rem; color:#9ca3af; margin-top:0;">
+                As super admin you oversee every school, user, and transaction on Mastex SchoolOS.
+                Use these shortcuts to quickly inspect activity and keep schools healthy.
+            </p>
+            <ul style="font-size:0.9rem; color:#e5e7eb; padding-left:1.2rem; margin-top:0.6rem;">
+                <li>Review <strong>recent activity logs</strong> to see what school admins and staff are doing.</li>
+                <li>Drill into <strong>school records</strong> to adjust plans, deactivate schools, or update details.</li>
+                <li>Inspect <strong>users and roles</strong> from Django admin when you need low-level control.</li>
+            </ul>
+        </div>
+        <div>
+            <div class="button-row">
+                <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary">View Activity Log</a>
+                <a href="/admin/" class="btn btn-secondary">Open Django Admin</a>
+                <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary">Broadcast Message</a>
+            </div>
+            <p style="font-size:0.8rem; color:#6b7280; margin-top:0.9rem;">
+                Tip: use the Activity Log to audit changes (logins, student updates, fee changes) across all schools.
+            </p>
+        </div>
+    </div>
 </div>
-<p class="help-text">
-    <strong>Note:</strong> School staff, students, and parents are managed by each school's admin through their school dashboard. Use Django Admin for platform-wide user management.
-</p>
 {% endblock %}

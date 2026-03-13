@@ -4,6 +4,23 @@
 {% block page_subtitle %}Welcome, {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
 
 {% block content %}
+
+<div class="button-row mt-sm">
+    <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+</div>
+
+{% if announcements %}
+<div class="content-card" style="margin-bottom:1rem;">
+    <h3 class="section-title">Announcements</h3>
+    {% for a in announcements %}
+    <div style="margin-bottom:0.75rem;padding:0.6rem;background:rgba(15,23,42,0.9);border-radius:0.5rem;">
+        <strong>{{ a.title }}</strong> <span class="text-muted" style="font-size:0.8rem;">{{ a.created_at|date:"M d, Y" }}</span>
+        <p style="margin:0.35rem 0 0 0;font-size:0.9rem;">{{ a.content|truncatewords:40 }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% if student %}
 <div class="content-grid">
     <section class="metric">
@@ -19,6 +36,20 @@
         <div class="metric-value">{{ student.school.name }}</div>
     </section>
 </div>
+
+{% if recent_attendance %}
+<h3 class="section-title">Recent Attendance</h3>
+<div class="content-card">
+    <table style="font-size:0.85rem;">
+        <thead><tr><th>Date</th><th>Status</th></tr></thead>
+        <tbody>
+            {% for a in recent_attendance %}
+            <tr><td>{{ a.date|date:"M d, Y" }}</td><td><span class="tag">{{ a.get_status_display }}</span></td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 
 <!-- Academic Performance -->
 <h3 class="section-title">Academic Performance</h3>
@@ -97,6 +128,55 @@
 <div class="empty-state">No results yet. Results will appear here after teachers upload them.</div>
 {% endif %}
 
+<!-- Achievements & Activities -->
+{% if achievements or activities %}
+<h3 class="section-title">Beyond the Classroom</h3>
+
+{% if achievements %}
+<div class="content-card mt-1">
+    <h4>Achievements & Awards</h4>
+    <ul class="list-compact">
+        {% for a in achievements %}
+        <li>
+            <strong>{{ a.title }}</strong>
+            <span class="text-muted">({{ a.get_achievement_type_display }}, {{ a.date_achieved }})</span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if activities %}
+<div class="content-card mt-1">
+    <h4>Activities & Clubs</h4>
+    <ul class="list-compact">
+        {% for act in activities %}
+        <li>
+            <strong>{{ act.activity_name }}</strong>
+            <span class="text-muted">({{ act.get_activity_type_display }}{% if act.position %}, {{ act.position }}{% endif %})</span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Discipline & Behavior -->
+{% if discipline_records %}
+<h3 class="section-title">Behavior & Discipline</h3>
+<div class="content-card mt-1">
+    <ul class="list-compact">
+        {% for rec in discipline_records %}
+        <li>
+            <strong>{{ rec.get_incident_type_display }}</strong>
+            <span class="text-muted">({{ rec.incident_date }})</span>
+            – {{ rec.title }}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <script>
 function filterResults(value, type) {
     const url = new URL(window.location.href);
@@ -144,6 +224,17 @@ function filterResults(value, type) {
     background: rgba(34,197,94,0.2);
     color: #22c55e;
     border-color: #22c55e;
+}
+.list-compact {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.2rem;
+    font-size: 0.9rem;
+}
+.list-compact li + li {
+    margin-top: 0.15rem;
+}
+.text-muted {
+    color: #9ca3af;
 }
 </style>
 {% endblock %}

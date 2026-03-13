@@ -12,5 +12,8 @@ class School(models.Model):
     stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
     flutterwave_tx_ref = models.CharField(max_length=255, blank=True, null=True)
 
+    logo_url = models.URLField(max_length=500, blank=True)
+    academic_year = models.CharField(max_length=50, blank=True)  # e.g. "2024/2025"
+
     def __str__(self):
         return self.name

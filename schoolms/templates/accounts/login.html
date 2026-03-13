@@ -2,16 +2,6 @@
 {% load static %}
 
 {% block content %}
-{% if messages %}
-<div class="messages">
-    {% for message in messages %}
-    <div class="message-box {% if message.tags %}{{ message.tags }}{% endif %}">
-        {{ message }}
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
-
 <form method="post" action="{% url 'accounts:login' %}">
     {% csrf_token %}
     <div class="form-group">
@@ -24,5 +14,12 @@
     </div>
     <button type="submit" class="btn btn-primary">Sign in</button>
 </form>
+
+<p style="margin-top: 0.75rem; font-size: 0.8rem; color: #9ca3af;">
+    This system does not support self-sign up. Your
+    <strong>username</strong> and <strong>password</strong> are given to you
+    by your school or platform administrator. If you have forgotten your
+    login details, please contact your school administration to reset them.
+</p>
 {% endblock %}
 

@@ -1,49 +1,61 @@
 {% extends "base.html" %}
-{% load static %}
 
-{% block title %}Academic Calendar - {{ school.name }}{% endblock %}
+{% block title %}Academic Calendar · {{ school.name }}{% endblock %}
 
 {% block page_title %}Academic Calendar{% endblock %}
-{% block page_subtitle %}View school events and important dates{% endblock %}
+{% block page_subtitle %}Upcoming terms, exams, holidays, and key school events.{% endblock %}
 
 {% block content %}
 <div class="content-card">
-    <div class="calendar-header">
-        <h3>Events</h3>
-        <a href="{% url 'operations:calendar_create' %}" class="btn btn-primary">+ Add Event</a>
+    <div class="page-heading" style="margin-bottom: 0.75rem;">
+        <div>
+            <h3 class="section-title" style="margin: 0;">Events</h3>
+            <p class="page-subtitle" style="margin: 0; font-size: 0.85rem;">
+                All events for {{ school.name }} ordered by date.
+            </p>
+        </div>
+        {% if user.is_school_admin or user.is_superuser %}
+        <a href="{% url 'operations:calendar_create' %}" class="btn btn-primary">+ Add event</a>
+        {% endif %}
     </div>
-    
+
     {% if events %}
-    <div class="table-card table-card-scroll">
+    <div class="table-card">
         <table>
             <thead>
                 <tr>
+                    <th>When</th>
                     <th>Title</th>
                     <th>Type</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Description</th>
+                    <th>Details</th>
+                    {% if user.is_school_admin or user.is_superuser %}
                     <th>Actions</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for event in events %}
                 <tr>
-                    <td>{{ event.title }}</td>
                     <td>
-                        <span class="tag">
-                            {{ event.get_event_type_display }}
-                        </span>
+                        {{ event.start_date|date:"M d, Y" }}
+                        {% if event.end_date %}
+                            – {{ event.end_date|date:"M d, Y" }}
+                        {% endif %}
                     </td>
-                    <td>{{ event.start_date|date:"M d, Y" }}</td>
-                    <td>{{ event.end_date|date:"M d, Y"|default:"-" }}</td>
-                    <td>{{ event.description|truncatewords:10 }}</td>
+                    <td>{{ event.title }}</td>
+                    <td><span class="tag">{{ event.get_event_type_display }}</span></td>
+                    <td>{{ event.description|default:"—"|truncatewords:16 }}</td>
+                    {% if user.is_school_admin or user.is_superuser %}
                     <td>
                         <form method="post" action="{% url 'operations:calendar_delete' event.pk %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this event?')">Delete</button>
+                            <button type="submit" class="btn btn-danger btn-sm"
+                                    onclick="return confirm('Delete this event?');">
+                                Delete
+                            </button>
                         </form>
                     </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -51,7 +63,10 @@
     </div>
     {% else %}
     <div class="empty-state">
-        No events found. Click "Add Event" to create one.
+        No calendar events have been created yet.
+        {% if user.is_school_admin or user.is_superuser %}
+        Use the “Add event” button to create your first term, exam, or holiday.
+        {% endif %}
     </div>
     {% endif %}
 </div>

@@ -1,11 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Students · Mastex SchoolOS{% endblock %}
 {% block page_title %}Students{% endblock %}
-{% block page_subtitle %}Enrolled students for {{ school.name }}.{% endblock %}
+{% block page_subtitle %}
+    {% if school %}
+        Enrolled students for {{ school.name }}.
+    {% else %}
+        Enrolled students across all schools.
+    {% endif %}
+{% endblock %}
 {% block content %}
 <div class="button-row">
     <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register new student</a>
 </div>
+
+{% if no_access %}
+<div class="table-card">
+    <div class="empty-state">
+        You do not have permission to manage students for any school yet.
+        Please contact your platform or school administrator.
+    </div>
+</div>
+{% elif no_school %}
+<div class="table-card">
+    <div class="empty-state">
+        Your account is not yet linked to a school, so there are no students to show.
+        Please ask the platform admin to attach you to a school.
+    </div>
+</div>
+{% else %}
 
 {% if students_by_class %}
     {% for class_name, class_students in students_by_class.items %}
@@ -40,8 +62,12 @@
     {% endfor %}
 {% else %}
 <div class="table-card">
-    <div class="empty-state">No students yet. <a href="{% url 'students:student_register' %}">Register a student</a>.</div>
+    <div class="empty-state">
+        No students yet.
+        <a href="{% url 'students:student_register' %}">Register a student</a>.
+    </div>
 </div>
+{% endif %}
 {% endif %}
 
 <style>

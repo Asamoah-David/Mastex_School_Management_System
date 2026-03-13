@@ -130,10 +130,13 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=5),
 }
 
-# Stripe
+# Stripe (for school SaaS subscriptions)
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLIC_KEY = env("STRIPE_PUBLIC_KEY", "")
 STRIPE_PRICE_ID = env("STRIPE_PRICE_ID", "")
+# Optional: if you configure a Stripe webhook endpoint, this can be used
+# for signature verification in future; for now the webhook is permissive.
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", "")
 
 # MNotify
 MNOTIFY_API_KEY = env("MNOTIFY_API_KEY", "")
@@ -147,13 +150,42 @@ FLW_WEBHOOK_SECRET = env("FLW_WEBHOOK_SECRET", "")
 # OpenAI
 OPENAI_API_KEY = env("OPENAI_API_KEY", "")
 
+# Global admin phone for critical SMS alerts (optional)
+ADMIN_PHONE = env("ADMIN_PHONE", "")
+
 # security settings (Render terminates TLS; trust X-Forwarded-Proto)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Required for POST requests (admin login, forms) behind Render's HTTPS
-# Add any custom ALLOWED_HOSTS to CSRF_TRUSTED_ORIGINS
-_csrf_origins = {f"https://{host}" for host in ALLOWED_HOSTS if host not in {"localhost", "127.0.0.1"}}
-CSRF_TRUSTED_ORIGINS = sorted(_csrf_origins | {f"https://{h}.onrender.com" for h in ALLOWED_HOSTS if ".onrender.com" in h})
+# CSRF trusted origins
+# Prefer explicit configuration via environment variable.
+# CSRF_TRUSTED_ORIGINS should be a comma-separated list of full origins,
+# e.g. "https://mastex-schoolos.onrender.com,https://app.yourdomain.com".
+_csrf_from_env = [
+    origin.strip()
+    for origin in env("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = _csrf_from_env
+
+# On Render, RENDER_EXTERNAL_HOSTNAME contains the external hostname
+# (e.g. "mastex-schoolos.onrender.com"). Add it automatically if present.
+_render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if _render_host:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_render_host}")
+
+# Also trust any hostnames from ALLOWED_HOSTS as HTTPS origins.
+# This helps when using a custom domain without setting
+# CSRF_TRUSTED_ORIGINS explicitly.
+for _host in ALLOWED_HOSTS:
+    if not _host or _host in ("localhost", "127.0.0.1"):
+        continue
+    # Strip a leading dot from wildcard hosts like ".example.com"
+    _clean = _host.lstrip(".")
+    if "." in _clean:
+        origin = f"https://{_clean}"
+        if origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin)
 
 # Only enable security settings in production
 if not DEBUG:
@@ -207,12 +239,13 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "noreply@schoolms.com")
 
 # Auth redirects
 LOGIN_URL = "/accounts/login/"
-LOGIN_REDIRECT_URL = "/accounts/dashboard/"
+# Use the smart home route after login to avoid role dashboard loops.
+LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-# override with DATABASE_URL (Render provides this in production)
+# Override with DATABASE_URL (Render and other hosts set this; migrations run automatically in docker-entrypoint.sh)
 import dj_database_url
 
 database_url = os.getenv("DATABASE_URL")
 if database_url and database_url.strip():
-    DATABASES["default"] = dj_database_url.config(default=database_url)
+    DATABASES["default"] = dj_database_url.config(default=database_url, conn_max_age=600)

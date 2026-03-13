@@ -7,6 +7,9 @@ from .models import (
     BusPayment,
     Textbook,
     TextbookSale,
+    Announcement,
+    StaffLeave,
+    ActivityLog,
 )
 
 
@@ -44,3 +47,22 @@ class TextbookAdmin(admin.ModelAdmin):
 @admin.register(TextbookSale)
 class TextbookSaleAdmin(admin.ModelAdmin):
     list_display = ("student", "textbook", "quantity", "amount", "sale_date", "school")
+
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ("title", "school", "target_audience", "is_pinned", "created_at")
+    list_filter = ("school", "target_audience")
+
+
+@admin.register(StaffLeave)
+class StaffLeaveAdmin(admin.ModelAdmin):
+    list_display = ("staff", "start_date", "end_date", "status", "school")
+    list_filter = ("school", "status")
+    raw_id_fields = ("staff", "reviewed_by")
+
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ("action", "user", "school", "created_at")
+    list_filter = ("school",)

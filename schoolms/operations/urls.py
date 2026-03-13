@@ -32,4 +32,17 @@ urlpatterns = [
     path("textbooks/", views.textbook_list, name="textbook_list"),
     path("textbooks/sales/", views.textbook_sales, name="textbook_sales"),
     path("textbooks/delete/<int:pk>/", views.textbook_delete, name="textbook_delete"),
+
+    # Announcements
+    path("announcements/", views.announcement_list, name="announcement_list"),
+    path("announcements/create/", views.announcement_create, name="announcement_create"),
+    path("announcements/delete/<int:pk>/", views.announcement_delete, name="announcement_delete"),
+
+    # Staff Leave
+    path("staff-leave/", views.staff_leave_list, name="staff_leave_list"),
+    path("staff-leave/create/", views.staff_leave_create, name="staff_leave_create"),
+    path("staff-leave/<int:pk>/review/", views.staff_leave_review, name="staff_leave_review"),
+
+    # Activity Log
+    path("activity-log/", views.activity_log_list, name="activity_log_list"),
 ]
