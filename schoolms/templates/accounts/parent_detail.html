@@ -2,7 +2,7 @@
 
 {% block title %}Parent Details · Mastex SchoolOS{% endblock %}
 {% block page_title %}Parent Details{% endblock %}
-{% block page_subtitle %}{{ parent.get_full_name }} - {{ school.name }} · Status: {% if parent.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
+{% block page_subtitle %}{{ parent.get_full_name }} - {% if school %}{{ school.name }}{% else %}—{% endif %} · Status: {% if parent.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
 
 {% block content %}
 <div class="content-card">
@@ -62,6 +62,9 @@
         <a href="{% url 'accounts:parent_delete' parent.id %}" class="btn btn-danger">Deactivate</a>
     {% else %}
         <a href="{% url 'accounts:parent_reactivate' parent.id %}" class="btn btn-success">Reactivate</a>
+    {% endif %}
+    {% if request.user.is_superuser or request.user.is_super_admin %}
+        <a href="{% url 'accounts:superuser_edit_credentials' parent.id %}?next={% url 'accounts:parent_detail' parent.id %}" class="btn btn-primary">Edit login</a>
     {% endif %}
 </div>
 {% endblock %}
