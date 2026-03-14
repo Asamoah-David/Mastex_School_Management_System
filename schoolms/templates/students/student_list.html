@@ -48,7 +48,7 @@
                     <tr>
                         <td>{{ s.user.get_full_name|default:s.user.username }}</td>
                         <td>{{ s.admission_number }}</td>
-                        <td>{{ s.parent.get_full_name|default:s.parent.username|default:"—" }}</td>
+                        <td>{% if s.parent %}{{ s.parent.get_full_name|default:s.parent.username }}{% else %}—{% endif %}</td>
                         <td>
                             <a href="{% url 'students:student_detail' s.pk %}" class="btn btn-secondary btn-sm">View</a>
                             <a href="{% url 'students:student_delete' s.pk %}" class="btn btn-danger btn-sm">Delete</a>
