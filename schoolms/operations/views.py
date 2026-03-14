@@ -86,7 +86,7 @@ def attendance_mark(request):
 
 @login_required
 def canteen_list(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     items = CanteenItem.objects.filter(school=school)
@@ -95,7 +95,7 @@ def canteen_list(request):
 
 @login_required
 def canteen_payments(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")[:200]
@@ -104,7 +104,7 @@ def canteen_payments(request):
 
 @login_required
 def bus_list(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     routes = BusRoute.objects.filter(school=school)
@@ -113,7 +113,7 @@ def bus_list(request):
 
 @login_required
 def bus_payments(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")[:200]
@@ -122,7 +122,7 @@ def bus_payments(request):
 
 @login_required
 def textbook_list(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     books = Textbook.objects.filter(school=school)
@@ -131,7 +131,7 @@ def textbook_list(request):
 
 @login_required
 def textbook_sales(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")[:200]
@@ -141,7 +141,7 @@ def textbook_sales(request):
 @login_required
 def canteen_item_delete(request, pk):
     """Delete a canteen item."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     item = get_object_or_404(CanteenItem, pk=pk, school=school)
@@ -156,7 +156,7 @@ def canteen_item_delete(request, pk):
 @login_required
 def bus_route_delete(request, pk):
     """Delete a bus route."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     route = get_object_or_404(BusRoute, pk=pk, school=school)
@@ -171,7 +171,7 @@ def bus_route_delete(request, pk):
 @login_required
 def textbook_delete(request, pk):
     """Delete a textbook."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     book = get_object_or_404(Textbook, pk=pk, school=school)
@@ -186,7 +186,7 @@ def textbook_delete(request, pk):
 @login_required
 def attendance_delete(request, pk):
     """Delete an attendance record."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     attendance = get_object_or_404(StudentAttendance, pk=pk, school=school)
@@ -202,7 +202,7 @@ def attendance_delete(request, pk):
 @login_required
 def teacher_attendance_list(request):
     """List teacher attendance records."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     from_date = request.GET.get("from") or timezone.now().date()
@@ -220,7 +220,7 @@ def teacher_attendance_list(request):
 @login_required
 def teacher_attendance_mark(request):
     """Mark teacher attendance (School Admin only)."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     
@@ -259,7 +259,7 @@ def teacher_attendance_mark(request):
 @login_required
 def calendar_list(request):
     """List academic calendar events."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     events = AcademicCalendar.objects.filter(school=school).order_by("start_date")
@@ -269,7 +269,7 @@ def calendar_list(request):
 @login_required
 def calendar_create(request):
     """Create academic calendar event."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     
@@ -303,7 +303,7 @@ def calendar_create(request):
 @login_required
 def calendar_delete(request, pk):
     """Delete academic calendar event."""
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return redirect("home")
     
@@ -327,7 +327,7 @@ def _redirect_no_school(request):
 # Announcements
 @login_required
 def announcement_list(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
     announcements = Announcement.objects.filter(school=school).select_related("created_by").order_by("-is_pinned", "-created_at")
@@ -336,7 +336,7 @@ def announcement_list(request):
 
 @login_required
 def announcement_create(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
     from accounts.permissions import is_school_admin
@@ -360,7 +360,7 @@ def announcement_create(request):
 
 @login_required
 def announcement_delete(request, pk):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
     ann = get_object_or_404(Announcement, pk=pk, school=school)
@@ -375,7 +375,7 @@ def announcement_delete(request, pk):
 # Staff Leave
 @login_required
 def staff_leave_list(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
     from accounts.permissions import is_school_admin
@@ -389,7 +389,7 @@ def staff_leave_list(request):
 
 @login_required
 def staff_leave_create(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
     if request.method == "POST":
@@ -416,7 +416,7 @@ def staff_leave_create(request):
 
 @login_required
 def staff_leave_review(request, pk):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
     from accounts.permissions import is_school_admin
@@ -439,7 +439,7 @@ def staff_leave_review(request, pk):
 # Activity Log (admin only)
 @login_required
 def activity_log_list(request):
-    school = _require_school(request)
+    school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
     from accounts.permissions import is_school_admin
