@@ -94,6 +94,35 @@ def canteen_list(request):
 
 
 @login_required
+def canteen_create(request):
+    """Create a new canteen item."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        price = request.POST.get("price")
+        is_available = request.POST.get("is_available") == "on"
+        
+        if name and price:
+            try:
+                CanteenItem.objects.create(
+                    school=school,
+                    name=name,
+                    price=price,
+                    is_available=is_available
+                )
+                from django.contrib import messages
+                messages.success(request, "Canteen item created successfully!")
+                return redirect("operations:canteen_list")
+            except ValueError:
+                pass
+    
+    return render(request, "operations/canteen_form.html", {"school": school})
+
+
+@login_required
 def canteen_payments(request):
     school = _get_school(request)
     if not school:
@@ -112,6 +141,33 @@ def bus_list(request):
 
 
 @login_required
+def bus_create(request):
+    """Create a new bus route."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        fee_per_term = request.POST.get("fee_per_term")
+        
+        if name and fee_per_term:
+            try:
+                BusRoute.objects.create(
+                    school=school,
+                    name=name,
+                    fee_per_term=fee_per_term
+                )
+                from django.contrib import messages
+                messages.success(request, "Bus route created successfully!")
+                return redirect("operations:bus_list")
+            except ValueError:
+                pass
+    
+    return render(request, "operations/bus_form.html", {"school": school})
+
+
+@login_required
 def bus_payments(request):
     school = _get_school(request)
     if not school:
@@ -127,6 +183,37 @@ def textbook_list(request):
         return redirect("home")
     books = Textbook.objects.filter(school=school)
     return render(request, "operations/textbook_list.html", {"books": books, "school": school})
+
+
+@login_required
+def textbook_create(request):
+    """Create a new textbook."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        price = request.POST.get("price")
+        stock = request.POST.get("stock", 0)
+        isbn = request.POST.get("isbn", "").strip()
+        
+        if title and price:
+            try:
+                Textbook.objects.create(
+                    school=school,
+                    title=title,
+                    price=price,
+                    stock=stock or 0,
+                    isbn=isbn
+                )
+                from django.contrib import messages
+                messages.success(request, "Textbook created successfully!")
+                return redirect("operations:textbook_list")
+            except ValueError:
+                pass
+    
+    return render(request, "operations/textbook_form.html", {"school": school})
 
 
 @login_required

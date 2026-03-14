@@ -4,7 +4,7 @@
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
 <div class="button-row">
-    <a href="/admin/operations/textbook/add/" class="btn btn-primary">Add Textbook</a>
+    <a href="{% url 'operations:textbook_create' %}" class="btn btn-primary">Add Textbook</a>
     <a href="{% url 'operations:textbook_sales' %}" class="btn btn-secondary">View Sales</a>
 </div>
 
