@@ -282,6 +282,9 @@
                             <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">School Settings</span><span class="nav-item-subtitle">Profile</span></div></a></li>
                             <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send SMS</span></div></a></li>
                             <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
+                            <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Staff</span><span class="nav-item-subtitle">View staff details</span></div></a></li>
+                            <li><a href="{% url 'students:student_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Students</span><span class="nav-item-subtitle">View student details</span></div></a></li>
+
                             {% elif user.role == "admin" %}
                             <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Users</span><span class="nav-item-subtitle">Manage staff, parents, students</span></div></a></li>
                             <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Attendance</span><span class="nav-item-subtitle">Mark & view attendance</span></div></a></li>
@@ -301,6 +304,9 @@
                             <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">School Settings</span><span class="nav-item-subtitle">Profile & config</span></div></a></li>
                             <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send SMS</span></div></a></li>
                             <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
+                            <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Staff</span><span class="nav-item-subtitle">View staff details</span></div></a></li>
+                            <li><a href="{% url 'students:student_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Students</span><span class="nav-item-subtitle">View student details</span></div></a></li>
+
                             {% elif user.role == "staff" %}
                             <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Attendance</span><span class="nav-item-subtitle">View attendance</span></div></a></li>
                             <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">Items & payments</span></div></a></li>
