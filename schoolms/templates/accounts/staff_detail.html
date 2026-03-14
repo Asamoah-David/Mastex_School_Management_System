@@ -22,7 +22,7 @@
     </section>
     <section class="metric">
         <div class="metric-label">School</div>
-        <div class="metric-value">{{ staff.school.name|default:"—" }}</div>
+        <div class="metric-value">{% if staff.school %}{{ staff.school.name }}{% else %}—{% endif %}</div>
     </section>
 </div>
 <div class="button-row mt-sm">
