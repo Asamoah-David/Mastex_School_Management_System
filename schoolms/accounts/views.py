@@ -18,7 +18,11 @@ from operations.models import StudentAttendance, TeacherAttendance, AcademicCale
 
 
 def logout_view(request):
-    """Log out and redirect to login page."""
+    """Log out and clear messages, then redirect to login page."""
+    # Clear all messages before logging out so they don't appear on login page
+    storage = messages.get_messages(request)
+    for _ in storage:
+        pass  # This marks messages as read/cleared
     logout(request)
     return redirect("/accounts/login/")
 
