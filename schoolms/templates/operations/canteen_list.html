@@ -4,7 +4,7 @@
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
 <div class="button-row">
-    <a href="{% url 'operations:canteen_create' %}" class="btn btn-primary">Add Item</a>
+    <a href="/admin/operations/canteenitem/add/" class="btn btn-primary">Add Item</a>
     <a href="{% url 'operations:canteen_payments' %}" class="btn btn-secondary">View Payments</a>
 </div>
 
