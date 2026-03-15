@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.contrib.messages.storage import default_storage
 from django.db.models import Sum
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
@@ -54,6 +55,10 @@ def login_view(request):
         if getattr(request.user, "is_superuser", False) or role == "super_admin":
             return redirect("accounts:dashboard")
         return redirect("accounts:dashboard")
+    
+    # Clear any old messages that might have been set from previous pages
+    # This prevents showing stale messages on the login page
+    list(messages.get_messages(request))
     
     # Process login form
     if request.method == "POST":
