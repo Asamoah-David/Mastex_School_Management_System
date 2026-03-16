@@ -31,12 +31,12 @@
         <tbody>
         {% for req in requests %}
             <tr>
-                <td>{% if req.student.user %}{{ req.student.user.get_full_name|default:req.student.user.username }}{% else %}—{% endif %}</td>
+                <td>{{ req.student.user.get_full_name|default:req.student.user.username }}</td>
                 <td>{{ req.student.class_name|default:"—" }}</td>
                 <td>{{ req.date }}</td>
                 <td>{{ req.reason|truncatechars:80 }}</td>
                 <td>{{ req.get_status_display }}</td>
-                <td>{% if req.decided_by %}{{ req.decided_by.get_full_name|default:req.decided_by.username }}{% else %}—{% endif %}</td>
+                <td>{{ req.decided_by.get_full_name|default:req.decided_by.username|default:"—" }}</td>
                 <td>
                     {% if req.status == "pending" %}
                         <a href="{% url 'students:absence_request_decide' req.id 'approve' %}" class="btn btn-xs btn-success">Approve</a>
@@ -55,3 +55,4 @@
     </table>
 </div>
 {% endblock %}
+

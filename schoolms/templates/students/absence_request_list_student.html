@@ -28,8 +28,8 @@
                 <td>{{ req.date }}</td>
                 <td>{{ req.reason|truncatechars:80 }}</td>
                 <td>{{ req.get_status_display }}</td>
-                <td>{% if req.decided_by %}{{ req.decided_by.get_full_name|default:req.decided_by.username }}{% else %}—{% endif %}</td>
-                <td>{{ req.decided_at|default:"—" }}</td>
+                <td>{{ req.decided_by.get_full_name|default:req.decided_by.username|default:"—" }}</td>
+                <td>{{ req.decided_at|date:"Y-m-d H:i" }}</td>
             </tr>
         {% empty %}
             <tr>
@@ -40,3 +40,4 @@
     </table>
 </div>
 {% endblock %}
+
