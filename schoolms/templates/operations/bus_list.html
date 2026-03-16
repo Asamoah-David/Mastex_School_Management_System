@@ -4,7 +4,7 @@
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
 <div class="button-row">
-    <a href="/admin/operations/busroute/add/" class="btn btn-primary">Add Route</a>
+    <a href="{% url 'operations:bus_create' %}" class="btn btn-primary">Add Route</a>
     <a href="{% url 'operations:bus_payments' %}" class="btn btn-secondary">View Payments</a>
 </div>
 
