@@ -335,6 +335,13 @@
                     </div>
                     <div class="page-meta"><div class="page-meta-pill">Today · {{ now|default:"" }}</div></div>
                 </div>
+{% if messages %}
+                <div class="messages">
+{% for message in messages %}
+                    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+                </div>
+{% endif %}
                 <div class="content-card">{% block content %}{% endblock %}</div>
             </section>
         </main>
@@ -359,5 +366,3 @@
     </script>
 </body>
 </html>
-
-test
