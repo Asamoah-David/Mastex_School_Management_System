@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Add Timetable Entry · Mastex SchoolOS{% endblock %}
+{% block page_title %}Add Timetable Entry{% endblock %}
+{% block page_subtitle %}Create a lesson entry for a class.{% endblock %}
+{% block content %}
+
+<form method="post" class="card" style="max-width: 920px;">
+    {% csrf_token %}
+    <div class="form-grid">
+        <div class="form-group full-width">
+            <label for="id_class_name">Class name *</label>
+            <input id="id_class_name" name="class_name" class="form-control" list="class_suggestions" placeholder="e.g. JHS 1A" required>
+            <datalist id="class_suggestions">
+                {% for c in suggested_classes %}
+                <option value="{{ c }}"></option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="form-group full-width">
+            <label for="id_subject">Subject *</label>
+            <select id="id_subject" name="subject" class="form-control" required>
+                <option value="">Select subject</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_day">Day *</label>
+            <select id="id_day" name="day" class="form-control" required>
+                <option value="">Select day</option>
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_start_time">Start time *</label>
+            <input id="id_start_time" name="start_time" type="time" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label for="id_end_time">End time *</label>
+            <input id="id_end_time" name="end_time" type="time" class="form-control" required>
+        </div>
+    </div>
+    <div class="button-row mt-sm">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-secondary" href="{% url 'academics:timetable_list' %}">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}
+

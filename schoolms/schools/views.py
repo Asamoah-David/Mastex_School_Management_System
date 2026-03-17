@@ -16,6 +16,46 @@ logger = logging.getLogger(__name__)
 
 
 @login_required
+def school_list(request):
+    """
+    Platform view: list all schools (superusers / super_admin only).
+    """
+    if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
+        return redirect("accounts:dashboard")
+    schools = School.objects.all().order_by("-is_active", "name")
+    return render(request, "schools/school_list.html", {"schools": schools})
+
+
+@login_required
+def school_features(request, pk):
+    """
+    Platform-only: enable/disable features per school.
+    """
+    if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
+        return redirect("accounts:dashboard")
+
+    from .features import ensure_features_exist
+    from .models import SchoolFeature
+
+    school = School.objects.filter(pk=pk).first()
+    if not school:
+        return redirect("schools:school_list")
+
+    ensure_features_exist(school)
+    features = list(SchoolFeature.objects.filter(school=school).order_by("key"))
+
+    if request.method == "POST":
+        enabled_keys = set(request.POST.getlist("enabled"))
+        for f in features:
+            f.enabled = f.key in enabled_keys
+        SchoolFeature.objects.bulk_update(features, ["enabled"])
+        messages.success(request, "School features updated.")
+        return redirect("schools:school_features", pk=school.pk)
+
+    return render(request, "schools/school_features.html", {"school": school, "features": features})
+
+
+@login_required
 def school_register(request):
     """
     School registration page.

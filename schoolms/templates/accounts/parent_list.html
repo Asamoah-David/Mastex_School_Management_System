@@ -17,6 +17,7 @@
                 <th>Email</th>
                 <th>Phone</th>
                 <th>Parent Type</th>
+                <th>Registered on</th>
                 <th>Children</th>
                 <th>Actions</th>
             </tr>
@@ -29,6 +30,7 @@
                 <td>{{ parent.email|default:"—" }}</td>
                 <td>{{ parent.phone|default:"—" }}</td>
                 <td>{{ parent.get_parent_type_display|default:"—" }}</td>
+                <td>{{ parent.date_joined|date:"Y-m-d" }}</td>
                 <td>
                     {% with children_count=parent.student_set.count %}
                         {% if children_count > 0 %}

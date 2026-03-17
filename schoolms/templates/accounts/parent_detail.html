@@ -24,6 +24,10 @@
             <div class="detail-label">Phone</div>
             <div class="detail-value">{{ parent.phone|default:"-" }}</div>
         </div>
+        <div class="detail-card">
+            <div class="detail-label">Registered on</div>
+            <div class="detail-value">{{ parent.date_joined|date:"Y-m-d H:i" }}</div>
+        </div>
     </div>
 </div>
 

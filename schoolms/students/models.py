@@ -181,6 +181,14 @@ class AbsenceRequest(models.Model):
 
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="absence_requests")
+    submitted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="absence_requests_submitted",
+        help_text="Who submitted this request (student or parent).",
+    )
     date = models.DateField(help_text="Date the student will be absent.")
     reason = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Activity Log - {{ school.name }}{% endblock %}
+{% block title %}Activity Log{% if school %} - {{ school.name }}{% endif %}{% endblock %}
 {% block page_title %}Activity Log{% endblock %}
 {% block page_subtitle %}Audit trail of system actions{% endblock %}
 
@@ -9,12 +9,13 @@
     <div class="table-card">
         <table>
             <thead>
-                <tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr>
+                <tr><th>Time</th>{% if not school %}<th>School</th>{% endif %}<th>User</th><th>Action</th><th>Details</th></tr>
             </thead>
             <tbody>
                 {% for log in logs %}
                 <tr>
                     <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
+                    {% if not school %}<td>{{ log.school.name|default:"—" }}</td>{% endif %}
                     <td>{{ log.user.get_full_name|default:log.user.username|default:"-" }}</td>
                     <td>{{ log.action }}</td>
                     <td>{{ log.details|truncatewords:15 }}</td>

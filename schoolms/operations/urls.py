@@ -48,4 +48,27 @@ urlpatterns = [
 
     # Activity Log
     path("activity-log/", views.activity_log_list, name="activity_log_list"),
+
+    # Library
+    path("library/", views.library_catalog, name="library_catalog"),
+    path("library/manage/", views.library_manage, name="library_manage"),
+    path("library/books/create/", views.library_book_create, name="library_book_create"),
+    path("library/books/<int:pk>/delete/", views.library_book_delete, name="library_book_delete"),
+    path("library/issues/", views.library_issues, name="library_issues"),
+    path("library/issues/create/", views.library_issue_create, name="library_issue_create"),
+    path("library/issues/<int:pk>/return/", views.library_issue_return, name="library_issue_return"),
+    path("library/my-issues/", views.library_my_issues, name="library_my_issues"),
+
+    # Hostel
+    path("hostels/", views.hostel_list, name="hostel_list"),
+    path("hostels/create/", views.hostel_create, name="hostel_create"),
+    path("hostels/<int:pk>/rooms/", views.hostel_rooms, name="hostel_rooms"),
+    path("hostels/<int:pk>/rooms/create/", views.hostel_room_create, name="hostel_room_create"),
+    path("hostels/assignments/", views.hostel_assignments, name="hostel_assignments"),
+    path("hostels/assignments/create/", views.hostel_assignment_create, name="hostel_assignment_create"),
+    path("hostels/assignments/<int:pk>/end/", views.hostel_assignment_end, name="hostel_assignment_end"),
+    path("hostels/fees/", views.hostel_fees, name="hostel_fees"),
+    path("hostels/fees/create/", views.hostel_fee_create, name="hostel_fee_create"),
+    path("hostels/fees/<int:pk>/mark-paid/", views.hostel_fee_mark_paid, name="hostel_fee_mark_paid"),
+    path("hostels/my/", views.hostel_my, name="hostel_my"),
 ]

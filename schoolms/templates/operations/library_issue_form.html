@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Issue Book · Mastex SchoolOS{% endblock %}
+{% block page_title %}Issue Book{% endblock %}
+{% block page_subtitle %}Record a book issue for a student.{% endblock %}
+{% block content %}
+
+<form method="post" class="card" style="max-width: 820px;">
+    {% csrf_token %}
+    <div class="form-grid">
+        <div class="form-group full-width">
+            <label for="id_student">Student *</label>
+            <select id="id_student" name="student" class="form-control" required>
+                <option value="">Select student</option>
+                {% for s in students %}
+                <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} · {{ s.admission_number }} · {{ s.class_name|default:"—" }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group full-width">
+            <label for="id_book">Book *</label>
+            <select id="id_book" name="book" class="form-control" required>
+                <option value="">Select book</option>
+                {% for b in books %}
+                <option value="{{ b.id }}">{{ b.title }} — {{ b.author }} ({{ b.available_copies }}/{{ b.total_copies }} available)</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_issue_date">Issue date</label>
+            <input id="id_issue_date" name="issue_date" type="date" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="id_due_date">Due date</label>
+            <input id="id_due_date" name="due_date" type="date" class="form-control">
+        </div>
+        <div class="form-group full-width">
+            <label for="id_notes">Notes</label>
+            <textarea id="id_notes" name="notes" class="form-control" rows="3"></textarea>
+        </div>
+    </div>
+    <div class="button-row mt-sm">
+        <button class="btn btn-primary" type="submit">Issue book</button>
+        <a class="btn btn-secondary" href="{% url 'operations:library_issues' %}">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}
+

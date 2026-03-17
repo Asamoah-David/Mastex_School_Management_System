@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Rooms · {{ hostel.name }} · Mastex SchoolOS{% endblock %}
+{% block page_title %}Hostel Rooms{% endblock %}
+{% block page_subtitle %}{{ hostel.name }}{% endblock %}
+{% block content %}
+
+<div class="button-row mt-sm">
+    <a class="btn btn-secondary" href="{% url 'operations:hostel_list' %}">Back</a>
+    {% if can_manage %}
+    <a class="btn btn-primary" href="{% url 'operations:hostel_room_create' hostel.id %}">Add Room</a>
+    {% endif %}
+</div>
+
+{% if rooms %}
+<div class="table-card">
+    <table>
+        <thead><tr><th>Room</th><th>Floor</th><th>Beds</th><th>Occupancy</th></tr></thead>
+        <tbody>
+            {% for r in rooms %}
+            <tr>
+                <td><strong>{{ r.room_number }}</strong></td>
+                <td>{{ r.floor }}</td>
+                <td>{{ r.total_beds }}</td>
+                <td>{{ r.current_occupancy }} / {{ r.total_beds }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No rooms added yet.</div>
+{% endif %}
+
+{% endblock %}
+

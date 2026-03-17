@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}My Hostel · Mastex SchoolOS{% endblock %}
+{% block page_title %}My Hostel{% endblock %}
+{% block page_subtitle %}Hostel assignment and fees.{% endblock %}
+{% block content %}
+
+{% if mode == "student" %}
+    {% if assignment %}
+    <div class="content-grid">
+        <section class="metric">
+            <div class="metric-label">Hostel</div>
+            <div class="metric-value">{{ assignment.hostel.name }}</div>
+            <div class="metric-caption">{{ assignment.hostel.type }}</div>
+        </section>
+        <section class="metric">
+            <div class="metric-label">Room</div>
+            <div class="metric-value">{% if assignment.room %}{{ assignment.room.room_number }}{% else %}—{% endif %}</div>
+            <div class="metric-caption">Bed: {{ assignment.bed_number|default:"—" }}</div>
+        </section>
+    </div>
+    {% else %}
+    <div class="empty-state">No active hostel assignment.</div>
+    {% endif %}
+
+    <h3 class="section-title">Hostel Fees</h3>
+    {% if fees %}
+    <div class="table-card">
+        <table>
+            <thead><tr><th>Term</th><th>Hostel</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for f in fees %}
+                <tr>
+                    <td>{{ f.term }}</td>
+                    <td>{{ f.hostel.name }}</td>
+                    <td>{{ f.amount }}</td>
+                    <td>{% if f.paid %}<span class="tag"><span class="tag-bullet"></span>Paid</span>{% else %}<span class="tag">Unpaid</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No hostel fees recorded.</div>
+    {% endif %}
+
+{% elif mode == "parent" %}
+    {% if children %}
+    <h3 class="section-title">Assignments</h3>
+    {% if assignments %}
+    <div class="table-card">
+        <table>
+            <thead><tr><th>Student</th><th>Hostel</th><th>Room</th><th>Bed</th></tr></thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td>{{ a.student.user.get_full_name|default:a.student.admission_number }}</td>
+                    <td>{{ a.hostel.name }}</td>
+                    <td>{% if a.room %}{{ a.room.room_number }}{% else %}—{% endif %}</td>
+                    <td>{{ a.bed_number|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No active hostel assignments.</div>
+    {% endif %}
+
+    <h3 class="section-title">Hostel Fees</h3>
+    {% if fees %}
+    <div class="table-card">
+        <table>
+            <thead><tr><th>Student</th><th>Hostel</th><th>Term</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for f in fees %}
+                <tr>
+                    <td>{{ f.student.user.get_full_name|default:f.student.admission_number }}</td>
+                    <td>{{ f.hostel.name }}</td>
+                    <td>{{ f.term }}</td>
+                    <td>{{ f.amount }}</td>
+                    <td>{% if f.paid %}<span class="tag"><span class="tag-bullet"></span>Paid</span>{% else %}<span class="tag">Unpaid</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No hostel fees recorded.</div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">No children linked.</div>
+    {% endif %}
+{% endif %}
+
+{% endblock %}
+

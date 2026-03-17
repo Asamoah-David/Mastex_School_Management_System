@@ -21,6 +21,10 @@
         <div class="metric-label">Parent</div>
         <div class="metric-value">{% if student.parent %}{{ student.parent.get_full_name|default:student.parent.username }}{% else %}—{% endif %}</div>
     </section>
+    <section class="metric">
+        <div class="metric-label">Registered on</div>
+        <div class="metric-value">{{ student.user.date_joined|date:"Y-m-d H:i" }}</div>
+    </section>
 </div>
 <div class="button-row mt-sm">
     <a href="{% url 'academics:report_card' student.id %}" class="btn btn-primary">View Report Card</a>

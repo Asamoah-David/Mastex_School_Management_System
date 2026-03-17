@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
+from django.utils.dateparse import parse_date
 from django.utils import timezone
 
 from schools.models import School
@@ -19,6 +20,12 @@ from .models import (
     Announcement,
     StaffLeave,
     ActivityLog,
+    LibraryBook,
+    LibraryIssue,
+    Hostel,
+    HostelRoom,
+    HostelAssignment,
+    HostelFee,
 )
 
 
@@ -37,13 +44,34 @@ def _require_school(request):
     return school
 
 
+def _parse_date(value, default):
+    """
+    Parse a date value from querystring/POST.
+    Accepts ISO date strings (YYYY-MM-DD) or a date object.
+    """
+    if not value:
+        return default
+    if hasattr(value, "year") and hasattr(value, "month") and hasattr(value, "day"):
+        return value
+    parsed = parse_date(str(value))
+    return parsed or default
+
+
 @login_required
 def attendance_list(request):
     school = _require_school(request)
     if not school:
         return redirect("home")
-    from_date = request.GET.get("from") or timezone.now().date()
-    to_date = request.GET.get("to") or timezone.now().date()
+    from django.contrib import messages
+    default_day = timezone.now().date()
+    raw_from = request.GET.get("from")
+    raw_to = request.GET.get("to")
+    from_date = _parse_date(raw_from, default_day)
+    to_date = _parse_date(raw_to, default_day)
+    if raw_from and from_date == default_day and str(raw_from) != str(default_day):
+        messages.warning(request, "Invalid 'from' date; showing today's records instead.")
+    if raw_to and to_date == default_day and str(raw_to) != str(default_day):
+        messages.warning(request, "Invalid 'to' date; showing today's records instead.")
     qs = StudentAttendance.objects.filter(school=school, date__gte=from_date, date__lte=to_date).select_related(
         "student", "student__user"
     )
@@ -60,7 +88,12 @@ def attendance_mark(request):
     if not school:
         return redirect("home")
     if request.method == "POST":
-        date = request.POST.get("date") or timezone.now().date()
+        from django.contrib import messages
+        default_day = timezone.now().date()
+        raw_date = request.POST.get("date")
+        date = _parse_date(raw_date, default_day)
+        if raw_date and date == default_day and str(raw_date) != str(default_day):
+            messages.warning(request, "Invalid attendance date; saved for today instead.")
         for key, value in request.POST.items():
             if key.startswith("status_"):
                 try:
@@ -72,7 +105,12 @@ def attendance_mark(request):
                 except (Student.DoesNotExist, ValueError):
                     pass
         return redirect("operations:attendance_list")
-    date = request.GET.get("date") or timezone.now().date()
+    from django.contrib import messages
+    default_day = timezone.now().date()
+    raw_date = request.GET.get("date")
+    date = _parse_date(raw_date, default_day)
+    if raw_date and date == default_day and str(raw_date) != str(default_day):
+        messages.warning(request, "Invalid date; showing today's attendance sheet instead.")
     students = list(Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number"))
     existing = {a.student_id: a.status for a in StudentAttendance.objects.filter(school=school, date=date)}
     for s in students:
@@ -96,9 +134,12 @@ def canteen_list(request):
 @login_required
 def canteen_create(request):
     """Create a new canteen item."""
+    from accounts.permissions import is_school_admin
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:canteen_list")
     
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
@@ -124,9 +165,12 @@ def canteen_create(request):
 
 @login_required
 def canteen_payments(request):
+    from accounts.permissions import user_can_manage_school
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not user_can_manage_school(request.user):
+        return redirect("operations:canteen_list")
     payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")[:200]
     return render(request, "operations/canteen_payments.html", {"payments": payments, "school": school})
 
@@ -143,9 +187,12 @@ def bus_list(request):
 @login_required
 def bus_create(request):
     """Create a new bus route."""
+    from accounts.permissions import is_school_admin
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:bus_list")
     
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
@@ -169,9 +216,12 @@ def bus_create(request):
 
 @login_required
 def bus_payments(request):
+    from accounts.permissions import user_can_manage_school
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not user_can_manage_school(request.user):
+        return redirect("operations:bus_list")
     payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")[:200]
     return render(request, "operations/bus_payments.html", {"payments": payments, "school": school})
 
@@ -188,9 +238,12 @@ def textbook_list(request):
 @login_required
 def textbook_create(request):
     """Create a new textbook."""
+    from accounts.permissions import is_school_admin
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:textbook_list")
     
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
@@ -218,9 +271,12 @@ def textbook_create(request):
 
 @login_required
 def textbook_sales(request):
+    from accounts.permissions import user_can_manage_school
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not user_can_manage_school(request.user):
+        return redirect("operations:textbook_list")
     sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")[:200]
     return render(request, "operations/textbook_sales.html", {"sales": sales, "school": school})
 
@@ -228,9 +284,12 @@ def textbook_sales(request):
 @login_required
 def canteen_item_delete(request, pk):
     """Delete a canteen item."""
+    from accounts.permissions import is_school_admin
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:canteen_list")
     item = get_object_or_404(CanteenItem, pk=pk, school=school)
     if request.method == "POST":
         item.delete()
@@ -243,9 +302,12 @@ def canteen_item_delete(request, pk):
 @login_required
 def bus_route_delete(request, pk):
     """Delete a bus route."""
+    from accounts.permissions import is_school_admin
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:bus_list")
     route = get_object_or_404(BusRoute, pk=pk, school=school)
     if request.method == "POST":
         route.delete()
@@ -258,9 +320,12 @@ def bus_route_delete(request, pk):
 @login_required
 def textbook_delete(request, pk):
     """Delete a textbook."""
+    from accounts.permissions import is_school_admin
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:textbook_list")
     book = get_object_or_404(Textbook, pk=pk, school=school)
     if request.method == "POST":
         book.delete()
@@ -273,9 +338,12 @@ def textbook_delete(request, pk):
 @login_required
 def attendance_delete(request, pk):
     """Delete an attendance record."""
+    from accounts.permissions import user_can_manage_school
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not user_can_manage_school(request.user):
+        return redirect("operations:attendance_list")
     attendance = get_object_or_404(StudentAttendance, pk=pk, school=school)
     if request.method == "POST":
         attendance.delete()
@@ -292,8 +360,16 @@ def teacher_attendance_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    from_date = request.GET.get("from") or timezone.now().date()
-    to_date = request.GET.get("to") or timezone.now().date()
+    from django.contrib import messages
+    default_day = timezone.now().date()
+    raw_from = request.GET.get("from")
+    raw_to = request.GET.get("to")
+    from_date = _parse_date(raw_from, default_day)
+    to_date = _parse_date(raw_to, default_day)
+    if raw_from and from_date == default_day and str(raw_from) != str(default_day):
+        messages.warning(request, "Invalid 'from' date; showing today's records instead.")
+    if raw_to and to_date == default_day and str(raw_to) != str(default_day):
+        messages.warning(request, "Invalid 'to' date; showing today's records instead.")
     qs = TeacherAttendance.objects.filter(school=school, date__gte=from_date, date__lte=to_date).select_related(
         "teacher", "marked_by"
     )
@@ -312,11 +388,17 @@ def teacher_attendance_mark(request):
         return redirect("home")
     
     # Only school admins can mark teacher attendance
-    if not request.user.is_school_admin and not request.user.is_superuser:
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
         return redirect("home")
     
     if request.method == "POST":
-        date = request.POST.get("date") or timezone.now().date()
+        from django.contrib import messages
+        default_day = timezone.now().date()
+        raw_date = request.POST.get("date")
+        date = _parse_date(raw_date, default_day)
+        if raw_date and date == default_day and str(raw_date) != str(default_day):
+            messages.warning(request, "Invalid attendance date; saved for today instead.")
         for key, value in request.POST.items():
             if key.startswith("status_"):
                 try:
@@ -329,7 +411,12 @@ def teacher_attendance_mark(request):
                     pass
         return redirect("operations:teacher_attendance_list")
     
-    date = request.GET.get("date") or timezone.now().date()
+    from django.contrib import messages
+    default_day = timezone.now().date()
+    raw_date = request.GET.get("date")
+    date = _parse_date(raw_date, default_day)
+    if raw_date and date == default_day and str(raw_date) != str(default_day):
+        messages.warning(request, "Invalid date; showing today's attendance sheet instead.")
     teachers = list(User.objects.filter(school=school, role="teacher").order_by("first_name", "last_name"))
     existing = {a.teacher_id: a.status for a in TeacherAttendance.objects.filter(school=school, date=date)}
     for t in teachers:
@@ -361,7 +448,8 @@ def calendar_create(request):
         return redirect("home")
     
     # Only school admins can create calendar events
-    if not request.user.is_school_admin and not request.user.is_superuser:
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
         return redirect("home")
     
     if request.method == "POST":
@@ -395,7 +483,8 @@ def calendar_delete(request, pk):
         return redirect("home")
     
     # Only school admins can delete calendar events
-    if not request.user.is_school_admin and not request.user.is_superuser:
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
         return redirect("home")
     
     event = get_object_or_404(AcademicCalendar, pk=pk, school=school)
@@ -414,9 +503,12 @@ def _redirect_no_school(request):
 # Announcements
 @login_required
 def announcement_list(request):
+    from accounts.permissions import user_can_manage_school
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
+    if not user_can_manage_school(request.user):
+        return redirect("home")
     announcements = Announcement.objects.filter(school=school).select_related("created_by").order_by("-is_pinned", "-created_at")
     return render(request, "operations/announcement_list.html", {"announcements": announcements, "school": school})
 
@@ -435,12 +527,40 @@ def announcement_create(request):
         target = request.POST.get("target_audience", "all")
         is_pinned = request.POST.get("is_pinned") == "on"
         if title and content:
-            Announcement.objects.create(
+            ann = Announcement.objects.create(
                 school=school, title=title, content=content,
                 target_audience=target, is_pinned=is_pinned, created_by=request.user
             )
             from django.contrib import messages
             messages.success(request, "Announcement created.")
+            if target in ("all", "parents"):
+                try:
+                    from messaging.utils import send_sms
+                    recipients = (
+                        User.objects.filter(school=school, role="parent")
+                        .exclude(phone__isnull=True)
+                        .exclude(phone__exact="")
+                        .values_list("phone", flat=True)
+                    )
+                    phones = sorted({p.strip() for p in recipients if p and str(p).strip()})
+                    sms = f"{school.name} Announcement: {ann.title}\n{ann.content}".strip()
+                    if len(sms) > 480:
+                        sms = sms[:477].rstrip() + "..."
+                    sent = 0
+                    for phone in phones:
+                        try:
+                            send_sms(phone, sms)
+                            sent += 1
+                        except Exception:
+                            continue
+                    if phones and sent == 0:
+                        messages.warning(request, "Announcement saved, but SMS could not be sent to parents.")
+                    elif sent and sent < len(phones):
+                        messages.warning(request, f"Announcement saved. SMS sent to {sent} of {len(phones)} parents.")
+                    elif sent:
+                        messages.success(request, f"SMS sent to {sent} parents.")
+                except Exception:
+                    messages.warning(request, "Announcement saved, but SMS sending failed.")
             return redirect("operations:announcement_list")
     return render(request, "operations/announcement_form.html", {"school": school})
 
@@ -450,6 +570,9 @@ def announcement_delete(request, pk):
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:announcement_list")
     ann = get_object_or_404(Announcement, pk=pk, school=school)
     if request.method == "POST":
         ann.delete()
@@ -465,6 +588,9 @@ def staff_leave_list(request):
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
+    from accounts.permissions import user_can_manage_school
+    if not user_can_manage_school(request.user):
+        return redirect("home")
     from accounts.permissions import is_school_admin
     is_admin = request.user.is_superuser or is_school_admin(request.user)
     if is_admin:
@@ -479,6 +605,9 @@ def staff_leave_create(request):
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
+    from accounts.permissions import user_can_manage_school
+    if not user_can_manage_school(request.user):
+        return redirect("home")
     if request.method == "POST":
         start = request.POST.get("start_date")
         end = request.POST.get("end_date")
@@ -526,11 +655,499 @@ def staff_leave_review(request, pk):
 # Activity Log (admin only)
 @login_required
 def activity_log_list(request):
+    from accounts.permissions import is_school_admin
     school = _get_school(request)
+
+    # Platform admins: see logs across all schools.
+    if request.user.is_superuser or getattr(request.user, "is_super_admin", False):
+        logs = ActivityLog.objects.select_related("user", "school").order_by("-created_at")[:300]
+        return render(request, "operations/activity_log_list.html", {"logs": logs, "school": None})
+
+    # School admins: see logs for their school.
     if not school:
         return _redirect_no_school(request)
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not is_school_admin(request.user):
         return redirect("accounts:school_dashboard")
     logs = ActivityLog.objects.filter(school=school).select_related("user").order_by("-created_at")[:200]
     return render(request, "operations/activity_log_list.html", {"logs": logs, "school": school})
+
+
+# Library
+@login_required
+def library_catalog(request):
+    """
+    Read-only catalog for students/parents; staff see same list plus manage link.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    books = LibraryBook.objects.filter(school=school).order_by("title", "author")[:500]
+    from accounts.permissions import user_can_manage_school
+    can_manage = user_can_manage_school(request.user) or request.user.is_superuser
+    return render(request, "operations/library_catalog.html", {"books": books, "school": school, "can_manage": can_manage})
+
+
+@login_required
+def library_manage(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:library_catalog")
+    books = LibraryBook.objects.filter(school=school).order_by("-created_at")[:500]
+    return render(request, "operations/library_manage.html", {"books": books, "school": school})
+
+
+@login_required
+def library_book_create(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:library_catalog")
+    if request.method == "POST":
+        isbn = (request.POST.get("isbn") or "").strip()
+        title = (request.POST.get("title") or "").strip()
+        author = (request.POST.get("author") or "").strip()
+        publisher = (request.POST.get("publisher") or "").strip()
+        category = (request.POST.get("category") or "").strip()
+        shelf_location = (request.POST.get("shelf_location") or "").strip()
+        try:
+            total_copies = int(request.POST.get("total_copies") or 1)
+        except ValueError:
+            total_copies = 1
+        if isbn and title and author and total_copies > 0:
+            obj, created = LibraryBook.objects.get_or_create(
+                school=school,
+                isbn=isbn,
+                defaults={
+                    "title": title,
+                    "author": author,
+                    "publisher": publisher,
+                    "category": category,
+                    "shelf_location": shelf_location,
+                    "total_copies": total_copies,
+                    "available_copies": total_copies,
+                },
+            )
+            if not created:
+                old_total = obj.total_copies
+                old_available = obj.available_copies
+                obj.title = title
+                obj.author = author
+                obj.publisher = publisher
+                obj.category = category
+                obj.shelf_location = shelf_location
+                obj.total_copies = total_copies
+                # Adjust availability intelligently when total copies change.
+                # If total increases, add the difference to available copies.
+                # If total decreases, cap available copies at new total.
+                diff = total_copies - old_total
+                if diff > 0:
+                    obj.available_copies = min(total_copies, old_available + diff)
+                else:
+                    obj.available_copies = min(total_copies, old_available)
+                obj.save()
+            from django.contrib import messages
+            messages.success(request, "Library book saved.")
+            return redirect("operations:library_manage")
+        from django.contrib import messages
+        messages.error(request, "Please fill ISBN, title, author, and total copies.")
+    return render(request, "operations/library_book_form.html", {"school": school})
+
+
+@login_required
+def library_book_delete(request, pk):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:library_catalog")
+    book = get_object_or_404(LibraryBook, pk=pk, school=school)
+    if request.method == "POST":
+        book.delete()
+        from django.contrib import messages
+        messages.success(request, "Book deleted.")
+        return redirect("operations:library_manage")
+    return render(request, "operations/confirm_delete.html", {"object": book, "type": "library book"})
+
+
+@login_required
+def library_issues(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:library_catalog")
+    qs = LibraryIssue.objects.filter(school=school).select_related("student", "student__user", "book", "issued_by").order_by("-issue_date")[:300]
+    return render(request, "operations/library_issues.html", {"issues": qs, "school": school})
+
+
+@login_required
+def library_issue_create(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:library_catalog")
+    students = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
+    books = LibraryBook.objects.filter(school=school).order_by("title", "author")
+    if request.method == "POST":
+        from datetime import datetime, timedelta
+        student_id = request.POST.get("student")
+        book_id = request.POST.get("book")
+        issue_date_str = (request.POST.get("issue_date") or "").strip()
+        due_date_str = (request.POST.get("due_date") or "").strip()
+        notes = (request.POST.get("notes") or "").strip()
+        try:
+            issue_date = datetime.strptime(issue_date_str, "%Y-%m-%d").date() if issue_date_str else timezone.now().date()
+        except ValueError:
+            issue_date = timezone.now().date()
+        try:
+            due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else (issue_date + timedelta(days=14))
+        except ValueError:
+            due_date = issue_date + timedelta(days=14)
+        student = Student.objects.filter(id=student_id, school=school).first()
+        book = LibraryBook.objects.filter(id=book_id, school=school).first()
+        if not student or not book:
+            from django.contrib import messages
+            messages.error(request, "Invalid student or book.")
+        elif book.available_copies <= 0:
+            from django.contrib import messages
+            messages.error(request, "No copies available.")
+        else:
+            LibraryIssue.objects.create(
+                school=school,
+                student=student,
+                book=book,
+                issue_date=issue_date,
+                due_date=due_date,
+                status="issued",
+                issued_by=request.user,
+                notes=notes,
+            )
+            book.available_copies = max(0, book.available_copies - 1)
+            book.save(update_fields=["available_copies"])
+            from django.contrib import messages
+            messages.success(request, "Book issued.")
+            return redirect("operations:library_issues")
+    return render(request, "operations/library_issue_form.html", {"school": school, "students": students, "books": books})
+
+
+@login_required
+def library_issue_return(request, pk):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:library_catalog")
+    issue = get_object_or_404(LibraryIssue, pk=pk, school=school)
+    if request.method == "POST":
+        issue.status = "returned"
+        issue.return_date = timezone.now().date()
+        issue.save(update_fields=["status", "return_date"])
+        book = issue.book
+        book.available_copies = min(book.total_copies, book.available_copies + 1)
+        book.save(update_fields=["available_copies"])
+        from django.contrib import messages
+        messages.success(request, "Book returned.")
+        return redirect("operations:library_issues")
+    return render(request, "operations/confirm_delete.html", {"object": issue, "type": "return this book"})
+
+
+@login_required
+def library_my_issues(request):
+    """
+    Student/parent view: show borrowed books.
+    - student: their own issues
+    - parent: issues for their children
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    role = getattr(request.user, "role", None)
+    if role == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        issues = (
+            LibraryIssue.objects.filter(school=school, student=student)
+            .select_related("book")
+            .order_by("-issue_date")[:200]
+            if student
+            else []
+        )
+        return render(request, "operations/library_my_issues.html", {"issues": issues, "school": school, "mode": "student"})
+    if role == "parent":
+        children = Student.objects.filter(parent=request.user, school=school)
+        issues = (
+            LibraryIssue.objects.filter(school=school, student__in=children)
+            .select_related("book", "student", "student__user")
+            .order_by("-issue_date")[:300]
+        )
+        return render(request, "operations/library_my_issues.html", {"issues": issues, "school": school, "mode": "parent"})
+    return redirect("home")
+
+
+# Hostel
+@login_required
+def hostel_list(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    hostels = Hostel.objects.filter(school=school).order_by("name")
+    can_manage = request.user.is_superuser or user_can_manage_school(request.user)
+    return render(request, "operations/hostel_list.html", {"hostels": hostels, "school": school, "can_manage": can_manage})
+
+
+@login_required
+def hostel_create(request):
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:hostel_list")
+    if request.method == "POST":
+        name = (request.POST.get("name") or "").strip()
+        hostel_type = (request.POST.get("type") or "").strip()
+        warden_name = (request.POST.get("warden_name") or "").strip()
+        warden_phone = (request.POST.get("warden_phone") or "").strip()
+        total_beds = int(request.POST.get("total_beds") or 0)
+        fee_per_term = request.POST.get("fee_per_term") or 0
+        if name and hostel_type:
+            Hostel.objects.create(
+                school=school,
+                name=name,
+                type=hostel_type,
+                total_beds=max(0, total_beds),
+                warden_name=warden_name,
+                warden_phone=warden_phone,
+                fee_per_term=fee_per_term,
+            )
+            from django.contrib import messages
+            messages.success(request, "Hostel created.")
+            return redirect("operations:hostel_list")
+    return render(request, "operations/hostel_form.html", {"school": school})
+
+
+@login_required
+def hostel_rooms(request, pk):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    hostel = get_object_or_404(Hostel, pk=pk, school=school)
+    rooms = HostelRoom.objects.filter(hostel=hostel).order_by("floor", "room_number")
+    can_manage = request.user.is_superuser or user_can_manage_school(request.user)
+    return render(request, "operations/hostel_rooms.html", {"hostel": hostel, "rooms": rooms, "school": school, "can_manage": can_manage})
+
+
+@login_required
+def hostel_room_create(request, pk):
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    hostel = get_object_or_404(Hostel, pk=pk, school=school)
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:hostel_rooms", pk=hostel.pk)
+    if request.method == "POST":
+        room_number = (request.POST.get("room_number") or "").strip()
+        floor = int(request.POST.get("floor") or 1)
+        total_beds = int(request.POST.get("total_beds") or 4)
+        if room_number:
+            HostelRoom.objects.get_or_create(
+                hostel=hostel,
+                room_number=room_number,
+                defaults={"floor": max(1, floor), "total_beds": max(1, total_beds), "current_occupancy": 0},
+            )
+            from django.contrib import messages
+            messages.success(request, "Room saved.")
+            return redirect("operations:hostel_rooms", pk=hostel.pk)
+    return render(request, "operations/hostel_room_form.html", {"school": school, "hostel": hostel})
+
+
+@login_required
+def hostel_assignments(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("home")
+    qs = HostelAssignment.objects.filter(school=school).select_related("student", "student__user", "hostel", "room").order_by("-start_date")[:300]
+    return render(request, "operations/hostel_assignments.html", {"assignments": qs, "school": school})
+
+
+@login_required
+def hostel_assignment_create(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("home")
+    students = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
+    hostels = Hostel.objects.filter(school=school).order_by("name")
+    rooms = HostelRoom.objects.filter(hostel__school=school).select_related("hostel").order_by("hostel__name", "floor", "room_number")
+    if request.method == "POST":
+        from datetime import datetime
+        student_id = request.POST.get("student")
+        hostel_id = request.POST.get("hostel")
+        room_id = request.POST.get("room") or None
+        bed_number = (request.POST.get("bed_number") or "").strip()
+        start_str = (request.POST.get("start_date") or "").strip()
+        end_str = (request.POST.get("end_date") or "").strip()
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").date() if start_str else timezone.now().date()
+        except ValueError:
+            start_date = timezone.now().date()
+        end_date = None
+        if end_str:
+            try:
+                end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+            except ValueError:
+                end_date = None
+        student = Student.objects.filter(id=student_id, school=school).first()
+        hostel = Hostel.objects.filter(id=hostel_id, school=school).first()
+        room = None
+        if room_id:
+            room = HostelRoom.objects.filter(id=room_id, hostel=hostel).first()
+        if not student or not hostel:
+            from django.contrib import messages
+            messages.error(request, "Invalid student/hostel.")
+        else:
+            # End any existing active assignment
+            HostelAssignment.objects.filter(school=school, student=student, is_active=True).update(is_active=False, end_date=start_date)
+            ass = HostelAssignment.objects.create(
+                school=school,
+                student=student,
+                hostel=hostel,
+                room=room,
+                bed_number=bed_number,
+                start_date=start_date,
+                end_date=end_date,
+                is_active=True if not end_date else False,
+            )
+            if room:
+                room.current_occupancy = min(room.total_beds, room.current_occupancy + 1)
+                room.save(update_fields=["current_occupancy"])
+            from django.contrib import messages
+            messages.success(request, "Hostel assignment saved.")
+            return redirect("operations:hostel_assignments")
+    return render(request, "operations/hostel_assignment_form.html", {"school": school, "students": students, "hostels": hostels, "rooms": rooms})
+
+
+@login_required
+def hostel_assignment_end(request, pk):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("home")
+    assignment = get_object_or_404(HostelAssignment, pk=pk, school=school)
+    if request.method == "POST":
+        assignment.is_active = False
+        assignment.end_date = timezone.now().date()
+        assignment.save(update_fields=["is_active", "end_date"])
+        if assignment.room:
+            room = assignment.room
+            room.current_occupancy = max(0, room.current_occupancy - 1)
+            room.save(update_fields=["current_occupancy"])
+        from django.contrib import messages
+        messages.success(request, "Assignment ended.")
+        return redirect("operations:hostel_assignments")
+    return render(request, "operations/confirm_delete.html", {"object": assignment, "type": "end this assignment"})
+
+
+@login_required
+def hostel_fees(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("home")
+    fees = HostelFee.objects.filter(school=school).select_related("student", "student__user", "hostel").order_by("-id")[:400]
+    return render(request, "operations/hostel_fees.html", {"fees": fees, "school": school})
+
+
+@login_required
+def hostel_fee_create(request):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("home")
+    students = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
+    hostels = Hostel.objects.filter(school=school).order_by("name")
+    if request.method == "POST":
+        student_id = request.POST.get("student")
+        hostel_id = request.POST.get("hostel")
+        term = (request.POST.get("term") or "").strip()
+        amount = request.POST.get("amount") or 0
+        student = Student.objects.filter(id=student_id, school=school).first()
+        hostel = Hostel.objects.filter(id=hostel_id, school=school).first()
+        if student and hostel and term:
+            HostelFee.objects.update_or_create(
+                school=school,
+                student=student,
+                hostel=hostel,
+                term=term,
+                defaults={"amount": amount, "paid": False, "payment_date": None},
+            )
+            from django.contrib import messages
+            messages.success(request, "Hostel fee saved.")
+            return redirect("operations:hostel_fees")
+        from django.contrib import messages
+        messages.error(request, "Please select student, hostel and term.")
+    return render(request, "operations/hostel_fee_form.html", {"school": school, "students": students, "hostels": hostels})
+
+
+@login_required
+def hostel_fee_mark_paid(request, pk):
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("home")
+    fee = get_object_or_404(HostelFee, pk=pk, school=school)
+    if request.method == "POST":
+        fee.paid = True
+        fee.payment_date = timezone.now().date()
+        fee.save(update_fields=["paid", "payment_date"])
+        from django.contrib import messages
+        messages.success(request, "Marked as paid.")
+        return redirect("operations:hostel_fees")
+    return render(request, "operations/confirm_delete.html", {"object": fee, "type": "mark fee as paid"})
+
+
+@login_required
+def hostel_my(request):
+    """
+    Student/parent view: current hostel assignment + fee status.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    role = getattr(request.user, "role", None)
+    if role == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        assignment = HostelAssignment.objects.filter(school=school, student=student, is_active=True).select_related("hostel", "room").first() if student else None
+        fees = HostelFee.objects.filter(school=school, student=student).select_related("hostel").order_by("-id")[:200] if student else []
+        return render(request, "operations/hostel_my.html", {"school": school, "mode": "student", "student": student, "assignment": assignment, "fees": fees})
+    if role == "parent":
+        children = list(Student.objects.filter(parent=request.user, school=school).select_related("user").order_by("class_name", "admission_number"))
+        assignments = HostelAssignment.objects.filter(school=school, student__in=children, is_active=True).select_related("student", "student__user", "hostel", "room")
+        fees = HostelFee.objects.filter(school=school, student__in=children).select_related("student", "student__user", "hostel").order_by("-id")[:400] if children else []
+        return render(request, "operations/hostel_my.html", {"school": school, "mode": "parent", "children": children, "assignments": assignments, "fees": fees})
+    return redirect("home")

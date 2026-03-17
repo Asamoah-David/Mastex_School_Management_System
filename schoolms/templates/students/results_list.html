@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Results · Mastex SchoolOS{% endblock %}
+{% block page_title %}Results{% endblock %}
+{% block page_subtitle %}View results and report cards.{% endblock %}
+{% block content %}
+
+{% if mode == "parent" %}
+    {% if children %}
+    <form method="get" class="card" style="margin-bottom: 0.75rem;">
+        <div class="form-grid">
+            <div class="form-group full-width">
+                <label for="id_student">Child</label>
+                <select id="id_student" name="student" class="form-control" onchange="this.form.submit()">
+                    {% for c in children %}
+                    <option value="{{ c.id }}" {% if active_child and active_child.id == c.id %}selected{% endif %}>
+                        {{ c.user.get_full_name|default:c.user.username }} · {{ c.admission_number }} · {{ c.class_name|default:"—" }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="id_term">Term</label>
+                <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    {% for t in terms %}
+                    <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="id_exam_type">Exam type</label>
+                <select id="id_exam_type" name="exam_type" class="form-control" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    {% for e in exam_types %}
+                    <option value="{{ e.id }}" {% if selected_exam_type == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+{% elif mode == "student" and student %}
+    <div class="button-row mt-sm">
+        <a class="btn btn-primary" href="{% url 'academics:report_card' student.id %}">View report card</a>
+    </div>
+    <form method="get" class="card" style="margin-top: 0.75rem; margin-bottom: 0.75rem;">
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="id_term">Term</label>
+                <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    {% for t in terms %}
+                    <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="id_exam_type">Exam type</label>
+                <select id="id_exam_type" name="exam_type" class="form-control" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    {% for e in exam_types %}
+                    <option value="{{ e.id }}" {% if selected_exam_type == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+{% endif %}
+
+{% if mode == "parent" and active_child %}
+    <div class="button-row mt-sm">
+        <a class="btn btn-primary" href="{% url 'academics:report_card' active_child.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}">View report card</a>
+    </div>
+{% endif %}
+
+{% if results %}
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Exam Type</th>
+                <th>Term</th>
+                <th>Score</th>
+                <th>Grade</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td>{{ r.subject.name }}</td>
+                <td>{{ r.exam_type.name|default:"—" }}</td>
+                <td>{{ r.term.name|default:"—" }}</td>
+                <td>{{ r.score }}</td>
+                <td><span class="tag">{{ r.grade }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No results found.</div>
+{% endif %}
+
+{% endblock %}
+

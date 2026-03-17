@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}School Features · {{ school.name }}{% endblock %}
+{% block page_title %}School Features{% endblock %}
+{% block page_subtitle %}Enable or disable modules for {{ school.name }}.{% endblock %}
+{% block content %}
+
+<div class="button-row mt-sm">
+    <a class="btn btn-secondary" href="{% url 'schools:school_list' %}">Back to Schools</a>
+</div>
+
+<div class="card mt-sm">
+    <form method="post">
+        {% csrf_token %}
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Enabled</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in features %}
+                    <tr>
+                        <td><strong>{{ f.get_key_display }}</strong><div style="color:#9ca3af;font-size:0.8rem;">{{ f.key }}</div></td>
+                        <td>
+                            <label style="display:inline-flex;align-items:center;gap:.5rem;">
+                                <input type="checkbox" name="enabled" value="{{ f.key }}" {% if f.enabled %}checked{% endif %}>
+                                <span>{% if f.enabled %}On{% else %}Off{% endif %}</span>
+                            </label>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="button-row mt-sm">
+            <button class="btn btn-primary" type="submit">Save Features</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+

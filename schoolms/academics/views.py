@@ -2,11 +2,12 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Q
+from django.http import HttpResponse
 
 from students.models import Student
 from schools.models import School
 from accounts.permissions import user_can_manage_school
-from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule
+from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable
 
 
 def _get_school(request):
@@ -19,6 +20,227 @@ def _get_school(request):
 def _user_can_manage_school(request):
     """Delegate to central permission helper for consistency."""
     return user_can_manage_school(request.user)
+
+def _can_view_student_record(user, student):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False) or getattr(user, "is_super_admin", False):
+        return True
+    if user_can_manage_school(user):
+        # Staff can view within their school only
+        return bool(getattr(user, "school_id", None)) and user.school_id == student.school_id
+    role = getattr(user, "role", None)
+    if role == "student":
+        return student.user_id == user.id
+    if role == "parent":
+        return student.parent_id == user.id
+    return False
+
+
+def _build_report_card_pdf_bytes(*, school, student, results, average, term_label):
+    """
+    Produce a professional PDF for a student's report card using ReportLab.
+    Returns bytes.
+    """
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.lib.units import mm
+    from academics.models import get_grade_for_score
+    from datetime import datetime
+    from reportlab.pdfgen import canvas as pdf_canvas
+    from django.utils import timezone as dj_timezone
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
+        title=f"Report Card - {student.user.get_full_name() or student.user.username}",
+    )
+
+    styles = getSampleStyleSheet()
+    story = []
+
+    generated_at = dj_timezone.now()
+
+    def _draw_footer_and_watermark(c: pdf_canvas.Canvas, d):
+        c.saveState()
+        # Watermark
+        c.setFillColor(colors.HexColor("#E5E7EB"))
+        c.setFont("Helvetica-Bold", 46)
+        c.translate(210, 260)
+        c.rotate(35)
+        c.drawCentredString(0, 0, school.name.upper()[:28])
+        c.restoreState()
+
+        c.saveState()
+        # Footer
+        c.setFillColor(colors.HexColor("#6B7280"))
+        c.setFont("Helvetica", 8)
+        page_num = c.getPageNumber()
+        footer_left = f"Generated: {generated_at.strftime('%Y-%m-%d %H:%M')} · Mastex SchoolOS"
+        footer_right = f"Page {page_num}"
+        c.drawString(18 * mm, 12 * mm, footer_left)
+        c.drawRightString(A4[0] - 18 * mm, 12 * mm, footer_right)
+        c.restoreState()
+
+    # Branding header (optional logo + contact info)
+    logo = None
+    try:
+        logo_url = (getattr(school, "logo_url", "") or "").strip()
+        if logo_url:
+            import requests
+            from io import BytesIO
+            r = requests.get(logo_url, timeout=5)
+            if r.ok and r.content:
+                logo = Image(BytesIO(r.content))
+                logo.drawHeight = 18 * mm
+                logo.drawWidth = 18 * mm
+    except Exception:
+        logo = None
+
+    contact_bits = []
+    if getattr(school, "address", None):
+        contact_bits.append(str(school.address).replace("\n", ", "))
+    if getattr(school, "phone", None):
+        contact_bits.append(f"Tel: {school.phone}")
+    if getattr(school, "email", None):
+        contact_bits.append(f"Email: {school.email}")
+    if getattr(school, "academic_year", None):
+        contact_bits.append(f"Academic Year: {school.academic_year}")
+    contact_line = " · ".join([b for b in contact_bits if b])
+
+    title_para = Paragraph(f"<b>{school.name}</b><br/><font size=11>Report Card</font>", styles["Title"])
+    if logo:
+        header_table = Table([[logo, title_para]], colWidths=[22 * mm, 160 * mm])
+        header_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+        story.append(header_table)
+    else:
+        story.append(title_para)
+    if contact_line:
+        story.append(Paragraph(f"<font size=9 color='#374151'>{contact_line}</font>", styles["Normal"]))
+    story.append(Spacer(1, 10))
+
+    meta = [
+        ["Student", student.user.get_full_name() or student.user.username, "Admission No", student.admission_number],
+        ["Class", student.class_name or "—", "Term", term_label or "All terms"],
+        ["Average", f"{average}%", "Generated", datetime.now().strftime("%Y-%m-%d %H:%M")],
+    ]
+    meta_table = Table(meta, colWidths=[26 * mm, 70 * mm, 26 * mm, 55 * mm])
+    meta_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BACKGROUND", (0, 0), (0, -1), colors.whitesmoke),
+                ("BACKGROUND", (2, 0), (2, -1), colors.whitesmoke),
+            ]
+        )
+    )
+    story.append(meta_table)
+    story.append(Spacer(1, 10))
+
+    rows = [["Subject", "Exam", "Term", "Score", "Grade"]]
+    for r in results:
+        grade = get_grade_for_score(school, r.score)
+        rows.append([r.subject.name, getattr(r.exam_type, "name", "") or "—", getattr(r.term, "name", "") or "—", str(r.score), grade])
+
+    table = Table(rows, colWidths=[60 * mm, 40 * mm, 28 * mm, 18 * mm, 18 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E5E7EB")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9FAFB")]),
+            ]
+        )
+    )
+    story.append(table)
+
+    # Grading legend (uses GradeBoundary config if present)
+    try:
+        from academics.models import GradeBoundary
+        boundaries = list(GradeBoundary.objects.filter(school=school).order_by("-min_score"))
+    except Exception:
+        boundaries = []
+    if boundaries:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("<b>Grading Legend</b>", styles["Heading3"]))
+        legend_rows = [["Grade", "Range"]]
+        for b in boundaries[:10]:
+            legend_rows.append([b.grade, f"{b.min_score:g} - {b.max_score:g}"])
+        legend = Table(legend_rows, colWidths=[25 * mm, 60 * mm])
+        legend.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E5E7EB")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ]
+            )
+        )
+        story.append(legend)
+
+    # Remarks section (blank lines for official completion)
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("<b>Remarks</b>", styles["Heading3"]))
+    remarks = Table(
+        [
+            ["Class Teacher's Remark:", "______________________________________________"],
+            ["Headteacher's Remark:", "______________________________________________"],
+        ],
+        colWidths=[45 * mm, 130 * mm],
+    )
+    remarks.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story.append(remarks)
+
+    story.append(Spacer(1, 14))
+    sig = Table(
+        [
+            ["Class Teacher", "", "Headteacher", ""],
+            ["__________________________", "", "__________________________", ""],
+        ],
+        colWidths=[35 * mm, 55 * mm, 35 * mm, 55 * mm],
+    )
+    sig.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#111827")),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+            ]
+        )
+    )
+    story.append(sig)
+
+    doc.build(story, onFirstPage=_draw_footer_and_watermark, onLaterPages=_draw_footer_and_watermark)
+    return buf.getvalue()
 
 
 # Core academic configuration that should always be available per school.
@@ -301,6 +523,57 @@ def result_list(request):
 
 
 @login_required
+def report_card_generator(request):
+    """
+    Staff workflow: select class/student/term, then jump to the report card view.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+
+    _ensure_core_academics_for_school(school)
+
+    selected_class = (request.GET.get("class") or "").strip()
+    selected_student = (request.GET.get("student") or "").strip()
+    selected_term = (request.GET.get("term") or "").strip()
+
+    classes = [c for c in Student.objects.filter(school=school).values_list("class_name", flat=True).distinct() if c]
+    students = (
+        Student.objects.filter(school=school, class_name=selected_class).select_related("user").order_by("admission_number")
+        if selected_class
+        else []
+    )
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+
+    report_url = None
+    if selected_student:
+        try:
+            student = Student.objects.get(id=selected_student, school=school)
+            report_url = f"/academics/report-card/{student.id}/"
+            if selected_term:
+                report_url += f"?term={selected_term}"
+        except Student.DoesNotExist:
+            report_url = None
+
+    return render(
+        request,
+        "academics/report_card_generator.html",
+        {
+            "school": school,
+            "classes": classes,
+            "students": students,
+            "terms": terms,
+            "selected_class": selected_class,
+            "selected_student": selected_student,
+            "selected_term": selected_term,
+            "report_url": report_url,
+        },
+    )
+
+
+@login_required
 def grade_boundary_list(request):
     school = _get_school(request)
     if not school:
@@ -340,15 +613,47 @@ def homework_list(request):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
-    if not _user_can_manage_school(request):
-        return redirect("accounts:school_dashboard")
-    class_filter = request.GET.get("class")
+    role = getattr(request.user, "role", None)
+    can_manage = _user_can_manage_school(request)
+    class_filter = (request.GET.get("class") or "").strip()
+
     qs = Homework.objects.filter(school=school).select_related("subject", "created_by").order_by("-due_date")
+
+    # Students and parents get a read-only view scoped to relevant classes.
+    if not can_manage:
+        if role == "student":
+            student = Student.objects.filter(user=request.user).only("class_name", "school_id").first()
+            if not student:
+                return redirect("home")
+            if student.class_name:
+                qs = qs.filter(class_name=student.class_name)
+            else:
+                qs = qs.none()
+            classes = [student.class_name] if student.class_name else []
+            return render(
+                request,
+                "academics/homework_list.html",
+                {"homework": qs, "school": school, "classes": classes, "read_only": True},
+            )
+        if role == "parent":
+            children = list(Student.objects.filter(parent=request.user, school=school).only("class_name"))
+            class_names = sorted({c.class_name for c in children if c.class_name})
+            qs = qs.filter(class_name__in=class_names) if class_names else qs.none()
+            if class_filter and class_filter in class_names:
+                qs = qs.filter(class_name=class_filter)
+            return render(
+                request,
+                "academics/homework_list.html",
+                {"homework": qs, "school": school, "classes": class_names, "read_only": True},
+            )
+        return redirect("home")
+
+    # Staff view: optionally filter by class.
     if class_filter:
         qs = qs.filter(class_name=class_filter)
     classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
     classes = [c for c in classes if c]
-    return render(request, "academics/homework_list.html", {"homework": qs, "school": school, "classes": classes})
+    return render(request, "academics/homework_list.html", {"homework": qs, "school": school, "classes": classes, "read_only": False})
 
 
 @login_required
@@ -388,8 +693,8 @@ def exam_schedule_list(request):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
-    if not _user_can_manage_school(request):
-        return redirect("accounts:school_dashboard")
+    role = getattr(request.user, "role", None)
+    can_manage = _user_can_manage_school(request)
     # Ensure common terms and subjects exist so filters are useful.
     _ensure_core_academics_for_school(school)
 
@@ -401,10 +706,21 @@ def exam_schedule_list(request):
     if class_name:
         qs = qs.filter(class_name=class_name)
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
-    classes = (
-        Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
-    )
-    classes = [c for c in classes if c]
+    classes = [c for c in Student.objects.filter(school=school).values_list("class_name", flat=True).distinct() if c]
+
+    if not can_manage:
+        if role == "student":
+            student = Student.objects.filter(user=request.user).only("class_name").first()
+            allowed = [student.class_name] if student and student.class_name else []
+            qs = qs.filter(Q(class_name__in=allowed) | Q(class_name="") | Q(class_name__isnull=True))
+            classes = allowed
+        elif role == "parent":
+            children = list(Student.objects.filter(parent=request.user, school=school).only("class_name"))
+            allowed = sorted({c.class_name for c in children if c.class_name})
+            qs = qs.filter(Q(class_name__in=allowed) | Q(class_name="") | Q(class_name__isnull=True))
+            classes = allowed
+        else:
+            return redirect("home")
     return render(
         request,
         "academics/exam_schedule_list.html",
@@ -415,6 +731,7 @@ def exam_schedule_list(request):
             "classes": classes,
             "selected_term": term_id,
             "selected_class": class_name,
+            "read_only": not can_manage,
         },
     )
 
@@ -483,6 +800,8 @@ def report_card_view(request, student_id):
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     student = get_object_or_404(Student, id=student_id, school=school)
+    if not _can_view_student_record(request.user, student):
+        return redirect("home")
     term_id = request.GET.get("term")
     results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("term", "subject")
     if term_id:
@@ -504,3 +823,254 @@ def report_card_view(request, student_id):
             "selected_term": term_id,
         },
     )
+
+
+@login_required
+def report_card_pdf(request, student_id):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    student = get_object_or_404(Student, id=student_id, school=school)
+    if not _can_view_student_record(request.user, student):
+        return redirect("home")
+
+    term_id = request.GET.get("term")
+    results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("term", "subject")
+    term_label = ""
+    if term_id:
+        results = results.filter(term_id=term_id)
+        term = Term.objects.filter(id=term_id, school=school).first()
+        term_label = term.name if term else ""
+
+    total = sum(r.score for r in results) if results else 0
+    avg = (total / len(results)) if results else 0
+    pdf_bytes = _build_report_card_pdf_bytes(
+        school=school,
+        student=student,
+        results=list(results),
+        average=round(avg, 1),
+        term_label=term_label,
+    )
+
+    filename = f"report_card_{student.admission_number}_{term_label or 'all'}.pdf".replace(" ", "_")
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@login_required
+def report_cards_export_zip(request):
+    """
+    Staff batch export: download a ZIP of PDFs for a class (optionally a term).
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+
+    class_name = (request.GET.get("class") or "").strip()
+    term_id = (request.GET.get("term") or "").strip()
+    if not class_name:
+        messages.error(request, "Please select a class to export.")
+        return redirect("academics:report_card_generator")
+
+    term_label = ""
+    if term_id:
+        term = Term.objects.filter(id=term_id, school=school).first()
+        term_label = term.name if term else ""
+
+    students = (
+        Student.objects.filter(school=school, class_name=class_name)
+        .select_related("user")
+        .order_by("admission_number")
+    )
+
+    from io import BytesIO
+    import zipfile
+
+    zip_buf = BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for s in students:
+            results = Result.objects.filter(student=s).select_related("subject", "exam_type", "term").order_by("term", "subject")
+            if term_id:
+                results = results.filter(term_id=term_id)
+            total = sum(r.score for r in results) if results else 0
+            avg = (total / len(results)) if results else 0
+            pdf_bytes = _build_report_card_pdf_bytes(
+                school=school,
+                student=s,
+                results=list(results),
+                average=round(avg, 1),
+                term_label=term_label,
+            )
+            safe_name = (s.user.get_full_name() or s.user.username or s.admission_number).strip().replace(" ", "_")
+            entry = f"{class_name.replace(' ', '_')}/{safe_name}_{s.admission_number}.pdf"
+            zf.writestr(entry, pdf_bytes)
+
+    zip_filename = f"report_cards_{class_name}_{term_label or 'all'}.zip".replace(" ", "_")
+    resp = HttpResponse(zip_buf.getvalue(), content_type="application/zip")
+    resp["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
+    return resp
+
+
+# Timetable
+@login_required
+def timetable_list(request):
+    """
+    Staff management view for class timetable entries.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or _user_can_manage_school(request)):
+        return redirect("home")
+
+    class_name = (request.GET.get("class_name") or "").strip()
+    day = (request.GET.get("day") or "").strip()
+
+    qs = Timetable.objects.filter(school=school).select_related("subject").order_by("class_name", "day", "start_time")
+    if class_name:
+        qs = qs.filter(class_name=class_name)
+    if day:
+        qs = qs.filter(day__iexact=day)
+
+    classes = (
+        Timetable.objects.filter(school=school)
+        .order_by("class_name")
+        .values_list("class_name", flat=True)
+        .distinct()
+    )
+    return render(
+        request,
+        "academics/timetable_list.html",
+        {"school": school, "items": qs[:800], "classes": classes, "selected_class": class_name, "selected_day": day},
+    )
+
+
+@login_required
+def timetable_create(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or _user_can_manage_school(request)):
+        return redirect("home")
+
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    suggested_classes = (
+        Student.objects.filter(school=school)
+        .exclude(class_name__isnull=True)
+        .exclude(class_name__exact="")
+        .order_by("class_name")
+        .values_list("class_name", flat=True)
+        .distinct()
+    )
+
+    if request.method == "POST":
+        from datetime import time
+
+        class_name = (request.POST.get("class_name") or "").strip()
+        subject_id = request.POST.get("subject")
+        day = (request.POST.get("day") or "").strip()
+        start_time = (request.POST.get("start_time") or "").strip()
+        end_time = (request.POST.get("end_time") or "").strip()
+
+        subject = Subject.objects.filter(id=subject_id, school=school).first()
+        if not (class_name and subject and day and start_time and end_time):
+            messages.error(request, "Please fill all required fields.")
+        else:
+            try:
+                st = time.fromisoformat(start_time)
+                et = time.fromisoformat(end_time)
+            except ValueError:
+                st, et = None, None
+
+            if not st or not et or st >= et:
+                messages.error(request, "Invalid time range.")
+            else:
+                Timetable.objects.create(
+                    school=school,
+                    class_name=class_name,
+                    subject=subject,
+                    day=day,
+                    start_time=st,
+                    end_time=et,
+                )
+                messages.success(request, "Timetable entry created.")
+                return redirect("academics:timetable_list")
+
+    return render(
+        request,
+        "academics/timetable_form.html",
+        {"school": school, "subjects": subjects, "suggested_classes": suggested_classes},
+    )
+
+
+@login_required
+def timetable_delete(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or _user_can_manage_school(request)):
+        return redirect("home")
+    item = get_object_or_404(Timetable, pk=pk, school=school)
+    if request.method == "POST":
+        item.delete()
+        messages.success(request, "Deleted.")
+        return redirect("academics:timetable_list")
+    return render(request, "accounts/confirm_delete.html", {"object": item})
+
+
+@login_required
+def timetable_my(request):
+    """
+    Student/parent read-only timetable view based on student's class.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+
+    role = getattr(request.user, "role", None)
+    if role == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        class_name = getattr(student, "class_name", "") if student else ""
+        items = (
+            Timetable.objects.filter(school=school, class_name=class_name)
+            .select_related("subject")
+            .order_by("day", "start_time")
+        ) if class_name else Timetable.objects.none()
+        return render(
+            request,
+            "academics/timetable_my.html",
+            {"school": school, "mode": "student", "student": student, "class_name": class_name, "items": items},
+        )
+
+    if role == "parent":
+        children = list(
+            Student.objects.filter(parent=request.user, school=school)
+            .select_related("user")
+            .order_by("class_name", "admission_number")
+        )
+        selected_id = request.GET.get("student")
+        selected = None
+        for c in children:
+            if str(c.id) == str(selected_id):
+                selected = c
+                break
+        if not selected and children:
+            selected = children[0]
+        class_name = getattr(selected, "class_name", "") if selected else ""
+        items = (
+            Timetable.objects.filter(school=school, class_name=class_name)
+            .select_related("subject")
+            .order_by("day", "start_time")
+        ) if class_name else Timetable.objects.none()
+        return render(
+            request,
+            "academics/timetable_my.html",
+            {"school": school, "mode": "parent", "children": children, "selected": selected, "class_name": class_name, "items": items},
+        )
+
+    if request.user.is_superuser or _user_can_manage_school(request):
+        return redirect("academics:timetable_list")
+    return redirect("home")

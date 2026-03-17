@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Teacher Attendance · Mastex SchoolOS{% endblock %}
+{% block page_title %}Teacher Attendance{% endblock %}
+{% block page_subtitle %}Records for {{ school.name }}.{% endblock %}
+{% block content %}
+<div class="button-row">
+    <a href="{% url 'operations:teacher_attendance_mark' %}" class="btn btn-primary">Mark teacher attendance</a>
+</div>
+<div class="table-card">
+    {% if attendances %}
+    <table>
+        <thead>
+            <tr><th>Teacher</th><th>Date</th><th>Status</th><th>Marked by</th></tr>
+        </thead>
+        <tbody>
+            {% for a in attendances %}
+            <tr>
+                <td>{{ a.teacher.get_full_name|default:a.teacher.username }}</td>
+                <td>{{ a.date }}</td>
+                <td>{{ a.get_status_display }}</td>
+                <td>{{ a.marked_by.get_full_name|default:a.marked_by.username|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No teacher attendance records. <a href="{% url 'operations:teacher_attendance_mark' %}">Mark attendance</a>.</div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Hostels · Mastex SchoolOS{% endblock %}
+{% block page_title %}Hostels{% endblock %}
+{% block page_subtitle %}Hostels and dormitories.{% endblock %}
+{% block content %}
+
+<div class="button-row mt-sm">
+    <a class="btn btn-secondary" href="{% url 'operations:hostel_my' %}">My Hostel</a>
+    {% if can_manage %}
+    <a class="btn btn-primary" href="{% url 'operations:hostel_create' %}">Add Hostel</a>
+    <a class="btn btn-secondary" href="{% url 'operations:hostel_assignments' %}">Assignments</a>
+    <a class="btn btn-secondary" href="{% url 'operations:hostel_fees' %}">Hostel Fees</a>
+    {% endif %}
+</div>
+
+{% if hostels %}
+<div class="table-card">
+    <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Total beds</th><th>Fee/term</th><th>Warden</th><th></th></tr></thead>
+        <tbody>
+            {% for h in hostels %}
+            <tr>
+                <td><strong>{{ h.name }}</strong></td>
+                <td>{{ h.type }}</td>
+                <td>{{ h.total_beds }}</td>
+                <td>{{ h.fee_per_term }}</td>
+                <td>{{ h.warden_name|default:"—" }}{% if h.warden_phone %}<div style="color:#9ca3af;font-size:0.8rem;">{{ h.warden_phone }}</div>{% endif %}</td>
+                <td><a class="btn btn-secondary btn-sm" href="{% url 'operations:hostel_rooms' h.id %}">Rooms</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No hostels added yet.</div>
+{% endif %}
+
+<style>.btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem;}</style>
+{% endblock %}
+

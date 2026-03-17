@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Library · Mastex SchoolOS{% endblock %}
+{% block page_title %}Library{% endblock %}
+{% block page_subtitle %}Browse available books.{% endblock %}
+{% block content %}
+
+<div class="button-row mt-sm">
+    <a class="btn btn-secondary" href="{% url 'operations:library_my_issues' %}">My Borrowed Books</a>
+    {% if can_manage %}
+    <a class="btn btn-primary" href="{% url 'operations:library_manage' %}">Manage Library</a>
+    {% endif %}
+</div>
+
+{% if books %}
+<div class="table-card">
+    <table>
+        <thead>
+            <tr><th>Title</th><th>Author</th><th>Category</th><th>ISBN</th><th>Available</th><th>Shelf</th></tr>
+        </thead>
+        <tbody>
+            {% for b in books %}
+            <tr>
+                <td><strong>{{ b.title }}</strong>{% if b.publisher %}<div style="color:#9ca3af;font-size:0.8rem;">{{ b.publisher }}</div>{% endif %}</td>
+                <td>{{ b.author }}</td>
+                <td>{{ b.category|default:"—" }}</td>
+                <td>{{ b.isbn }}</td>
+                <td>{{ b.available_copies }} / {{ b.total_copies }}</td>
+                <td>{{ b.shelf_location|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No books added yet.</div>
+{% endif %}
+
+{% endblock %}
+

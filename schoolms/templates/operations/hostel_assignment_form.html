@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Assign Hostel · Mastex SchoolOS{% endblock %}
+{% block page_title %}Assign Student to Hostel{% endblock %}
+{% block page_subtitle %}Create or update a hostel assignment.{% endblock %}
+{% block content %}
+
+<form method="post" class="card" style="max-width: 900px;">
+    {% csrf_token %}
+    <div class="form-grid">
+        <div class="form-group full-width">
+            <label for="id_student">Student *</label>
+            <select id="id_student" name="student" class="form-control" required>
+                <option value="">Select student</option>
+                {% for s in students %}
+                <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} · {{ s.admission_number }} · {{ s.class_name|default:"—" }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group full-width">
+            <label for="id_hostel">Hostel *</label>
+            <select id="id_hostel" name="hostel" class="form-control" required>
+                <option value="">Select hostel</option>
+                {% for h in hostels %}
+                <option value="{{ h.id }}">{{ h.name }} ({{ h.type }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group full-width">
+            <label for="id_room">Room (optional)</label>
+            <select id="id_room" name="room" class="form-control">
+                <option value="">— None —</option>
+                {% for r in rooms %}
+                <option value="{{ r.id }}">{{ r.hostel.name }} · Room {{ r.room_number }} ({{ r.current_occupancy }}/{{ r.total_beds }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_bed_number">Bed number</label>
+            <input id="id_bed_number" name="bed_number" class="form-control" placeholder="e.g. B2">
+        </div>
+        <div class="form-group">
+            <label for="id_start_date">Start date</label>
+            <input id="id_start_date" name="start_date" type="date" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="id_end_date">End date (optional)</label>
+            <input id="id_end_date" name="end_date" type="date" class="form-control">
+        </div>
+    </div>
+    <div class="button-row mt-sm">
+        <button class="btn btn-primary" type="submit">Save assignment</button>
+        <a class="btn btn-secondary" href="{% url 'operations:hostel_assignments' %}">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}
+

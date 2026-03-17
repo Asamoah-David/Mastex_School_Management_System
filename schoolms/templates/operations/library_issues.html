@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Library Issues · Mastex SchoolOS{% endblock %}
+{% block page_title %}Library Issues{% endblock %}
+{% block page_subtitle %}Issued books and returns.{% endblock %}
+{% block content %}
+{% now "Y-m-d" as today_str %}
+
+<div class="button-row mt-sm">
+    <a class="btn btn-primary" href="{% url 'operations:library_issue_create' %}">Issue Book</a>
+    <a class="btn btn-secondary" href="{% url 'operations:library_manage' %}">Back to books</a>
+</div>
+
+{% if issues %}
+<div class="table-card">
+    <table>
+        <thead><tr><th>Student</th><th>Book</th><th>Issued</th><th>Due</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            {% for i in issues %}
+            <tr>
+                <td>{{ i.student.user.get_full_name|default:i.student.admission_number }}</td>
+                <td><strong>{{ i.book.title }}</strong><div style="color:#9ca3af;font-size:0.8rem;">{{ i.book.author }}</div></td>
+                <td>{{ i.issue_date }}</td>
+                <td>{{ i.due_date }}</td>
+                <td>{% if i.status == "issued" and i.due_date and i.due_date|date:"Y-m-d" < today_str %}Overdue{% else %}{{ i.get_status_display }}{% endif %}</td>
+                <td>
+                    {% if i.status != "returned" %}
+                    <form method="post" action="{% url 'operations:library_issue_return' i.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-secondary btn-sm" type="submit">Mark returned</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No issues recorded.</div>
+{% endif %}
+
+<style>.btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem;}</style>
+{% endblock %}
+

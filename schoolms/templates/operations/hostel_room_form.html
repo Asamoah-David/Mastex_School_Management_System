@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Add Room · {{ hostel.name }} · Mastex SchoolOS{% endblock %}
+{% block page_title %}Add Hostel Room{% endblock %}
+{% block page_subtitle %}{{ hostel.name }}{% endblock %}
+{% block content %}
+
+<form method="post" class="card" style="max-width: 720px;">
+    {% csrf_token %}
+    <div class="form-grid">
+        <div class="form-group">
+            <label for="id_room_number">Room number *</label>
+            <input id="id_room_number" name="room_number" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label for="id_floor">Floor</label>
+            <input id="id_floor" name="floor" type="number" min="1" value="1" class="form-control">
+        </div>
+        <div class="form-group full-width">
+            <label for="id_total_beds">Total beds</label>
+            <input id="id_total_beds" name="total_beds" type="number" min="1" value="4" class="form-control">
+        </div>
+    </div>
+    <div class="button-row mt-sm">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-secondary" href="{% url 'operations:hostel_rooms' hostel.id %}">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}
+

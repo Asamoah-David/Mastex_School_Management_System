@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}My Profile · Mastex SchoolOS{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+{% block page_subtitle %}View your account information.{% endblock %}
+{% block content %}
+<div class="content-grid" style="grid-template-columns: 1fr;">
+    <section class="metric">
+        <div class="metric-label">Name</div>
+        <div class="metric-value">{{ user.get_full_name|default:user.username }}</div>
+        <div class="metric-caption">@{{ user.username }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Role</div>
+        <div class="metric-value">{{ user.get_role_display|default:user.role }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Email</div>
+        <div class="metric-value">{{ user.email|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Phone</div>
+        <div class="metric-value">{{ user.phone|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">School</div>
+        <div class="metric-value">{% if user.school %}{{ user.school.name }}{% else %}—{% endif %}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Registered on</div>
+        <div class="metric-value">{{ user.date_joined|date:"Y-m-d H:i" }}</div>
+    </section>
+
+    {% if user.role == "student" and student %}
+    <section class="metric">
+        <div class="metric-label">Admission number</div>
+        <div class="metric-value">{{ student.admission_number }}</div>
+        <div class="metric-caption">Class: {{ student.class_name|default:"—" }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Parent</div>
+        <div class="metric-value">
+            {% if student.parent %}{{ student.parent.get_full_name|default:student.parent.username }}{% else %}—{% endif %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+
+<div class="button-row mt-sm">
+    <a href="{% url 'accounts:edit_profile' %}" class="btn btn-primary">Edit profile</a>
+    <a href="{% url 'accounts:password_change' %}" class="btn btn-secondary">Change password</a>
+</div>
+{% endblock %}
+

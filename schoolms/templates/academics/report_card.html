@@ -6,6 +6,7 @@
 {% block content %}
 <div class="button-row mt-sm">
     <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+    <a class="btn btn-primary" href="{% url 'academics:report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}">Download PDF</a>
 </div>
 
 <div class="content-card">

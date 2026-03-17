@@ -91,6 +91,43 @@ def login_view(request):
 
 
 @login_required
+def profile(request):
+    """
+    Logged-in user's own profile page.
+    """
+    student = None
+    if getattr(request.user, "role", None) == "student":
+        student = Student.objects.filter(user=request.user).select_related("school", "parent").first()
+    return render(request, "accounts/profile.html", {"student": student})
+
+
+@login_required
+def edit_profile(request):
+    """
+    Logged-in user can edit their own basic details.
+    """
+    user = request.user
+    if request.method == "POST":
+        first_name = (request.POST.get("first_name") or "").strip()
+        last_name = (request.POST.get("last_name") or "").strip()
+        email = (request.POST.get("email") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+
+        if email and User.objects.exclude(pk=user.pk).filter(email=email).exists():
+            messages.error(request, "That email is already in use.")
+        else:
+            user.first_name = first_name
+            user.last_name = last_name
+            user.email = email
+            user.phone = phone or None
+            user.save(update_fields=["first_name", "last_name", "email", "phone"])
+            messages.success(request, "Profile updated.")
+            return redirect("accounts:profile")
+
+    return render(request, "accounts/edit_profile.html")
+
+
+@login_required
 def dashboard(request):
     # Redirect parents and students to their unified portal
     if getattr(request.user, "role", None) in ["parent", "student"]:
@@ -304,7 +341,11 @@ def staff_register(request):
         role = request.POST.get("role", "teacher")
         phone = request.POST.get("phone", "").strip() or None
         if username and email and password and role in ("admin", "teacher"):
-            if not User.objects.filter(username=username).exists():
+            if User.objects.filter(username=username).exists():
+                messages.error(request, "That username is already taken.")
+            elif User.objects.filter(email=email).exists():
+                messages.error(request, "That email is already in use.")
+            else:
                 User.objects.create(
                     username=username,
                     email=email,
@@ -315,7 +356,10 @@ def staff_register(request):
                     school=school,
                     phone=phone,
                 )
+                messages.success(request, "Staff account created.")
                 return redirect("accounts:staff_list")
+        elif request.method == "POST":
+            messages.error(request, "Please fill all required fields.")
     return render(request, "accounts/staff_register.html", {"school": school})
 
 
@@ -350,7 +394,11 @@ def parent_register(request):
         parent_type = request.POST.get("parent_type", "").strip() or None
         
         if username and password:
-            if not User.objects.filter(username=username).exists():
+            if User.objects.filter(username=username).exists():
+                messages.error(request, "That username is already taken.")
+            elif email and User.objects.filter(email=email).exists():
+                messages.error(request, "That email is already in use.")
+            else:
                 User.objects.create(
                     username=username,
                     email=email or f"{username}@school.local",
@@ -362,7 +410,10 @@ def parent_register(request):
                     phone=phone,
                     parent_type=parent_type,
                 )
+                messages.success(request, "Parent account created.")
                 return redirect("accounts:parent_list")
+        elif request.method == "POST":
+            messages.error(request, "Please fill all required fields.")
     return render(request, "accounts/parent_register.html", {"school": school})
 
 

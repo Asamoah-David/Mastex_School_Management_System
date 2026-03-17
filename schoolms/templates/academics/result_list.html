@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Results · {{ school.name }}{% endblock %}
+{% block page_title %}Results{% endblock %}
+{% block page_subtitle %}Filter and review uploaded results.{% endblock %}
+{% block content %}
+
+<form method="get" class="card" style="margin-bottom: 0.75rem;">
+    <div class="form-grid">
+        <div class="form-group">
+            <label for="id_class">Class</label>
+            <select id="id_class" name="class" class="form-control" onchange="this.form.submit()">
+                <option value="">All</option>
+                {% for c in classes %}
+                <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_subject">Subject</label>
+            <select id="id_subject" name="subject" class="form-control" onchange="this.form.submit()">
+                <option value="">All</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}" {% if selected_subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_term">Term</label>
+            <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+                <option value="">All</option>
+                {% for t in terms %}
+                <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</form>
+
+{% if results %}
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Adm</th>
+                <th>Class</th>
+                <th>Subject</th>
+                <th>Exam</th>
+                <th>Term</th>
+                <th>Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td>{{ r.student.user.get_full_name|default:r.student.user.username }}</td>
+                <td>{{ r.student.admission_number }}</td>
+                <td>{{ r.student.class_name|default:"—" }}</td>
+                <td>{{ r.subject.name }}</td>
+                <td>{{ r.exam_type.name|default:"—" }}</td>
+                <td>{{ r.term.name|default:"—" }}</td>
+                <td>{{ r.score }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No results found.</div>
+{% endif %}
+
+{% endblock %}
+

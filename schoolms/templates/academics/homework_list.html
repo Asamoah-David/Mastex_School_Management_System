@@ -7,7 +7,9 @@
 <div class="content-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
         <div>
+            {% if not read_only %}
             <a href="{% url 'academics:homework_create' %}" class="btn btn-primary">+ Add Homework</a>
+            {% endif %}
             {% if classes %}
             <form method="get" style="display:inline;margin-left:0.5rem;">
                 <select name="class" onchange="this.form.submit()" style="padding:0.4rem;">

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}My Timetable · Mastex SchoolOS{% endblock %}
+{% block page_title %}My Timetable{% endblock %}
+{% block page_subtitle %}{% if class_name %}Class: {{ class_name }}{% else %}No class set{% endif %}{% endblock %}
+{% block content %}
+
+{% if mode == "parent" %}
+    <div class="content-card">
+        <form method="get" class="form-grid" style="align-items:end;">
+            <div class="form-group full-width">
+                <label>Child</label>
+                <select name="student" class="form-control" onchange="this.form.submit()">
+                    {% for c in children %}
+                    <option value="{{ c.id }}" {% if selected and selected.id == c.id %}selected{% endif %}>{{ c.user.get_full_name|default:c.admission_number }} · {{ c.class_name|default:"—" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+{% endif %}
+
+{% if not class_name %}
+    <div class="empty-state">No class is set for this student yet.</div>
+{% elif items %}
+    <div class="table-card">
+        <table>
+            <thead><tr><th>Day</th><th>Subject</th><th>Start</th><th>End</th></tr></thead>
+            <tbody>
+                {% for i in items %}
+                <tr>
+                    <td>{{ i.day }}</td>
+                    <td>{{ i.subject.name }}</td>
+                    <td>{{ i.start_time }}</td>
+                    <td>{{ i.end_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="empty-state">No timetable entries for {{ class_name }} yet.</div>
+{% endif %}
+
+{% if user.is_superuser or user.role == "school_admin" or user.role == "admin" or user.role == "teacher" or user.role == "staff" %}
+    <div class="button-row mt-sm">
+        <a class="btn btn-secondary" href="{% url 'academics:timetable_list' %}">Manage timetable</a>
+    </div>
+{% endif %}
+
+{% endblock %}
+

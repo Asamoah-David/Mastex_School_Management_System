@@ -35,6 +35,7 @@
                     <th>Admission Number</th>
                     <th>Average</th>
                     <th>Position</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -46,6 +47,10 @@
                         <td>{{ child.admission_number }}</td>
                         <td>{{ stats.average|default:"—" }}</td>
                         <td>{{ stats.position|default:"—" }}</td>
+                        <td>
+                            <a class="btn btn-secondary btn-sm" href="{% url 'students:parent_child_detail' child.id %}">Open</a>
+                            <a class="btn btn-primary btn-sm" href="{% url 'academics:report_card' child.id %}">Report card</a>
+                        </td>
                     </tr>
                     {% endwith %}
                 {% endfor %}

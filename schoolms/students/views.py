@@ -32,6 +32,18 @@ def parent_dashboard(request):
         
         # Handle case with no children
         if not children:
+            from operations.models import Announcement
+            fallback_school = getattr(request.user, "school", None)
+            announcements = (
+                Announcement.objects.filter(
+                    school=fallback_school,
+                    target_audience__in=["all", "parents"],
+                )
+                .select_related("school", "created_by")
+                .order_by("-is_pinned", "-created_at")[:10]
+                if fallback_school
+                else []
+            )
             return render(request, "students/parent_dashboard.html", {
                 "children": [],
                 "fees_by_child": {},
@@ -40,7 +52,7 @@ def parent_dashboard(request):
                 "achievements_by_child": {},
                 "activities_by_child": {},
                 "discipline_by_child": {},
-                "announcements": [],
+                "announcements": announcements,
                 "attendance_by_child": {},
                 "terms": [],
                 "exam_types": [],
@@ -265,6 +277,198 @@ def portal(request):
 
 
 @login_required
+def announcements_list(request):
+    """
+    Parent/student view: browse announcements relevant to them.
+    """
+    from operations.models import Announcement
+
+    role = getattr(request.user, "role", None)
+    if role == "student":
+        try:
+            student = Student.objects.select_related("school").get(user=request.user)
+        except Student.DoesNotExist:
+            messages.error(request, "No student record is linked to this account.")
+            return redirect("home")
+        qs = Announcement.objects.filter(
+            school=student.school,
+            target_audience__in=["all", "students"],
+        )
+        return render(
+            request,
+            "students/announcements_list.html",
+            {"announcements": qs.select_related("created_by").order_by("-is_pinned", "-created_at")[:100]},
+        )
+
+    if role == "parent":
+        children = list(Student.objects.filter(parent=request.user).select_related("school"))
+        schools = list({c.school for c in children if c.school_id})
+        fallback_school = getattr(request.user, "school", None)
+        if fallback_school and fallback_school not in schools:
+            schools.append(fallback_school)
+        if not schools:
+            return render(request, "students/announcements_list.html", {"announcements": []})
+        qs = Announcement.objects.filter(
+            school__in=schools,
+            target_audience__in=["all", "parents"],
+        )
+        return render(
+            request,
+            "students/announcements_list.html",
+            {"announcements": qs.select_related("school", "created_by").order_by("-is_pinned", "-created_at")[:100]},
+        )
+
+    return redirect("home")
+
+
+@login_required
+def fees_list(request):
+    """
+    Parent/student view: view fees (and payment status).
+    """
+    from finance.models import Fee
+
+    role = getattr(request.user, "role", None)
+    if role == "student":
+        student = Student.objects.filter(user=request.user).select_related("user").first()
+        if not student:
+            messages.error(request, "No student record is linked to this account.")
+            return redirect("home")
+        fees = Fee.objects.filter(student=student).order_by("-created_at")
+        return render(request, "students/fees_list.html", {"fees": fees, "mode": "student", "student": student})
+
+    if role == "parent":
+        children = list(Student.objects.filter(parent=request.user).select_related("user").order_by("class_name", "admission_number"))
+        fees = Fee.objects.filter(student__in=children).select_related("student", "student__user").order_by("-created_at") if children else []
+        return render(request, "students/fees_list.html", {"fees": fees, "mode": "parent", "children": children})
+
+    return redirect("home")
+
+
+@login_required
+def results_list(request):
+    """
+    Parent/student view: view results with filters and report card link.
+    """
+    from academics.models import Result, Term, ExamType
+
+    role = getattr(request.user, "role", None)
+    term_id = (request.GET.get("term") or "").strip()
+    exam_type_id = (request.GET.get("exam_type") or "").strip()
+    student_id = (request.GET.get("student") or "").strip()
+
+    if role == "student":
+        student = Student.objects.filter(user=request.user).select_related("school", "user").first()
+        if not student:
+            messages.error(request, "No student record is linked to this account.")
+            return redirect("home")
+        qs = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("-id")
+        terms = Term.objects.filter(school=student.school).order_by("-is_current", "-id")
+        exam_types = ExamType.objects.filter(school=student.school).order_by("name")
+        if term_id:
+            qs = qs.filter(term_id=term_id)
+        if exam_type_id:
+            qs = qs.filter(exam_type_id=exam_type_id)
+        return render(
+            request,
+            "students/results_list.html",
+            {
+                "mode": "student",
+                "student": student,
+                "results": qs[:400],
+                "terms": terms,
+                "exam_types": exam_types,
+                "selected_term": term_id,
+                "selected_exam_type": exam_type_id,
+            },
+        )
+
+    if role == "parent":
+        children = list(Student.objects.filter(parent=request.user).select_related("school", "user").order_by("class_name", "admission_number"))
+        if not children:
+            return render(request, "students/results_list.html", {"mode": "parent", "children": [], "results": [], "terms": [], "exam_types": []})
+
+        # Parent can filter by a specific child; default to first.
+        active_child = None
+        if student_id:
+            active_child = next((c for c in children if str(c.id) == str(student_id)), None)
+        if not active_child:
+            active_child = children[0]
+
+        qs = Result.objects.filter(student=active_child).select_related("subject", "exam_type", "term").order_by("-id")
+        terms = Term.objects.filter(school=active_child.school).order_by("-is_current", "-id")
+        exam_types = ExamType.objects.filter(school=active_child.school).order_by("name")
+        if term_id:
+            qs = qs.filter(term_id=term_id)
+        if exam_type_id:
+            qs = qs.filter(exam_type_id=exam_type_id)
+
+        return render(
+            request,
+            "students/results_list.html",
+            {
+                "mode": "parent",
+                "children": children,
+                "active_child": active_child,
+                "results": qs[:400],
+                "terms": terms,
+                "exam_types": exam_types,
+                "selected_term": term_id,
+                "selected_exam_type": exam_type_id,
+            },
+        )
+
+    return redirect("home")
+
+
+@login_required
+def parent_child_detail(request, pk):
+    """
+    Parent view: child detail + quick actions.
+    """
+    if getattr(request.user, "role", None) != "parent":
+        return redirect("home")
+
+    child = get_object_or_404(Student.objects.select_related("user", "school", "parent"), pk=pk, parent=request.user)
+
+    from academics.models import Result, Term, ExamType
+    from finance.models import Fee
+    from operations.models import StudentAttendance
+
+    term_id = (request.GET.get("term") or "").strip()
+    exam_type_id = (request.GET.get("exam_type") or "").strip()
+
+    results_qs = Result.objects.filter(student=child).select_related("subject", "exam_type", "term").order_by("-id")
+    if term_id:
+        results_qs = results_qs.filter(term_id=term_id)
+    if exam_type_id:
+        results_qs = results_qs.filter(exam_type_id=exam_type_id)
+
+    fees_qs = Fee.objects.filter(student=child).order_by("-created_at")
+    attendance_qs = StudentAttendance.objects.filter(student=child).order_by("-date")[:30]
+    absence_qs = AbsenceRequest.objects.filter(student=child).select_related("decided_by").order_by("-created_at")[:50]
+
+    terms = Term.objects.filter(school=child.school).order_by("-is_current", "-id")
+    exam_types = ExamType.objects.filter(school=child.school).order_by("name")
+
+    return render(
+        request,
+        "students/parent_child_detail.html",
+        {
+            "child": child,
+            "results": results_qs[:200],
+            "fees": fees_qs[:200],
+            "attendance": attendance_qs,
+            "absence_requests": absence_qs,
+            "terms": terms,
+            "exam_types": exam_types,
+            "selected_term": term_id,
+            "selected_exam_type": exam_type_id,
+        },
+    )
+
+
+@login_required
 def student_list(request):
     """
     List students for the current school.
@@ -355,9 +559,24 @@ def student_register(request):
         password = request.POST.get("password", "")
         admission_number = request.POST.get("admission_number", "").strip()
         class_name = request.POST.get("class_name", "").strip()
+        class_selected = request.POST.get("class_selected", "").strip()
         parent_id = request.POST.get("parent") or None
+        phone = request.POST.get("phone", "").strip() or None
+        date_enrolled_str = request.POST.get("date_enrolled", "").strip()
         if username and admission_number and password:
-            if not User.objects.filter(username=username).exists():
+            if User.objects.filter(username=username).exists():
+                messages.error(request, "That username is already taken.")
+            elif email and User.objects.filter(email=email).exists():
+                messages.error(request, "That email is already in use.")
+            else:
+                chosen_class = class_name or class_selected
+                date_enrolled = None
+                if date_enrolled_str:
+                    try:
+                        date_enrolled = timezone.datetime.strptime(date_enrolled_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        messages.error(request, "Invalid enrolled date format.")
+                        date_enrolled = None
                 user = User.objects.create(
                     username=username,
                     email=email or f"{username}@school.local",
@@ -366,17 +585,23 @@ def student_register(request):
                     password=make_password(password),
                     role="student",
                     school=school,
+                    phone=phone,
                 )
                 Student.objects.create(
                     school=school,
                     user=user,
                     admission_number=admission_number,
-                    class_name=class_name,
+                    class_name=chosen_class,
                     parent_id=parent_id or None,
+                    date_enrolled=date_enrolled,
                 )
+                messages.success(request, "Student registered.")
                 return redirect("students:student_list")
+        else:
+            messages.error(request, "Please fill all required fields.")
     parents = User.objects.filter(school=school, role="parent").order_by("username")
-    return render(request, "students/student_register.html", {"school": school, "parents": parents})
+    classes = SchoolClass.objects.filter(school=school).order_by("name")
+    return render(request, "students/student_register.html", {"school": school, "parents": parents, "classes": classes})
 
 
 @login_required
@@ -567,6 +792,7 @@ def absence_request_create(request):
                 AbsenceRequest.objects.create(
                     school=student.school,
                     student=student,
+                    submitted_by=request.user,
                     date=absence_date,
                     reason=reason,
                 )
@@ -605,6 +831,73 @@ def my_absence_requests(request):
         "students/absence_request_list_student.html",
         {"student": student, "requests": requests},
     )
+
+
+@login_required
+def parent_absence_request_create(request):
+    """
+    Parent view: submit an absence request for one of their linked children.
+    """
+    if getattr(request.user, "role", None) != "parent":
+        return redirect("home")
+
+    children = list(
+        Student.objects.filter(parent=request.user)
+        .select_related("school", "user")
+        .order_by("class_name", "admission_number")
+    )
+    if not children:
+        messages.error(request, "No children are linked to this parent account yet.")
+        return redirect("portal")
+
+    if request.method == "POST":
+        student_id = (request.POST.get("student_id") or "").strip()
+        date_str = (request.POST.get("date") or "").strip()
+        reason = (request.POST.get("reason") or "").strip()
+
+        if not student_id or not date_str or not reason:
+            messages.error(request, "Please select a child and provide both a date and a reason.")
+        else:
+            try:
+                child = Student.objects.select_related("school", "user").get(id=int(student_id), parent=request.user)
+            except (Student.DoesNotExist, ValueError):
+                messages.error(request, "Invalid child selected.")
+            else:
+                if not child.is_active_student:
+                    messages.error(request, "Inactive or exited students cannot request absence.")
+                else:
+                    try:
+                        absence_date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        messages.error(request, "Invalid date format.")
+                    else:
+                        AbsenceRequest.objects.create(
+                            school=child.school,
+                            student=child,
+                            submitted_by=request.user,
+                            date=absence_date,
+                            reason=reason,
+                        )
+                        messages.success(request, "Absence request submitted for approval.")
+                        return redirect("students:parent_absence_requests")
+
+    return render(request, "students/absence_request_form_parent.html", {"children": children})
+
+
+@login_required
+def parent_absence_requests(request):
+    """
+    Parent view: list absence requests across all of their children.
+    """
+    if getattr(request.user, "role", None) != "parent":
+        return redirect("home")
+
+    qs = (
+        AbsenceRequest.objects.filter(student__parent=request.user)
+        .select_related("student", "student__user", "decided_by")
+        .order_by("-created_at")
+    )
+    return render(request, "students/absence_request_list_parent.html", {"requests": qs})
 
 
 @login_required

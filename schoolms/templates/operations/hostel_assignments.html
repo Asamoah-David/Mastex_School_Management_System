@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Hostel Assignments · Mastex SchoolOS{% endblock %}
+{% block page_title %}Hostel Assignments{% endblock %}
+{% block page_subtitle %}Students assigned to hostels.{% endblock %}
+{% block content %}
+
+<div class="button-row mt-sm">
+    <a class="btn btn-primary" href="{% url 'operations:hostel_assignment_create' %}">Assign Student</a>
+    <a class="btn btn-secondary" href="{% url 'operations:hostel_list' %}">Back</a>
+</div>
+
+{% if assignments %}
+<div class="table-card">
+    <table>
+        <thead><tr><th>Student</th><th>Hostel</th><th>Room</th><th>Bed</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            {% for a in assignments %}
+            <tr>
+                <td>{{ a.student.user.get_full_name|default:a.student.admission_number }}</td>
+                <td>{{ a.hostel.name }}</td>
+                <td>{% if a.room %}{{ a.room.room_number }}{% else %}—{% endif %}</td>
+                <td>{{ a.bed_number|default:"—" }}</td>
+                <td>{{ a.start_date }}</td>
+                <td>{{ a.end_date|default:"—" }}</td>
+                <td>{% if a.is_active %}<span class="tag"><span class="tag-bullet"></span>Active</span>{% else %}<span class="tag">Ended</span>{% endif %}</td>
+                <td>
+                    {% if a.is_active %}
+                    <form method="post" action="{% url 'operations:hostel_assignment_end' a.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-secondary btn-sm" type="submit">End</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No assignments yet.</div>
+{% endif %}
+
+<style>.btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem;}</style>
+{% endblock %}
+
