@@ -4,7 +4,7 @@
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
 <div class="button-row">
-    {% if user.is_superuser or user.is_staff_member or user.is_school_admin %}
+    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
     <a href="{% url 'operations:textbook_create' %}" class="btn btn-primary">Add Textbook</a>
     <a href="{% url 'operations:textbook_sales' %}" class="btn btn-secondary">View Sales</a>
     {% endif %}
@@ -24,7 +24,7 @@
                 <td>{{ b.stock }}</td>
                 <td>{{ b.isbn|default:"—" }}</td>
                 <td>
-                    {% if user.is_superuser or user.is_staff_member or user.is_school_admin %}
+                    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
                         <a href="{% url 'operations:textbook_delete' b.pk %}" class="btn btn-danger btn-sm">Delete</a>
                     {% endif %}
                 </td>
