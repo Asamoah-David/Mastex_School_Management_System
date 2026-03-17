@@ -338,11 +338,11 @@
                             <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span><span class="nav-item-subtitle">My lessons</span></div></a></li>
                             <li><a href="{% url 'students:my_absence_requests' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">My Absence Requests</span><span class="nav-item-subtitle">Request time off</span></div></a></li>
                             {% feature_enabled 'library' as feat_library %}
-                            {% if _feat_library %}
+                            {% if feat_library %}
                             <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Browse books</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if _feat_hostel %}
+                            {% if feat_hostel %}
                             <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostel</span><span class="nav-item-subtitle">My assignment & fees</span></div></a></li>
                             {% endif %}
                             <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">View items & prices</span></div></a></li>
@@ -358,11 +358,11 @@
                             <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span><span class="nav-item-subtitle">Children lessons</span></div></a></li>
                             <li><a href="{% url 'students:parent_absence_requests' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Request time off</span></div></a></li>
                             {% feature_enabled 'library' as feat_library %}
-                            {% if _feat_library %}
+                            {% if feat_library %}
                             <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Browse books</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if _feat_hostel %}
+                            {% if feat_hostel %}
                             <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostel</span><span class="nav-item-subtitle">Assignments & fees</span></div></a></li>
                             {% endif %}
                             <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">View items & prices</span></div></a></li>
@@ -380,15 +380,15 @@
                             <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span><span class="nav-item-subtitle">My leave</span></div></a></li>
                             <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Review student requests</span></div></a></li>
                             {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if _feat_messaging %}
+                            {% if feat_messaging %}
                             <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send messages</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if _feat_ai %}
+                            {% if feat_ai %}
                             <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'library' as feat_library %}
-                            {% if _feat_library %}
+                            {% if feat_library %}
                             <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Browse & issue books</span></div></a></li>
                             {% endif %}
                             <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostels</span><span class="nav-item-subtitle">Rooms, assignments & fees</span></div></a></li>
@@ -414,19 +414,19 @@
                             <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Activity Log</span><span class="nav-item-subtitle">Audit trail</span></div></a></li>
                             <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">School Settings</span><span class="nav-item-subtitle">Profile</span></div></a></li>
                             {% feature_enabled 'library' as feat_library %}
-                            {% if _feat_library %}
+                            {% if feat_library %}
                             <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Books & issues</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if _feat_hostel %}
+                            {% if feat_hostel %}
                             <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostels</span><span class="nav-item-subtitle">Rooms, assignments & fees</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if _feat_messaging %}
+                            {% if feat_messaging %}
                             <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send SMS</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if _feat_ai %}
+                            {% if feat_ai %}
                             <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
                             {% endif %}
                             <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Staff</span><span class="nav-item-subtitle">View staff details</span></div></a></li>
@@ -453,19 +453,19 @@
                             <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Activity Log</span><span class="nav-item-subtitle">Audit trail</span></div></a></li>
                             <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">School Settings</span><span class="nav-item-subtitle">Profile & config</span></div></a></li>
                             {% feature_enabled 'library' as feat_library %}
-                            {% if _feat_library %}
+                            {% if feat_library %}
                             <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Books & issues</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if _feat_hostel %}
+                            {% if feat_hostel %}
                             <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostels</span><span class="nav-item-subtitle">Rooms, assignments & fees</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if _feat_messaging %}
+                            {% if feat_messaging %}
                             <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send SMS</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if _feat_ai %}
+                            {% if feat_ai %}
                             <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
                             {% endif %}
                             <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Staff</span><span class="nav-item-subtitle">View staff details</span></div></a></li>
@@ -477,11 +477,11 @@
                             <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Bus</span><span class="nav-item-subtitle">Routes & payments</span></div></a></li>
                             <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Textbooks</span><span class="nav-item-subtitle">Books for sale</span></div></a></li>
                             {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if _feat_messaging %}
+                            {% if feat_messaging %}
                             <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send messages</span></div></a></li>
                             {% endif %}
                             {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if _feat_ai %}
+                            {% if feat_ai %}
                             <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
                             {% endif %}
                             {% endif %}
