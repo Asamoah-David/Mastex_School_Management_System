@@ -423,3 +423,40 @@ class InventoryTransaction(models.Model):
     
     def __str__(self):
         return f"{self.transaction_type} - {self.item.name} ({self.quantity})"
+
+
+# Event Management
+class SchoolEvent(models.Model):
+    """School events and activities"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    event_type = models.CharField(max_length=50)  # assembly, sports, concert, trip, meeting, other
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField(null=True, blank=True)
+    location = models.CharField(max_length=200, blank=True)
+    target_audience = models.CharField(max_length=20, default="all")  # all, students, staff, parents
+    is_mandatory = models.BooleanField(default=False)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-start_date"]
+    
+    def __str__(self):
+        return self.title
+
+
+class EventRSVP(models.Model):
+    """Track event attendance/confirmation"""
+    event = models.ForeignKey(SchoolEvent, on_delete=models.CASCADE, related_name="rsvps")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    is_attending = models.BooleanField(default=True)
+    responded_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ("event", "student")
+    
+    def __str__(self):
+        return f"{self.student} - {self.event.title}"
