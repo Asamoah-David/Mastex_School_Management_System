@@ -3,7 +3,7 @@ Automatic notifications for academics - sends SMS/Email when important events oc
 """
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Homework, Result
+from academics.models import Homework, Result
 
 
 @receiver(post_save, sender=Homework)
