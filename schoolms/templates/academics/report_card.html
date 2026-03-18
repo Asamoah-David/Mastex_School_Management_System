@@ -15,8 +15,23 @@
         <div class="metric"><div class="metric-label">Class</div><div class="metric-value">{{ student.class_name }}</div></div>
         <div class="metric"><div class="metric-label">Average</div><div class="metric-value">{{ average }}%</div></div>
     </div>
+    
+    {# Attendance Summary Section #}
+    {% if attendance_total %}
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
+        <h4 style="margin:0 0 0.75rem 0;color:#166534;">📅 Attendance Summary</h4>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+            <div><strong>Total Days:</strong> {{ attendance_total }}</div>
+            <div style="color:#16a34a;"><strong>Present:</strong> {{ attendance_present }}</div>
+            <div style="color:#dc2626;"><strong>Absent:</strong> {{ attendance_absent }}</div>
+            <div style="color:#ca8a04;"><strong>Late:</strong> {{ attendance_late }}</div>
+            <div style="color:#2563eb;font-weight:bold;"><strong>Attendance Rate:</strong> {{ attendance_rate }}%</div>
+        </div>
+    </div>
+    {% endif %}
+    
     <form method="get" style="margin-bottom:1rem;">
-        <select name="term" onchange="this.form.submit()" style="padding:0.5rem;">
+        <select name="term" title="Select term" onchange="this.form.submit()" style="padding:0.5rem;">
             <option value="">All terms</option>
             {% for t in terms %}
             <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>

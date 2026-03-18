@@ -14,6 +14,34 @@
         {{ error }}
     </div>
     {% endif %}
+    
+    {# Show summary of all saved results for this class/term #}
+    {% if all_results %}
+    <div class="table-card" style="margin-bottom: 1rem; background: #f0f9ff;">
+        <h4 style="margin: 0 0 0.5rem 0;">📊 Saved Scores Summary</h4>
+        <table style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Exam Type</th>
+                    <th>Students Recorded</th>
+                    <th>Avg Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in all_results %}
+                <tr>
+                    <td>{{ r.subject }}</td>
+                    <td>{{ r.exam_type }}</td>
+                    <td>{{ r.count }}</td>
+                    <td>{{ r.avg_score|floatformat:1 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
     <form method="get" class="filter-form">
         <div class="form-row">
             <div class="form-group">
@@ -57,7 +85,7 @@
     
     {% if students and selected_class and selected_subject and selected_exam_type and selected_term %}
     <div class="result-section">
-        <h4>Scores for {{ selected_class }}</h4>
+        <h4>Scores for {{ selected_class }} - {{ selected_subject_name }}</h4>
         <p class="text-muted">Enter scores between 0 and 100. Existing scores are pre-filled.</p>
 
         <form method="post" class="result-entry-form">
@@ -108,6 +136,7 @@
 
             <div class="button-row mt-sm">
                 <button type="submit" class="btn btn-primary">Save all scores</button>
+                <a href="{% url 'academics:result_list' %}?class={{ selected_class }}&term={{ selected_term }}" class="btn btn-secondary">View All Results</a>
             </div>
         </form>
     </div>

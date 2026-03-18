@@ -466,9 +466,33 @@ def result_upload(request):
         "selected_exam_type": exam_type_id,
         "selected_term": term_id,
         "existing_results": existing_results,
+        "selected_subject_name": subjects.filter(id=subject_id).first().name if subject_id else "",
+        "all_results": _get_all_results_summary(school, class_name, term_id) if school and class_name and term_id else [],
     }
     
     return render(request, "academics/result_upload.html", context)
+
+
+def _get_all_results_summary(school, class_name, term_id):
+    """Get summary of all saved results for a class and term."""
+    from django.db.models import Count, Avg
+    results = Result.objects.filter(
+        student__school=school,
+        student__class_name=class_name,
+        term_id=term_id
+    ).values('subject__name', 'exam_type__name').annotate(
+        count=Count('id'),
+        avg_score=Avg('score')
+    )
+    return [
+        {
+            'subject': r['subject__name'] or 'Unknown',
+            'exam_type': r['exam_type__name'] or 'Unknown',
+            'count': r['count'],
+            'avg_score': r['avg_score'] or 0
+        }
+        for r in results
+    ]
 
 
 @login_required
@@ -930,6 +954,21 @@ def report_card_view(request, student_id):
     avg = (total / len(results)) if results else 0
     from academics.models import get_grade_for_score
     grades = [get_grade_for_score(school, r.score) for r in results]
+    
+    # Get attendance summary
+    from operations.models import StudentAttendance
+    attendance_qs = StudentAttendance.objects.filter(student=student)
+    if term_id:
+        # Filter by term date range (approximate)
+        term = terms.filter(id=term_id).first()
+        if term:
+            attendance_qs = attendance_qs.filter(date__gte=term.start_date, date__lte=term.end_date)
+    total_days = attendance_qs.count()
+    present_days = attendance_qs.filter(status="present").count()
+    absent_days = attendance_qs.filter(status="absent").count()
+    late_days = attendance_qs.filter(status="late").count()
+    attendance_rate = round((present_days / total_days * 100), 1) if total_days > 0 else 0
+    
     return render(
         request,
         "academics/report_card.html",
@@ -940,6 +979,11 @@ def report_card_view(request, student_id):
             "average": round(avg, 1),
             "school": school,
             "selected_term": term_id,
+            "attendance_total": total_days,
+            "attendance_present": present_days,
+            "attendance_absent": absent_days,
+            "attendance_late": late_days,
+            "attendance_rate": attendance_rate,
         },
     )
 
