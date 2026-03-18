@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Create Quiz</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label>Title</label>
+            <input type="text" name="title" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>Description</label>
+            <textarea name="description" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Subject</label>
+                <select name="subject" class="form-control" required>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label>Term</label>
+                <select name="term" class="form-control">
+                    <option value="">-- Select Term --</option>
+                    {% for term in terms %}
+                    <option value="{{ term.id }}">{{ term.name }}{% if term.is_current %} (Current){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label>Class</label>
+                <select name="class_name" class="form-control" required>
+                    {% for class in classes %}
+                    <option value="{{ class }}">{{ class }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label>Duration (minutes)</label>
+                <input type="number" name="duration_minutes" value="30" class="form-control" required>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label>Passing Score (%)</label>
+                <input type="number" name="passing_score" value="50" class="form-control" required>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Quiz</button>
+        <a href="{% url 'academics:quiz_list' %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

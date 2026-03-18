@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from students.models import Student
 from schools.models import School
 from accounts.permissions import user_can_manage_school
-from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable
+from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable, Quiz, QuizQuestion, QuizAttempt, QuizAnswer
 
 
 def _get_school(request):

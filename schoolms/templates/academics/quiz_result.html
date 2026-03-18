@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Quiz Results</h2>
+    
+    <div class="card mb-4">
+        <div class="card-body text-center">
+            <h3>Score: {{ attempt.score|floatformat:1 }}%</h3>
+            {% if attempt.is_passed %}
+            <span class="badge bg-success">PASSED</span>
+            {% else %}
+            <span class="badge bg-danger">FAILED</span>
+            {% endif %}
+            <p class="mt-2">Quiz: {{ attempt.quiz.title }}</p>
+            <p>Completed: {{ attempt.submitted_at }}</p>
+        </div>
+    </div>
+    
+    <h4>Your Answers</h4>
+    {% for answer in answers %}
+    <div class="card mb-2 {% if answer.is_correct %}border-success{% else %}border-danger{% endif %}">
+        <div class="card-body">
+            <p><strong>Q{{ forloop.counter }}:</strong> {{ answer.question.question_text }}</p>
+            <p>Your answer: <strong>{{ answer.answer }}</strong> 
+                {% if answer.is_correct %}
+                <span class="text-success">✓ Correct</span>
+                {% else %}
+                <span class="text-danger">✗ Wrong (Correct: {{ answer.question.correct_answer }})</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <a href="{% url 'academics:quiz_list' %}" class="btn btn-secondary mt-3">Back to Quizzes</a>
+</div>
+{% endblock %}

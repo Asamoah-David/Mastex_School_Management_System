@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ quiz.title }}</h2>
+        <a href="{% url 'academics:quiz_list' %}" class="btn btn-secondary">Back to Quizzes</a>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <p><strong>Subject:</strong> {{ quiz.subject.name }}</p>
+            <p><strong>Class:</strong> {{ quiz.class_name }}</p>
+            <p><strong>Duration:</strong> {{ quiz.duration_minutes }} minutes</p>
+            <p><strong>Passing Score:</strong> {{ quiz.passing_score }}%</p>
+            <p><strong>Questions:</strong> {{ questions.count }}</p>
+            <p><strong>Status:</strong> 
+                {% if quiz.is_active %}
+                <span class="badge bg-success">Active</span>
+                {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    
+    {% if can_edit %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">Add Question</div>
+        <div class="card-body">
+            <form method="post" action="{% url 'academics:quiz_add_question' quiz.pk %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label>Question</label>
+                    <textarea name="question_text" class="form-control" rows="3" required></textarea>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label>Option A</label>
+                        <input type="text" name="option_a" class="form-control">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>Option B</label>
+                        <input type="text" name="option_b" class="form-control">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label>Option C</label>
+                        <input type="text" name="option_c" class="form-control">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>Option D</label>
+                        <input type="text" name="option_d" class="form-control">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label>Correct Answer (A/B/C/D)</label>
+                        <select name="correct_answer" class="form-control" required>
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                            <option value="D">D</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>Marks</label>
+                        <input type="number" name="marks" value="1" class="form-control">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Question</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <h4>Questions</h4>
+    {% if questions %}
+    {% for question in questions %}
+    <div class="card mb-2">
+        <div class="card-body">
+            <p><strong>Q{{ forloop.counter }}:</strong> {{ question.question_text }}</p>
+            <p>A: {{ question.option_a }} | B: {{ question.option_b }} | C: {{ question.option_c }} | D: {{ question.option_d }}</p>
+            <small class="text-muted">Correct: {{ question.correct_answer }} | Marks: {{ question.marks }}</small>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted">No questions added yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

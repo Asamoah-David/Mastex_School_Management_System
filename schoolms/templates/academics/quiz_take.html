@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>{{ quiz.title }}</h2>
+    <p><strong>Subject:</strong> {{ quiz.subject.name }} | <strong>Duration:</strong> {{ quiz.duration_minutes }} mins</p>
+    
+    <form method="post">
+        {% csrf_token %}
+        {% for question in questions %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <strong>Question {{ forloop.counter }}</strong> ({{ question.marks }} mark)
+            </div>
+            <div class="card-body">
+                <p>{{ question.question_text }}</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="A" id="q{{ question.pk }}_a">
+                    <label class="form-check-label" for="q{{ question.pk }}_a">A. {{ question.option_a }}</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="B" id="q{{ question.pk }}_b">
+                    <label class="form-check-label" for="q{{ question.pk }}_b">B. {{ question.option_b }}</label>
+                </div>
+                {% if question.option_c %}
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="C" id="q{{ question.pk }}_c">
+                    <label class="form-check-label" for="q{{ question.pk }}_c">C. {{ question.option_c }}</label>
+                </div>
+                {% endif %}
+                {% if question.option_d %}
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="D" id="q{{ question.pk }}_d">
+                    <label class="form-check-label" for="q{{ question.pk }}_d">D. {{ question.option_d }}</label>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-success btn-lg">Submit Quiz</button>
+        <a href="{% url 'academics:quiz_list' %}" class="btn btn-secondary btn-lg">Cancel</a>
+    </form>
+</div>
+{% endblock %}

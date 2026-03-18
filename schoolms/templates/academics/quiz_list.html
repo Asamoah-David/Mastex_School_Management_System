@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Quizzes</h2>
+        {% if can_manage %}
+        <a href="{% url 'academics:quiz_create' %}" class="btn btn-primary">Create Quiz</a>
+        {% endif %}
+    </div>
+    
+    {% if quizzes %}
+    <div class="row">
+        {% for quiz in quizzes %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ quiz.title }}</h5>
+                    <p class="card-text text-muted">{{ quiz.subject.name }} - {{ quiz.class_name }}</p>
+                    <p><small>Duration: {{ quiz.duration_minutes }} mins | Passing: {{ quiz.passing_score }}%</small></p>
+                    <p><small>Questions: {{ quiz.questions.count }}</small></p>
+                    {% if quiz.is_active %}
+                    <span class="badge bg-success">Active</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                    <div class="mt-3">
+                        <a href="{% url 'academics:quiz_detail' quiz.pk %}" class="btn btn-sm btn-info">View</a>
+                        {% if request.user.role == 'student' %}
+                        <a href="{% url 'academics:quiz_take' quiz.pk %}" class="btn btn-sm btn-success">Take Quiz</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">No quizzes available.</p>
+    {% endif %}
+</div>
+{% endblock %}

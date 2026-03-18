@@ -26,4 +26,15 @@ urlpatterns = [
     path("timetable/my/", views.timetable_my, name="timetable_my"),
     path("report-card/<int:student_id>/", views.report_card_view, name="report_card"),
     path("report-card/<int:student_id>/pdf/", views.report_card_pdf, name="report_card_pdf"),
+    
+    # Quiz URLs
+    path("quizzes/", views.quiz_list, name="quiz_list"),
+    path("quizzes/create/", views.quiz_create, name="quiz_create"),
+    path("quizzes/<int:pk>/", views.quiz_detail, name="quiz_detail"),
+    path("quizzes/<int:pk>/add-question/", views.quiz_add_question, name="quiz_add_question"),
+    path("quizzes/<int:pk>/take/", views.quiz_take, name="quiz_take"),
+    path("quizzes/<int:pk>/result/", views.quiz_result, name="quiz_result"),
+    
+    # Analytics
+    path("analytics/", views.performance_analytics, name="performance_analytics"),
 ]
