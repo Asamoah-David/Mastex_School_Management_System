@@ -76,6 +76,13 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
+            # Check if user's school is active (skip for superusers/super_admins)
+            user_school = getattr(user, 'school', None)
+            if user_school and not getattr(user, 'is_superuser', False) and getattr(user, 'role', None) != 'super_admin':
+                if not user_school.is_active:
+                    messages.error(request, "Your school's account is currently inactive. Please contact the administrator.")
+                    return render(request, "accounts/login.html")
+            
             login(request, user)
             role = getattr(user, "role", None)
             if role in ["parent", "student"]:

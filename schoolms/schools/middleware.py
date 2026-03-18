@@ -38,4 +38,14 @@ class SchoolMiddleware:
             if not request.user.is_superuser and request.user.role != "super_admin":
                 return redirect(reverse("accounts:school_dashboard")) # Using reverse()
         
+        # Check if user's school is active (allow superusers/super_admins to always access)
+        if request.user.is_authenticated:
+            user_school = getattr(request.user, 'school', None)
+            if user_school and not getattr(request.user, 'is_superuser', False) and getattr(request.user, 'role', None) != 'super_admin':
+                if not user_school.is_active:
+                    # Logout and redirect to login with message
+                    from django.contrib.auth import logout
+                    logout(request)
+                    return redirect(f"{reverse('accounts:login')}?inactive=1")
+        
         return self.get_response(request)
