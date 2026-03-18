@@ -273,6 +273,7 @@ CORE_SUBJECTS = [
     "Integrated Science",
     "Physical Education (PE)",
     "Our World Our People (OWOP)",
+    "RME (Religious and Moral Education)",
     "Creative Art",
     "Career Technology",
     "STEM",
