@@ -18,9 +18,20 @@ class Term(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)  # e.g., "Term 1", "Term 2"
     is_current = models.BooleanField(default=False)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
     
     def __str__(self):
         return self.name
+    
+    def save(self, *args, **kwargs):
+        # If this term is being set as current, uncheck all other terms for this school
+        if self.is_current:
+            Term.objects.filter(school=self.school, is_current=True).exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)
+    
+    class Meta:
+        ordering = ["-is_current", "-id"]
 
 
 class Subject(models.Model):
@@ -128,3 +139,77 @@ class ExamSchedule(models.Model):
 
     def __str__(self):
         return f"{self.subject.name} - {self.exam_date}"
+
+
+# Online Quiz/Exam System
+class Quiz(models.Model):
+    """Online quiz/exam that students can take"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    term = models.ForeignKey(Term, on_delete=models.SET_NULL, null=True, blank=True)
+    class_name = models.CharField(max_length=50)
+    duration_minutes = models.PositiveIntegerField(default=30)  # Time limit in minutes
+    passing_score = models.PositiveIntegerField(default=50)  # Minimum score to pass
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    due_date = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ["-created_at"]
+    
+    def __str__(self):
+        return self.title
+
+
+class QuizQuestion(models.Model):
+    """Questions for a quiz"""
+    QUESTION_TYPES = [
+        ('multiple_choice', 'Multiple Choice'),
+        ('true_false', 'True/False'),
+        ('short_answer', 'Short Answer'),
+    ]
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
+    question_text = models.TextField()
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, default='multiple_choice')
+    option_a = models.CharField(max_length=500, blank=True)
+    option_b = models.CharField(max_length=500, blank=True)
+    option_c = models.CharField(max_length=500, blank=True)
+    option_d = models.CharField(max_length=500, blank=True)
+    correct_answer = models.CharField(max_length=10)  # A, B, C, D, or True/False
+    marks = models.PositiveIntegerField(default=1)
+    order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ["order"]
+    
+    def __str__(self):
+        return self.question_text[:50]
+
+
+class QuizAttempt(models.Model):
+    """Track student quiz attempts"""
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    score = models.FloatField(null=True, blank=True)
+    is_passed = models.BooleanField(default=False)
+    is_completed = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ["-started_at"]
+    
+    def __str__(self):
+        return f"{self.student.user.username} - {self.quiz.title}"
+
+
+class QuizAnswer(models.Model):
+    """Student's answer to a question"""
+    attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE, related_name='answers')
+    question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE)
+    answer = models.CharField(max_length=10)
+    is_correct = models.BooleanField(default=False)
+    marks_obtained = models.FloatField(default=0)

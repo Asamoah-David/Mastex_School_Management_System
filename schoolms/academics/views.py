@@ -1281,3 +1281,308 @@ def timetable_my(request):
     if request.user.is_superuser or _user_can_manage_school(request):
         return redirect("academics:timetable_list")
     return redirect("home")
+
+
+# Analytics Views
+@login_required
+def performance_analytics(request):
+    """Student performance analytics dashboard"""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    class_name = request.GET.get("class")
+    term_id = request.GET.get("term")
+    
+    # Get filter options
+    classes = [c for c in Student.objects.filter(school=school).values_list("class_name", flat=True).distinct() if c]
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+    
+    # Base query for results
+    results_qs = Result.objects.filter(student__school=school)
+    
+    if class_name:
+        results_qs = results_qs.filter(student__class_name=class_name)
+    if term_id:
+        results_qs = results_qs.filter(term_id=term_id)
+    
+    # Class performance summary
+    class_stats = []
+    for cls in classes:
+        cls_results = results_qs.filter(student__class_name=cls)
+        if cls_results.exists():
+            avg = cls_results.aggregate(Avg('score'))['score__avg'] or 0
+            count = cls_results.count()
+            class_stats.append({
+                'class': cls,
+                'avg_score': round(avg, 1),
+                'total_results': count,
+                'student_count': cls_results.values('student').distinct().count()
+            })
+    
+    # Subject performance
+    subject_stats = []
+    subjects = Subject.objects.filter(school=school)
+    for subj in subjects:
+        subj_results = results_qs.filter(subject=subj)
+        if subj_results.exists():
+            avg = subj_results.aggregate(Avg('score'))['score__avg'] or 0
+            subject_stats.append({
+                'subject': subj.name,
+                'avg_score': round(avg, 1),
+                'total_results': subj_results.count()
+            })
+    subject_stats.sort(key=lambda x: x['avg_score'], reverse=True)
+    
+    # Top performing students
+    from django.db.models import Avg
+    top_students = (
+        results_qs.values('student__user__first_name', 'student__user__last_name', 
+                         'student__admission_number', 'student__class_name')
+        .annotate(avg_score=Avg('score'))
+        .order_by('-avg_score')[:10]
+    )
+    
+    context = {
+        'school': school,
+        'classes': classes,
+        'terms': terms,
+        'selected_class': class_name,
+        'selected_term': term_id,
+        'class_stats': class_stats,
+        'subject_stats': subject_stats[:10],  # Top 10 subjects
+        'top_students': top_students,
+    }
+    return render(request, "academics/performance_analytics.html", context)
+
+
+# Quiz Views
+@login_required
+def quiz_list(request):
+    """List all quizzes"""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    role = getattr(request.user, "role", None)
+    can_manage = _user_can_manage_school(request)
+    
+    if can_manage:
+        # Staff: see all quizzes
+        quizzes = Quiz.objects.filter(school=school).select_related('subject', 'created_by').order_by('-created_at')
+    elif role == "student":
+        # Students: see quizzes for their class
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student and student.class_name:
+            quizzes = Quiz.objects.filter(school=school, class_name=student.class_name, is_active=True).order_by('-created_at')
+        else:
+            quizzes = Quiz.objects.none()
+    else:
+        quizzes = Quiz.objects.none()
+    
+    return render(request, "academics/quiz_list.html", {"quizzes": quizzes, "school": school, "can_manage": can_manage})
+
+
+@login_required
+def quiz_create(request):
+    """Create a new quiz"""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
+    
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
+        subject_id = request.POST.get("subject")
+        term_id = request.POST.get("term")
+        class_name = request.POST.get("class_name", "").strip()
+        duration = request.POST.get("duration_minutes", "30")
+        passing = request.POST.get("passing_score", "50")
+        
+        if title and subject_id and class_name:
+            try:
+                from datetime import datetime
+                quiz = Quiz.objects.create(
+                    school=school,
+                    title=title,
+                    description=description,
+                    subject_id=subject_id,
+                    term_id=term_id or None,
+                    class_name=class_name,
+                    duration_minutes=int(duration),
+                    passing_score=int(passing),
+                    created_by=request.user
+                )
+                messages.success(request, "Quiz created! Add questions now.")
+                return redirect("academics:quiz_detail", pk=quiz.pk)
+            except Exception as e:
+                messages.error(request, f"Error creating quiz: {str(e)}")
+    
+    return render(request, "academics/quiz_form.html", {
+        "school": school, 
+        "subjects": subjects, 
+        "terms": terms, 
+        "classes": classes,
+        "quiz": None
+    })
+
+
+@login_required
+def quiz_detail(request, pk):
+    """Quiz detail with questions"""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    quiz = get_object_or_404(Quiz, pk=pk, school=school)
+    questions = quiz.questions.all().order_by('order')
+    can_edit = _user_can_manage_school(request)
+    
+    return render(request, "academics/quiz_detail.html", {
+        "quiz": quiz, 
+        "questions": questions, 
+        "school": school,
+        "can_edit": can_edit
+    })
+
+
+@login_required
+def quiz_add_question(request, pk):
+    """Add a question to quiz"""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    quiz = get_object_or_404(Quiz, pk=pk, school=school)
+    
+    if request.method == "POST":
+        question_text = request.POST.get("question_text", "").strip()
+        question_type = request.POST.get("question_type", "multiple_choice")
+        option_a = request.POST.get("option_a", "").strip()
+        option_b = request.POST.get("option_b", "").strip()
+        option_c = request.POST.get("option_c", "").strip()
+        option_d = request.POST.get("option_d", "").strip()
+        correct = request.POST.get("correct_answer", "").strip()
+        marks = request.POST.get("marks", "1")
+        order = quiz.questions.count()
+        
+        if question_text and correct:
+            QuizQuestion.objects.create(
+                quiz=quiz,
+                question_text=question_text,
+                question_type=question_type,
+                option_a=option_a,
+                option_b=option_b,
+                option_c=option_c,
+                option_d=option_d,
+                correct_answer=correct,
+                marks=int(marks),
+                order=order
+            )
+            messages.success(request, "Question added!")
+        
+        return redirect("academics:quiz_detail", pk=pk)
+    
+    return redirect("academics:quiz_detail", pk=pk)
+
+
+@login_required
+def quiz_take(request, pk):
+    """Student takes a quiz"""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    role = getattr(request.user, "role", None)
+    if role != "student":
+        return redirect("home")
+    
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        return redirect("home")
+    
+    quiz = get_object_or_404(Quiz, pk=pk, school=school, is_active=True)
+    
+    # Check if already attempted
+    existing = QuizAttempt.objects.filter(quiz=quiz, student=student, is_completed=True).first()
+    if existing:
+        messages.info(request, "You have already completed this quiz.")
+        return redirect("academics:quiz_result", pk=existing.pk)
+    
+    # Get or create attempt
+    attempt, created = QuizAttempt.objects.get_or_create(
+        quiz=quiz, 
+        student=student, 
+        is_completed=False,
+        defaults={}
+    )
+    
+    questions = quiz.questions.all().order_by('order')
+    
+    if request.method == "POST":
+        total_marks = 0
+        for question in questions:
+            answer = request.POST.get(f"q_{question.pk}", "")
+            is_correct = answer.upper() == question.correct_answer.upper() if answer else False
+            marks = question.marks if is_correct else 0
+            total_marks += marks
+            
+            QuizAnswer.objects.update_or_create(
+                attempt=attempt,
+                question=question,
+                defaults={'answer': answer, 'is_correct': is_correct, 'marks_obtained': marks}
+            )
+        
+        # Calculate percentage
+        max_marks = sum(q.marks for q in questions)
+        score = (total_marks / max_marks * 100) if max_marks > 0 else 0
+        
+        attempt.score = score
+        attempt.is_passed = score >= quiz.passing_score
+        attempt.is_completed = True
+        from django.utils import timezone
+        attempt.submitted_at = timezone.now()
+        attempt.save()
+        
+        messages.success(request, f"Quiz completed! Score: {round(score, 1)}%")
+        return redirect("academics:quiz_result", pk=attempt.pk)
+    
+    return render(request, "academics/quiz_take.html", {
+        "quiz": quiz, 
+        "questions": questions, 
+        "attempt": attempt,
+        "school": school
+    })
+
+
+@login_required
+def quiz_result(request, pk):
+    """View quiz result"""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    attempt = get_object_or_404(QuizAttempt, pk=pk, student__school=school)
+    
+    # Check permission
+    role = getattr(request.user, "role", None)
+    if role == "student" and attempt.student.user != request.user:
+        return redirect("home")
+    
+    answers = attempt.answers.all().select_related('question')
+    
+    return render(request, "academics/quiz_result.html", {
+        "attempt": attempt,
+        "answers": answers,
+        "school": school
+    })

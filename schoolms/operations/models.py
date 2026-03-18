@@ -316,3 +316,110 @@ class HostelFee(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.hostel.name} - {self.term}"
+
+
+# Student Health/Medical Records
+class StudentHealth(models.Model):
+    """Student health information and medical records"""
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name="health_record")
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    blood_type = models.CharField(max_length=5, blank=True)  # A+, A-, B+, B-, O+, O-, AB+, AB-
+    allergies = models.TextField(blank=True)  # List of allergies
+    medical_conditions = models.TextField(blank=True)  # e.g., Asthma, Diabetes
+    medications = models.TextField(blank=True)  # Current medications
+    emergency_contact = models.CharField(max_length=20, blank=True)  # Emergency phone
+    emergency_contact_name = models.CharField(max_length=100, blank=True)  # Emergency contact name
+    doctor_name = models.CharField(max_length=100, blank=True)
+    doctor_phone = models.CharField(max_length=20, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Health Record - {self.student}"
+
+
+class HealthVisit(models.Model):
+    """Track student health clinic visits"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    visit_date = models.DateTimeField(auto_now_add=True)
+    complaint = models.TextField()  # Reason for visit
+    diagnosis = models.TextField(blank=True)
+    treatment = models.TextField(blank=True)
+    visited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    is_follow_up = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ["-visit_date"]
+    
+    def __str__(self):
+        return f"{self.student} - {self.visit_date.date()}"
+
+
+# Inventory Management
+class InventoryCategory(models.Model):
+    """Categories for inventory items"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name_plural = "Inventory Categories"
+    
+    def __str__(self):
+        return self.name
+
+
+class InventoryItem(models.Model):
+    """School inventory items"""
+    CONDITION_CHOICES = (
+        ('new', 'New'),
+        ('good', 'Good'),
+        ('fair', 'Fair'),
+        ('poor', 'Poor'),
+        ('damaged', 'Damaged'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200)
+    category = models.ForeignKey(InventoryCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    quantity = models.PositiveIntegerField(default=0)
+    min_quantity = models.PositiveIntegerField(default=5)  # Alert when below this
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, default='new')
+    location = models.CharField(max_length=100, blank=True)  # Where it's stored
+    description = models.TextField(blank=True)
+    serial_number = models.CharField(max_length=100, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["name"]
+    
+    def __str__(self):
+        return f"{self.name} ({self.quantity})"
+    
+    @property
+    def is_low_stock(self):
+        return self.quantity <= self.min_quantity
+
+
+class InventoryTransaction(models.Model):
+    """Track inventory movements (additions, removals)"""
+    TRANSACTION_TYPES = (
+        ('purchase', 'Purchase'),
+        ('usage', 'Usage'),
+        ('damage', 'Damage'),
+        ('adjustment', 'Adjustment'),
+        ('return', 'Return'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE)
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    quantity = models.IntegerField()  # Can be negative for usage
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-created_at"]
+    
+    def __str__(self):
+        return f"{self.transaction_type} - {self.item.name} ({self.quantity})"
