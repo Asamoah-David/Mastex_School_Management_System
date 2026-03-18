@@ -26,15 +26,22 @@
     <div class="table-card">
         <table>
             <thead>
-                <tr><th>Title</th><th>Subject</th><th>Class</th><th>Due Date</th></tr>
+                <tr><th>Title</th><th>Description</th><th>Subject</th><th>Class</th><th>Due Date</th>{% if not read_only %}<th>Actions</th>{% endif %}</tr>
             </thead>
             <tbody>
                 {% for h in homework %}
                 <tr>
                     <td>{{ h.title }}</td>
+                    <td>{{ h.description|default:"—"|truncatechars:50 }}</td>
                     <td>{{ h.subject.name }}</td>
                     <td>{{ h.class_name }}</td>
                     <td>{{ h.due_date|date:"M d, Y" }}</td>
+                    {% if not read_only %}
+                    <td>
+                        <a href="{% url 'academics:homework_edit' h.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                        <a href="{% url 'academics:homework_delete' h.pk %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this homework?');">Delete</a>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -44,4 +51,15 @@
     <div class="empty-state">No homework assigned yet.</div>
     {% endif %}
 </div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
+}
+</style>
 {% endblock %}

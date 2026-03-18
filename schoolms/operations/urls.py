@@ -7,6 +7,7 @@ urlpatterns = [
     # Student Attendance
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("attendance/mark/", views.attendance_mark, name="attendance_mark"),
+    path("attendance/edit/<int:pk>/", views.attendance_edit, name="attendance_edit"),
     path("attendance/delete/<int:pk>/", views.attendance_delete, name="attendance_delete"),
     
     # Teacher Attendance

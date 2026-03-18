@@ -336,6 +336,27 @@ def textbook_delete(request, pk):
 
 
 @login_required
+def attendance_edit(request, pk):
+    """Edit an attendance record."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not user_can_manage_school(request.user):
+        return redirect("operations:attendance_list")
+    attendance = get_object_or_404(StudentAttendance, pk=pk, school=school)
+    if request.method == "POST":
+        status = request.POST.get("status")
+        if status in ["present", "absent", "late", "excused"]:
+            attendance.status = status
+            attendance.save()
+            from django.contrib import messages
+            messages.success(request, "Attendance updated successfully!")
+            return redirect("operations:attendance_list")
+    return render(request, "operations/attendance_edit.html", {"attendance": attendance, "school": school})
+
+
+@login_required
 def attendance_delete(request, pk):
     """Delete an attendance record."""
     from accounts.permissions import user_can_manage_school

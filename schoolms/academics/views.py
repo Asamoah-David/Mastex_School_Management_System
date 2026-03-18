@@ -689,6 +689,56 @@ def homework_create(request):
 
 
 @login_required
+def homework_edit(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    homework = get_object_or_404(Homework, pk=pk, school=school)
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        desc = request.POST.get("description", "").strip()
+        class_name = request.POST.get("class_name", "").strip()
+        subject_id = request.POST.get("subject")
+        due = request.POST.get("due_date")
+        if title and class_name and subject_id and due:
+            try:
+                subject = Subject.objects.get(id=subject_id, school=school)
+                from datetime import datetime
+                due_d = datetime.strptime(due, "%Y-%m-%d").date()
+                homework.title = title
+                homework.description = desc
+                homework.class_name = class_name
+                homework.subject = subject
+                homework.due_date = due_d
+                homework.save()
+                messages.success(request, "Homework updated.")
+                return redirect("academics:homework_list")
+            except (Subject.DoesNotExist, ValueError):
+                pass
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
+    classes = [c for c in classes if c]
+    return render(request, "academics/homework_form.html", {"school": school, "subjects": subjects, "classes": classes, "homework": homework})
+
+
+@login_required
+def homework_delete(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    homework = get_object_or_404(Homework, pk=pk, school=school)
+    if request.method == "POST":
+        homework.delete()
+        messages.success(request, "Homework deleted.")
+        return redirect("academics:homework_list")
+    return render(request, "accounts/confirm_delete.html", {"object": homework, "type": "homework"})
+
+
+@login_required
 def exam_schedule_list(request):
     school = _get_school(request)
     if not school:
@@ -792,6 +842,75 @@ def exam_schedule_create(request):
         "academics/exam_schedule_form.html",
         {"school": school, "terms": terms, "subjects": subjects, "classes": classes},
     )
+
+
+@login_required
+def exam_schedule_edit(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    exam = get_object_or_404(ExamSchedule, pk=pk, school=school)
+    if request.method == "POST":
+        term_id = request.POST.get("term")
+        subject_id = request.POST.get("subject")
+        class_name = (request.POST.get("class_name") or "").strip()
+        exam_date = request.POST.get("exam_date")
+        start = request.POST.get("start_time") or None
+        end = request.POST.get("end_time") or None
+        room = request.POST.get("room", "").strip()
+        notes = request.POST.get("notes", "").strip()
+        if term_id and subject_id and exam_date:
+            try:
+                from datetime import datetime
+                term = Term.objects.get(id=term_id, school=school)
+                subject = Subject.objects.get(id=subject_id, school=school)
+                exam_d = datetime.strptime(exam_date, "%Y-%m-%d").date()
+                st = None
+                en = None
+                if start and start.strip():
+                    st = datetime.strptime(start.strip(), "%H:%M").time()
+                if end and end.strip():
+                    en = datetime.strptime(end.strip(), "%H:%M").time()
+                exam.term = term
+                exam.subject = subject
+                exam.class_name = class_name
+                exam.exam_date = exam_d
+                exam.start_time = st
+                exam.end_time = en
+                exam.room = room
+                exam.notes = notes
+                exam.save()
+                messages.success(request, "Exam schedule updated.")
+                return redirect("academics:exam_schedule_list")
+            except (Term.DoesNotExist, Subject.DoesNotExist, ValueError, TypeError):
+                pass
+    _ensure_core_academics_for_school(school)
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    classes = Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
+    classes = [c for c in classes if c]
+    return render(
+        request,
+        "academics/exam_schedule_form.html",
+        {"school": school, "terms": terms, "subjects": subjects, "classes": classes, "exam": exam},
+    )
+
+
+@login_required
+def exam_schedule_delete(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    exam = get_object_or_404(ExamSchedule, pk=pk, school=school)
+    if request.method == "POST":
+        exam.delete()
+        messages.success(request, "Exam schedule deleted.")
+        return redirect("academics:exam_schedule_list")
+    return render(request, "accounts/confirm_delete.html", {"object": exam, "type": "exam schedule"})
 
 
 @login_required

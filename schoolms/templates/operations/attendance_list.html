@@ -19,7 +19,10 @@
                 <td>{{ a.date }}</td>
                 <td>{{ a.get_status_display }}</td>
                 <td>{{ a.notes|default:"—" }}</td>
-                <td><a href="{% url 'operations:attendance_delete' a.pk %}" class="btn btn-danger btn-sm">Delete</a></td>
+                <td>
+                    <a href="{% url 'operations:attendance_edit' a.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                    <a href="{% url 'operations:attendance_delete' a.pk %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this record?');">Delete</a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

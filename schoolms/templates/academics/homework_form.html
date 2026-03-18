@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Add Homework - {{ school.name }}{% endblock %}
-{% block page_title %}Add Homework{% endblock %}
-{% block page_subtitle %}Create an assignment{% endblock %}
+{% block title %}{% if homework %}Edit Homework{% else %}Add Homework{% endif %} - {{ school.name }}{% endblock %}
+{% block page_title %}{% if homework %}Edit Homework{% else %}Add Homework{% endif %}{% endblock %}
+{% block page_subtitle %}{% if homework %}Update an assignment{% else %}Create an assignment{% endif %}{% endblock %}
 
 {% block content %}
 <div class="content-card">
@@ -9,14 +9,14 @@
         {% csrf_token %}
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Title</label>
-            <input type="text" name="title" required maxlength="200" style="width:100%;padding:0.5rem;">
+            <input type="text" name="title" required maxlength="200" style="width:100%;padding:0.5rem;" value="{{ homework.title|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Subject</label>
             <select name="subject" required style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for s in subjects %}
-                <option value="{{ s.id }}">{{ s.name }}</option>
+                <option value="{{ s.id }}" {% if homework.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -25,20 +25,20 @@
             <select name="class_name" required style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for c in classes %}
-                <option value="{{ c }}">{{ c }}</option>
+                <option value="{{ c }}" {% if homework.class_name == c %}selected{% endif %}>{{ c }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Description</label>
-            <textarea name="description" rows="3" style="width:100%;padding:0.5rem;"></textarea>
+            <textarea name="description" rows="3" style="width:100%;padding:0.5rem;">{{ homework.description|default:'' }}</textarea>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Due Date</label>
-            <input type="date" name="due_date" required style="padding:0.5rem;">
+            <input type="date" name="due_date" required style="padding:0.5rem;" value="{{ homework.due_date|date:'Y-m-d'|default:'' }}">
         </div>
         <div class="button-row">
-            <button type="submit" class="btn btn-primary">Add</button>
+            <button type="submit" class="btn btn-primary">{% if homework %}Update{% else %}Add{% endif %}</button>
             <a href="{% url 'academics:homework_list' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>

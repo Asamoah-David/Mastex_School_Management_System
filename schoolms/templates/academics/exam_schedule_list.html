@@ -38,7 +38,7 @@
     <div class="table-card">
         <table>
             <thead>
-                <tr><th>Subject</th><th>Term</th><th>Class</th><th>Date</th><th>Time</th><th>Room</th></tr>
+                <tr><th>Subject</th><th>Term</th><th>Class</th><th>Date</th><th>Time</th><th>Room</th>{% if not read_only %}<th>Actions</th>{% endif %}</tr>
             </thead>
             <tbody>
                 {% for e in exams %}
@@ -49,6 +49,12 @@
                     <td>{{ e.exam_date|date:"M d, Y" }}</td>
                     <td>{% if e.start_time %}{{ e.start_time|time:"H:i" }}{% if e.end_time %} - {{ e.end_time|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
                     <td>{{ e.room|default:"-" }}</td>
+                    {% if not read_only %}
+                    <td>
+                        <a href="{% url 'academics:exam_schedule_edit' e.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                        <a href="{% url 'academics:exam_schedule_delete' e.pk %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this exam?');">Delete</a>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -58,4 +64,15 @@
     <div class="empty-state">No exams scheduled yet.</div>
     {% endif %}
 </div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
+}
+</style>
 {% endblock %}

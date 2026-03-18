@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Schedule Exam - {{ school.name }}{% endblock %}
-{% block page_title %}Schedule Exam{% endblock %}
-{% block page_subtitle %}Add exam to timetable{% endblock %}
+{% block title %}{% if exam %}Edit Exam Schedule{% else %}Schedule Exam{% endif %} - {{ school.name }}{% endblock %}
+{% block page_title %}{% if exam %}Edit Exam Schedule{% else %}Schedule Exam{% endif %}{% endblock %}
+{% block page_subtitle %}{% if exam %}Update exam schedule{% else %}Add exam to timetable{% endif %}{% endblock %}
 
 {% block content %}
 <div class="content-card">
@@ -12,7 +12,7 @@
             <select id="term" name="term" required title="Select the academic term" style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for t in terms %}
-                <option value="{{ t.id }}">{{ t.name }}</option>
+                <option value="{{ t.id }}" {% if exam.term_id == t.id %}selected{% endif %}>{{ t.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -21,7 +21,7 @@
             <select id="subject" name="subject" required title="Select the subject" style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for s in subjects %}
-                <option value="{{ s.id }}">{{ s.name }}</option>
+                <option value="{{ s.id }}" {% if exam.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -30,7 +30,7 @@
             <select id="class_name" name="class_name" title="Select the class or group" style="padding:0.5rem;">
                 <option value="">All classes</option>
                 {% for c in classes %}
-                <option value="{{ c }}">{{ c }}</option>
+                <option value="{{ c }}" {% if exam.class_name == c %}selected{% endif %}>{{ c }}</option>
                 {% endfor %}
                 <option value="SHS 1">SHS 1</option>
                 <option value="SHS 2">SHS 2</option>
@@ -39,26 +39,27 @@
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label for="exam_date">Exam Date</label>
-            <input type="date" id="exam_date" name="exam_date" required title="Enter the exam date" style="padding:0.5rem;">
+            <input type="date" id="exam_date" name="exam_date" required title="Enter the exam date" style="padding:0.5rem;" value="{{ exam.exam_date|date:'Y-m-d'|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label for="start_time">Start Time (optional)</label>
-            <input type="time" id="start_time" name="start_time" title="Enter the start time" style="padding:0.5rem;">
+            <input type="time" id="start_time" name="start_time" title="Enter the start time" style="padding:0.5rem;" value="{{ exam.start_time|time:'H:i'|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label for="end_time">End Time (optional)</label>
-            <input type="time" id="end_time" name="end_time" title="Enter the end time" style="padding:0.5rem;">
+            <input type="time" id="end_time" name="end_time" title="Enter the end time" style="padding:0.5rem;" value="{{ exam.end_time|time:'H:i'|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label for="room">Room</label>
-            <input type="text" id="room" name="room" maxlength="50" title="Enter the room number" style="padding:0.5rem;">
+            <input type="text" id="room" name="room" maxlength="50" title="Enter the room number" style="padding:0.5rem;" value="{{ exam.room|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label for="notes">Notes</label>
-            <textarea id="notes" name="notes" rows="2" title="Enter any additional notes" style="width:100%;padding:0.5rem;"></textarea>
+            <textarea id="notes" name="notes" rows="2" title="Enter any additional notes" style="width:100%;padding:0.5rem;">{{ exam.notes|default:'' }}</textarea>
         </div>
         <div class="button-row">
-            <button type="submit" class="btn btn-primary">Schedule</button>
+            <button type="submit" class="btn btn-primary">{% if exam %}Update{% else %}Schedule{% endif %}</button>
+            <a href="{% url 'academics:exam_schedule_list' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>
