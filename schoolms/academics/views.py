@@ -579,7 +579,13 @@ def result_delete(request, pk):
         result.delete()
         messages.success(request, "Result deleted successfully!")
         return redirect("academics:result_list")
-    return render(request, "accounts/confirm_delete.html", {"object": result, "type": "result"})
+    # Pass a custom name for the template to display
+    student_name = result.student.user.get_full_name() or getattr(result.student.user, 'username', 'Unknown')
+    return render(request, "accounts/confirm_delete.html", {
+        "object": result, 
+        "type": "result",
+        "custom_name": f"{student_name} - {result.subject.name} ({result.score})"
+    })
 
 
 @login_required
