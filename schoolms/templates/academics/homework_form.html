@@ -8,12 +8,12 @@
     <form method="post">
         {% csrf_token %}
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Title</label>
-            <input type="text" name="title" required maxlength="200" style="width:100%;padding:0.5rem;" value="{{ homework.title|default:'' }}">
+            <label for="id_title">Title</label>
+            <input type="text" id="id_title" name="title" required maxlength="200" style="width:100%;padding:0.5rem;" value="{{ homework.title|default:'' }}" placeholder="Enter homework title">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Subject</label>
-            <select name="subject" required style="padding:0.5rem;">
+            <label for="id_subject">Subject</label>
+            <select id="id_subject" name="subject" required style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for s in subjects %}
                 <option value="{{ s.id }}" {% if homework.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
@@ -21,8 +21,8 @@
             </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Class</label>
-            <select name="class_name" required style="padding:0.5rem;">
+            <label for="id_class_name">Class</label>
+            <select id="id_class_name" name="class_name" required style="padding:0.5rem;">
                 <option value="">-- Select --</option>
                 {% for c in classes %}
                 <option value="{{ c }}" {% if homework.class_name == c %}selected{% endif %}>{{ c }}</option>
@@ -30,12 +30,12 @@
             </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Description</label>
-            <textarea name="description" rows="3" style="width:100%;padding:0.5rem;">{{ homework.description|default:'' }}</textarea>
+            <label for="id_description">Description</label>
+            <textarea id="id_description" name="description" rows="3" style="width:100%;padding:0.5rem;" placeholder="Enter homework description">{{ homework.description|default:'' }}</textarea>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Due Date</label>
-            <input type="date" name="due_date" required style="padding:0.5rem;" value="{{ homework.due_date|date:'Y-m-d'|default:'' }}">
+            <label for="id_due_date">Due Date</label>
+            <input type="date" id="id_due_date" name="due_date" required style="padding:0.5rem;" value="{{ homework.due_date|date:'Y-m-d'|default:'' }}">
         </div>
         <div class="button-row">
             <button type="submit" class="btn btn-primary">{% if homework %}Update{% else %}Add{% endif %}</button>
