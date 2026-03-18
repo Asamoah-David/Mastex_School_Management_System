@@ -584,7 +584,8 @@ def result_delete(request, pk):
     return render(request, "accounts/confirm_delete.html", {
         "object": result, 
         "type": "result",
-        "custom_name": f"{student_name} - {result.subject.name} ({result.score})"
+        "custom_name": f"{student_name} - {result.subject.name} ({result.score})",
+        "cancel_url": "academics:result_list"
     })
 
 

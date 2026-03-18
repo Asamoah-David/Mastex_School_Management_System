@@ -17,28 +17,30 @@
     
     {# Show summary of all saved results for this class/term #}
     {% if all_results %}
-    <div class="table-card" style="margin-bottom: 1rem; background: #f0f9ff;">
-        <h4 style="margin: 0 0 0.5rem 0;">📊 Saved Scores Summary</h4>
-        <table style="font-size: 0.85rem;">
-            <thead>
-                <tr>
-                    <th>Subject</th>
-                    <th>Exam Type</th>
-                    <th>Students Recorded</th>
-                    <th>Avg Score</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for r in all_results %}
-                <tr>
-                    <td>{{ r.subject }}</td>
-                    <td>{{ r.exam_type }}</td>
-                    <td>{{ r.count }}</td>
-                    <td>{{ r.avg_score|floatformat:1 }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #ffffff;">
+        <h4 style="margin: 0 0 0.75rem 0; color: #1e293b;">Saved Scores Summary</h4>
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Subject</th>
+                        <th>Exam Type</th>
+                        <th>Students Recorded</th>
+                        <th>Avg Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in all_results %}
+                    <tr>
+                        <td>{{ r.subject }}</td>
+                        <td>{{ r.exam_type }}</td>
+                        <td>{{ r.count }}</td>
+                        <td>{{ r.avg_score|floatformat:1 }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
     {% endif %}
     
