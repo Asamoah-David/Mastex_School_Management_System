@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Edit Result · {{ school.name }}{% endblock %}
+{% block page_title %}Edit Result{% endblock %}
+{% block page_subtitle %}{{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <p><strong>Student:</strong> {{ result.student.user.get_full_name|default:result.student.user.username }}</p>
+    <p><strong>Subject:</strong> {{ result.subject.name }}</p>
+    <p><strong>Exam Type:</strong> {{ result.exam_type.name|default:"-" }}</p>
+    <p><strong>Term:</strong> {{ result.term.name|default:"-" }}</p>
+    
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="score">Score</label>
+            <input type="number" id="score" name="score" required min="0" max="100" step="0.1" 
+                   value="{{ result.score }}" style="width:100%;padding:0.5rem;">
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="{% url 'academics:result_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

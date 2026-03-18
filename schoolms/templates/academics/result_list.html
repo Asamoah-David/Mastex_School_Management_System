@@ -48,6 +48,7 @@
                 <th>Exam</th>
                 <th>Term</th>
                 <th>Score</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -60,6 +61,10 @@
                 <td>{{ r.exam_type.name|default:"—" }}</td>
                 <td>{{ r.term.name|default:"—" }}</td>
                 <td>{{ r.score }}</td>
+                <td>
+                    <a href="{% url 'academics:result_edit' r.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                    <a href="{% url 'academics:result_delete' r.pk %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this result?');">Delete</a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -69,5 +74,14 @@
 <div class="empty-state">No results found.</div>
 {% endif %}
 
+<style>
+.btn-sm {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #f97373, #dc2626) !important;
+    color: #ffffff !important;
+}
+</style>
 {% endblock %}
-

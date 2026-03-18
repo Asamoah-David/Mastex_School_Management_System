@@ -547,6 +547,42 @@ def result_list(request):
 
 
 @login_required
+def result_edit(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    result = get_object_or_404(Result, pk=pk, student__school=school)
+    if request.method == "POST":
+        score = request.POST.get("score")
+        if score:
+            try:
+                result.score = float(score)
+                result.save()
+                messages.success(request, "Result updated successfully!")
+            except ValueError:
+                messages.error(request, "Invalid score value.")
+        return redirect("academics:result_list")
+    return render(request, "academics/result_edit.html", {"result": result, "school": school})
+
+
+@login_required
+def result_delete(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    result = get_object_or_404(Result, pk=pk, student__school=school)
+    if request.method == "POST":
+        result.delete()
+        messages.success(request, "Result deleted successfully!")
+        return redirect("academics:result_list")
+    return render(request, "accounts/confirm_delete.html", {"object": result, "type": "result"})
+
+
+@login_required
 def report_card_generator(request):
     """
     Staff workflow: select class/student/term, then jump to the report card view.
