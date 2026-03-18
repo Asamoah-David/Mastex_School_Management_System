@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Performance Analytics</h2>
+    
+    <form method="get" class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label>Class</label>
+            <select name="class" class="form-control">
+                <option value="">All Classes</option>
+                {% for cls in classes %}
+                <option value="{{ cls }}" {% if selected_class == cls %}selected{% endif %}>{{ cls }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label>Term</label>
+            <select name="term" class="form-control">
+                <option value="">All Terms</option>
+                {% for term in terms %}
+                <option value="{{ term.id }}" {% if selected_term == term.id|stringformat:"s" %}selected{% endif %}>{{ term.name }}{% if term.is_current %} (Current){% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label>&nbsp;</label>
+            <button type="submit" class="btn btn-primary w-100">Filter</button>
+        </div>
+    </form>
+    
+    <!-- Overall Stats -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3>{{ class_stats|length }}</h3>
+                    <p class="text-muted">Classes with Results</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3>{{ subject_stats|length }}</h3>
+                    <p class="text-muted">Subjects</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3>{{ top_students|length }}</h3>
+                    <p class="text-muted">Top Students</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Class Performance -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Class Performance</h5>
+        </div>
+        <div class="card-body">
+            {% if class_stats %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Class</th>
+                            <th>Average Score</th>
+                            <th>Total Results</th>
+                            <th>Students Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in class_stats %}
+                        <tr>
+                            <td>{{ stat.class }}</td>
+                            <td>
+                                <span class="badge {% if stat.avg_score >= 60 %}bg-success{% elif stat.avg_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}">
+                                    {{ stat.avg_score }}%
+                                </span>
+                            </td>
+                            <td>{{ stat.total_results }}</td>
+                            <td>{{ stat.student_count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No class performance data available.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Subject Performance -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Subject Performance (Top 10)</h5>
+        </div>
+        <div class="card-body">
+            {% if subject_stats %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Average Score</th>
+                            <th>Total Results</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in subject_stats %}
+                        <tr>
+                            <td>{{ stat.subject }}</td>
+                            <td>
+                                <span class="badge {% if stat.avg_score >= 60 %}bg-success{% elif stat.avg_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}">
+                                    {{ stat.avg_score }}%
+                                </span>
+                            </td>
+                            <td>{{ stat.total_results }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No subject performance data available.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Top Students -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Top Performing Students</h5>
+        </div>
+        <div class="card-body">
+            {% if top_students %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Admission No.</th>
+                            <th>Class</th>
+                            <th>Average Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in top_students %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ student.student__user__first_name }} {{ student.student__user__last_name }}</td>
+                            <td>{{ student.student__admission_number }}</td>
+                            <td>{{ student.student__class_name }}</td>
+                            <td>
+                                <span class="badge bg-success">{{ student.avg_score|floatformat:1 }}%</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No student data available.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
