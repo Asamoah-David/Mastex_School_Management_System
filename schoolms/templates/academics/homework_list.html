@@ -12,7 +12,7 @@
             {% endif %}
             {% if classes %}
             <form method="get" style="display:inline;margin-left:0.5rem;">
-                <select name="class" onchange="this.form.submit()" style="padding:0.4rem;">
+                <select name="class" onchange="this.form.submit()" title="Filter by class" style="padding:0.4rem;">
                     <option value="">All classes</option>
                     {% for c in classes %}
                     <option value="{{ c }}" {% if request.GET.class == c %}selected{% endif %}>{{ c }}</option>
