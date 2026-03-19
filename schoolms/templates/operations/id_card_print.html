@@ -22,14 +22,14 @@
             
             <div>
                 <p style="margin: 0; font-weight: bold; font-size: 14px;">{{ id_card.student.get_full_name }}</p>
-                <p style="margin: 3px 0; font-size: 12px;">ID: {{ id_card.student.student_id }}</p>
-                <p style="margin: 3px 0; font-size: 12px;">Class: {{ id_card.student.current_class|default:"N/A" }}</p>
+                <p style="margin: 3px 0; font-size: 12px;">ID: {{ id_card.student.admission_number }}</p>
+                <p style="margin: 3px 0; font-size: 12px;">Class: {{ id_card.student.class_name|default:"N/A" }}</p>
             </div>
         </div>
         
         <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px;">
             <p style="margin: 2px 0;">Valid: {{ id_card.issue_date|date:"M Y" }} - {{ id_card.expiry_date|date:"M Y" }}</p>
-            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.guardian_phone|default:id_card.student.parent_phone|default:"N/A" }}</p>
+            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.emergency_contact_phone|default:id_card.student.parent.phone|default:"N/A" }}</p>
         </div>
     </div>
     
