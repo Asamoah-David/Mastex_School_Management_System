@@ -158,4 +158,37 @@ urlpatterns = [
     path("pt-meetings/create/", views.pt_meeting_create, name="pt_meeting_create"),
     path("pt-meetings/<int:pk>/", views.pt_meeting_detail, name="pt_meeting_detail"),
     path("pt-meetings/<int:pk>/book/", views.pt_meeting_book, name="pt_meeting_book"),
+    
+    # Health Records
+    path("health-records/", views.health_record_list, name="health_record_list"),
+    path("health-records/create/", views.health_record_create, name="health_record_create"),
+    path("health-visits/", views.health_visit_list, name="health_visit_list"),
+    path("health-visits/create/", views.health_visit_create, name="health_visit_create"),
+    
+    # Inventory Management
+    path("inventory/categories/", views.inventory_category_list, name="inventory_category_list"),
+    path("inventory/categories/create/", views.inventory_category_create, name="inventory_category_create"),
+    path("inventory/items/", views.inventory_item_list, name="inventory_item_list"),
+    path("inventory/items/create/", views.inventory_item_create, name="inventory_item_create"),
+    path("inventory/transactions/", views.inventory_transaction_list, name="inventory_transaction_list"),
+    path("inventory/transactions/create/", views.inventory_transaction_create, name="inventory_transaction_create"),
+    
+    # School Events
+    path("events/", views.school_event_list, name="school_event_list"),
+    path("events/create/", views.school_event_create, name="school_event_create"),
+    path("events/<int:pk>/", views.school_event_detail, name="school_event_detail"),
+    path("events/<int:pk>/rsvp/", views.school_event_rsvp, name="school_event_rsvp"),
+    
+    # Assignment Submissions
+    path("submissions/", views.assignment_submission_list, name="assignment_submission_list"),
+    path("submissions/<int:pk>/grade/", views.assignment_submission_grade, name="assignment_submission_grade"),
+    path("my-submissions/", views.my_submissions, name="my_submissions"),
+    
+    # Online Exams
+    path("online-exams/", views.online_exam_list, name="online_exam_list"),
+    path("online-exams/create/", views.online_exam_create, name="online_exam_create"),
+    path("online-exams/<int:pk>/", views.online_exam_detail, name="online_exam_detail"),
+    path("online-exams/<int:pk>/add-question/", views.online_exam_add_question, name="online_exam_add_question"),
+    path("online-exams/<int:pk>/take/", views.online_exam_take, name="online_exam_take"),
+    path("online-exams/result/<int:pk>/", views.online_exam_result, name="online_exam_result"),
 ]

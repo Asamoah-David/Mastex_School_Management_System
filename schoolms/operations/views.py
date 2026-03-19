@@ -50,6 +50,18 @@ from .models import (
     ExamHall,
     SeatingPlan,
     SeatAssignment,
+    StudentHealth,
+    HealthVisit,
+    InventoryCategory,
+    InventoryItem,
+    InventoryTransaction,
+    SchoolEvent,
+    EventRSVP,
+    AssignmentSubmission,
+    OnlineExam,
+    ExamQuestion,
+    ExamAttempt,
+    ExamAnswer,
 )
 
 
@@ -2742,6 +2754,678 @@ def pt_meeting_book(request, pk):
         'meeting': meeting,
         'children': children,
         'school': school
+    })
+
+
+# ==================== HEALTH RECORDS ====================
+
+@login_required
+def health_record_list(request):
+    """List student health records."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    records = StudentHealth.objects.filter(school=school).select_related('student', 'student__user').order_by('-last_updated')[:200]
+    
+    return render(request, 'operations/health_record_list.html', {
+        'records': records,
+        'school': school
+    })
+
+
+@login_required
+def health_record_create(request):
+    """Create or update student health record."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    students = Student.objects.filter(school=school).exclude(
+        health_record__isnull=False
+    ).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        blood_type = request.POST.get('blood_type', '').strip()
+        allergies = request.POST.get('allergies', '').strip()
+        conditions = request.POST.get('medical_conditions', '').strip()
+        medications = request.POST.get('medications', '').strip()
+        emergency_contact = request.POST.get('emergency_contact', '').strip()
+        emergency_name = request.POST.get('emergency_contact_name', '').strip()
+        doctor_name = request.POST.get('doctor_name', '').strip()
+        doctor_phone = request.POST.get('doctor_phone', '').strip()
+        
+        if student_id:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                StudentHealth.objects.update_or_create(
+                    student=student,
+                    school=school,
+                    defaults={
+                        'blood_type': blood_type,
+                        'allergies': allergies,
+                        'medical_conditions': conditions,
+                        'medications': medications,
+                        'emergency_contact': emergency_contact,
+                        'emergency_contact_name': emergency_name,
+                        'doctor_name': doctor_name,
+                        'doctor_phone': doctor_phone,
+                    }
+                )
+                from django.contrib import messages
+                messages.success(request, 'Health record saved!')
+                return redirect('operations:health_record_list')
+    
+    return render(request, 'operations/health_record_form.html', {
+        'school': school,
+        'students': students
+    })
+
+
+@login_required
+def health_visit_list(request):
+    """List health clinic visits."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    visits = HealthVisit.objects.filter(school=school).select_related('student', 'student__user', 'visited_by').order_by('-visit_date')[:200]
+    
+    return render(request, 'operations/health_visit_list.html', {
+        'visits': visits,
+        'school': school
+    })
+
+
+@login_required
+def health_visit_create(request):
+    """Record a health clinic visit."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    students = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        complaint = request.POST.get('complaint', '').strip()
+        diagnosis = request.POST.get('diagnosis', '').strip()
+        treatment = request.POST.get('treatment', '').strip()
+        is_follow_up = request.POST.get('is_follow_up') == 'on'
+        
+        if student_id and complaint:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                HealthVisit.objects.create(
+                    school=school,
+                    student=student,
+                    complaint=complaint,
+                    diagnosis=diagnosis,
+                    treatment=treatment,
+                    visited_by=request.user,
+                    is_follow_up=is_follow_up
+                )
+                from django.contrib import messages
+                messages.success(request, 'Visit recorded!')
+                return redirect('operations:health_visit_list')
+    
+    return render(request, 'operations/health_visit_form.html', {
+        'school': school,
+        'students': students
+    })
+
+
+# ==================== INVENTORY MANAGEMENT ====================
+
+@login_required
+def inventory_category_list(request):
+    """List inventory categories."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    categories = InventoryCategory.objects.filter(school=school).order_by('name')
+    
+    return render(request, 'operations/inventory_category_list.html', {
+        'categories': categories,
+        'school': school
+    })
+
+
+@login_required
+def inventory_category_create(request):
+    """Create inventory category."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        
+        if name:
+            InventoryCategory.objects.create(school=school, name=name, description=description)
+            from django.contrib import messages
+            messages.success(request, 'Category created!')
+            return redirect('operations:inventory_category_list')
+    
+    return render(request, 'operations/inventory_category_form.html', {'school': school})
+
+
+@login_required
+def inventory_item_list(request):
+    """List inventory items."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    items = InventoryItem.objects.filter(school=school).select_related('category').order_by('name')[:300]
+    
+    return render(request, 'operations/inventory_item_list.html', {
+        'items': items,
+        'school': school
+    })
+
+
+@login_required
+def inventory_item_create(request):
+    """Create inventory item."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    categories = InventoryCategory.objects.filter(school=school)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        category_id = request.POST.get('category')
+        quantity = request.POST.get('quantity', 0)
+        min_quantity = request.POST.get('min_quantity', 5)
+        unit_cost = request.POST.get('unit_cost', 0)
+        condition = request.POST.get('condition', 'new')
+        location = request.POST.get('location', '').strip()
+        description = request.POST.get('description', '').strip()
+        serial = request.POST.get('serial_number', '').strip()
+        
+        if name:
+            category = InventoryCategory.objects.get(id=category_id, school=school) if category_id else None
+            InventoryItem.objects.create(
+                school=school, name=name, category=category,
+                quantity=int(quantity), min_quantity=int(min_quantity),
+                unit_cost=unit_cost, condition=condition,
+                location=location, description=description, serial_number=serial
+            )
+            from django.contrib import messages
+            messages.success(request, 'Item added!')
+            return redirect('operations:inventory_item_list')
+    
+    return render(request, 'operations/inventory_item_form.html', {
+        'school': school, 'categories': categories
+    })
+
+
+@login_required
+def inventory_transaction_list(request):
+    """List inventory transactions."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    transactions = InventoryTransaction.objects.filter(school=school).select_related('item', 'recorded_by').order_by('-created_at')[:200]
+    
+    return render(request, 'operations/inventory_transaction_list.html', {
+        'transactions': transactions,
+        'school': school
+    })
+
+
+@login_required
+def inventory_transaction_create(request):
+    """Record inventory transaction."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    items = InventoryItem.objects.filter(school=school).order_by('name')
+    
+    if request.method == 'POST':
+        item_id = request.POST.get('item')
+        trans_type = request.POST.get('transaction_type')
+        quantity = request.POST.get('quantity')
+        notes = request.POST.get('notes', '').strip()
+        
+        if item_id and trans_type and quantity:
+            item = InventoryItem.objects.filter(id=item_id, school=school).first()
+            if item:
+                qty = int(quantity)
+                if trans_type in ('usage', 'damage'):
+                    qty = -abs(qty)
+                
+                InventoryTransaction.objects.create(
+                    school=school, item=item, transaction_type=trans_type,
+                    quantity=qty, notes=notes, recorded_by=request.user
+                )
+                
+                # Update item quantity
+                item.quantity = max(0, item.quantity + qty)
+                item.save(update_fields=['quantity', 'last_updated'])
+                
+                from django.contrib import messages
+                messages.success(request, 'Transaction recorded!')
+                return redirect('operations:inventory_transaction_list')
+    
+    return render(request, 'operations/inventory_transaction_form.html', {
+        'school': school, 'items': items
+    })
+
+
+# ==================== SCHOOL EVENTS ====================
+
+@login_required
+def school_event_list(request):
+    """List school events."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    events = SchoolEvent.objects.filter(school=school).order_by('-start_date')[:100]
+    
+    return render(request, 'operations/school_event_list.html', {
+        'events': events,
+        'school': school
+    })
+
+
+@login_required
+def school_event_create(request):
+    """Create school event."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    if request.method == 'POST':
+        from datetime import datetime
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        event_type = request.POST.get('event_type', 'other')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date') or None
+        location = request.POST.get('location', '').strip()
+        target = request.POST.get('target_audience', 'all')
+        mandatory = request.POST.get('is_mandatory') == 'on'
+        
+        if title and start_date:
+            try:
+                start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M')
+            except:
+                try:
+                    start = datetime.strptime(start_date, '%Y-%m-%d')
+                except:
+                    start = timezone.now()
+            
+            end = None
+            if end_date:
+                try:
+                    end = datetime.strptime(end_date, '%Y-%m-%dT%H:%M')
+                except:
+                    try:
+                        end = datetime.strptime(end_date, '%Y-%m-%d')
+                    except:
+                        end = None
+            
+            SchoolEvent.objects.create(
+                school=school, title=title, description=description,
+                event_type=event_type, start_date=start, end_date=end,
+                location=location, target_audience=target,
+                is_mandatory=mandatory, created_by=request.user
+            )
+            from django.contrib import messages
+            messages.success(request, 'Event created!')
+            return redirect('operations:school_event_list')
+    
+    return render(request, 'operations/school_event_form.html', {'school': school})
+
+
+@login_required
+def school_event_detail(request, pk):
+    """View event details and RSVPs."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    event = get_object_or_404(SchoolEvent, pk=pk, school=school)
+    rsvps = EventRSVP.objects.filter(event=event).select_related('student', 'student__user')[:200]
+    
+    return render(request, 'operations/school_event_detail.html', {
+        'event': event,
+        'rsvps': rsvps,
+        'school': school
+    })
+
+
+@login_required
+def school_event_rsvp(request, pk):
+    """RSVP for an event (students/parents)."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    role = getattr(request.user, 'role', None)
+    if role not in ('student', 'parent'):
+        return redirect('home')
+    
+    event = get_object_or_404(SchoolEvent, pk=pk, school=school)
+    
+    if role == 'student':
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student:
+            EventRSVP.objects.update_or_create(
+                event=event, student=student,
+                defaults={'is_attending': True}
+            )
+    else:
+        children = Student.objects.filter(parent=request.user, school=school)
+        for child in children:
+            EventRSVP.objects.update_or_create(
+                event=event, student=child,
+                defaults={'is_attending': True}
+            )
+    
+    from django.contrib import messages
+    messages.success(request, 'RSVP confirmed!')
+    return redirect('operations:school_event_detail', pk=event.pk)
+
+
+# ==================== ASSIGNMENT SUBMISSIONS ====================
+
+@login_required
+def assignment_submission_list(request):
+    """List assignment submissions (teachers)."""
+    from accounts.permissions import user_can_manage_school
+    from academics.models import Homework
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    submissions = AssignmentSubmission.objects.filter(
+        homework__subject__school=school
+    ).select_related('homework', 'homework__subject', 'student', 'student__user', 'graded_by').order_by('-submitted_at')[:200]
+    
+    return render(request, 'operations/assignment_submission_list.html', {
+        'submissions': submissions,
+        'school': school
+    })
+
+
+@login_required
+def assignment_submission_grade(request, pk):
+    """Grade an assignment submission."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    submission = get_object_or_404(AssignmentSubmission, pk=pk)
+    
+    # Check school permission
+    if submission.homework.subject.school != school:
+        return redirect('home')
+    
+    if request.method == 'POST':
+        grade = request.POST.get('grade')
+        feedback = request.POST.get('feedback', '').strip()
+        
+        if grade:
+            submission.grade = grade
+            submission.feedback = feedback
+            submission.status = 'graded'
+            submission.graded_by = request.user
+            submission.graded_at = timezone.now()
+            submission.save()
+            
+            from django.contrib import messages
+            messages.success(request, 'Submission graded!')
+            return redirect('operations:assignment_submission_list')
+    
+    return render(request, 'operations/assignment_submission_grade.html', {
+        'submission': submission,
+        'school': school
+    })
+
+
+@login_required
+def my_submissions(request):
+    """Student's assignment submissions."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    role = getattr(request.user, 'role', None)
+    if role != 'student':
+        return redirect('home')
+    
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        return redirect('home')
+    
+    submissions = AssignmentSubmission.objects.filter(student=student).select_related(
+        'homework', 'homework__subject'
+    ).order_by('-submitted_at')[:100]
+    
+    return render(request, 'operations/my_submissions.html', {
+        'submissions': submissions,
+        'school': school
+    })
+
+
+# ==================== ONLINE EXAMS ====================
+
+@login_required
+def online_exam_list(request):
+    """List online exams."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    exams = OnlineExam.objects.filter(school=school).select_related('subject', 'created_by').order_by('-start_time')[:100]
+    
+    return render(request, 'operations/online_exam_list.html', {
+        'exams': exams,
+        'school': school
+    })
+
+
+@login_required
+def online_exam_create(request):
+    """Create online exam."""
+    from accounts.permissions import is_school_admin
+    from academics.models import Subject
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    
+    if request.method == 'POST':
+        from datetime import datetime
+        title = request.POST.get('title', '').strip()
+        subject_id = request.POST.get('subject')
+        class_level = request.POST.get('class_level', '').strip()
+        exam_type = request.POST.get('exam_type', 'quiz')
+        duration = request.POST.get('duration_minutes', 30)
+        total_marks = request.POST.get('total_marks', 100)
+        passing = request.POST.get('passing_marks', 50)
+        start_time = request.POST.get('start_time')
+        end_time = request.POST.get('end_time')
+        
+        if title and subject_id and start_time and end_time:
+            subject = Subject.objects.filter(id=subject_id, school=school).first()
+            if subject:
+                try:
+                    start = datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
+                    end = datetime.strptime(end_time, '%Y-%m-%dT%H:%M')
+                    
+                    exam = OnlineExam.objects.create(
+                        school=school, title=title, subject=subject,
+                        class_level=class_level, exam_type=exam_type,
+                        duration_minutes=int(duration), total_marks=total_marks,
+                        passing_marks=passing, start_time=start, end_time=end,
+                        created_by=request.user, status='draft'
+                    )
+                    from django.contrib import messages
+                    messages.success(request, 'Exam created! Add questions next.')
+                    return redirect('operations:online_exam_detail', pk=exam.pk)
+                except Exception:
+                    pass
+    
+    return render(request, 'operations/online_exam_form.html', {
+        'school': school, 'subjects': subjects
+    })
+
+
+@login_required
+def online_exam_detail(request, pk):
+    """View exam details and questions."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    exam = get_object_or_404(OnlineExam, pk=pk, school=school)
+    questions = ExamQuestion.objects.filter(exam=exam).order_by('order')
+    
+    return render(request, 'operations/online_exam_detail.html', {
+        'exam': exam,
+        'questions': questions,
+        'school': school
+    })
+
+
+@login_required
+def online_exam_add_question(request, pk):
+    """Add question to online exam."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    exam = get_object_or_404(OnlineExam, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        question_text = request.POST.get('question_text', '').strip()
+        q_type = request.POST.get('question_type', 'multiple_choice')
+        marks = request.POST.get('marks', 1)
+        option_a = request.POST.get('option_a', '').strip()
+        option_b = request.POST.get('option_b', '').strip()
+        option_c = request.POST.get('option_c', '').strip()
+        option_d = request.POST.get('option_d', '').strip()
+        correct = request.POST.get('correct_answer', '').strip()
+        order = exam.questions.count() + 1
+        
+        if question_text:
+            ExamQuestion.objects.create(
+                exam=exam, question_text=question_text, question_type=q_type,
+                marks=marks, option_a=option_a, option_b=option_b,
+                option_c=option_c, option_d=option_d, correct_answer=correct.upper(),
+                order=order
+            )
+            from django.contrib import messages
+            messages.success(request, 'Question added!')
+            return redirect('operations:online_exam_detail', pk=exam.pk)
+    
+    return render(request, 'operations/online_exam_question_form.html', {
+        'exam': exam, 'school': school
+    })
+
+
+@login_required
+def online_exam_take(request, pk):
+    """Take online exam (students)."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    role = getattr(request.user, 'role', None)
+    if role != 'student':
+        return redirect('home')
+    
+    exam = get_object_or_404(OnlineExam, pk=pk, school=school)
+    student = Student.objects.filter(user=request.user, school=school).first()
+    
+    if not student:
+        return redirect('home')
+    
+    # Check if already attempted
+    attempt = ExamAttempt.objects.filter(exam=exam, student=student).first()
+    if attempt and attempt.is_completed:
+        from django.contrib import messages
+        messages.warning(request, 'You have already completed this exam.')
+        return redirect('operations:online_exam_result', pk=attempt.pk)
+    
+    # Create attempt if not exists
+    if not attempt:
+        attempt = ExamAttempt.objects.create(exam=exam, student=student)
+    
+    questions = ExamQuestion.objects.filter(exam=exam).order_by('order')
+    
+    if request.method == 'POST':
+        for key, value in request.POST.items():
+            if key.startswith('answer_'):
+                q_id = key.replace('answer_', '')
+                question = ExamQuestion.objects.filter(id=q_id, exam=exam).first()
+                if question:
+                    is_correct = (value.upper() == question.correct_answer.upper())
+                    marks = question.marks if is_correct else 0
+                    ExamAnswer.objects.update_or_create(
+                        attempt=attempt, question=question,
+                        defaults={'answer_given': value, 'is_correct': is_correct, 'marks_obtained': marks}
+                    )
+        
+        # Calculate total score
+        total = attempt.answers.aggregate(Sum('marks_obtained'))['marks_obtained__sum'] or 0
+        attempt.score = total
+        attempt.is_completed = True
+        attempt.submitted_at = timezone.now()
+        attempt.save()
+        
+        from django.contrib import messages
+        messages.success(request, f'Exam submitted! Score: {total}')
+        return redirect('operations:online_exam_result', pk=attempt.pk)
+    
+    return render(request, 'operations/online_exam_take.html', {
+        'exam': exam, 'questions': questions, 'attempt': attempt, 'school': school
+    })
+
+
+@login_required
+def online_exam_result(request, pk):
+    """View exam attempt result."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    attempt = get_object_or_404(ExamAttempt, pk=pk)
+    
+    if attempt.student.user != request.user and not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    answers = ExamAnswer.objects.filter(attempt=attempt).select_related('question')
+    
+    return render(request, 'operations/online_exam_result.html', {
+        'attempt': attempt, 'answers': answers, 'school': school
     })
 
 
