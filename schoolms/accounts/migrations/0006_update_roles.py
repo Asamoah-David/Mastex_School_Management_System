@@ -1,6 +1,6 @@
 # Generated manually for expanded role system
 
-from django.db import migrations
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
