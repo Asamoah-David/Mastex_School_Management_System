@@ -4,11 +4,15 @@
 {% block page_title %}Student Behavior Points{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>🎯 Behavior Points</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>🎯 Behavior Points</h2>
+        <a href="{% url 'operations:behavior_points_create' %}" class="btn btn-primary">➕ Award Points</a>
+    </div>
+    
     {% if students %}
     <table class="data-table">
         <thead>
-            <tr><th>Student</th><th>Class</th><th>Positive</th><th>Negative</th><th>Total</th></tr>
+            <tr><th>Student</th><th>Class</th><th>Positive</th><th>Negative</th><th>Total</th><th>Actions</th></tr>
         </thead>
         <tbody>
         {% for student in students %}
@@ -18,6 +22,9 @@
             <td class="text-success">+{{ student.total_positive|default:0 }}</td>
             <td class="text-danger">-{{ student.total_negative|default:0 }}</td>
             <td>{{ student.total_positive|default:0|add:student.total_negative|default:0 }}</td>
+            <td>
+                <a href="{% url 'operations:behavior_points_create' %}?student={{ student.id }}" class="btn btn-sm btn-primary">➕ Add</a>
+            </td>
         </tr>
         {% endfor %}
         </tbody>
