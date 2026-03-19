@@ -3335,14 +3335,22 @@ def online_exam_list(request):
     """List online exams."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
         return redirect('home')
     
-    exams = OnlineExam.objects.filter(school=school).select_related('subject', 'created_by').order_by('-start_time')[:100]
+    # Allow both staff (can manage) and students to view exams
+    is_staff = user_can_manage_school(request.user)
+    
+    if is_staff:
+        exams = OnlineExam.objects.filter(school=school).select_related('subject', 'created_by').order_by('-start_time')[:100]
+    else:
+        # Students see available exams for their class
+        exams = OnlineExam.objects.filter(school=school, is_active=True).select_related('subject', 'created_by').order_by('-start_time')[:100]
     
     return render(request, 'operations/online_exam_list.html', {
         'exams': exams,
-        'school': school
+        'school': school,
+        'is_staff': is_staff
     })
 
 

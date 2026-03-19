@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}My Submissions - Mastex SchoolOS{% endblock %}
+
+{% block page_title %}My Submissions{% endblock %}
+{% block page_subtitle %}View your assignment submissions{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <h2 style="margin-top: 0; color: var(--accent);">📤 My Assignment Submissions</h2>
+    
+    {% if submissions %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment</th>
+                    <th>Homework</th>
+                    <th>Submitted</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for submission in submissions %}
+                <tr>
+                    <td>{{ submission.assignment.title|default:"Assignment" }}</td>
+                    <td>{{ submission.homework.title|default:"Homework" }}</td>
+                    <td>{{ submission.submitted_at|date:"M d, Y H:i" }}</td>
+                    <td>
+                        {% if submission.grade %}
+                        <span class="tag" style="color: var(--accent);">Graded: {{ submission.grade }}</span>
+                        {% else %}
+                        <span class="tag">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ submission.notes|default:"—"|truncatechars:30 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-state">No submissions found. Complete assignments and submit them to see them here.</p>
+    {% endif %}
+</div>
+{% endblock %}
