@@ -1,28 +1,51 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}Exam Halls - {{ school.name }}{% endblock %}
-{% block page_title %}Exam Halls{% endblock %}
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
-{% endblock %}
+{% block title %}Exam Halls · Mastex SchoolOS{% endblock %}
+{% block page_title %}Exam Hall Management{% endblock %}
+{% block page_subtitle %}Manage examination halls and seating capacity{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>🏫 Exam Halls</h2>
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:exam_hall_create' %}" class="btn btn-primary">+ Add Exam Hall</a>
+    <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary">Seating Plans</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Examination Halls</h3>
     {% if halls %}
-    <table class="data-table">
-        <thead><tr><th>Hall</th><th>Capacity</th><th>Description</th></tr></thead>
-        <tbody>
-        {% for hall in halls %}
-        <tr>
-            <td>{{ hall.name }}</td>
-            <td>{{ hall.total_seats }} seats</td>
-            <td>{{ hall.description|default:"N/A" }}</td>
-        </tr>
-        {% endfor %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Hall Name</th>
+                    <th>Rows × Seats</th>
+                    <th>Total Capacity</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for hall in halls %}
+            <tr>
+                <td><strong>{{ hall.name }}</strong></td>
+                <td>{{ hall.rows }} × {{ hall.seats_per_row }}</td>
+                <td>{{ hall.total_seats }}</td>
+                <td>{{ hall.description|default:"—" }}</td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No exam halls found.</p>
+    <div class="empty-state">
+        <p>No exam halls configured yet.</p>
+        <a href="{% url 'operations:exam_hall_create' %}" class="btn btn-primary mt-sm">Add First Hall</a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

@@ -1,31 +1,54 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}PT Meetings - {{ school.name }}{% endblock %}
+{% block title %}PT Meetings · Mastex SchoolOS{% endblock %}
 {% block page_title %}Parent-Teacher Meetings{% endblock %}
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
-{% endblock %}
+{% block page_subtitle %}Schedule and manage parent-teacher meetings{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>📅 Parent-Teacher Meetings</h2>
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:pt_meeting_create' %}" class="btn btn-primary">+ Schedule Meeting</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Upcoming Meetings</h3>
     {% if meetings %}
-    <table class="data-table">
-        <thead>
-            <tr><th>Title</th><th>Date</th><th>Location</th><th>Booked/Total</th></tr>
-        </thead>
-        <tbody>
-        {% for meeting in meetings %}
-        <tr>
-            <td>{{ meeting.title }}</td>
-            <td>{{ meeting.meeting_date|date:"M d, Y H:i" }}</td>
-            <td>{{ meeting.location }}</td>
-            <td>{{ meeting.booked_slots }}/{{ meeting.max_slots }}</td>
-        </tr>
-        {% endfor %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Date</th>
+                    <th>Location</th>
+                    <th>Booked/Total</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for meeting in meetings %}
+            <tr>
+                <td><strong>{{ meeting.title }}</strong></td>
+                <td>{{ meeting.meeting_date|date:"M d, Y H:i" }}</td>
+                <td>{{ meeting.location }}</td>
+                <td>{{ meeting.booked_slots }}/{{ meeting.max_slots }}</td>
+                <td>
+                    <a href="{% url 'operations:pt_meeting_detail' meeting.id %}" class="btn btn-secondary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No meetings scheduled.</p>
+    <div class="empty-state">
+        <p>No meetings scheduled yet.</p>
+        <a href="{% url 'operations:pt_meeting_create' %}" class="btn btn-primary mt-sm">Schedule First Meeting</a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

@@ -1,25 +1,57 @@
 {% extends "base.html" %}
-{% block title %}Alumni - {{ school.name }}{% endblock %}
-{% block page_title %}Alumni Records{% endblock %}
+{% block title %}Alumni · Mastex SchoolOS{% endblock %}
+{% block page_title %}Alumni Management{% endblock %}
+{% block page_subtitle %}Track past students and alumni events{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>🎓 Alumni</h2>
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary">+ Add Alumni</a>
+    <a href="{% url 'operations:alumni_event_list' %}" class="btn btn-secondary">Alumni Events</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Alumni Records</h3>
     {% if alumni %}
-    <table class="data-table">
-        <thead><tr><th>Name</th><th>Class</th><th>Year</th><th>Occupation</th></tr></thead>
-        <tbody>
-        {% for alum in alumni %}
-        <tr>
-            <td>{{ alum.first_name }} {{ alum.last_name }}</td>
-            <td>{{ alum.class_name }}</td>
-            <td>{{ alum.graduation_year }}</td>
-            <td>{{ alum.current_occupation|default:"N/A" }}</td>
-        </tr>
-        {% endfor %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Graduation Year</th>
+                    <th>Current Occupation</th>
+                    <th>Contact</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for a in alumni %}
+            <tr>
+                <td><strong>{{ a.first_name }} {{ a.last_name }}</strong></td>
+                <td>{{ a.class_name|default:"—" }}</td>
+                <td>{{ a.graduation_year }}</td>
+                <td>{{ a.current_occupation|default:"—" }}</td>
+                <td>{{ a.contact_email|default:a.contact_phone|default:"—" }}</td>
+                <td>
+                    <a href="{% url 'operations:alumni_detail' a.id %}" class="btn btn-secondary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No alumni records found.</p>
+    <div class="empty-state">
+        <p>No alumni records found.</p>
+        <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary mt-sm">Add First Alumni</a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

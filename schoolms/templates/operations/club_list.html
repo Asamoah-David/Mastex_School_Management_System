@@ -1,29 +1,62 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}Clubs - {{ school.name }}{% endblock %}
-{% block page_title %}School Clubs{% endblock %}
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
-{% endblock %}
+{% block title %}Clubs · Mastex SchoolOS{% endblock %}
+{% block page_title %}Clubs & Societies{% endblock %}
+{% block page_subtitle %}Manage school clubs and student activities{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>🎭 Clubs</h2>
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:club_create' %}" class="btn btn-primary">+ Add Club</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">School Clubs</h3>
     {% if clubs %}
-    <table class="data-table">
-        <thead><tr><th>Club</th><th>Category</th><th>Sponsor</th><th>Status</th></tr></thead>
-        <tbody>
-        {% for club in clubs %}
-        <tr>
-            <td>{{ club.name }}</td>
-            <td>{{ club.get_category_display }}</td>
-            <td>{% if club.sponsor %}{{ club.sponsor.get_full_name }}{% else %}N/A{% endif %}</td>
-            <td>{% if club.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</td>
-        </tr>
-        {% endfor %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Club Name</th>
+                    <th>Category</th>
+                    <th>Sponsor</th>
+                    <th>Meeting</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for club in clubs %}
+            <tr>
+                <td><strong>{{ club.name }}</strong></td>
+                <td>{{ club.get_category_display|default:club.category }}</td>
+                <td>{{ club.sponsor.get_full_name|default:"—" }}</td>
+                <td>{{ club.meeting_day|default:"—" }} {{ club.meeting_time|default:"" }}</td>
+                <td>
+                    {% if club.is_active %}
+                    <span style="color: #22c55e;">Active</span>
+                    {% else %}
+                    <span style="color: #ef4444;">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'operations:club_detail' club.id %}" class="btn btn-secondary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No clubs found.</p>
+    <div class="empty-state">
+        <p>No clubs configured yet.</p>
+        <a href="{% url 'operations:club_create' %}" class="btn btn-primary mt-sm">Add First Club</a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

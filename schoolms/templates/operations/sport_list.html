@@ -1,28 +1,58 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}Sports - {{ school.name }}{% endblock %}
-{% block page_title %}Sports Activities{% endblock %}
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
-{% endblock %}
+{% block title %}Sports · Mastex SchoolOS{% endblock %}
+{% block page_title %}Sports Management{% endblock %}
+{% block page_subtitle %}Manage school sports teams and activities{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>⚽ Sports</h2>
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:sport_create' %}" class="btn btn-primary">+ Add Sport</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Sports Teams</h3>
     {% if sports %}
-    <table class="data-table">
-        <thead><tr><th>Sport</th><th>Coach</th><th>Status</th></tr></thead>
-        <tbody>
-        {% for sport in sports %}
-        <tr>
-            <td>{{ sport.name }}</td>
-            <td>{% if sport.coach %}{{ sport.coach.get_full_name }}{% else %}N/A{% endif %}</td>
-            <td>{% if sport.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</td>
-        </tr>
-        {% endfor %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Sport Name</th>
+                    <th>Coach</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for sport in sports %}
+            <tr>
+                <td><strong>{{ sport.name }}</strong></td>
+                <td>{{ sport.coach.get_full_name|default:"—" }}</td>
+                <td>
+                    {% if sport.is_active %}
+                    <span style="color: #22c55e;">Active</span>
+                    {% else %}
+                    <span style="color: #ef4444;">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'operations:sport_detail' sport.id %}" class="btn btn-secondary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No sports found.</p>
+    <div class="empty-state">
+        <p>No sports configured yet.</p>
+        <a href="{% url 'operations:sport_create' %}" class="btn btn-primary mt-sm">Add First Sport</a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

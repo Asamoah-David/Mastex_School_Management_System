@@ -1,29 +1,54 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}Seating Plans - {{ school.name }}{% endblock %}
+{% block title %}Seating Plans · Mastex SchoolOS{% endblock %}
 {% block page_title %}Exam Seating Plans{% endblock %}
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
-{% endblock %}
+{% block page_subtitle %}Create and manage exam seating arrangements{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>🪑 Seating Plans</h2>
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:seating_plan_create' %}" class="btn btn-primary">+ Create Seating Plan</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Seating Plans</h3>
     {% if plans %}
-    <table class="data-table">
-        <thead><tr><th>Exam</th><th>Hall</th><th>Created By</th><th>Created</th></tr></thead>
-        <tbody>
-        {% for plan in plans %}
-        <tr>
-            <td>{% if plan.exam_schedule %}{{ plan.exam_schedule.subject.name|default:"N/A" }}{% else %}N/A{% endif %}</td>
-            <td>{{ plan.hall.name }}</td>
-            <td>{% if plan.created_by %}{{ plan.created_by.get_full_name }}{% else %}N/A{% endif %}</td>
-            <td>{{ plan.created_at|date:"M d, Y" }}</td>
-        </tr>
-        {% endfor %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Exam</th>
+                    <th>Hall</th>
+                    <th>Students Assigned</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for plan in plans %}
+            <tr>
+                <td><strong>{{ plan.exam_schedule.subject.name|default:"Exam" }}</strong><br><small>{{ plan.exam_schedule.exam_date|date:"M d, Y" }}</small></td>
+                <td>{{ plan.hall.name }}</td>
+                <td>{{ plan.assigned_seats }}/{{ plan.hall.total_seats }}</td>
+                <td>{{ plan.created_at|date:"M d, Y" }}</td>
+                <td>
+                    <a href="{% url 'operations:seating_plan_view' plan.id %}" class="btn btn-secondary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No seating plans found.</p>
+    <div class="empty-state">
+        <p>No seating plans created yet.</p>
+        <a href="{% url 'operations:seating_plan_create' %}" class="btn btn-primary mt-sm">Create First Plan</a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}
