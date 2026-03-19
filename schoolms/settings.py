@@ -118,6 +118,10 @@ AUTH_USER_MODEL = "accounts.User"
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Media files (uploads)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 # Use BigAutoField by default for primary keys to avoid warnings
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
