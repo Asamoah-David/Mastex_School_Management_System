@@ -121,9 +121,7 @@
         }
         
         /* Collapsible Section Styles */
-        .nav-section {
-            margin-bottom: 0.25rem;
-        }
+        .nav-section { margin-bottom: 0.25rem; }
         .nav-section-header {
             display: flex;
             align-items: center;
@@ -140,22 +138,11 @@
             border: 1px solid var(--accent-strong);
             transition: all 0.2s ease;
         }
-        .nav-section-header:hover {
-            background: rgba(34, 197, 94, 0.15);
-        }
-        .nav-section-header .toggle-icon {
-            font-size: 0.65rem;
-            transition: transform 0.2s ease;
-        }
-        .nav-section.collapsed .nav-section-header .toggle-icon {
-            transform: rotate(-90deg);
-        }
-        .nav-section.collapsed .nav-section-items {
-            display: none;
-        }
-        .nav-section-items {
-            margin-top: 0.35rem;
-        }
+        .nav-section-header:hover { background: rgba(34, 197, 94, 0.15); }
+        .nav-section-header .toggle-icon { font-size: 0.65rem; transition: transform 0.2s ease; }
+        .nav-section.collapsed .nav-section-header .toggle-icon { transform: rotate(-90deg); }
+        .nav-section.collapsed .nav-section-items { display: none; }
+        .nav-section-items { margin-top: 0.35rem; }
         
         .nav-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; }
         .nav-item {
@@ -170,11 +157,7 @@
             transition: background 0.15s, color 0.15s;
         }
         .nav-item:hover { color: var(--text-main); background: rgba(148,163,184,0.08); }
-        .nav-item--active {
-            background: var(--accent-soft);
-            border: 1px solid var(--accent-strong);
-            color: #e5ffe9;
-        }
+        .nav-item--active { background: var(--accent-soft); border: 1px solid var(--accent-strong); color: #e5ffe9; }
         .nav-item-icon { font-size: 0.9rem; width: 20px; text-align: center; }
         .nav-item-label { display: flex; flex-direction: column; gap: 0.02rem; }
         .nav-item-title { font-weight: 500; font-size: 0.8rem; }
@@ -295,9 +278,7 @@
                     </div>
                 </a>
                 <div class="nav-actions">
-                    <button type="button" id="sidebarToggle" class="nav-toggle" aria-label="Toggle navigation">
-                        ☰
-                    </button>
+                    <button type="button" id="sidebarToggle" class="nav-toggle" aria-label="Toggle navigation">☰</button>
                     {% if user.is_authenticated %}
                     <div class="profile-menu" id="profileMenu">
                         <button type="button" class="profile-trigger" id="profileTrigger" aria-haspopup="true" aria-expanded="false">
@@ -310,22 +291,10 @@
                                 <div class="menu-name">{{ user.get_full_name|default:user.username }}</div>
                                 <div class="menu-sub">{{ user.get_role_display|default:user.role }}{% if user.school %} · {{ user.school.name }}{% endif %}</div>
                             </div>
-                            <a class="menu-item" href="{% url 'accounts:profile' %}">
-                                <span class="menu-item-title">My Profile</span>
-                                <span class="menu-item-sub">View account details</span>
-                            </a>
-                            <a class="menu-item" href="{% url 'accounts:edit_profile' %}">
-                                <span class="menu-item-title">Edit Profile</span>
-                                <span class="menu-item-sub">Update name, email, phone</span>
-                            </a>
-                            <a class="menu-item" href="{% url 'accounts:password_change' %}">
-                                <span class="menu-item-title">Change Password</span>
-                                <span class="menu-item-sub">Update your password</span>
-                            </a>
-                            <a class="menu-item" href="{% url 'accounts:logout' %}">
-                                <span class="menu-item-title">Log out</span>
-                                <span class="menu-item-sub">Sign out of your account</span>
-                            </a>
+                            <a class="menu-item" href="{% url 'accounts:profile' %}"><span class="menu-item-title">My Profile</span><span class="menu-item-sub">View account details</span></a>
+                            <a class="menu-item" href="{% url 'accounts:edit_profile' %}"><span class="menu-item-title">Edit Profile</span><span class="menu-item-sub">Update name, email, phone</span></a>
+                            <a class="menu-item" href="{% url 'accounts:password_change' %}"><span class="menu-item-title">Change Password</span><span class="menu-item-sub">Update your password</span></a>
+                            <a class="menu-item" href="{% url 'accounts:logout' %}"><span class="menu-item-title">Log out</span><span class="menu-item-sub">Sign out of your account</span></a>
                         </div>
                     </div>
                     {% else %}
@@ -338,399 +307,556 @@
         <main class="layout">
             <aside class="sidebar">
                 <div class="sidebar-card">
-                    <!-- DASHBOARD SECTION -->
-                    {% if user.role == "school_admin" or user.role == "admin" %}
+                    <!-- ==================== SUPER ADMIN ==================== -->
+                    {% if user.role == "super_admin" or user.is_superuser %}
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
                             <span>📊 Dashboard</span>
                         </a>
                     </div>
-                    {% endif %}
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏛️ Platform</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'accounts:dashboard' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Platform Dashboard</span></div></a></li>
+                                <li><a href="{% url 'schools:school_list' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Schools</span></div></a></li>
+                                <li><a href="{% url 'school_register' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Register School</span></div></a></li>
+                                <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Activity Log</span></div></a></li>
+                                <li><a href="/admin/" class="nav-item"><span class="nav-item-icon">⚙️</span><div class="nav-item-label"><span class="nav-item-title">Django Admin</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                    {% if user.is_authenticated %}
-                        {% if user.role == "super_admin" or user.is_superuser %}
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>🏛️ Platform</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'accounts:dashboard' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Platform Dashboard</span></div></a></li>
-                                    <li><a href="{% url 'schools:school_list' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Schools</span></div></a></li>
-                                    <li><a href="{% url 'school_register' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Register School</span></div></a></li>
-                                    <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Activity Log</span></div></a></li>
-                                    <li><a href="/admin/" class="nav-item"><span class="nav-item-icon">⚙️</span><div class="nav-item-label"><span class="nav-item-title">Django Admin</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== SCHOOL ADMIN (Headteacher) ==================== -->
+                    {% elif user.role == "school_admin" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>👥 Users</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
-                        {% feature_enabled 'messaging' as feat_messaging %}
-                        {% if feat_messaging %}
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📱 Communications</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Broadcast SMS/Email</span></div></a></li>
-                                </ul>
-                            </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><span class="nav-item-icon">👔</span><div class="nav-item-label"><span class="nav-item-title">User Management</span></div></a></li>
+                                <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
+                                <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
+                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                                <li><a href="{% url 'students:class_list' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Classes</span></div></a></li>
+                            </ul>
                         </div>
-                        {% endif %}
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📖 Academics</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
+                                <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
+                                <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
+                                <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">📄</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
+                                <li><a href="{% url 'academics:grade_boundary_list' %}" class="nav-item"><span class="nav-item-icon">📏</span><div class="nav-item-label"><span class="nav-item-title">Grade Boundaries</span></div></a></li>
+                                <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>✅ Attendance</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">👥</span><div class="nav-item-label"><span class="nav-item-title">Student Attendance</span></div></a></li>
+                                <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>💰 Finance</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'finance:fee_structure_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Fee Structure</span></div></a></li>
+                                <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">💸</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
+                                <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Budget</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏢 Operations</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
+                                <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
+                                {% feature_enabled 'library' as feat_library %}{% if feat_library %}
+                                <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🎓 Students</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><span class="nav-item-icon">🏥</span><div class="nav-item-label"><span class="nav-item-title">Health Records</span></div></a></li>
+                                <li><a href="{% url 'operations:admission_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Admissions</span></div></a></li>
+                                <li><a href="{% url 'operations:certificate_list' %}" class="nav-item"><span class="nav-item-icon">📜</span><div class="nav-item-label"><span class="nav-item-title">Certificates</span></div></a></li>
+                                <li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">📁</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>
+                                <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><span class="nav-item-icon">🪪</span><div class="nav-item-label"><span class="nav-item-title">ID Cards</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>⚖️ Discipline</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Incidents</span></div></a></li>
+                                <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">⭐</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>⚽ Activities</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:sport_list' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">Sports</span></div></a></li>
+                                <li><a href="{% url 'operations:club_list' %}" class="nav-item"><span class="nav-item-icon">🎭</span><div class="nav-item-label"><span class="nav-item-title">Clubs</span></div></a></li>
+                                <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">Events</span></div></a></li>
+                                <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📦 Inventory</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">📦</span><div class="nav-item-label"><span class="nav-item-title">Items</span></div></a></li>
+                                <li><a href="{% url 'operations:inventory_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Categories</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>👔 Admin</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">School Settings</span></div></a></li>
+                                <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Activity Log</span></div></a></li>
+                                {% feature_enabled 'messaging' as feat_messaging %}{% if feat_messaging %}
+                                <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Messaging</span></div></a></li>
+                                {% endif %}
+                                {% feature_enabled 'ai_assistant' as feat_ai %}{% if feat_ai %}
+                                <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
 
-                        {% elif user.role == "school_admin" or user.role == "admin" %}
-                        
-                        <!-- USER MANAGEMENT SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>👥 Users</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><span class="nav-item-icon">👔</span><div class="nav-item-label"><span class="nav-item-title">User Management</span></div></a></li>
-                                    <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff List</span></div></a></li>
-                                    <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
-                                    <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
-                                    <li><a href="{% url 'students:class_list' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Classes</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== DEPUTY HEAD / HOD ==================== -->
+                    {% elif user.role == "deputy_head" or user.role == "hod" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>👥 Users</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
+                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📖 Academics</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
+                                <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">📄</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
+                                <li><a href="{% url 'academics:performance_analytics' %}" class="nav-item"><span class="nav-item-icon">📈</span><div class="nav-item-label"><span class="nav-item-title">Analytics</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>✅ Attendance</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">👥</span><div class="nav-item-label"><span class="nav-item-title">Student Attendance</span></div></a></li>
+                                <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>⚖️ Discipline</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Incidents</span></div></a></li>
+                                <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">⭐</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏢 School</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
+                                <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- ACADEMICS SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📖 Academics</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
-                                    <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
-                                    <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span></div></a></li>
-                                    <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
-                                    <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">📄</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
-                                    <li><a href="{% url 'academics:grade_boundary_list' %}" class="nav-item"><span class="nav-item-icon">📏</span><div class="nav-item-label"><span class="nav-item-title">Grade Boundaries</span></div></a></li>
-                                    <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><span class="nav-item-icon">📨</span><div class="nav-item-label"><span class="nav-item-title">Submissions</span></div></a></li>
-                                    <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== TEACHER (Class/Subject) ==================== -->
+                    {% elif user.role == "teacher" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📖 My Class</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span></div></a></li>
+                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
+                                <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><span class="nav-item-icon">📨</span><div class="nav-item-label"><span class="nav-item-title">Submissions</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📅 Timetable</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">My Timetable</span></div></a></li>
+                                <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏢 School</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
+                                <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">My Leave</span></div></a></li>
+                                {% feature_enabled 'library' as feat_library %}{% if feat_library %}
+                                <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- ATTENDANCE SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>✅ Attendance</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">👥</span><div class="nav-item-label"><span class="nav-item-title">Student Attendance</span></div></a></li>
-                                    <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span></div></a></li>
-                                    <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== ACCOUNTANT ==================== -->
+                    {% elif user.role == "accountant" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>💰 Finance</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'finance:fee_structure_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Fee Structure</span></div></a></li>
+                                <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">💸</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
+                                <li><a href="{% url 'operations:expense_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Expense Categories</span></div></a></li>
+                                <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Budget</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📖 Academics</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'academics:performance_analytics' %}" class="nav-item"><span class="nav-item-icon">📈</span><div class="nav-item-label"><span class="nav-item-title">Analytics</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- FINANCE SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>💰 Finance</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'finance:fee_structure_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Fee Structure</span></div></a></li>
-                                    <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">💸</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
-                                    <li><a href="{% url 'operations:expense_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Expense Categories</span></div></a></li>
-                                    <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Budget</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== LIBRARIAN ==================== -->
+                    {% elif user.role == "librarian" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📚 Library</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">Manage Books</span></div></a></li>
+                                <li><a href="{% url 'operations:library_issues' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Book Issues</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- OPERATIONS SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>🏢 Operations</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                    <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span></div></a></li>
-                                    <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
-                                    <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Bus/Transport</span></div></a></li>
-                                    <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
-                                    {% feature_enabled 'library' as feat_library %}
-                                    {% if feat_library %}
-                                    <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
-                                    {% endif %}
-                                    {% feature_enabled 'hostel' as feat_hostel %}
-                                    {% if feat_hostel %}
-                                    <li><a href="{% url 'operations:hostel_fees' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
-                                    {% endif %}
-                                </ul>
-                            </div>
+                    <!-- ==================== ADMISSION OFFICER ==================== -->
+                    {% elif user.role == "admission_officer" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📝 Admissions</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:admission_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Applications</span></div></a></li>
+                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                                <li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">📁</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- STUDENT SERVICES SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>🎓 Student Services</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><span class="nav-item-icon">🏥</span><div class="nav-item-label"><span class="nav-item-title">Health Records</span></div></a></li>
-                                    <li><a href="{% url 'operations:health_visit_list' %}" class="nav-item"><span class="nav-item-icon">💊</span><div class="nav-item-label"><span class="nav-item-title">Health Visits</span></div></a></li>
-                                    <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><span class="nav-item-icon">🪪</span><div class="nav-item-label"><span class="nav-item-title">ID Cards</span></div></a></li>
-                                    <li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">📁</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>
-                                    <li><a href="{% url 'operations:admission_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Admissions</span></div></a></li>
-                                    <li><a href="{% url 'operations:certificate_list' %}" class="nav-item"><span class="nav-item-icon">📜</span><div class="nav-item-label"><span class="nav-item-title">Certificates</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== SCHOOL NURSE ==================== -->
+                    {% elif user.role == "school_nurse" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏥 Health</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Health Records</span></div></a></li>
+                                <li><a href="{% url 'operations:health_visit_list' %}" class="nav-item"><span class="nav-item-icon">💊</span><div class="nav-item-label"><span class="nav-item-title">Health Visits</span></div></a></li>
+                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- DISCIPLINE & BEHAVIOR SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>⚖️ Discipline</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Incidents</span></div></a></li>
-                                    <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">⭐</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== ADMIN ASSISTANT ==================== -->
+                    {% elif user.role == "admin_assistant" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏢 Administration</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">📦</span><div class="nav-item-label"><span class="nav-item-title">Inventory</span></div></a></li>
+                                <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
+                                <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>👥 Users</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
+                                <li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">📁</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>
+                                <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><span class="nav-item-icon">🪪</span><div class="nav-item-label"><span class="nav-item-title">ID Cards</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- EXAMS & SEATING SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📝 Exams</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:exam_hall_list' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Exam Halls</span></div></a></li>
-                                    <li><a href="{% url 'operations:seating_plan_list' %}" class="nav-item"><span class="nav-item-icon">🪑</span><div class="nav-item-label"><span class="nav-item-title">Seating Plans</span></div></a></li>
-                                    <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== STUDENT ==================== -->
+                    {% elif user.role == "student" %}
+                    <div class="nav-section">
+                        <a href="{% url 'portal' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📱 My Portal</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📚 Academics</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:results_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">My Results</span></div></a></li>
+                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
+                                <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>💳 Fees</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">My Fees</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏫 School</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                {% feature_enabled 'library' as feat_library %}{% if feat_library %}
+                                <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
+                                {% endif %}
+                                <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- SPORTS & CLUBS SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>⚽ Activities</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:sport_list' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">Sports</span></div></a></li>
-                                    <li><a href="{% url 'operations:club_list' %}" class="nav-item"><span class="nav-item-icon">🎭</span><div class="nav-item-label"><span class="nav-item-title">Clubs</span></div></a></li>
-                                    <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">Events</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== PARENT ==================== -->
+                    {% elif user.role == "parent" %}
+                    <div class="nav-section">
+                        <a href="{% url 'portal' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>👨‍👩‍👧 My Children</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📚 Academics</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:results_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Results</span></div></a></li>
+                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exams</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>💳 Fees</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">Fees</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏫 School</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- INVENTORY SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📦 Inventory</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">📦</span><div class="nav-item-label"><span class="nav-item-title">Items</span></div></a></li>
-                                    <li><a href="{% url 'operations:inventory_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Categories</span></div></a></li>
-                                </ul>
-                            </div>
+                    <!-- ==================== GENERIC STAFF ==================== -->
+                    {% elif user.role == "staff" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏢 School</span>
+                            <span class="toggle-icon">▾</span>
                         </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
 
-                        <!-- ALUMNI SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>🎓 Alumni</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:alumni_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Alumni</span></div></a></li>
-                                    <li><a href="{% url 'operations:alumni_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">Alumni Events</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <!-- STAFF SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>👔 Staff</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <!-- ADMINISTRATION SECTION -->
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>⚙️ Admin</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">School Settings</span></div></a></li>
-                                    <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Activity Log</span></div></a></li>
-                                    {% feature_enabled 'messaging' as feat_messaging %}
-                                    {% if feat_messaging %}
-                                    <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Messaging</span></div></a></li>
-                                    {% endif %}
-                                    {% feature_enabled 'ai_assistant' as feat_ai %}
-                                    {% if feat_ai %}
-                                    <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
-                                    {% endif %}
-                                </ul>
-                            </div>
-                        </div>
-
-                        {% elif user.role == "student" %}
-                        <div class="nav-section">
-                            <a href="{% url 'portal' %}" class="nav-section-header" style="text-decoration:none;">
-                                <span>📱 My Portal</span>
-                            </a>
-                        </div>
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📚 Academics</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'students:results_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">My Results</span></div></a></li>
-                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
-                                    <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
-                                    <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>💳 Fees</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">My Fees</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>🏫 School</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                    {% feature_enabled 'library' as feat_library %}
-                                    {% if feat_library %}
-                                    <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
-                                    {% endif %}
-                                    <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        {% elif user.role == "parent" %}
-                        <div class="nav-section">
-                            <a href="{% url 'portal' %}" class="nav-section-header" style="text-decoration:none;">
-                                <span>👨‍👩‍👧 My Children</span>
-                            </a>
-                        </div>
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📚 Academics</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'students:results_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Results</span></div></a></li>
-                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
-                                    <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exams</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>💳 Fees</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">Fees</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        {% elif user.role == "teacher" %}
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📋 Daily Tasks</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span></div></a></li>
-                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
-                                    <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>📖 Academics</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
-                                    <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">📄</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="nav-section">
-                            <div class="nav-section-header" onclick="toggleSection(this)">
-                                <span>🏢 School</span>
-                                <span class="toggle-icon">▾</span>
-                            </div>
-                            <div class="nav-section-items">
-                                <ul class="nav-list">
-                                    <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
-                                    <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                    <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">My Leave</span></div></a></li>
-                                    {% feature_enabled 'library' as feat_library %}
-                                    {% if feat_library %}
-                                    <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
-                                    {% endif %}
-                                </ul>
-                            </div>
-                        </div>
-                        {% endif %}
                     {% else %}
-                        <div class="nav-section">
-                            <a href="{% url 'school_register' %}" class="nav-section-header" style="text-decoration:none;">
-                                <span>🏫 Register School</span>
-                            </a>
-                        </div>
+                    <!-- GUEST / NOT AUTHENTICATED -->
+                    <div class="nav-section">
+                        <a href="{% url 'school_register' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>🏫 Register School</span>
+                        </a>
+                    </div>
                     {% endif %}
 
-                    <div class="nav-footer">Smart, secure, and automated tools to keep your school running smoothly.</div>
+                    <div class="nav-footer">Mastex SchoolOS - Smart school management</div>
                 </div>
             </aside>
 
@@ -761,7 +887,6 @@
         </footer>
     </div>
     <script>
-    // Sidebar toggle
     (function() {
         const toggle = document.getElementById('sidebarToggle');
         const sidebar = document.querySelector('.sidebar');
@@ -771,21 +896,13 @@
             });
         }
     })();
-    
-    // Collapsible sections
     function toggleSection(header) {
         const section = header.closest('.nav-section');
-        if (section) {
-            section.classList.toggle('collapsed');
-        }
+        if (section) { section.classList.toggle('collapsed'); }
     }
-    
-    // Initialize: collapse all sections except dashboard
     (function() {
         const sections = document.querySelectorAll('.nav-section:not(:first-child)');
-        sections.forEach(function(section) {
-            section.classList.add('collapsed');
-        });
+        sections.forEach(function(section) { section.classList.add('collapsed'); });
     })();
     </script>
     <script>
@@ -793,22 +910,11 @@
         const trigger = document.getElementById("profileTrigger");
         const dropdown = document.getElementById("profileDropdown");
         if (!trigger || !dropdown) return;
-        function closeMenu() {
-            dropdown.classList.remove("open");
-            trigger.setAttribute("aria-expanded", "false");
-        }
-        function toggleMenu() {
-            const isOpen = dropdown.classList.toggle("open");
-            trigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
-        }
-        trigger.addEventListener("click", function (e) {
-            e.stopPropagation();
-            toggleMenu();
-        });
+        function closeMenu() { dropdown.classList.remove("open"); trigger.setAttribute("aria-expanded", "false"); }
+        function toggleMenu() { const isOpen = dropdown.classList.toggle("open"); trigger.setAttribute("aria-expanded", isOpen ? "true" : "false"); }
+        trigger.addEventListener("click", function (e) { e.stopPropagation(); toggleMenu(); });
         document.addEventListener("click", closeMenu);
-        document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") closeMenu();
-        });
+        document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenu(); });
     })();
     </script>
 </body>
