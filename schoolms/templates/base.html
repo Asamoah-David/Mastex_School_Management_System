@@ -579,6 +579,20 @@
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>💻 Quizzes & Exams</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'academics:quizzes' %}" class="nav-item"><span class="nav-item-icon">🧠</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>
+                                <li><a href="{% url 'academics:quiz_create' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Create Quiz</span></div></a></li>
+                                <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+                                <li><a href="{% url 'operations:online_exam_create' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Create Exam</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
                             <span>📅 Timetable</span>
                             <span class="toggle-icon">▾</span>
                         </div>
@@ -586,6 +600,18 @@
                             <ul class="nav-list">
                                 <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">My Timetable</span></div></a></li>
                                 <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>⚽ My Activities</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:club_list' %}" class="nav-item"><span class="nav-item-icon">🎭</span><div class="nav-item-label"><span class="nav-item-title">Clubs</span></div></a></li>
+                                <li><a href="{% url 'operations:sport_list' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">Sports</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -754,6 +780,19 @@
                                 <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
                                 <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
                                 <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
+                                <li><a href="{% url 'academics:quizzes' %}" class="nav-item"><span class="nav-item-icon">🧠</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>💻 Online Exams</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+                                <li><a href="{% url 'operations:my_submissions' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">My Submissions</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -776,10 +815,14 @@
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">School Events</span></div></a></li>
                                 {% feature_enabled 'library' as feat_library %}{% if feat_library %}
                                 <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
+                                <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">My Books</span></div></a></li>
                                 {% endif %}
                                 <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>
+                                <li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">Sports & Clubs</span></div></a></li>
                             </ul>
                         </div>
                     </div>
