@@ -1,46 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Add Book · Mastex SchoolOS{% endblock %}
-{% block page_title %}Add / Update Book{% endblock %}
-{% block page_subtitle %}Maintain the library catalog.{% endblock %}
+{% block page_title %}Add New Book{% endblock %}
+{% block page_subtitle %}Add a new book to the library catalog{% endblock %}
 {% block content %}
 
-<form method="post" class="card" style="max-width: 820px;">
-    {% csrf_token %}
-    <div class="form-grid">
-        <div class="form-group">
-            <label for="id_isbn">ISBN *</label>
-            <input id="id_isbn" name="isbn" class="form-control" required>
-        </div>
-        <div class="form-group">
-            <label for="id_total_copies">Total copies *</label>
-            <input id="id_total_copies" name="total_copies" type="number" min="1" value="1" class="form-control" required>
-        </div>
-        <div class="form-group full-width">
-            <label for="id_title">Title *</label>
-            <input id="id_title" name="title" class="form-control" required>
-        </div>
-        <div class="form-group full-width">
-            <label for="id_author">Author *</label>
-            <input id="id_author" name="author" class="form-control" required>
-        </div>
-        <div class="form-group">
-            <label for="id_publisher">Publisher</label>
-            <input id="id_publisher" name="publisher" class="form-control">
-        </div>
-        <div class="form-group">
-            <label for="id_category">Category</label>
-            <input id="id_category" name="category" class="form-control" placeholder="Fiction, Science...">
-        </div>
-        <div class="form-group full-width">
-            <label for="id_shelf_location">Shelf location</label>
-            <input id="id_shelf_location" name="shelf_location" class="form-control" placeholder="A-12">
-        </div>
-    </div>
-    <div class="button-row mt-sm">
-        <button class="btn btn-primary" type="submit">Save book</button>
-        <a class="btn btn-secondary" href="{% url 'operations:library_manage' %}">Cancel</a>
-    </div>
-</form>
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
 
+<div class="content-card">
+    <form method="POST">
+        {% csrf_token %}
+        <div style="display: grid; gap: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Book Title *</label>
+                <input type="text" name="title" required placeholder="Enter book title" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Author *</label>
+                <input type="text" name="author" required placeholder="Enter author name" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">ISBN</label>
+                <input type="text" name="isbn" placeholder="Enter ISBN (optional)" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Total Copies *</label>
+                    <input type="number" name="total_copies" required min="1" value="1" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Category</label>
+                    <input type="text" name="category" placeholder="e.g. Science, Math" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                </div>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description</label>
+                <textarea name="description" rows="3" placeholder="Book description (optional)" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Save Book</button>
+            <a href="{% url 'operations:library_manage' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
 {% endblock %}
-

@@ -1,24 +1,63 @@
 {% extends "base.html" %}
-{% block title %}Library Manage - {{ school.name }}{% endblock %}
-{% block page_title %}Manage Library{% endblock %}
+{% block title %}Manage Library · Mastex SchoolOS{% endblock %}
+{% block page_title %}Library Management{% endblock %}
+{% block page_subtitle %}Manage books, track borrowing, and issue returns{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>Library Management</h2>
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:library_book_create' %}" class="btn btn-primary">+ Add Book</a>
+    <a href="{% url 'operations:library_issues' %}" class="btn btn-secondary">View Issues</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Book Catalog</h3>
     {% if books %}
-    <table>
-        <thead><tr><th>Title</th><th>Author</th><th>Available</th></tr></thead>
-        <tbody>
-        {% for book in books %}
-        <tr>
-            <td>{{ book.title }}</td>
-            <td>{{ book.author }}</td>
-            <td>{{ book.available_copies }}/{{ book.total_copies }}</td>
-        </tr>
-        {% endfor %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>ISBN</th>
+                    <th>Total Copies</th>
+                    <th>Available</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for book in books %}
+            <tr>
+                <td><strong>{{ book.title }}</strong></td>
+                <td>{{ book.author }}</td>
+                <td>{{ book.isbn|default:"—" }}</td>
+                <td>{{ book.total_copies }}</td>
+                <td>
+                    {% if book.available_copies > 0 %}
+                    <span style="color: #22c55e;">{{ book.available_copies }} available</span>
+                    {% else %}
+                    <span style="color: #ef4444;">Out of stock</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'operations:library_book_delete' book.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this book?')">Delete</a>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">No books found.</p>
+    <div class="empty-state">
+        <p>No books in the library yet.</p>
+        <a href="{% url 'operations:library_book_create' %}" class="btn btn-primary mt-sm">Add First Book</a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}
