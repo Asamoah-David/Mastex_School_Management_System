@@ -1,0 +1,26 @@
+{
+  "name": "Mastex SchoolOS",
+  "short_name": "SchoolOS",
+  "description": "Modern school management platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#22c55e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%2322c55e'/><text x='50%' y='58%' text-anchor='middle' dominant-baseline='middle' font-size='280' font-weight='bold' fill='%23022c22'>MS</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%2322c55e'/><text x='50%' y='58%' text-anchor='middle' dominant-baseline='middle' font-size='100' font-weight='bold' fill='%23022c22'>MS</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "business"],
+  "lang": "en"
+}
