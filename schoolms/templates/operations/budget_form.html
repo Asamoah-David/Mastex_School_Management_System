@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Create Budget · Mastex SchoolOS{% endblock %}
 {% block page_title %}Create Budget{% endblock %}
-{% block page_subtitle %}Set up a new budget for the school{% endblock %}
+{% block page_subtitle %}Set up a new school budget{% endblock %}
 {% block content %}
 
 {% if messages %}
@@ -13,32 +13,108 @@
 {% endif %}
 
 <div class="content-card">
-    <form method="POST">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">📊</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Create New Budget</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Set up a budget for your school</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="budgetForm" onsubmit="return validateBudgetForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Budget Title *</label>
-                <input type="text" name="title" required placeholder="e.g. 2024 Academic Year Budget" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+        <div style="display: grid; gap: 1.25rem;">
+            <!-- Budget Title -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📝</span> Budget Title <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="text" name="title" id="title" required 
+                       placeholder="e.g. 2024 Academic Year Budget" 
+                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
             </div>
+            
+            <!-- Total Amount and Period -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Total Amount *</label>
-                    <input type="number" name="total_amount" required step="0.01" min="0" placeholder="0.00" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>💰</span> Total Amount <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="number" name="total_amount" id="total_amount" required step="0.01" min="0" 
+                           placeholder="0.00" 
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateBudgetDisplay()">
+                    <small id="budgetDisplay" style="color: var(--accent); font-size: 0.75rem; margin-top: 0.25rem; display: block;">GH₵ 0.00</small>
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Period</label>
-                    <input type="text" name="period" placeholder="e.g. 2024-2025 Academic Year" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>📅</span> Budget Period
+                    </label>
+                    <input type="text" name="period" id="period" placeholder="e.g. 2024-2025 Academic Year"
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
                 </div>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description</label>
-                <textarea name="description" rows="3" placeholder="Budget description and breakdown" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            
+            <!-- Description -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📋</span> Description
+                </label>
+                <textarea name="description" id="description" rows="3" 
+                          placeholder="Budget breakdown and details..."
+                          style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; resize: vertical; font-family: inherit; transition: all 0.2s;"
+                          onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                          onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'"></textarea>
+            </div>
+            
+            <!-- Budget Summary Card -->
+            <div style="padding: 1rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3);">
+                <h4 style="margin: 0 0 0.5rem; color: #10b981;">Budget Summary</h4>
+                <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;">Set a clear budget to track expenses and manage school finances effectively.</p>
             </div>
         </div>
+        
         <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Create Budget</button>
-            <a href="{% url 'operations:budget_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                <span style="margin-right: 0.5rem;">✓</span> Create Budget
+            </button>
+            <a href="{% url 'operations:budget_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                Cancel
+            </a>
         </div>
     </form>
 </div>
+
+<script>
+function validateBudgetForm() {
+    const title = document.getElementById('title').value.trim();
+    const totalAmount = document.getElementById('total_amount').value;
+    
+    if (!title) {
+        alert('Please enter a budget title');
+        return false;
+    }
+    if (!totalAmount || parseFloat(totalAmount) <= 0) {
+        alert('Please enter a valid budget amount');
+        return false;
+    }
+    
+    return true;
+}
+
+function updateBudgetDisplay() {
+    const amount = document.getElementById('total_amount').value;
+    const display = document.getElementById('budgetDisplay');
+    if (amount && !isNaN(amount)) {
+        display.textContent = 'GH₵ ' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    } else {
+        display.textContent = 'GH₵ 0.00';
+    }
+}
+</script>
 {% endblock %}
