@@ -737,3 +737,344 @@ class SeatAssignment(models.Model):
     
     def __str__(self):
         return f"{self.student} - Row {self.row_number}, Seat {self.seat_number}"
+
+
+# ==================== EXPENSE TRACKING ====================
+class ExpenseCategory(models.Model):
+    """Categories for school expenses"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name_plural = "Expense Categories"
+    
+    def __str__(self):
+        return f"{self.name} - {self.school.name}"
+
+
+class Expense(models.Model):
+    """School expenses tracking"""
+    PAYMENT_METHODS = (
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('mobile_money', 'Mobile Money'),
+        ('cheque', 'Cheque'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    category = models.ForeignKey(ExpenseCategory, on_delete=models.SET_NULL, null=True)
+    description = models.CharField(max_length=200)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    expense_date = models.DateField()
+    vendor = models.CharField(max_length=200, blank=True)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
+    receipt_number = models.CharField(max_length=50, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='approved_expenses')
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='recorded_expenses')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-expense_date"]
+    
+    def __str__(self):
+        return f"{self.description} - {self.amount} ({self.expense_date})"
+
+
+class Budget(models.Model):
+    """School budget planning"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    category = models.ForeignKey(ExpenseCategory, on_delete=models.SET_NULL, null=True)
+    academic_year = models.CharField(max_length=20)  # e.g., "2024/2025"
+    term = models.CharField(max_length=20, blank=True)  # e.g., "Term 1"
+    allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    spent_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    @property
+    def remaining(self):
+        return self.allocated_amount - self.spent_amount
+    
+    def __str__(self):
+        return f"{self.category.name} - {self.academic_year}"
+
+
+# ==================== STUDENT DISCIPLINE ====================
+class DisciplineIncident(models.Model):
+    """Track student disciplinary incidents"""
+    SEVERITY_CHOICES = (
+        ('minor', 'Minor'),
+        ('moderate', 'Moderate'),
+        ('serious', 'Serious'),
+        ('severe', 'Severe'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='discipline_incidents')
+    incident_date = models.DateTimeField()
+    incident_type = models.CharField(max_length=100)  # e.g., "Fighting", "Late Submission"
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='minor')
+    description = models.TextField()
+    action_taken = models.TextField(blank=True)
+    reported_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='reported_incidents')
+    status = models.CharField(max_length=20, default='pending')  # pending, resolved, appealed
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-incident_date"]
+    
+    def __str__(self):
+        return f"{self.student} - {self.incident_type} ({self.severity})"
+
+
+class BehaviorPoint(models.Model):
+    """Track positive behavior points/rewards"""
+    POINT_TYPES = (
+        ('positive', 'Positive'),
+        ('negative', 'Negative'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='behavior_points')
+    point_type = models.CharField(max_length=20, choices=POINT_TYPES)
+    points = models.IntegerField()  # Can be positive or negative
+    reason = models.CharField(max_length=200)
+    awarded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='awarded_points')
+    awarded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-awarded_at"]
+    
+    def __str__(self):
+        return f"{self.student} - {self.points} points ({self.reason})"
+
+
+# ==================== ASSIGNMENT SUBMISSION ====================
+class AssignmentSubmission(models.Model):
+    """Track online assignment submissions"""
+    STATUS_CHOICES = (
+        ('submitted', 'Submitted'),
+        ('graded', 'Graded'),
+        ('returned', 'Returned'),
+    )
+    homework = models.ForeignKey('academics.Homework', on_delete=models.CASCADE, related_name='submissions')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='assignment_submissions')
+    submission_text = models.TextField(blank=True)
+    file_path = models.CharField(max_length=255, blank=True)  # Path to uploaded file
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='submitted')
+    grade = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    feedback = models.TextField(blank=True)
+    graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='graded_submissions')
+    graded_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        unique_together = ("homework", "student")
+        ordering = ["-submitted_at"]
+    
+    def __str__(self):
+        return f"{self.student} - {self.homework.title}"
+
+
+# ==================== DOCUMENT MANAGEMENT ====================
+class StudentDocument(models.Model):
+    """Store student documents"""
+    DOCUMENT_TYPES = (
+        ('birth_certificate', 'Birth Certificate'),
+        ('report_card', 'Report Card'),
+        ('medical', 'Medical Certificate'),
+        ('transfer_letter', 'Transfer Letter'),
+        ('passport_photo', 'Passport Photo'),
+        ('parent_id', 'Parent ID'),
+        ('other', 'Other'),
+    )
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='documents')
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPES)
+    title = models.CharField(max_length=200)
+    file_path = models.CharField(max_length=255)  # Path to stored file
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    expiry_date = models.DateField(null=True, blank=True)  # For documents that expire
+    
+    class Meta:
+        ordering = ["-uploaded_at"]
+    
+    def __str__(self):
+        return f"{self.student} - {self.get_document_type_display()}"
+
+
+# ==================== ALUMNI MANAGEMENT ====================
+class Alumni(models.Model):
+    """Track past students (alumni)"""
+    student = models.ForeignKey(Student, on_delete=models.SET_NULL, null=True, related_name='alumni_record')
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    # If student record is deleted, keep alumni info
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    admission_number = models.CharField(max_length=50)
+    class_name = models.CharField(max_length=50)  # Last class attended
+    graduation_year = models.IntegerField()
+    graduation_date = models.DateField(null=True, blank=True)
+    
+    # Post-graduation info
+    current_occupation = models.CharField(max_length=200, blank=True)
+    current_institution = models.CharField(max_length=200, blank=True)
+    contact_phone = models.CharField(max_length=20, blank=True)
+    contact_email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    
+    # Membership
+    is_active_member = models.BooleanField(default=True)
+    membership_year = models.IntegerField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.graduation_year})"
+
+
+class AlumniEvent(models.Model):
+    """Alumni association events"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    event_date = models.DateTimeField()
+    location = models.CharField(max_length=200)
+    is_annual = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-event_date"]
+    
+    def __str__(self):
+        return f"{self.title} - {self.event_date.year}"
+
+
+# ==================== ONLINE EXAM SYSTEM ====================
+class OnlineExam(models.Model):
+    """Online examination with auto-grading"""
+    STATUS_CHOICES = (
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('ongoing', 'Ongoing'),
+        ('completed', 'Completed'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    subject = models.ForeignKey('academics.Subject', on_delete=models.CASCADE)
+    class_level = models.CharField(max_length=50)  # Target class
+    exam_type = models.CharField(max_length=50, default='quiz')  # quiz, test, exam
+    duration_minutes = models.PositiveIntegerField(default=30)
+    total_marks = models.DecimalField(max_digits=5, decimal_places=2, default=100)
+    passing_marks = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    is_random_questions = models.BooleanField(default=False)
+    show_results_immediately = models.BooleanField(default=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-start_time"]
+    
+    def __str__(self):
+        return f"{self.title} - {self.subject.name}"
+
+
+class ExamQuestion(models.Model):
+    """Questions for online exams"""
+    QUESTION_TYPES = (
+        ('multiple_choice', 'Multiple Choice'),
+        ('true_false', 'True/False'),
+        ('short_answer', 'Short Answer'),
+        ('essay', 'Essay'),
+    )
+    exam = models.ForeignKey(OnlineExam, on_delete=models.CASCADE, related_name='questions')
+    question_text = models.TextField()
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES)
+    marks = models.DecimalField(max_digits=5, decimal_places=2, default=1)
+    
+    # For multiple choice
+    option_a = models.CharField(max_length=500, blank=True)
+    option_b = models.CharField(max_length=500, blank=True)
+    option_c = models.CharField(max_length=500, blank=True)
+    option_d = models.CharField(max_length=500, blank=True)
+    correct_answer = models.CharField(max_length=1, blank=True)  # A, B, C, D for MCQ
+    
+    order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ["order"]
+    
+    def __str__(self):
+        return f"Q{self.order}: {self.question_text[:50]}..."
+
+
+class ExamAttempt(models.Model):
+    """Track student exam attempts"""
+    exam = models.ForeignKey(OnlineExam, on_delete=models.CASCADE, related_name='attempts')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='exam_attempts')
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    is_completed = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ("exam", "student")
+    
+    def __str__(self):
+        return f"{self.student} - {self.exam.title}"
+
+
+class ExamAnswer(models.Model):
+    """Individual answers from exam attempts"""
+    attempt = models.ForeignKey(ExamAttempt, on_delete=models.CASCADE, related_name='answers')
+    question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE)
+    answer_given = models.CharField(max_length=500, blank=True)
+    is_correct = models.BooleanField(default=False)
+    marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    
+    class Meta:
+        unique_together = ("attempt", "question")
+
+
+# ==================== TIMETABLE MANAGEMENT ====================
+class TimetableSlot(models.Model):
+    """Timetable slots for classes"""
+    DAYS = (
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    class_name = models.CharField(max_length=50)  # e.g., "JHS 1"
+    day = models.CharField(max_length=20, choices=DAYS)
+    period_number = models.PositiveIntegerField()  # 1, 2, 3, etc.
+    subject = models.ForeignKey('academics.Subject', on_delete=models.CASCADE)
+    teacher = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, limit_choices_to={'role': 'teacher'})
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    room = models.CharField(max_length=50, blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ("class_name", "day", "period_number")
+        ordering = ["day", "period_number"]
+    
+    def __str__(self):
+        return f"{self.class_name} - {self.day} P{self.period_number} - {self.subject.name}"
+
+
+class TimetableConflict(models.Model):
+    """Track timetable conflicts"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    conflict_type = models.CharField(max_length=50)  # teacher_room, room_time, etc.
+    slot_1 = models.ForeignKey(TimetableSlot, on_delete=models.CASCADE, related_name='conflicts_1')
+    slot_2 = models.ForeignKey(TimetableSlot, on_delete=models.CASCADE, related_name='conflicts_2')
+    description = models.TextField()
+    is_resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-created_at"]
