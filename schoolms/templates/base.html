@@ -862,6 +862,17 @@
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>✅ Attendance</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Attendance</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
                             <span>💳 Fees</span>
                             <span class="toggle-icon">▾</span>
                         </div>
@@ -873,12 +884,47 @@
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>⚖️ Discipline</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Behavior</span></div></a></li>
+                                <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">⭐</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>🏥 Health</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><span class="nav-item-icon">🏥</span><div class="nav-item-label"><span class="nav-item-title">Health Records</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>📚 Library</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">Borrowed Books</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
                             <span>🏫 School</span>
                             <span class="toggle-icon">▾</span>
                         </div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">School Events</span></div></a></li>
                                 <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>
                             </ul>
                         </div>
