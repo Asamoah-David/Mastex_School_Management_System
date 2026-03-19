@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-certificate"></i> Issue Certificate</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label>Student *</label>
+                            <select name="student" class="form-control" required>
+                                <option value="">Select Student</option>
+                                {% for student in students %}
+                                <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label>Certificate Type *</label>
+                                    <select name="certificate_type" class="form-control" required>
+                                        <option value="">Select Type</option>
+                                        <option value="completion">Certificate of Completion</option>
+                                        <option value="graduation">Graduation Certificate</option>
+                                        <option value="merit">Merit Certificate</option>
+                                        <option value="attendance">Certificate of Attendance</option>
+                                        <option value="character">Certificate of Good Character</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label>Issued Date *</label>
+                                    <input type="date" name="issued_date" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label>Title *</label>
+                            <input type="text" name="title" class="form-control" placeholder="e.g., Completion of JHS 3" required>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label>Academic Year *</label>
+                                    <input type="text" name="academic_year" class="form-control" placeholder="e.g., 2024/2025" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label>Term (optional)</label>
+                                    <input type="text" name="term" class="form-control" placeholder="e.g., Term 1">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label>Description</label>
+                            <textarea name="description" class="form-control" rows="3" placeholder="Additional details about this certificate"></textarea>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> Issue Certificate
+                            </button>
+                            <a href="{% url 'operations:certificate_list' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

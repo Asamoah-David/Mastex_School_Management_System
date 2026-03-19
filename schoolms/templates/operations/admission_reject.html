@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="fas fa-times"></i> Reject Application</h4>
+                </div>
+                <div class="card-body">
+                    <h5>{{ application.first_name }} {{ application.last_name }}</h5>
+                    <p class="text-muted">Applying for: {{ application.class_applied_for }}</p>
+                    
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label>Reason for Rejection (optional)</label>
+                            <textarea name="rejection_reason" class="form-control" rows="3" placeholder="Explain why this application is being rejected"></textarea>
+                        </div>
+                        
+                        <p class="text-muted">SMS will be sent to {{ application.parent_phone }} to notify them.</p>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                <i class="fas fa-times"></i> Confirm Rejection
+                            </button>
+                            <a href="{% url 'operations:admission_detail' application.pk %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

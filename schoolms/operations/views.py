@@ -26,6 +26,8 @@ from .models import (
     HostelRoom,
     HostelAssignment,
     HostelFee,
+    AdmissionApplication,
+    Certificate,
 )
 
 
@@ -1172,3 +1174,388 @@ def hostel_my(request):
         fees = HostelFee.objects.filter(school=school, student__in=children).select_related("student", "student__user", "hostel").order_by("-id")[:400] if children else []
         return render(request, "operations/hostel_my.html", {"school": school, "mode": "parent", "children": children, "assignments": assignments, "fees": fees})
     return redirect("home")
+
+
+# ==================== ADMISSION APPLICATIONS ====================
+
+def admission_apply(request):
+    """
+    Public admission form - no login required.
+    Parents/guardians can submit applications online.
+    """
+    from schools.models import School
+    
+    # Get active schools for dropdown
+    schools = School.objects.filter(is_active=True).order_by('name')
+    
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        dob = request.POST.get('date_of_birth', '').strip()
+        gender = request.POST.get('gender', '').strip()
+        previous_school = request.POST.get('previous_school', '').strip()
+        class_applied = request.POST.get('class_applied_for', '').strip()
+        parent_first = request.POST.get('parent_first_name', '').strip()
+        parent_last = request.POST.get('parent_last_name', '').strip()
+        parent_phone = request.POST.get('parent_phone', '').strip()
+        parent_email = request.POST.get('parent_email', '').strip()
+        parent_occupation = request.POST.get('parent_occupation', '').strip()
+        address = request.POST.get('address', '').strip()
+        medical = request.POST.get('medical_conditions', '').strip()
+        reason = request.POST.get('reason_for_applying', '').strip()
+        school_id = request.POST.get('school')
+        
+        if first_name and last_name and dob and gender and class_applied and parent_first and parent_last and parent_phone and address:
+            try:
+                from datetime import datetime
+                dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
+                
+                school = None
+                if school_id:
+                    school = School.objects.filter(id=school_id, is_active=True).first()
+                
+                application = AdmissionApplication.objects.create(
+                    school=school,
+                    first_name=first_name,
+                    last_name=last_name,
+                    date_of_birth=dob_date,
+                    gender=gender,
+                    previous_school=previous_school,
+                    class_applied_for=class_applied,
+                    parent_first_name=parent_first,
+                    parent_last_name=parent_last,
+                    parent_phone=parent_phone,
+                    parent_email=parent_email,
+                    parent_occupation=parent_occupation,
+                    address=address,
+                    medical_conditions=medical,
+                    reason_for_applying=reason,
+                    status='pending'
+                )
+                
+                # Try to send SMS notification to school admin
+                try:
+                    from messaging.utils import send_sms
+                    msg = f"New Admission Application: {first_name} {last_name} for {class_applied}"
+                    if school:
+                        admins = User.objects.filter(school=school, role='admin')
+                        for admin in admins:
+                            if admin.phone:
+                                send_sms(admin.phone, msg)
+                except:
+                    pass
+                
+                return render(request, 'operations/admission_success.html', {
+                    'application': application,
+                    'schools': schools
+                })
+            except ValueError:
+                pass
+    
+    return render(request, 'operations/admission_apply.html', {'schools': schools})
+
+
+@login_required
+def admission_list(request):
+    """Admin view: list all admission applications."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    
+    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
+        return redirect('home')
+    
+    status_filter = request.GET.get('status', '')
+    qs = AdmissionApplication.objects.all()
+    
+    if school:
+        qs = qs.filter(school=school)
+    
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    
+    applications = qs.select_related('school', 'reviewed_by').order_by('-applied_at')[:200]
+    
+    return render(request, 'operations/admission_list.html', {
+        'applications': applications,
+        'school': school,
+        'status_filter': status_filter
+    })
+
+
+@login_required
+def admission_detail(request, pk):
+    """Admin view: review application details."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    
+    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
+        return redirect('home')
+    
+    application = get_object_or_404(AdmissionApplication, pk=pk)
+    
+    if school and application.school and application.school != school:
+        return redirect('home')
+    
+    return render(request, 'operations/admission_detail.html', {
+        'application': application,
+        'school': school
+    })
+
+
+@login_required
+def admission_approve(request, pk):
+    """Approve application and optionally create student account."""
+    from accounts.permissions import user_can_manage_school
+    from django.contrib.auth.hashers import make_password
+    
+    school = _get_school(request)
+    
+    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
+        return redirect('home')
+    
+    application = get_object_or_404(AdmissionApplication, pk=pk)
+    
+    if school and application.school and application.school != school:
+        return redirect('home')
+    
+    if request.method == 'POST':
+        create_account = request.POST.get('create_account') == 'on'
+        admission_number = request.POST.get('admission_number', '').strip()
+        initial_password = request.POST.get('initial_password', '').strip()
+        
+        # Approve the application
+        application.status = 'approved'
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        application.save()
+        
+        student = None
+        
+        # Create student account if requested
+        if create_account and application.school:
+            # Generate admission number if not provided
+            if not admission_number:
+                last_student = Student.objects.filter(school=application.school).order_by('-id').first()
+                next_num = int(last_student.admission_number.split('-')[-1]) + 1 if last_student and last_student.admission_number else 1
+                admission_number = f"{application.school.name[:3].upper()}-{timezone.now().year}-{next_num:04d}"
+            
+            # Create parent user account
+            username = f"parent{application.id}"
+            parent_user = User.objects.create(
+                username=username,
+                first_name=application.parent_first_name,
+                last_name=application.parent_last_name,
+                email=application.parent_email or f"{username}@school.local",
+                phone=application.parent_phone,
+                role='parent',
+                school=application.school,
+                password=make_password(initial_password or 'Welcome123')
+            )
+            
+            # Create student record
+            student_user = User.objects.create(
+                username=f"student{application.id}",
+                first_name=application.first_name,
+                last_name=application.last_name,
+                role='student',
+                school=application.school,
+                password=make_password(initial_password or 'Student123')
+            )
+            
+            student = Student.objects.create(
+                user=student_user,
+                school=application.school,
+                admission_number=admission_number,
+                class_name=application.class_applied_for,
+                parent=parent_user,
+                date_enrolled=timezone.now().date()
+            )
+            
+            application.created_student = student
+            application.save()
+            
+            # Send SMS with login details
+            try:
+                from messaging.utils import send_sms
+                msg = f"Welcome! Your child has been admitted to {application.school.name}. Login: {username}, Password: {initial_password or 'Welcome123'}"
+                send_sms(application.parent_phone, msg)
+            except:
+                pass
+        
+        from django.contrib import messages
+        messages.success(request, f'Application approved! {"Student account created." if student else ""}')
+        return redirect('operations:admission_list')
+    
+    return render(request, 'operations/admission_approve.html', {
+        'application': application,
+        'school': school
+    })
+
+
+@login_required
+def admission_reject(request, pk):
+    """Reject an admission application."""
+    from accounts.permissions import user_can_manage_school
+    
+    school = _get_school(request)
+    
+    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
+        return redirect('home')
+    
+    application = get_object_or_404(AdmissionApplication, pk=pk)
+    
+    if school and application.school and application.school != school:
+        return redirect('home')
+    
+    if request.method == 'POST':
+        reason = request.POST.get('rejection_reason', '').strip()
+        
+        application.status = 'rejected'
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        application.rejection_reason = reason
+        application.save()
+        
+        # Notify parent
+        try:
+            from messaging.utils import send_sms
+            msg = f"Admission Update: Your application for {application.first_name} has been declined. Reason: {reason or 'Please contact school for details.'}"
+            send_sms(application.parent_phone, msg)
+        except:
+            pass
+        
+        from django.contrib import messages
+        messages.success(request, 'Application rejected.')
+        return redirect('operations:admission_list')
+    
+    return render(request, 'operations/admission_reject.html', {
+        'application': application
+    })
+
+
+# ==================== CERTIFICATES ====================
+
+@login_required
+def certificate_list(request):
+    """List certificates for the school."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    
+    if not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    certificates = Certificate.objects.filter(school=school).select_related('student', 'student__user', 'created_by').order_by('-issued_date')[:200]
+    
+    return render(request, 'operations/certificate_list.html', {
+        'certificates': certificates,
+        'school': school
+    })
+
+
+@login_required
+def certificate_create(request):
+    """Create a new certificate for a student."""
+    from accounts.permissions import user_can_manage_school
+    
+    school = _get_school(request)
+    
+    if not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    students = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        cert_type = request.POST.get('certificate_type')
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        issued_date = request.POST.get('issued_date')
+        academic_year = request.POST.get('academic_year', '').strip()
+        term = request.POST.get('term', '').strip()
+        
+        student = Student.objects.filter(id=student_id, school=school).first()
+        
+        if student and cert_type and title and issued_date and academic_year:
+            try:
+                from datetime import datetime
+                issued = datetime.strptime(issued_date, '%Y-%m-%d').date()
+                
+                cert = Certificate.objects.create(
+                    student=student,
+                    school=school,
+                    certificate_type=cert_type,
+                    title=title,
+                    description=description,
+                    issued_date=issued,
+                    academic_year=academic_year,
+                    term=term,
+                    created_by=request.user
+                )
+                
+                from django.contrib import messages
+                messages.success(request, f'Certificate created for {student.user.get_full_name()}')
+                return redirect('operations:certificate_list')
+            except ValueError:
+                pass
+    
+    return render(request, 'operations/certificate_form.html', {
+        'students': students,
+        'school': school
+    })
+
+
+@login_required
+def certificate_view(request, pk):
+    """View certificate details."""
+    from accounts.permissions import user_can_manage_school
+    from academics.models import Result
+    
+    school = _get_school(request)
+    
+    certificate = get_object_or_404(Certificate, pk=pk)
+    
+    # Check permission
+    if school and certificate.school != school:
+        return redirect('home')
+    
+    can_manage = user_can_manage_school(request.user) or request.user.is_superuser
+    can_view = can_manage or (certificate.student and certificate.student.user == request.user)
+    
+    if not can_view:
+        return redirect('home')
+    
+    # Get student's academic record for the certificate
+    results = None
+    if school:
+        results = Result.objects.filter(student=certificate.student, term__name__icontains=certificate.term or '').select_related('subject', 'term')[:20]
+    
+    return render(request, 'operations/certificate_view.html', {
+        'certificate': certificate,
+        'school': school,
+        'results': results,
+        'can_manage': can_manage
+    })
+
+
+@login_required
+def certificate_delete(request, pk):
+    """Delete a certificate."""
+    from accounts.permissions import user_can_manage_school
+    
+    school = _get_school(request)
+    
+    if not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    certificate = get_object_or_404(Certificate, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        certificate.delete()
+        from django.contrib import messages
+        messages.success(request, 'Certificate deleted.')
+        return redirect('operations:certificate_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': certificate,
+        'type': 'certificate'
+    })

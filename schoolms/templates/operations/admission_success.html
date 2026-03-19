@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow text-center">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0"><i class="fas fa-check-circle"></i> Application Submitted!</h3>
+                </div>
+                <div class="card-body">
+                    <h4>Thank you, {{ application.parent_first_name }}!</h4>
+                    <p>Your application for <strong>{{ application.first_name }} {{ application.last_name }}</strong> has been received.</p>
+                    <p class="text-muted">Applied for: <strong>{{ application.class_applied_for }}</strong></p>
+                    
+                    <hr>
+                    <p>What happens next?</p>
+                    <ol class="text-start">
+                        <li>Our admissions team will review your application</li>
+                        <li>You will receive an SMS confirmation</li>
+                        <li>If approved, you will receive login credentials</li>
+                    </ol>
+                    
+                    <div class="mt-4">
+                        <a href="/" class="btn btn-primary">Return Home</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

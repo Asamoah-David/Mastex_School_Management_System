@@ -460,3 +460,96 @@ class EventRSVP(models.Model):
     
     def __str__(self):
         return f"{self.student} - {self.event.title}"
+
+
+# Online Admission Application
+class AdmissionApplication(models.Model):
+    """Online admission applications from prospective students"""
+    STATUS_CHOICES = (
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('waitlisted', 'Waitlisted'),
+    )
+    
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)  # School can be set if public form has school selection
+    
+    # Student Information
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    date_of_birth = models.DateField()
+    gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female')])
+    previous_school = models.CharField(max_length=200, blank=True)
+    class_applied_for = models.CharField(max_length=50)
+    
+    # Parent/Guardian Information
+    parent_first_name = models.CharField(max_length=100)
+    parent_last_name = models.CharField(max_length=100)
+    parent_phone = models.CharField(max_length=20)
+    parent_email = models.EmailField(blank=True)
+    parent_occupation = models.CharField(max_length=100, blank=True)
+    address = models.TextField()
+    
+    # Additional Information
+    reason_for_applying = models.TextField(blank=True)
+    medical_conditions = models.TextField(blank=True)
+    how_did_you_hear = models.CharField(max_length=200, blank=True)
+    
+    # Documents (file paths stored as text)
+    birth_certificate_path = models.CharField(max_length=255, blank=True)
+    previous_report_path = models.CharField(max_length=255, blank=True)
+    passport_photo_path = models.CharField(max_length=255, blank=True)
+    
+    # Status and Tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    applied_at = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_applications")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    
+    # If approved, link to created student
+    created_student = models.ForeignKey(Student, on_delete=models.SET_NULL, null=True, blank=True, related_name="admission_application")
+    
+    class Meta:
+        ordering = ["-applied_at"]
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.class_applied_for} ({self.status})"
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+
+# Certificates
+class Certificate(models.Model):
+    """Academic certificates (completion, graduation, merit)"""
+    CERTIFICATE_TYPES = (
+        ('completion', 'Certificate of Completion'),
+        ('graduation', 'Graduation Certificate'),
+        ('merit', 'Merit Certificate'),
+        ('attendance', 'Certificate of Attendance'),
+        ('character', 'Certificate of Good Character'),
+    )
+    
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='certificates')
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    certificate_type = models.CharField(max_length=20, choices=CERTIFICATE_TYPES)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    issued_date = models.DateField()
+    academic_year = models.CharField(max_length=20)  # e.g., "2024/2025"
+    term = models.CharField(max_length=50, blank=True)  # e.g., "Term 1"
+    
+    # PDF stored as bytes (for generated certificates)
+    pdf_file = models.BinaryField(null=True, blank=True)
+    
+    # Metadata
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="issued_certificates")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-issued_date"]
+    
+    def __str__(self):
+        return f"{self.student} - {self.title} ({self.issued_date})"

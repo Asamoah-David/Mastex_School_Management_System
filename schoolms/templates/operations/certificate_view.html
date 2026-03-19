@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-warning text-dark">
+            <h4 class="mb-0"><i class="fas fa-certificate"></i> {{ certificate.title }}</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Student:</strong> {{ certificate.student.user.get_full_name }}</p>
+                    <p><strong>Admission No:</strong> {{ certificate.student.admission_number }}</p>
+                    <p><strong>Type:</strong> {{ certificate.get_certificate_type_display }}</p>
+                    <p><strong>Academic Year:</strong> {{ certificate.academic_year }}</p>
+                    {% if certificate.term %}
+                    <p><strong>Term:</strong> {{ certificate.term }}</p>
+                    {% endif %}
+                    <p><strong>Issued Date:</strong> {{ certificate.issued_date }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>School:</strong> {{ certificate.school.name }}</p>
+                    <p><strong>Issued By:</strong> {{ certificate.created_by.get_full_name }}</p>
+                    {% if certificate.description %}
+                    <p><strong>Description:</strong></p>
+                    <p>{{ certificate.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if results %}
+            <hr>
+            <h5>Academic Record</h5>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Score</th>
+                            <th>Term</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in results %}
+                        <tr>
+                            <td>{{ r.subject.name }}</td>
+                            <td>{{ r.score }}%</td>
+                            <td>{{ r.term.name }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            
+            <hr>
+            <div class="d-flex gap-2">
+                {% if can_manage %}
+                <a href="{% url 'operations:certificate_delete' certificate.pk %}" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Delete Certificate
+                </a>
+                {% endif %}
+                <a href="{% url 'operations:certificate_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-certificate"></i> Certificates</h2>
+        <a href="{% url 'operations:certificate_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Issue Certificate
+        </a>
+    </div>
+    
+    {% if certificates %}
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Academic Year</th>
+                    <th>Issued Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cert in certificates %}
+                <tr>
+                    <td>{{ cert.student.user.get_full_name }}</td>
+                    <td><span class="badge bg-info">{{ cert.get_certificate_type_display }}</span></td>
+                    <td>{{ cert.title }}</td>
+                    <td>{{ cert.academic_year }}</td>
+                    <td>{{ cert.issued_date }}</td>
+                    <td>
+                        <a href="{% url 'operations:certificate_view' cert.pk %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="{% url 'operations:certificate_delete' cert.pk %}" class="btn btn-sm btn-danger">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">No certificates issued yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

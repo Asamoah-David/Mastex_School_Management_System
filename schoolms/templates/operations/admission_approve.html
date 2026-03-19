@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="fas fa-check"></i> Approve Application</h4>
+                </div>
+                <div class="card-body">
+                    <h5>{{ application.first_name }} {{ application.last_name }}</h5>
+                    <p class="text-muted">Applying for: {{ application.class_applied_for }}</p>
+                    
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <div class="form-check mb-3">
+                            <input type="checkbox" name="create_account" id="create_account" class="form-check-input" checked>
+                            <label for="create_account" class="form-check-label">
+                                <strong>Create student and parent accounts automatically</strong>
+                            </label>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label>Admission Number (leave blank for auto-generate)</label>
+                            <input type="text" name="admission_number" class="form-control" placeholder="e.g., MAS-2025-0001">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label>Initial Password (leave blank for default: Welcome123)</label>
+                            <input type="text" name="initial_password" class="form-control" placeholder="Leave blank for default">
+                        </div>
+                        
+                        <p class="text-muted">SMS will be sent to {{ application.parent_phone }} with login credentials.</p>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check"></i> Approve & Create Account
+                            </button>
+                            <a href="{% url 'operations:admission_detail' application.pk %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
