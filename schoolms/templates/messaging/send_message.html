@@ -5,51 +5,195 @@
 {% block page_subtitle %}Send SMS or Email to parents and students{% endblock %}
 
 {% block content %}
-<div class="content-card">
-    <form method="post">
-        {% csrf_token %}
-        
-        <div class="form-group">
-            <label for="id_message_type">Message Type</label>
-            <select id="id_message_type" name="message_type" required>
-                <option value="sms">SMS</option>
-                <option value="email">Email</option>
-            </select>
+<div class="row">
+    <!-- Recipient Preview -->
+    <div class="col-md-4">
+        <div class="content-card">
+            <h4 style="margin-bottom: 15px;">Recipient Summary</h4>
+            
+            <div class="recipient-tabs">
+                <a href="?type=parents" class="tab-btn {% if selected_type == 'parents' %}active{% endif %}">
+                    Parents <span class="badge">{{ parents_count }}</span>
+                </a>
+                <a href="?type=students" class="tab-btn {% if selected_type == 'students' %}active{% endif %}">
+                    Students <span class="badge">{{ students_count }}</span>
+                </a>
+                <a href="?type=all" class="tab-btn {% if selected_type == 'all' %}active{% endif %}">
+                    All <span class="badge">{{ parents_count|add:students_count }}</span>
+                </a>
+            </div>
+            
+            <div class="recipient-stats mt-2">
+                {% if selected_type == 'parents' or selected_type == 'all' %}
+                <div class="stat-item">
+                    <span class="stat-label">Parents:</span>
+                    <span class="stat-value">{{ parents_count }} total</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">With Phone:</span>
+                    <span class="stat-value">{{ parents_with_phone }} (can receive SMS)</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">With Email:</span>
+                    <span class="stat-value">{{ parents_with_email }} (can receive Email)</span>
+                </div>
+                {% endif %}
+                
+                {% if selected_type == 'students' or selected_type == 'all' %}
+                <div class="stat-item">
+                    <span class="stat-label">Students:</span>
+                    <span class="stat-value">{{ students_count }} total</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">With Phone:</span>
+                    <span class="stat-value">{{ students_with_phone }} (can receive SMS)</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">With Email:</span>
+                    <span class="stat-value">{{ students_with_email }} (can receive Email)</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="info-box mt-2">
+                <small>
+                    <strong>Note:</strong> SMS will only be sent to recipients with valid phone numbers.
+                    Email will only be sent to recipients with valid email addresses.
+                </small>
+            </div>
         </div>
-        
-        <div class="form-group mt-1">
-            <label for="id_recipient_type">Recipients</label>
-            <select id="id_recipient_type" name="recipient_type" required>
-                <option value="parents">All Parents</option>
-                <option value="students">All Students</option>
-                <option value="all">All Parents and Students</option>
-            </select>
+    </div>
+    
+    <!-- Message Form -->
+    <div class="col-md-8">
+        <div class="content-card">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="id_message_type">Message Type</label>
+                        <select id="id_message_type" name="message_type" required>
+                            <option value="sms">📱 SMS</option>
+                            <option value="email">📧 Email</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group col-md-6">
+                        <label for="id_recipient_type">Recipients</label>
+                        <select id="id_recipient_type" name="recipient_type" required>
+                            <option value="parents">All Parents</option>
+                            <option value="students">All Students</option>
+                            <option value="all">All Parents and Students</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group email-field" style="display: none;">
+                    <label for="id_subject">📋 Email Subject</label>
+                    <input id="id_subject" name="subject" type="text" placeholder="Enter email subject" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_message">✉️ Message</label>
+                    <textarea id="id_message" name="message" rows="6" required placeholder="Enter your message here..."></textarea>
+                    <small class="char-count"><span id="charCount">0</span> characters</small>
+                </div>
+                
+                <div class="button-row mt-2">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        🚀 Send Message
+                    </button>
+                </div>
+            </form>
         </div>
-        
-        <div class="form-group mt-1 email-field">
-            <label for="id_subject">Email Subject</label>
-            <input id="id_subject" name="subject" type="text" placeholder="Enter email subject" />
-        </div>
-        
-        <div class="form-group mt-1">
-            <label for="id_message">Message</label>
-            <textarea id="id_message" name="message" rows="5" required placeholder="Enter your message here..."></textarea>
-        </div>
-        
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Send Message</button>
-        </div>
-    </form>
+    </div>
 </div>
+
+<style>
+.recipient-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    background: #f0f0f0;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #333;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    background: #e0e0e0;
+}
+
+.tab-btn.active {
+    background: #2563eb;
+    color: white;
+}
+
+.tab-btn .badge {
+    background: rgba(255,255,255,0.2);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 5px;
+}
+
+.recipient-stats {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 14px;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: #333;
+}
+
+.info-box {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 12px;
+    border-radius: 6px;
+    color: #856404;
+}
+
+.char-count {
+    display: block;
+    text-align: right;
+    color: #666;
+    margin-top: 5px;
+}
+</style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const messageType = document.getElementById('id_message_type');
     const emailFields = document.querySelectorAll('.email-field');
+    const messageField = document.getElementById('id_message');
+    const charCount = document.getElementById('charCount');
     
-    // Hide email fields by default
-    emailFields.forEach(f => f.style.display = 'none');
-    
+    // Show/hide email fields
     messageType.addEventListener('change', function() {
         if (this.value === 'email') {
             emailFields.forEach(f => f.style.display = 'block');
@@ -57,6 +201,19 @@ document.addEventListener('DOMContentLoaded', function() {
             emailFields.forEach(f => f.style.display = 'none');
         }
     });
+    
+    // Character count
+    messageField.addEventListener('input', function() {
+        charCount.textContent = this.value.length;
+        if (this.value.length > 160) {
+            charCount.style.color = '#dc3545';
+        } else {
+            charCount.style.color = '#666';
+        }
+    });
+    
+    // Initialize character count
+    charCount.textContent = messageField.value.length;
 });
 </script>
 {% endblock %}
