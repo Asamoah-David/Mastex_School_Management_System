@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Schedule Meeting · Mastex SchoolOS{% endblock %}
+{% block page_title %}Schedule PT Meeting{% endblock %}
+{% block page_subtitle %}Create a new parent-teacher meeting{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card">
+    <form method="POST">
+        {% csrf_token %}
+        <div style="display: grid; gap: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Meeting Title *</label>
+                <input type="text" name="title" required placeholder="e.g. JHS 1 Parent-Teacher Meeting" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description</label>
+                <textarea name="description" rows="3" placeholder="Meeting description (optional)" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Meeting Date & Time *</label>
+                    <input type="datetime-local" name="meeting_date" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Location *</label>
+                    <input type="text" name="location" required placeholder="e.g. School Hall, Classroom 1" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                </div>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Maximum Slots</label>
+                <input type="number" name="max_slots" value="20" min="1" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Schedule Meeting</button>
+            <a href="{% url 'operations:pt_meeting_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

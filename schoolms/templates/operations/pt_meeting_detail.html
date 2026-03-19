@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ meeting.title }} · Mastex SchoolOS{% endblock %}
+{% block page_title %}{{ meeting.title }}{% endblock %}
+{% block page_subtitle %}PT Meeting Details & Bookings{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Meeting Details</h3>
+    <div style="display: grid; gap: 0.5rem;">
+        <p><strong>Date:</strong> {{ meeting.meeting_date|date:"M d, Y H:i" }}</p>
+        <p><strong>Location:</strong> {{ meeting.location }}</p>
+        <p><strong>Description:</strong> {{ meeting.description|default:"—" }}</p>
+        <p><strong>Booked Slots:</strong> {{ bookings|length }} / {{ meeting.max_slots }}</p>
+    </div>
+    
+    <h4 style="margin-top: 1.5rem; color: #22c55e;">Bookings</h4>
+    {% if bookings %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Parent</th>
+                    <th>Student</th>
+                    <th>Preferred Time</th>
+                    <th>Topics</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for b in bookings %}
+            <tr>
+                <td>{{ b.parent.get_full_name }}</td>
+                <td>{{ b.student.user.get_full_name }}</td>
+                <td>{{ b.preferred_time|default:"—" }}</td>
+                <td>{{ b.topics_to_discuss|truncatechars:50 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No bookings yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:pt_meeting_list' %}" class="btn btn-secondary">← Back</a>
+</div>
+{% endblock %}
