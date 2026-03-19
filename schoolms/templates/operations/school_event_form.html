@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Create Event · Mastex SchoolOS{% endblock %}
+{% block page_title %}Create School Event{% endblock %}
+{% block page_subtitle %}Schedule a new school event{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card">
+    <form method="POST">
+        {% csrf_token %}
+        <div style="display: grid; gap: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Event Title *</label>
+                <input type="text" name="title" required placeholder="e.g. Graduation Ceremony, Sports Day" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description</label>
+                <textarea name="description" rows="3" placeholder="Event description" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Date *</label>
+                    <input type="date" name="event_date" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Time</label>
+                    <input type="time" name="event_time" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                </div>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Location</label>
+                <input type="text" name="location" placeholder="Event venue" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Create Event</button>
+            <a href="{% url 'operations:school_event_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
