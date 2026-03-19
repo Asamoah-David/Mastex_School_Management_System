@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Create Seating Plan · Mastex SchoolOS{% endblock %}
+{% block page_title %}Create Seating Plan{% endblock %}
+{% block page_subtitle %}Assign students to exam hall seats{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card">
+    <form method="POST">
+        {% csrf_token %}
+        <div style="display: grid; gap: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Exam *</label>
+                <select name="exam" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="">Select Exam</option>
+                    {% for exam in exams %}
+                    <option value="{{ exam.id }}">{{ exam.subject.name }} - {{ exam.exam_date|date:"M d, Y" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Hall *</label>
+                <select name="hall" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="">Select Hall</option>
+                    {% for hall in halls %}
+                    <option value="{{ hall.id }}">{{ hall.name }} ({{ hall.total_seats }} seats)</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Create Plan</button>
+            <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Seating Plan · Mastex SchoolOS{% endblock %}
+{% block page_title %}Seating Plan - {{ plan.hall.name }}{% endblock %}
+{% block page_subtitle %}{{ plan.exam_schedule.subject.name }} on {{ plan.exam_schedule.exam_date|date:"M d, Y" }}{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card">
+    <h3 style="color: #22c55e;">Hall: {{ plan.hall.name }}</h3>
+    <p><strong>Exam:</strong> {{ plan.exam_schedule.subject.name }}</p>
+    <p><strong>Date:</strong> {{ plan.exam_schedule.exam_date }}</p>
+    <p><strong>Capacity:</strong> {{ plan.hall.total_seats }} seats ({{ plan.hall.rows }} rows × {{ plan.hall.seats_per_row }})</p>
+    
+    <h4 style="margin-top: 1.5rem; color: #22c55e;">Seating Assignments ({{ assignments|length }})</h4>
+    {% if assignments %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>Seat</th>
+                    <th>Student</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for a in assignments %}
+            <tr>
+                <td>{{ a.row_number }}</td>
+                <td>{{ a.seat_number }}</td>
+                <td>{{ a.student.user.get_full_name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No students assigned yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary">← Back</a>
+</div>
+{% endblock %}

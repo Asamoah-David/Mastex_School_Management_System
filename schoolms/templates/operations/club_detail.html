@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ club.name }} · Mastex SchoolOS{% endblock %}
+{% block page_title %}{{ club.name }}{% endblock %}
+{% block page_subtitle %}Club Details{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="button-row">
+    <a href="{% url 'operations:club_add_member' club.id %}" class="btn btn-primary">+ Add Member</a>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="color: #22c55e;">{{ club.name }}</h3>
+    <p><strong>Category:</strong> {{ club.get_category_display|default:club.category }}</p>
+    <p><strong>Sponsor:</strong> {{ club.sponsor.get_full_name|default:"Not assigned" }}</p>
+    <p><strong>Meeting:</strong> {{ club.meeting_day|default:"—" }} {{ club.meeting_time|default:"" }}</p>
+    <p><strong>Status:</strong> {% if club.is_active %}<span style="color: #22c55e;">Active</span>{% else %}<span style="color: #ef4444;">Inactive</span>{% endif %}</p>
+    
+    <h4 style="margin-top: 1.5rem; color: #22c55e;">Members ({{ members.count }})</h4>
+    {% if members %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Role</th>
+                    <th>Joined</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for m in members %}
+            <tr>
+                <td>{{ m.student.user.get_full_name }}</td>
+                <td>{{ m.student.class_name }}</td>
+                <td>{{ m.role|default:"Member" }}</td>
+                <td>{{ m.joined_at|date:"M d, Y" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No members yet.</p>
+        <a href="{% url 'operations:club_add_member' club.id %}" class="btn btn-primary mt-sm">Add First Member</a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:club_list' %}" class="btn btn-secondary">← Back</a>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Book Meeting · Mastex SchoolOS{% endblock %}
+{% block page_title %}Book PT Meeting{% endblock %}
+{% block page_subtitle %}Reserve your slot for {{ meeting.title }}{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card">
+    <h3 style="color: #22c55e;">{{ meeting.title }}</h3>
+    <p><strong>Date:</strong> {{ meeting.meeting_date|date:"M d, Y H:i" }}</p>
+    <p><strong>Location:</strong> {{ meeting.location }}</p>
+    <p><strong>Available Slots:</strong> {{ meeting.max_slots|add:"-1" }} / {{ meeting.max_slots }}</p>
+    
+    <hr style="border-color: rgba(148, 163, 184, 0.3); margin: 1.5rem 0;">
+    
+    <form method="POST">
+        {% csrf_token %}
+        <div style="display: grid; gap: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Child *</label>
+                <select name="student" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="">Select your child</option>
+                    {% for child in children %}
+                    <option value="{{ child.id }}">{{ child.user.get_full_name }} ({{ child.class_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Preferred Time</label>
+                <input type="time" name="preferred_time" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Topics to Discuss</label>
+                <textarea name="topics_to_discuss" rows="3" placeholder="What would you like to discuss?" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Book Slot</button>
+            <a href="{% url 'operations:pt_meeting_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
