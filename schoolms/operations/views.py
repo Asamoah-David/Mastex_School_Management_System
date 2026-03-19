@@ -560,11 +560,13 @@ def _redirect_no_school(request):
 # Announcements
 @login_required
 def announcement_list(request):
-    from accounts.permissions import user_can_manage_school
+    from accounts.permissions import user_can_manage_school, is_school_admin
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
-    if not user_can_manage_school(request.user):
+    # Allow school admins, teachers, and superusers to view announcements
+    user_role = getattr(request.user, 'role', None)
+    if not (request.user.is_superuser or user_can_manage_school(request.user) or user_role == 'teacher'):
         return redirect("home")
     announcements = Announcement.objects.filter(school=school).select_related("created_by").order_by("-is_pinned", "-created_at")
     return render(request, "operations/announcement_list.html", {"announcements": announcements, "school": school})
@@ -576,7 +578,9 @@ def announcement_create(request):
     if not school:
         return _redirect_no_school(request)
     from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    # Allow school admins, teachers, and superusers to create announcements
+    user_role = getattr(request.user, 'role', None)
+    if not (request.user.is_superuser or is_school_admin(request.user) or user_role == 'teacher'):
         return redirect("operations:announcement_list")
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
