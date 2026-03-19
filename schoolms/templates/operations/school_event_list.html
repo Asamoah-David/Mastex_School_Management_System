@@ -14,7 +14,9 @@
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>📅 School Events</h2>
+        {% if user.role == "school_admin" or user.is_superuser %}
         <a href="{% url 'operations:school_event_create' %}" class="btn btn-primary">➕ Create Event</a>
+        {% endif %}
     </div>
     
     {% if events %}

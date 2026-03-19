@@ -138,12 +138,14 @@ urlpatterns = [
     path("sports/", views.sport_list, name="sport_list"),
     path("sports/create/", views.sport_create, name="sport_create"),
     path("sports/<int:pk>/", views.sport_detail, name="sport_detail"),
+    path("sports/<int:pk>/delete/", views.sport_delete, name="sport_delete"),
     path("sports/<int:pk>/add-member/", views.sport_add_member, name="sport_add_member"),
     
     # Clubs
     path("clubs/", views.club_list, name="club_list"),
     path("clubs/create/", views.club_create, name="club_create"),
     path("clubs/<int:pk>/", views.club_detail, name="club_detail"),
+    path("clubs/<int:pk>/delete/", views.club_delete, name="club_delete"),
     path("clubs/<int:pk>/add-member/", views.club_add_member, name="club_add_member"),
     
     # My Activities (Student View)

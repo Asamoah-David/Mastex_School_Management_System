@@ -49,6 +49,9 @@
                 </td>
                 <td>
                     <a href="{% url 'operations:club_detail' club.id %}" class="btn btn-secondary btn-sm">View</a>
+                    {% if can_manage %}
+                    <a href="{% url 'operations:club_delete' club.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this club?');">Delete</a>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

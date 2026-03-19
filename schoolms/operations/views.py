@@ -4086,5 +4086,51 @@ def online_exam_result(request, pk):
     })
 
 
+# ==================== SPORT DELETE ====================
+
+@login_required
+def sport_delete(request, pk):
+    """Delete a sport."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    sport = get_object_or_404(Sport, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        sport.delete()
+        from django.contrib import messages
+        messages.success(request, 'Sport deleted successfully!')
+        return redirect('operations:sport_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': sport, 'type': 'sport'
+    })
+
+
+# ==================== CLUB DELETE ====================
+
+@login_required
+def club_delete(request, pk):
+    """Delete a club."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    club = get_object_or_404(Club, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        club.delete()
+        from django.contrib import messages
+        messages.success(request, 'Club deleted successfully!')
+        return redirect('operations:club_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': club, 'type': 'club'
+    })
+
+
 # Import models at module level for annotations
 from django.db import models

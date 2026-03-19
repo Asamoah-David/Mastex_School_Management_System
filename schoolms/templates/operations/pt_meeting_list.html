@@ -44,6 +44,9 @@
                     <a href="{% url 'operations:pt_meeting_book' meeting.id %}" class="btn btn-primary btn-sm">Book Slot</a>
                     {% else %}
                     <a href="{% url 'operations:pt_meeting_detail' meeting.id %}" class="btn btn-secondary btn-sm">View</a>
+                    {% if user.role == "school_admin" or user.role == "admin" or user.is_superuser %}
+                    <a href="{% url 'operations:pt_meeting_delete' meeting.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this meeting?');">Delete</a>
+                    {% endif %}
                     {% endif %}
                 </td>
             </tr>

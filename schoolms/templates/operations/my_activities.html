@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Activities{% endblock %}
+
+{% block page_title %}My Activities{% endblock %}
+{% block page_subtitle %}Sports and clubs you participate in{% endblock %}
+
+{% block content %}
+
+<!-- Sports Section -->
+<div class="content-card">
+    <h3 class="section-title">My Sports</h3>
+    {% if sports %}
+    <div class="content-grid">
+        {% for sport in sports %}
+        <div class="metric">
+            <div class="metric-label">{{ sport.sport.name }}</div>
+            <div class="metric-value">{{ sport.get_status_display }}</div>
+            <div class="metric-caption">Joined: {{ sport.joined_date|date:"M d, Y" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">You have not joined any sports teams.</div>
+    {% endif %}
+</div>
+
+<!-- Clubs Section -->
+<div class="content-card">
+    <h3 class="section-title">My Clubs</h3>
+    {% if clubs %}
+    <div class="content-grid">
+        {% for club in clubs %}
+        <div class="metric">
+            <div class="metric-label">{{ club.club.name }}</div>
+            <div class="metric-value">{{ club.get_role_display }}</div>
+            <div class="metric-caption">Joined: {{ club.joined_date|date:"M d, Y" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">You have not joined any clubs.</div>
+    {% endif %}
+</div>
+
+{% endblock %}

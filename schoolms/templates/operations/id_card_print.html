@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Print ID Card{% endblock %}
+
+{% block content %}
+<div class="id-card-print">
+    <div class="id-card" style="border: 2px solid #22c55e; border-radius: 10px; padding: 20px; width: 350px; background: white; color: black;">
+        <div style="text-align: center; border-bottom: 2px solid #22c55e; padding-bottom: 10px; margin-bottom: 10px;">
+            <h3 style="margin: 0; color: #22c55e;">{{ school.name|default:"School Name" }}</h3>
+            <p style="margin: 5px 0 0; font-size: 12px;">Student ID Card</p>
+        </div>
+        
+        <div style="display: flex; gap: 15px; align-items: center;">
+            {% if id_card.photo %}
+            <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 80px; height: 100px; object-fit: cover; border: 1px solid #ccc;">
+            {% else %}
+            <div style="width: 80px; height: 100px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc;">
+                <span style="color: #666;">No Photo</span>
+            </div>
+            {% endif %}
+            
+            <div>
+                <p style="margin: 0; font-weight: bold; font-size: 14px;">{{ id_card.student.get_full_name }}</p>
+                <p style="margin: 3px 0; font-size: 12px;">ID: {{ id_card.student.student_id }}</p>
+                <p style="margin: 3px 0; font-size: 12px;">Class: {{ id_card.student.current_class|default:"N/A" }}</p>
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px;">
+            <p style="margin: 2px 0;">Valid: {{ id_card.issue_date|date:"M Y" }} - {{ id_card.expiry_date|date:"M Y" }}</p>
+            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.guardian_phone|default:id_card.student.parent_phone|default:"N/A" }}</p>
+        </div>
+    </div>
+    
+    <div class="button-row" style="margin-top: 20px;">
+        <button onclick="window.print()" class="btn btn-primary">Print</button>
+        <a href="{% url 'operations:id_card_list' %}" class="btn btn-secondary">Back</a>
+    </div>
+</div>
+
+<style>
+@media print {
+    .id-card-print > *:not(.id-card) { display: none; }
+    .id-card { border: 2px solid #22c55e !important; }
+}
+</style>
+{% endblock %}
