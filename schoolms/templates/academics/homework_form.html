@@ -1,45 +1,53 @@
 {% extends "base.html" %}
-{% block title %}{% if homework %}Edit Homework{% else %}Add Homework{% endif %} - {{ school.name }}{% endblock %}
-{% block page_title %}{% if homework %}Edit Homework{% else %}Add Homework{% endif %}{% endblock %}
-{% block page_subtitle %}{% if homework %}Update an assignment{% else %}Create an assignment{% endif %}{% endblock %}
-
+{% load static %}
+{% block title %}Create Homework - {{ school.name }}{% endblock %}
+{% block page_title %}Create Homework Assignment{% endblock %}
 {% block content %}
 <div class="content-card">
-    <form method="post">
+    <h2>📚 Create Homework Assignment</h2>
+    
+    <form method="POST" enctype="multipart/form-data" class="form-styled">
         {% csrf_token %}
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="id_title">Title</label>
-            <input type="text" id="id_title" name="title" required maxlength="200" style="width:100%;padding:0.5rem;" value="{{ homework.title|default:'' }}" placeholder="Enter homework title">
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="id_subject">Subject</label>
-            <select id="id_subject" name="subject" required style="padding:0.5rem;">
-                <option value="">-- Select --</option>
-                {% for s in subjects %}
-                <option value="{{ s.id }}" {% if homework.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+        
+        <div class="form-group">
+            <label for="subject">Subject *</label>
+            <select name="subject" id="subject" required class="form-control">
+                <option value="">Select Subject</option>
+                {% for subject in subjects %}
+                <option value="{{ subject.id }}">{{ subject.name }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="id_class_name">Class</label>
-            <select id="id_class_name" name="class_name" required style="padding:0.5rem;">
-                <option value="">-- Select --</option>
-                {% for c in classes %}
-                <option value="{{ c }}" {% if homework.class_name == c %}selected{% endif %}>{{ c }}</option>
-                {% endfor %}
-            </select>
+        
+        <div class="form-group">
+            <label for="class_name">Class *</label>
+            <input type="text" name="class_name" id="class_name" required placeholder="e.g., JHS 1, SSS 2" class="form-control">
         </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="id_description">Description</label>
-            <textarea id="id_description" name="description" rows="3" style="width:100%;padding:0.5rem;" placeholder="Enter homework description">{{ homework.description|default:'' }}</textarea>
+        
+        <div class="form-group">
+            <label for="title">Title *</label>
+            <input type="text" name="title" id="title" required placeholder="Homework title" class="form-control">
         </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="id_due_date">Due Date</label>
-            <input type="date" id="id_due_date" name="due_date" required style="padding:0.5rem;" value="{{ homework.due_date|date:'Y-m-d'|default:'' }}">
+        
+        <div class="form-group">
+            <label for="description">Instructions / Description</label>
+            <textarea name="description" id="description" rows="4" placeholder="Detailed instructions for students..." class="form-control"></textarea>
         </div>
-        <div class="button-row">
-            <button type="submit" class="btn btn-primary">{% if homework %}Update{% else %}Add{% endif %}</button>
-            <a href="{% url 'academics:homework_list' %}" class="btn btn-secondary">Cancel</a>
+        
+        <div class="form-group">
+            <label for="attachment">Attachment (Optional)</label>
+            <input type="file" name="attachment" id="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip">
+            <small class="form-text text-muted">Upload PDF, Word documents, images, or ZIP files (Max 10MB)</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="due_date">Due Date *</label>
+            <input type="date" name="due_date" id="due_date" required class="form-control">
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 Create Homework</button>
+            <a href="{% url 'academics:homework_list' %}" class="btn btn-secondary">↩️ Cancel</a>
         </div>
     </form>
 </div>

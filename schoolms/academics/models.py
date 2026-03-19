@@ -111,6 +111,7 @@ class Homework(models.Model):
     class_name = models.CharField(max_length=100)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    attachment = models.FileField(upload_to='homework/attachments/', null=True, blank=True)
     due_date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='homework_created')
