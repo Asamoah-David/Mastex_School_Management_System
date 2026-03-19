@@ -1,12 +1,16 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Discipline - {{ school.name }}{% endblock %}
 {% block page_title %}Discipline Incidents{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>⚖️ Discipline Incidents</h2>
     {% if incidents %}
     <table class="data-table">
-        <thead><tr><th>Student</th><th>Type</th><th>Date</th><th>Severity</th></tr></thead>
+        <thead><tr><th>Student</th><th>Type</th><th>Date</th><th>Severity</th><th>Reported By</th></tr></thead>
         <tbody>
         {% for inc in incidents %}
         <tr>
@@ -14,6 +18,7 @@
             <td>{{ inc.incident_type }}</td>
             <td>{{ inc.incident_date|date:"M d, Y" }}</td>
             <td><span class="badge badge-{{ inc.severity }}">{{ inc.severity|title }}</span></td>
+            <td>{{ inc.reported_by.get_full_name|default:"N/A" }}</td>
         </tr>
         {% endfor %}
         </tbody>

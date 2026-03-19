@@ -1,18 +1,23 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Clubs - {{ school.name }}{% endblock %}
 {% block page_title %}School Clubs{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>🎭 Clubs</h2>
     {% if clubs %}
     <table class="data-table">
-        <thead><tr><th>Club</th><th>Category</th><th>Sponsor</th></tr></thead>
+        <thead><tr><th>Club</th><th>Category</th><th>Sponsor</th><th>Status</th></tr></thead>
         <tbody>
         {% for club in clubs %}
         <tr>
             <td>{{ club.name }}</td>
-            <td>{{ club.category|title }}</td>
-            <td>{{ club.sponsor.get_full_name|default:"N/A" }}</td>
+            <td>{{ club.get_category_display }}</td>
+            <td>{% if club.sponsor %}{{ club.sponsor.get_full_name }}{% else %}N/A{% endif %}</td>
+            <td>{% if club.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</td>
         </tr>
         {% endfor %}
         </tbody>

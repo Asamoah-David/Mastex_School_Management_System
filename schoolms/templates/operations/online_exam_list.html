@@ -1,19 +1,24 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Online Exams - {{ school.name }}{% endblock %}
 {% block page_title %}Online Exams{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>💻 Online Exams</h2>
     {% if exams %}
     <table class="data-table">
-        <thead><tr><th>Title</th><th>Subject</th><th>Duration</th><th>Status</th></tr></thead>
+        <thead><tr><th>Title</th><th>Subject</th><th>Duration</th><th>Total Marks</th><th>Status</th></tr></thead>
         <tbody>
         {% for exam in exams %}
         <tr>
             <td>{{ exam.title }}</td>
-            <td>{{ exam.subject.name|default:"N/A" }}</td>
+            <td>{% if exam.subject %}{{ exam.subject.name }}{% else %}N/A{% endif %}</td>
             <td>{{ exam.duration_minutes }} min</td>
-            <td><span class="badge badge-{{ exam.status }}">{{ exam.status|title }}</span></td>
+            <td>{{ exam.total_marks }}</td>
+            <td><span class="badge badge-{{ exam.status }}">{{ exam.get_status_display }}</span></td>
         </tr>
         {% endfor %}
         </tbody>

@@ -1,6 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Exam Halls - {{ school.name }}{% endblock %}
 {% block page_title %}Exam Halls{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>🏫 Exam Halls</h2>
@@ -11,7 +15,7 @@
         {% for hall in halls %}
         <tr>
             <td>{{ hall.name }}</td>
-            <td>{{ hall.rows }} × {{ hall.seats_per_row }} = {{ hall.rows|mult:hall.seats_per_row }}</td>
+            <td>{{ hall.total_seats }} seats</td>
             <td>{{ hall.description|default:"N/A" }}</td>
         </tr>
         {% endfor %}

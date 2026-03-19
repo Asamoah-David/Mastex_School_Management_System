@@ -1,17 +1,22 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Seating Plans - {{ school.name }}{% endblock %}
 {% block page_title %}Exam Seating Plans{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>🪑 Seating Plans</h2>
     {% if plans %}
     <table class="data-table">
-        <thead><tr><th>Exam</th><th>Hall</th><th>Created</th></tr></thead>
+        <thead><tr><th>Exam</th><th>Hall</th><th>Created By</th><th>Created</th></tr></thead>
         <tbody>
         {% for plan in plans %}
         <tr>
-            <td>{{ plan.exam_schedule.subject.name|default:"N/A" }}</td>
+            <td>{% if plan.exam_schedule %}{{ plan.exam_schedule.subject.name|default:"N/A" }}{% else %}N/A{% endif %}</td>
             <td>{{ plan.hall.name }}</td>
+            <td>{% if plan.created_by %}{{ plan.created_by.get_full_name }}{% else %}N/A{% endif %}</td>
             <td>{{ plan.created_at|date:"M d, Y" }}</td>
         </tr>
         {% endfor %}

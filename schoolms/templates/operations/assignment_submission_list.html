@@ -1,20 +1,25 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Assignment Submissions - {{ school.name }}{% endblock %}
 {% block page_title %}Assignment Submissions{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>📝 Assignment Submissions</h2>
     {% if submissions %}
     <table class="data-table">
-        <thead><tr><th>Student</th><th>Assignment</th><th>Subject</th><th>Submitted</th><th>Status</th></tr></thead>
+        <thead><tr><th>Student</th><th>Assignment</th><th>Subject</th><th>Submitted</th><th>Status</th><th>Grade</th></tr></thead>
         <tbody>
         {% for sub in submissions %}
         <tr>
             <td>{{ sub.student.user.get_full_name }}</td>
             <td>{{ sub.homework.title }}</td>
-            <td>{{ sub.homework.subject.name }}</td>
+            <td>{% if sub.homework.subject %}{{ sub.homework.subject.name }}{% else %}N/A{% endif %}</td>
             <td>{{ sub.submitted_at|date:"M d, Y H:i" }}</td>
-            <td><span class="badge badge-{{ sub.status }}">{{ sub.status|title }}</span></td>
+            <td><span class="badge badge-{{ sub.status }}">{{ sub.get_status_display }}</span></td>
+            <td>{% if sub.grade %}{{ sub.grade }}{% else %}-{% endif %}</td>
         </tr>
         {% endfor %}
         </tbody>

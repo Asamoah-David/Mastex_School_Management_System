@@ -1,19 +1,25 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Inventory Items - {{ school.name }}{% endblock %}
 {% block page_title %}Inventory Items{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>📦 Inventory Items</h2>
     {% if items %}
     <table class="data-table">
-        <thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>Condition</th></tr></thead>
+        <thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>Min Qty</th><th>Condition</th><th>Status</th></tr></thead>
         <tbody>
         {% for item in items %}
         <tr>
             <td>{{ item.name }}</td>
-            <td>{{ item.category.name|default:"N/A" }}</td>
+            <td>{% if item.category %}{{ item.category.name }}{% else %}N/A{% endif %}</td>
             <td>{{ item.quantity }}</td>
-            <td>{{ item.condition|title }}</td>
+            <td>{{ item.min_quantity }}</td>
+            <td>{{ item.get_condition_display }}</td>
+            <td>{% if item.is_low_stock %}<span class="badge badge-warning">Low Stock</span>{% else %}<span class="badge badge-active">OK</span>{% endif %}</td>
         </tr>
         {% endfor %}
         </tbody>

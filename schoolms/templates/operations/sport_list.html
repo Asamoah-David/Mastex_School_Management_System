@@ -1,6 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Sports - {{ school.name }}{% endblock %}
 {% block page_title %}Sports Activities{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
 {% block content %}
 <div class="content-card">
     <h2>⚽ Sports</h2>
@@ -11,7 +15,7 @@
         {% for sport in sports %}
         <tr>
             <td>{{ sport.name }}</td>
-            <td>{{ sport.coach.get_full_name|default:"N/A" }}</td>
+            <td>{% if sport.coach %}{{ sport.coach.get_full_name }}{% else %}N/A{% endif %}</td>
             <td>{% if sport.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</td>
         </tr>
         {% endfor %}
