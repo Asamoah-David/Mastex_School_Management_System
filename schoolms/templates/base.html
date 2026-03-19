@@ -570,6 +570,7 @@
                         </div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
+                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🎓</span><div class="nav-item-label"><span class="nav-item-title">My Students</span></div></a></li>
                                 <li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span></div></a></li>
                                 <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
                                 <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
@@ -588,6 +589,18 @@
                                 <li><a href="{% url 'academics:quiz_create' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Create Quiz</span></div></a></li>
                                 <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
                                 <li><a href="{% url 'operations:online_exam_create' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Create Exam</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>⚖️ Discipline</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Log Incidents</span></div></a></li>
+                                <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">⭐</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>
                             </ul>
                         </div>
                     </div>
