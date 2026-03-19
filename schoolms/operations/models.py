@@ -561,6 +561,7 @@ class StudentIDCard(models.Model):
     student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='id_card')
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     card_number = models.CharField(max_length=50, unique=True)
+    photo = models.ImageField(upload_to='id_cards/', null=True, blank=True)
     issue_date = models.DateField()
     expiry_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)

@@ -1,52 +1,57 @@
 {% extends "base.html" %}
-{% block title %}Generate ID Card · Mastex SchoolOS{% endblock %}
-{% block page_title %}Generate Student ID Card{% endblock %}
-{% block page_subtitle %}Create a student identification card{% endblock %}
+{% load static %}
+{% block title %}{{ title }} - ID Card{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
 {% block content %}
-
-{% if messages %}
-<div class="messages">
-{% for message in messages %}
-    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
-{% endfor %}
-</div>
-{% endif %}
-
 <div class="content-card">
-    <form method="POST">
+    <h2>🪪 {{ title }}</h2>
+    
+    <form method="POST" enctype="multipart/form-data" class="form-styled">
         {% csrf_token %}
-        <div style="display: grid; gap: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Student *</label>
-                <select name="student" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                    <option value="">Select Student</option>
-                    {% for student in students %}
-                    <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.admission_number }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">ID Number</label>
-                <input type="text" name="id_number" placeholder="Auto-generated if left blank" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Blood Group</label>
-                <select name="blood_group" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                    <option value="">Select</option>
-                    <option value="A+">A+</option>
-                    <option value="A-">A-</option>
-                    <option value="B+">B+</option>
-                    <option value="B-">B-</option>
-                    <option value="AB+">AB+</option>
-                    <option value="AB-">AB-</option>
-                    <option value="O+">O+</option>
-                    <option value="O-">O-</option>
-                </select>
-            </div>
+        
+        <div class="form-group">
+            <label for="student">Student *</label>
+            <select name="student" id="student" required class="form-control">
+                <option value="">Select Student</option>
+                {% for student in students %}
+                <option value="{{ student.id }}" {% if student.id == form.student.value %}selected{% endif %}>
+                    {{ student.user.get_full_name }} ({{ student.admission_number }})
+                </option>
+                {% endfor %}
+            </select>
         </div>
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Generate ID Card</button>
-            <a href="{% url 'operations:id_card_list' %}" class="btn btn-secondary">Cancel</a>
+        
+        <div class="form-group">
+            <label for="card_number">Card Number *</label>
+            <input type="text" name="card_number" id="card_number" required value="{{ form.card_number.value|default:'' }}" placeholder="e.g., STU-2025-001" class="form-control">
+        </div>
+        
+        <div class="form-group">
+            <label for="photo">Student Photo</label>
+            <input type="file" name="photo" id="photo" accept="image/*" class="form-control">
+            <small class="form-text text-muted">Upload a passport-size photo (JPG, PNG)</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="issue_date">Issue Date *</label>
+            <input type="date" name="issue_date" id="issue_date" required value="{{ form.issue_date.value|default:'' }}" class="form-control">
+        </div>
+        
+        <div class="form-group">
+            <label for="expiry_date">Expiry Date</label>
+            <input type="date" name="expiry_date" id="expiry_date" value="{{ form.expiry_date.value|default:'' }}" class="form-control">
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+                Active Card
+            </label>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 Save</button>
+            <a href="{% url 'operations:id_card_list' %}" class="btn btn-secondary">↩️ Cancel</a>
         </div>
     </form>
 </div>

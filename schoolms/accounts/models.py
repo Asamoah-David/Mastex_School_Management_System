@@ -39,6 +39,8 @@ class User(AbstractUser):
     assigned_subjects = models.ManyToManyField('academics.Subject', blank=True, related_name='assigned_teachers')
     # Secondary roles - allows users to have multiple roles (e.g., teacher + librarian)
     secondary_roles = models.ManyToManyField('self', blank=True, symmetrical=False, related_name='primary_role_of')
+    # Profile photo
+    profile_photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
     
     @property
     def is_super_admin(self):

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}ID Card - {{ id_card.student }}{% endblock %}
+{% block content %}
+<div class="content-card">
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>🪪 Student ID Card</h2>
+        <div>
+            <a href="{% url 'operations:id_card_print' id_card.pk %}" class="btn btn-success">🖨️ Print</a>
+            <a href="{% url 'operations:id_card_list' %}" class="btn btn-secondary">← Back</a>
+        </div>
+    </div>
+    
+    <div class="id-card" style="width: 320px; background: linear-gradient(135deg, #4F46E5, #4338CA); color: white; border-radius: 12px; padding: 1.5rem; margin: 1rem auto;">
+        <div class="id-card-header" style="text-align: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">{{ school.name }}</h3>
+            <p style="margin: 0.25rem 0 0;">Student Identity Card</p>
+        </div>
+        
+        <div style="text-align: center; margin-bottom: 1rem;">
+            {% if id_card.photo %}
+            <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid white;">
+            {% elif id_card.student.user.profile_photo %}
+            <img src="{{ id_card.student.user.profile_photo.url }}" alt="Photo" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid white;">
+            {% else %}
+            <div style="width: 100px; height: 100px; border-radius: 50%; background: white; color: #4F46E5; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 2rem; border: 3px solid white;">
+                👤
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="id-card-info" style="font-size: 0.875rem;">
+            <p style="margin: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 0.5rem;">
+                <strong>Name:</strong> {{ id_card.student.user.get_full_name }}
+            </p>
+            <p style="margin: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 0.5rem;">
+                <strong>Class:</strong> {{ id_card.student.class_name }}
+            </p>
+            <p style="margin: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 0.5rem;">
+                <strong>Adm No:</strong> {{ id_card.student.admission_number }}
+            </p>
+            <p style="margin: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 0.5rem;">
+                <strong>Card No:</strong> {{ id_card.card_number }}
+            </p>
+            <p style="margin: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 0.5rem;">
+                <strong>Issue Date:</strong> {{ id_card.issue_date|date:"M d, Y" }}
+            </p>
+            <p style="margin: 0.5rem 0;">
+                <strong>Expiry:</strong> {{ id_card.expiry_date|date:"M d, Y"|default:"N/A" }}
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
