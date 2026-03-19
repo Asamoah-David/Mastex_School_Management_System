@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
+from django.db import models
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 
@@ -28,6 +29,16 @@ from .models import (
     HostelFee,
     AdmissionApplication,
     Certificate,
+    ExpenseCategory,
+    Expense,
+    Budget,
+    DisciplineIncident,
+    BehaviorPoint,
+    StudentDocument,
+    Alumni,
+    AlumniEvent,
+    TimetableSlot,
+    TimetableConflict,
 )
 
 
@@ -1559,3 +1570,550 @@ def certificate_delete(request, pk):
         'object': certificate,
         'type': 'certificate'
     })
+
+
+# ==================== EXPENSE TRACKING ====================
+
+@login_required
+def expense_list(request):
+    """List all expenses."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    expenses = Expense.objects.filter(school=school).select_related('category', 'recorded_by').order_by('-expense_date')[:200]
+    total = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    return render(request, 'operations/expense_list.html', {
+        'expenses': expenses,
+        'school': school,
+        'total': total
+    })
+
+
+@login_required
+def expense_create(request):
+    """Create a new expense."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:expense_list')
+    
+    categories = ExpenseCategory.objects.filter(school=school)
+    
+    if request.method == 'POST':
+        category_id = request.POST.get('category')
+        description = request.POST.get('description', '').strip()
+        amount = request.POST.get('amount')
+        expense_date = request.POST.get('expense_date')
+        vendor = request.POST.get('vendor', '').strip()
+        payment_method = request.POST.get('payment_method', 'cash')
+        receipt_number = request.POST.get('receipt_number', '').strip()
+        
+        if description and amount and expense_date:
+            try:
+                category = ExpenseCategory.objects.get(id=category_id, school=school) if category_id else None
+                Expense.objects.create(
+                    school=school,
+                    category=category,
+                    description=description,
+                    amount=amount,
+                    expense_date=expense_date,
+                    vendor=vendor,
+                    payment_method=payment_method,
+                    receipt_number=receipt_number,
+                    recorded_by=request.user
+                )
+                from django.contrib import messages
+                messages.success(request, 'Expense recorded successfully!')
+                return redirect('operations:expense_list')
+            except ValueError:
+                pass
+    
+    return render(request, 'operations/expense_form.html', {
+        'school': school,
+        'categories': categories
+    })
+
+
+@login_required
+def expense_detail(request, pk):
+    """View expense details."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    expense = get_object_or_404(Expense, pk=pk, school=school)
+    
+    return render(request, 'operations/expense_detail.html', {
+        'expense': expense,
+        'school': school
+    })
+
+
+@login_required
+def budget_list(request):
+    """List budgets."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    budgets = Budget.objects.filter(school=school).select_related('category').order_by('-academic_year')
+    
+    return render(request, 'operations/budget_list.html', {
+        'budgets': budgets,
+        'school': school
+    })
+
+
+@login_required
+def budget_create(request):
+    """Create a new budget."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:budget_list')
+    
+    categories = ExpenseCategory.objects.filter(school=school)
+    
+    if request.method == 'POST':
+        category_id = request.POST.get('category')
+        academic_year = request.POST.get('academic_year', '').strip()
+        term = request.POST.get('term', '').strip()
+        allocated_amount = request.POST.get('allocated_amount')
+        
+        if academic_year and allocated_amount:
+            try:
+                category = ExpenseCategory.objects.get(id=category_id, school=school) if category_id else None
+                Budget.objects.create(
+                    school=school,
+                    category=category,
+                    academic_year=academic_year,
+                    term=term,
+                    allocated_amount=allocated_amount
+                )
+                from django.contrib import messages
+                messages.success(request, 'Budget created successfully!')
+                return redirect('operations:budget_list')
+            except ValueError:
+                pass
+    
+    return render(request, 'operations/budget_form.html', {
+        'school': school,
+        'categories': categories
+    })
+
+
+# ==================== DISCIPLINE ====================
+
+@login_required
+def discipline_list(request):
+    """List discipline incidents."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    incidents = DisciplineIncident.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+    
+    return render(request, 'operations/discipline_list.html', {
+        'incidents': incidents,
+        'school': school
+    })
+
+
+@login_required
+def discipline_create(request):
+    """Create a new discipline incident."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:discipline_list')
+    
+    students = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        incident_type = request.POST.get('incident_type', '').strip()
+        severity = request.POST.get('severity', 'minor')
+        description = request.POST.get('description', '').strip()
+        action_taken = request.POST.get('action_taken', '').strip()
+        
+        if student_id and incident_type and description:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                DisciplineIncident.objects.create(
+                    school=school,
+                    student=student,
+                    incident_date=timezone.now(),
+                    incident_type=incident_type,
+                    severity=severity,
+                    description=description,
+                    action_taken=action_taken,
+                    reported_by=request.user
+                )
+                from django.contrib import messages
+                messages.success(request, 'Incident recorded successfully!')
+                return redirect('operations:discipline_list')
+    
+    return render(request, 'operations/discipline_form.html', {
+        'school': school,
+        'students': students
+    })
+
+
+@login_required
+def discipline_detail(request, pk):
+    """View discipline incident details."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    incident = get_object_or_404(DisciplineIncident, pk=pk, school=school)
+    
+    return render(request, 'operations/discipline_detail.html', {
+        'incident': incident,
+        'school': school
+    })
+
+
+@login_required
+def behavior_points_list(request):
+    """List behavior points."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    # Get students with their total points
+    from django.db.models import Sum, Case, When, IntegerField
+    students_with_points = Student.objects.filter(school=school).annotate(
+        total_positive=Sum('behavior_points__points', filter=models.Q(behavior_points__point_type='positive')),
+        total_negative=Sum('behavior_points__points', filter=models.Q(behavior_points__point_type='negative'))
+    ).select_related('user')
+    
+    return render(request, 'operations/behavior_points_list.html', {
+        'students': students_with_points,
+        'school': school
+    })
+
+
+@login_required
+def behavior_points_create(request):
+    """Award behavior points."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:behavior_points_list')
+    
+    students = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        point_type = request.POST.get('point_type')
+        points = request.POST.get('points')
+        reason = request.POST.get('reason', '').strip()
+        
+        if student_id and points and reason:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                BehaviorPoint.objects.create(
+                    school=school,
+                    student=student,
+                    point_type=point_type,
+                    points=int(points),
+                    reason=reason,
+                    awarded_by=request.user
+                )
+                from django.contrib import messages
+                messages.success(request, 'Points awarded successfully!')
+                return redirect('operations:behavior_points_list')
+    
+    return render(request, 'operations/behavior_points_form.html', {
+        'school': school,
+        'students': students
+    })
+
+
+# ==================== DOCUMENTS ====================
+
+@login_required
+def document_list(request):
+    """List student documents."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    role = getattr(request.user, 'role', None)
+    
+    if role == 'student':
+        student = Student.objects.filter(user=request.user, school=school).first()
+        documents = StudentDocument.objects.filter(student=student).order_by('-uploaded_at') if student else []
+    elif role == 'parent':
+        children = Student.objects.filter(parent=request.user, school=school)
+        documents = StudentDocument.objects.filter(student__in=children).select_related('student', 'student__user').order_by('-uploaded_at')[:200]
+    elif user_can_manage_school(request.user) or request.user.is_superuser:
+        documents = StudentDocument.objects.filter(school=school).select_related('student', 'student__user', 'uploaded_by').order_by('-uploaded_at')[:200]
+    else:
+        return redirect('home')
+    
+    return render(request, 'operations/document_list.html', {
+        'documents': documents,
+        'school': school
+    })
+
+
+@login_required
+def document_upload(request):
+    """Upload a student document."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    # Only admins or the student/parent themselves can upload
+    role = getattr(request.user, 'role', None)
+    students = []
+    
+    if role == 'student':
+        students = [Student.objects.filter(user=request.user, school=school).first()]
+    elif role == 'parent':
+        students = list(Student.objects.filter(parent=request.user, school=school))
+    elif user_can_manage_school(request.user) or request.user.is_superuser:
+        students = list(Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')[:100])
+    else:
+        return redirect('home')
+    
+    students = [s for s in students if s]
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        document_type = request.POST.get('document_type')
+        title = request.POST.get('title', '').strip()
+        
+        if student_id and document_type and title:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                # In a real app, you'd handle file upload here
+                StudentDocument.objects.create(
+                    student=student,
+                    school=school,
+                    document_type=document_type,
+                    title=title,
+                    file_path=f"documents/{student_id}/{title}",
+                    uploaded_by=request.user
+                )
+                from django.contrib import messages
+                messages.success(request, 'Document uploaded successfully!')
+                return redirect('operations:document_list')
+    
+    return render(request, 'operations/document_upload.html', {
+        'school': school,
+        'students': students
+    })
+
+
+# ==================== ALUMNI ====================
+
+@login_required
+def alumni_list(request):
+    """List alumni."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    if not user_can_manage_school(request.user) and not request.user.is_superuser:
+        return redirect('home')
+    
+    alumni = Alumni.objects.filter(school=school).order_by('-graduation_year')[:200]
+    
+    return render(request, 'operations/alumni_list.html', {
+        'alumni': alumni,
+        'school': school
+    })
+
+
+@login_required
+def alumni_create(request):
+    """Add a new alumni record."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:alumni_list')
+    
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        admission_number = request.POST.get('admission_number', '').strip()
+        class_name = request.POST.get('class_name', '').strip()
+        graduation_year = request.POST.get('graduation_year')
+        current_occupation = request.POST.get('current_occupation', '').strip()
+        current_institution = request.POST.get('current_institution', '').strip()
+        contact_phone = request.POST.get('contact_phone', '').strip()
+        contact_email = request.POST.get('contact_email', '').strip()
+        
+        if first_name and last_name and graduation_year:
+            try:
+                Alumni.objects.create(
+                    school=school,
+                    first_name=first_name,
+                    last_name=last_name,
+                    admission_number=admission_number,
+                    class_name=class_name,
+                    graduation_year=int(graduation_year),
+                    current_occupation=current_occupation,
+                    current_institution=current_institution,
+                    contact_phone=contact_phone,
+                    contact_email=contact_email
+                )
+                from django.contrib import messages
+                messages.success(request, 'Alumni record added successfully!')
+                return redirect('operations:alumni_list')
+            except ValueError:
+                pass
+    
+    return render(request, 'operations/alumni_form.html', {
+        'school': school
+    })
+
+
+@login_required
+def alumni_detail(request, pk):
+    """View alumni details."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not (user_can_manage_school(request.user) or request.user.is_superuser):
+        return redirect('home')
+    
+    alumni = get_object_or_404(Alumni, pk=pk, school=school)
+    
+    return render(request, 'operations/alumni_detail.html', {
+        'alumni': alumni,
+        'school': school
+    })
+
+
+@login_required
+def alumni_event_list(request):
+    """List alumni events."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    events = AlumniEvent.objects.filter(school=school).order_by('-event_date')[:50]
+    
+    return render(request, 'operations/alumni_event_list.html', {
+        'events': events,
+        'school': school
+    })
+
+
+# ==================== TIMETABLE ====================
+
+@login_required
+def timetable_view(request):
+    """View class timetable."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    class_filter = request.GET.get('class')
+    day_filter = request.GET.get('day')
+    
+    slots = TimetableSlot.objects.filter(school=school, is_active=True)
+    
+    if class_filter:
+        slots = slots.filter(class_name=class_filter)
+    if day_filter:
+        slots = slots.filter(day=day_filter)
+    
+    slots = slots.select_related('subject', 'teacher').order_by('day', 'period_number')
+    
+    # Get unique classes for filter
+    classes = sorted(set(TimetableSlot.objects.filter(school=school, is_active=True).values_list('class_name', flat=True)))
+    
+    return render(request, 'operations/timetable_view.html', {
+        'slots': slots,
+        'school': school,
+        'classes': classes,
+        'class_filter': class_filter,
+        'day_filter': day_filter
+    })
+
+
+@login_required
+def timetable_create(request):
+    """Create timetable slot."""
+    from accounts.permissions import is_school_admin
+    from academics.models import Subject
+    
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:timetable_view')
+    
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
+    
+    if request.method == 'POST':
+        class_name = request.POST.get('class_name', '').strip()
+        day = request.POST.get('day')
+        period_number = request.POST.get('period_number')
+        subject_id = request.POST.get('subject')
+        teacher_id = request.POST.get('teacher')
+        start_time = request.POST.get('start_time')
+        end_time = request.POST.get('end_time')
+        room = request.POST.get('room', '').strip()
+        
+        if class_name and day and period_number and subject_id and start_time and end_time:
+            try:
+                subject = Subject.objects.get(id=subject_id, school=school)
+                teacher = User.objects.get(id=teacher_id) if teacher_id else None
+                
+                TimetableSlot.objects.create(
+                    school=school,
+                    class_name=class_name,
+                    day=day,
+                    period_number=int(period_number),
+                    subject=subject,
+                    teacher=teacher,
+                    start_time=start_time,
+                    end_time=end_time,
+                    room=room
+                )
+                from django.contrib import messages
+                messages.success(request, 'Timetable slot created!')
+                return redirect('operations:timetable_view')
+            except Exception:
+                pass
+    
+    return render(request, 'operations/timetable_form.html', {
+        'school': school,
+        'subjects': subjects,
+        'teachers': teachers
+    })
+
+
+@login_required
+def timetable_conflicts(request):
+    """View timetable conflicts."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    conflicts = TimetableConflict.objects.filter(school=school, is_resolved=False).select_related('slot_1', 'slot_2').order_by('-created_at')
+    
+    return render(request, 'operations/timetable_conflicts.html', {
+        'conflicts': conflicts,
+        'school': school
+    })
+
+
+# Import models at module level for annotations
+from django.db import models
