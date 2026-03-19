@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Student ID Cards - {{ school.name }}{% endblock %}
+{% block page_title %}Student ID Cards{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>Student ID Cards</h2>
+    {% if id_cards %}
+    <table>
+        <thead><tr><th>Student</th><th>Card Number</th><th>Issued</th><th>Expiry</th></tr></thead>
+        <tbody>
+        {% for card in id_cards %}
+        <tr>
+            <td>{{ card.student.user.get_full_name }}</td>
+            <td>{{ card.card_number }}</td>
+            <td>{{ card.issue_date|date }}</td>
+            <td>{{ card.expiry_date|date|default:"N/A" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No ID cards found.</p>
+    {% endif %}
+</div>
+{% endblock %}

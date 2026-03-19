@@ -1,36 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Manage Library · Mastex SchoolOS{% endblock %}
+{% block title %}Library Manage - {{ school.name }}{% endblock %}
 {% block page_title %}Manage Library{% endblock %}
-{% block page_subtitle %}Add, update, and remove books.{% endblock %}
 {% block content %}
-
-<div class="button-row mt-sm">
-    <a class="btn btn-primary" href="{% url 'operations:library_book_create' %}">Add Book</a>
-    <a class="btn btn-secondary" href="{% url 'operations:library_issues' %}">Issues</a>
-    <a class="btn btn-secondary" href="{% url 'operations:library_catalog' %}">Back to catalog</a>
-</div>
-
-{% if books %}
-<div class="table-card">
+<div class="content-card">
+    <h2>Library Management</h2>
+    {% if books %}
     <table>
-        <thead><tr><th>Title</th><th>Author</th><th>ISBN</th><th>Copies</th><th></th></tr></thead>
+        <thead><tr><th>Title</th><th>Author</th><th>Available</th></tr></thead>
         <tbody>
-            {% for b in books %}
-            <tr>
-                <td><strong>{{ b.title }}</strong><div style="color:#9ca3af;font-size:0.8rem;">{{ b.category|default:"—" }}</div></td>
-                <td>{{ b.author }}</td>
-                <td>{{ b.isbn }}</td>
-                <td>{{ b.available_copies }} / {{ b.total_copies }}</td>
-                <td><a class="btn btn-danger btn-sm" href="{% url 'operations:library_book_delete' b.id %}">Delete</a></td>
-            </tr>
-            {% endfor %}
+        {% for book in books %}
+        <tr>
+            <td>{{ book.title }}</td>
+            <td>{{ book.author }}</td>
+            <td>{{ book.available_copies }}/{{ book.total_copies }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <p class="empty-state">No books found.</p>
+    {% endif %}
 </div>
-{% else %}
-<div class="empty-state">No books yet.</div>
-{% endif %}
-
-<style>.btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem;}</style>
 {% endblock %}
-

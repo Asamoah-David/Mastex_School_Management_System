@@ -1,30 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Teacher Attendance · Mastex SchoolOS{% endblock %}
-{% block page_title %}Teacher Attendance{% endblock %}
-{% block page_subtitle %}Records for {{ school.name }}.{% endblock %}
+{% block title %}Teacher Attendance - {{ school.name }}{% endblock %}
+{% block page_title %}Teacher Attendance Records{% endblock %}
 {% block content %}
-<div class="button-row">
-    <a href="{% url 'operations:teacher_attendance_mark' %}" class="btn btn-primary">Mark teacher attendance</a>
-</div>
-<div class="table-card">
+<div class="content-card">
+    <h2>Teacher Attendance</h2>
+    <a href="{% url 'operations:teacher_attendance_mark' %}" class="btn">Mark Attendance</a>
     {% if attendances %}
     <table>
-        <thead>
-            <tr><th>Teacher</th><th>Date</th><th>Status</th><th>Marked by</th></tr>
-        </thead>
+        <thead><tr><th>Teacher</th><th>Date</th><th>Status</th></tr></thead>
         <tbody>
-            {% for a in attendances %}
-            <tr>
-                <td>{{ a.teacher.get_full_name|default:a.teacher.username }}</td>
-                <td>{{ a.date }}</td>
-                <td>{{ a.get_status_display }}</td>
-                <td>{{ a.marked_by.get_full_name|default:a.marked_by.username|default:"—" }}</td>
-            </tr>
-            {% endfor %}
+        {% for att in attendances %}
+        <tr>
+            <td>{{ att.teacher.get_full_name }}</td>
+            <td>{{ att.date|date }}</td>
+            <td>{{ att.status|title }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <div class="empty-state">No teacher attendance records. <a href="{% url 'operations:teacher_attendance_mark' %}">Mark attendance</a>.</div>
+    <p class="empty-state">No teacher attendance records found.</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -1,33 +1,25 @@
 {% extends "base.html" %}
-{% block title %}My Borrowed Books · Mastex SchoolOS{% endblock %}
-{% block page_title %}My Borrowed Books{% endblock %}
-{% block page_subtitle %}Books issued from the school library.{% endblock %}
+{% block title %}My Library Issues - {{ school.name }}{% endblock %}
+{% block page_title %}My Library Issues{% endblock %}
 {% block content %}
-
-<div class="button-row mt-sm">
-    <a class="btn btn-secondary" href="{% url 'operations:library_catalog' %}">Back to catalog</a>
-</div>
-
-{% if issues %}
-<div class="table-card">
+<div class="content-card">
+    <h2>My Library Issues</h2>
+    {% if issues %}
     <table>
-        <thead><tr>{% if mode == "parent" %}<th>Student</th>{% endif %}<th>Book</th><th>Issued</th><th>Due</th><th>Status</th></tr></thead>
+        <thead><tr><th>Book</th><th>Issue Date</th><th>Due Date</th><th>Status</th></tr></thead>
         <tbody>
-            {% for i in issues %}
-            <tr>
-                {% if mode == "parent" %}<td>{{ i.student.user.get_full_name|default:i.student.admission_number }}</td>{% endif %}
-                <td><strong>{{ i.book.title }}</strong><div style="color:#9ca3af;font-size:0.8rem;">{{ i.book.author }}</div></td>
-                <td>{{ i.issue_date }}</td>
-                <td>{{ i.due_date }}</td>
-                <td>{{ i.get_status_display }}</td>
-            </tr>
-            {% endfor %}
+        {% for issue in issues %}
+        <tr>
+            <td>{{ issue.book.title }}</td>
+            <td>{{ issue.issue_date|date }}</td>
+            <td>{{ issue.due_date|date }}</td>
+            <td>{{ issue.status|title }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <p class="empty-state">No library issues found.</p>
+    {% endif %}
 </div>
-{% else %}
-<div class="empty-state">No borrowed books found.</div>
-{% endif %}
-
 {% endblock %}
-

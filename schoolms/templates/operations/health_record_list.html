@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Health Records - {{ school.name }}{% endblock %}
+{% block page_title %}Student Health Records{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>Health Records</h2>
+    {% if records %}
+    <table>
+        <thead><tr><th>Student</th><th>Blood Type</th><th>Allergies</th><th>Updated</th></tr></thead>
+        <tbody>
+        {% for record in records %}
+        <tr>
+            <td>{{ record.student.user.get_full_name }}</td>
+            <td>{{ record.blood_type|default:"N/A" }}</td>
+            <td>{{ record.allergies|default:"None" }}</td>
+            <td>{{ record.last_updated|date }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No health records found.</p>
+    {% endif %}
+</div>
+{% endblock %}

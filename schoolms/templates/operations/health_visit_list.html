@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Health Visits - {{ school.name }}{% endblock %}
+{% block page_title %}Health Clinic Visits{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>Health Visits</h2>
+    {% if visits %}
+    <table>
+        <thead><tr><th>Student</th><th>Complaint</th><th>Date</th></tr></thead>
+        <tbody>
+        {% for visit in visits %}
+        <tr>
+            <td>{{ visit.student.user.get_full_name }}</td>
+            <td>{{ visit.complaint }}</td>
+            <td>{{ visit.visit_date|date }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No health visits recorded.</p>
+    {% endif %}
+</div>
+{% endblock %}
