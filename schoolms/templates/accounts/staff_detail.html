@@ -29,6 +29,36 @@
         <div class="metric-value">{{ staff.date_joined|date:"Y-m-d H:i" }}</div>
     </section>
 </div>
+
+<!-- Role Change Form for School Admins -->
+{% if request.user.role == "school_admin" or request.user.is_superuser %}
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #22c55e;">Change Role</h3>
+    <form method="POST" action="{% url 'accounts:staff_change_role' staff.id %}">
+        {% csrf_token %}
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <select name="new_role" style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(148, 163, 184, 0.5); padding: 0.45rem 1rem; border-radius: 999px; color: var(--text-main); font-size: 0.8rem;">
+                <option value="teacher" {% if staff.role == "teacher" %}selected{% endif %}>Teacher</option>
+                <option value="deputy_head" {% if staff.role == "deputy_head" %}selected{% endif %}>Deputy Headteacher</option>
+                <option value="hod" {% if staff.role == "hod" %}selected{% endif %}>Head of Department</option>
+                <option value="accountant" {% if staff.role == "accountant" %}selected{% endif %}>Accountant/Bursar</option>
+                <option value="librarian" {% if staff.role == "librarian" %}selected{% endif %}>Librarian</option>
+                <option value="admission_officer" {% if staff.role == "admission_officer" %}selected{% endif %}>Admission Officer</option>
+                <option value="school_nurse" {% if staff.role == "school_nurse" %}selected{% endif %}>School Nurse</option>
+                <option value="admin_assistant" {% if staff.role == "admin_assistant" %}selected{% endif %}>Admin Assistant</option>
+                <option value="staff" {% if staff.role == "staff" %}selected{% endif %}>Staff</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Update Role</button>
+        </div>
+    </form>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="message-box {% if message.tags == 'success' %}success{% endif %}" style="margin-top: 0.5rem;">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="button-row mt-sm">
     <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">Back to staff list</a>
     <a href="{% url 'accounts:reset_user_password' staff.id %}?next={% url 'accounts:staff_detail' staff.id %}" class="btn btn-warning">Reset password</a>

@@ -294,12 +294,16 @@ def staff_list(request):
 
     school = getattr(user, "school", None)
     try:
+        # Include all staff roles
+        all_staff_roles = ("admin", "school_admin", "deputy_head", "hod", "teacher", 
+                          "accountant", "librarian", "admission_officer", "school_nurse", 
+                          "admin_assistant", "staff")
         if school and not getattr(user, "is_super_admin", False):
-            staff = User.objects.filter(school=school, role__in=("admin", "teacher")).order_by("role", "username")
+            staff = User.objects.filter(school=school, role__in=all_staff_roles).order_by("role", "username")
         else:
             # Platform view: list staff across all schools.
             staff = (
-                User.objects.filter(role__in=("admin", "teacher"))
+                User.objects.filter(role__in=all_staff_roles)
                 .select_related("school")
                 .order_by("school__name", "role", "username")
             )
@@ -324,7 +328,11 @@ def staff_detail(request, pk):
     if not _user_can_manage_school(request):
         return redirect("home")
     school = getattr(request.user, "school", None)
-    qs = User.objects.filter(role__in=("admin", "teacher"))
+    # Include all staff roles
+    all_staff_roles = ("admin", "school_admin", "deputy_head", "hod", "teacher", 
+                      "accountant", "librarian", "admission_officer", "school_nurse", 
+                      "admin_assistant", "staff")
+    qs = User.objects.filter(role__in=all_staff_roles)
     if school:
         qs = qs.filter(school=school)
     staff = get_object_or_404(qs, pk=pk)
@@ -524,6 +532,57 @@ def staff_reactivate(request, pk):
             "cancel_url": "accounts:staff_detail",
         },
     )
+
+
+@login_required
+def staff_change_role(request, pk):
+    """
+    Allow school admins to change the role of any staff member.
+    Supports all new roles: deputy_head, hod, teacher, accountant, librarian,
+    admission_officer, school_nurse, admin_assistant, staff
+    """
+    if not _user_is_school_admin(request):
+        messages.error(request, "Only school administrators can change user roles.")
+        return redirect("accounts:school_dashboard")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    # Get the staff member (include all non-parent/student roles)
+    staff = get_object_or_404(
+        User, 
+        pk=pk, 
+        school=school, 
+        role__in=("admin", "school_admin", "deputy_head", "hod", "teacher", 
+                  "accountant", "librarian", "admission_officer", "school_nurse", 
+                  "admin_assistant", "staff")
+    )
+
+    # Prevent self-demotion
+    if staff.pk == request.user.pk:
+        messages.error(request, "You cannot change your own role.")
+        return redirect("accounts:staff_detail", pk=pk)
+
+    if request.method == "POST":
+        new_role = request.POST.get("new_role", "")
+        valid_roles = (
+            "teacher", "deputy_head", "hod", "accountant", "librarian",
+            "admission_officer", "school_nurse", "admin_assistant", "staff"
+        )
+        
+        if new_role in valid_roles:
+            old_role = staff.get_role_display()
+            staff.role = new_role
+            staff.save(update_fields=["role"])
+            messages.success(
+                request,
+                f"Role changed from '{old_role}' to '{staff.get_role_display()}' for '{staff.username}'.",
+            )
+        else:
+            messages.error(request, "Invalid role selected.")
+
+    return redirect("accounts:staff_detail", pk=pk)
 
 
 @login_required
