@@ -553,3 +553,187 @@ class Certificate(models.Model):
     
     def __str__(self):
         return f"{self.student} - {self.title} ({self.issued_date})"
+
+
+# ==================== STUDENT ID CARDS ====================
+class StudentIDCard(models.Model):
+    """Student ID Card management"""
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='id_card')
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    card_number = models.CharField(max_length=50, unique=True)
+    issue_date = models.DateField()
+    expiry_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-created_at"]
+    
+    def __str__(self):
+        return f"{self.student} - {self.card_number}"
+
+
+# ==================== PARENT-TEACHER MEETINGS ====================
+class PTMeeting(models.Model):
+    """Parent-Teacher Meeting scheduling"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    meeting_date = models.DateTimeField()
+    location = models.CharField(max_length=200)
+    max_slots = models.PositiveIntegerField(default=20)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-meeting_date"]
+    
+    def __str__(self):
+        return f"{self.title} - {self.meeting_date}"
+    
+    @property
+    def booked_slots(self):
+        return self.bookings.count()
+    
+    @property
+    def available_slots(self):
+        return max(0, self.max_slots - self.booked_slots)
+
+
+class PTMeetingBooking(models.Model):
+    """Individual meeting slot booking"""
+    meeting = models.ForeignKey(PTMeeting, on_delete=models.CASCADE, related_name='bookings')
+    parent = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'parent'})
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='pt_bookings')
+    preferred_time = models.TimeField(null=True, blank=True)
+    topics_to_discuss = models.TextField(blank=True)
+    is_confirmed = models.BooleanField(default=False)
+    booked_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ("meeting", "parent", "student")
+        ordering = ["booked_at"]
+    
+    def __str__(self):
+        return f"{self.parent.get_full_name()} - {self.student}"
+
+
+# ==================== SPORTS & CLUBS ====================
+class Sport(models.Model):
+    """Sports teams/activities"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    coach = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='coached_sports')
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.school.name}"
+
+
+class Club(models.Model):
+    """School clubs/organizations"""
+    CATEGORY_CHOICES = (
+        ('academic', 'Academic'),
+        ('sports', 'Sports'),
+        ('arts', 'Arts & Culture'),
+        ('science', 'Science & Tech'),
+        ('social', 'Social Service'),
+        ('religious', 'Religious'),
+        ('other', 'Other'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    sponsor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sponsored_clubs')
+    description = models.TextField(blank=True)
+    meeting_day = models.CharField(max_length=20, blank=True)  # e.g., "Monday"
+    meeting_time = models.TimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_category_display()})"
+
+
+class StudentSport(models.Model):
+    """Student participation in sports"""
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='sports')
+    sport = models.ForeignKey(Sport, on_delete=models.CASCADE, related_name='members')
+    jersey_number = models.CharField(max_length=10, blank=True)
+    position = models.CharField(max_length=50, blank=True)
+    joined_date = models.DateField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ("student", "sport")
+    
+    def __str__(self):
+        return f"{self.student} - {self.sport.name}"
+
+
+class StudentClub(models.Model):
+    """Student membership in clubs"""
+    ROLE_CHOICES = (
+        ('member', 'Member'),
+        ('secretary', 'Secretary'),
+        ('vice_president', 'Vice President'),
+        ('president', 'President'),
+    )
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='club_memberships')
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='members')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    joined_date = models.DateField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ("student", "club")
+    
+    def __str__(self):
+        return f"{self.student} - {self.club.name} ({self.role})"
+
+
+# ==================== EXAM SEATING ====================
+class ExamHall(models.Model):
+    """Examination halls"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    rows = models.PositiveIntegerField(default=10)
+    seats_per_row = models.PositiveIntegerField(default=10)
+    description = models.TextField(blank=True)
+    
+    @property
+    def total_seats(self):
+        return self.rows * self.seats_per_row
+    
+    def __str__(self):
+        return f"{self.name} ({self.total_seats} seats)"
+
+
+class SeatingPlan(models.Model):
+    """Exam seating arrangements"""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    exam_schedule = models.ForeignKey('academics.ExamSchedule', on_delete=models.CASCADE, related_name='seating_plans')
+    hall = models.ForeignKey(ExamHall, on_delete=models.CASCADE)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ("exam_schedule", "hall")
+    
+    def __str__(self):
+        return f"{self.exam_schedule.subject.name} - {self.hall.name}"
+
+
+class SeatAssignment(models.Model):
+    """Individual seat assignments"""
+    seating_plan = models.ForeignKey(SeatingPlan, on_delete=models.CASCADE, related_name='seat_assignments')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='seat_assignments')
+    row_number = models.PositiveIntegerField()
+    seat_number = models.PositiveIntegerField()
+    
+    class Meta:
+        unique_together = ("seating_plan", "row_number", "seat_number")
+    
+    def __str__(self):
+        return f"{self.student} - Row {self.row_number}, Seat {self.seat_number}"
