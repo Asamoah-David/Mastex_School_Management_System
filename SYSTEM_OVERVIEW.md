@@ -6,6 +6,26 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 
 ---
 
+## 🎯 Navigation Audit Summary (Updated)
+
+### Role-Based Navigation Access
+
+| Role | Dashboard | Key Features in Nav |
+|------|----------|---------------------|
+| **Super Admin** | Platform Dashboard | Schools, Django Admin, Activity Log |
+| **School Admin** | School Dashboard | All school features - Academics, Users, Finance, Operations |
+| **Deputy Head/HOD** | School Dashboard | Staff, Students, Attendance, Discipline |
+| **Teacher** | School Dashboard | **NEW: Quizzes, Online Exams, Create Quiz/Exam**, Attendance, Homework, Timetable |
+| **Accountant** | School Dashboard | Finance, Fee Structure, Expenses, Budget |
+| **Librarian** | School Dashboard | Library Books, Book Issues |
+| **Admission Officer** | School Dashboard | Admissions, Students, Documents |
+| **School Nurse** | School Dashboard | Health Records, Health Visits |
+| **Admin Assistant** | School Dashboard | Inventory, Announcements, Documents |
+| **Student** | My Portal | **NEW: Quizzes, Online Exams, My Submissions**, My Results, Homework, Library Books, Hostel, Sports & Clubs |
+| **Parent** | My Children | Results, Fees, PT Meetings, Announcements |
+
+---
+
 ## URL Structure (Final)
 
 | URL | Who uses it | Purpose |
@@ -32,7 +52,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 3. **Staff / Teachers**  
    - Access: `/dashboard`  
    - User has `role=teacher` and `school` set.  
-   - Same school-scoped sidebar: staff, students, attendance, canteen, bus, textbooks.
+   - **NEW: Can create Quizzes and Online Exams** for their classes.
 
 4. **Parents**  
    - Access: `/portal`  
@@ -40,7 +60,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 
 5. **Students**  
    - Access: `/portal`  
-   - Sees own student record (admission number, class, school).
+   - **NEW: Can take Quizzes and Online Exams** - sees their own student record with all academic features.
 
 ---
 
@@ -74,7 +94,7 @@ All operations are filtered by `request.user.school` (school admin/teacher). Can
 
 ### 4. Portals & login
 - **Login** – Role-based redirect: parent/student → `/portal`; admin/teacher → `/dashboard` (home).
-- **Portal** – `/portal`: parents see children; students see own info.
+- **Portal** – `/portal`: parents see children; students see own info with all academic features.
 - **Dashboard** – School-scoped when `user.school` is set: sidebar shows Staff, Students, Attendance, Canteen, Bus, Textbooks. Platform admin (no school) sees Schools, Students, Fees, Django Admin.
 
 ---
@@ -87,6 +107,8 @@ All operations are filtered by `request.user.school` (school admin/teacher). Can
 - AI assistant module  
 - Role-based access (admin, teacher, student, parent)  
 - Professional UI (Mastex branding, login, dashboard, sidebar)
+- **Online Quizzes & Exams** (Students can take, Teachers can create)
+- **Multi-school admission** with school selection dropdown
 
 ---
 
@@ -117,4 +139,21 @@ All operations are filtered by `request.user.school` (school admin/teacher). Can
 5. Connect **payment gateway** to fee payment flow for parents.  
 6. Test with sample schools and students, then add branding and any extra UI.
 
-This document reflects the current system and new additions as of this build.
+---
+
+## Integration Status
+
+| Service | Status | Purpose |
+|---------|--------|---------|
+| MNotify SMS | ✅ Configured | Admissions, Announcements, Fee Reminders |
+| Flutterwave | ✅ Configured | School Fee Payments |
+| Stripe | ✅ Configured | SaaS Subscriptions |
+| OpenAI | ✅ Configured | AI Assistant |
+
+---
+
+## Last Updated
+
+**Navigation Audit Completed:** March 19, 2026  
+**Commit:** 073dc66 - Enhanced navigation for all user roles  
+**GitHub:** https://github.com/Asamoah-David/Mastex_School_Management_System
