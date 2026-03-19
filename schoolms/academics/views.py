@@ -1571,18 +1571,61 @@ def quiz_result(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    
+
     attempt = get_object_or_404(QuizAttempt, pk=pk, student__school=school)
-    
+
     # Check permission
     role = getattr(request.user, "role", None)
     if role == "student" and attempt.student.user != request.user:
         return redirect("home")
-    
+
     answers = attempt.answers.all().select_related('question')
-    
+
     return render(request, "academics/quiz_result.html", {
         "attempt": attempt,
         "answers": answers,
         "school": school
     })
+
+
+@login_required
+def quiz_edit(request, pk):
+    """Edit a quiz"""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect("home")
+
+    quiz = get_object_or_404(Quiz, pk=pk, school=school)
+
+    if request.method == "POST":
+        quiz.title = request.POST.get("title", "").strip()
+        quiz.description = request.POST.get("description", "").strip()
+        quiz.time_limit = request.POST.get("time_limit") or None
+        quiz.passing_score = request.POST.get("passing_score") or 0
+        quiz.is_published = request.POST.get("is_published") == "on"
+        quiz.save()
+        from django.contrib import messages
+        messages.success(request, "Quiz updated!")
+        return redirect("academics:quiz_detail", pk=quiz.pk)
+
+    return render(request, "academics/quiz_form.html", {"quiz": quiz, "school": school})
+
+
+@login_required
+def quiz_delete(request, pk):
+    """Delete a quiz"""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect("home")
+
+    quiz = get_object_or_404(Quiz, pk=pk, school=school)
+
+    if request.method == "POST":
+        quiz.delete()
+        from django.contrib import messages
+        messages.success(request, "Quiz deleted!")
+        return redirect("academics:quiz_list")
+
+    return render(request, "accounts/confirm_delete.html", {"object": quiz, "type": "quiz"})

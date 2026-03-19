@@ -533,17 +533,52 @@ def calendar_create(request):
 
 
 @login_required
+def calendar_edit(request, pk):
+    """Edit academic calendar event."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+
+    # Only school admins can edit calendar events
+    from accounts.permissions import is_school_admin
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("home")
+
+    event = get_object_or_404(AcademicCalendar, pk=pk, school=school)
+
+    if request.method == "POST":
+        title = request.POST.get("title")
+        event_type = request.POST.get("event_type")
+        start_date = request.POST.get("start_date")
+        end_date = request.POST.get("end_date") or None
+        description = request.POST.get("description", "")
+
+        if title and event_type and start_date:
+            event.title = title
+            event.event_type = event_type
+            event.start_date = start_date
+            event.end_date = end_date
+            event.description = description
+            event.save()
+            from django.contrib import messages
+            messages.success(request, "Calendar event updated successfully!")
+            return redirect("operations:calendar_list")
+
+    return render(request, "operations/calendar_form.html", {"school": school, "object": event})
+
+
+@login_required
 def calendar_delete(request, pk):
     """Delete academic calendar event."""
     school = _get_school(request)
     if not school:
         return redirect("home")
-    
+
     # Only school admins can delete calendar events
     from accounts.permissions import is_school_admin
     if not (request.user.is_superuser or is_school_admin(request.user)):
         return redirect("home")
-    
+
     event = get_object_or_404(AcademicCalendar, pk=pk, school=school)
     if request.method == "POST":
         event.delete()

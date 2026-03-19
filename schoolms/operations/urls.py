@@ -17,6 +17,7 @@ urlpatterns = [
     # Academic Calendar
     path("calendar/", views.calendar_list, name="calendar"),
     path("calendar/create/", views.calendar_create, name="calendar_create"),
+    path("calendar/edit/<int:pk>/", views.calendar_edit, name="calendar_edit"),
     path("calendar/delete/<int:pk>/", views.calendar_delete, name="calendar_delete"),
     
     # Canteen
