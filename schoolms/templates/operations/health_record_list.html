@@ -1,25 +1,43 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Health Records - {{ school.name }}{% endblock %}
-{% block page_title %}Student Health Records{% endblock %}
+{% block page_title %}Health Records{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>Health Records</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>🏥 Health Records</h2>
+        <a href="{% url 'operations:health_record_create' %}" class="btn btn-primary">➕ Add Record</a>
+    </div>
+    
     {% if records %}
-    <table>
-        <thead><tr><th>Student</th><th>Blood Type</th><th>Allergies</th><th>Updated</th></tr></thead>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Blood Type</th>
+                <th>Allergies</th>
+                <th>Conditions</th>
+                <th>Emergency Contact</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
         <tbody>
         {% for record in records %}
         <tr>
             <td>{{ record.student.user.get_full_name }}</td>
             <td>{{ record.blood_type|default:"N/A" }}</td>
             <td>{{ record.allergies|default:"None" }}</td>
-            <td>{{ record.last_updated|date }}</td>
+            <td>{{ record.medical_conditions|default:"None" }}</td>
+            <td>{{ record.emergency_contact|default:"N/A" }}</td>
+            <td>
+                <a href="{% url 'operations:health_record_edit' record.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+            </td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">No health records found.</p>
+    <p class="empty-state">📭 No health records found.</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -4,28 +4,57 @@
 {% block page_title %}Inventory Items{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+<style>
+.low-stock { background: #dc3545; color: #fff; }
+.good-stock { background: #28a745; color: #fff; }
+</style>
 {% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>📦 Inventory Items</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>📦 Inventory Items</h2>
+        <div>
+            <a href="{% url 'operations:inventory_item_create' %}" class="btn btn-primary">➕ Add Item</a>
+            <a href="{% url 'operations:inventory_category_list' %}" class="btn btn-secondary">📁 Categories</a>
+        </div>
+    </div>
+    
     {% if items %}
     <table class="data-table">
-        <thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>Min Qty</th><th>Condition</th><th>Status</th></tr></thead>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Quantity</th>
+                <th>Min Qty</th>
+                <th>Condition</th>
+                <th>Location</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
         <tbody>
         {% for item in items %}
         <tr>
             <td>{{ item.name }}</td>
-            <td>{% if item.category %}{{ item.category.name }}{% else %}N/A{% endif %}</td>
-            <td>{{ item.quantity }}</td>
+            <td>{{ item.category.name|default:"N/A" }}</td>
+            <td>
+                <span class="badge {% if item.quantity <= item.min_quantity %}low-stock{% else %}good-stock{% endif %}">
+                    {{ item.quantity }}
+                </span>
+            </td>
             <td>{{ item.min_quantity }}</td>
-            <td>{{ item.get_condition_display }}</td>
-            <td>{% if item.is_low_stock %}<span class="badge badge-warning">Low Stock</span>{% else %}<span class="badge badge-active">OK</span>{% endif %}</td>
+            <td>{{ item.condition|title }}</td>
+            <td>{{ item.location|default:"N/A" }}</td>
+            <td>
+                <a href="{% url 'operations:inventory_item_edit' item.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:inventory_item_delete' item.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+            </td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No items found.</p>
+    <p class="empty-state">📭 No inventory items found.</p>
     {% endif %}
 </div>
 {% endblock %}

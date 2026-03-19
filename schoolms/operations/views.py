@@ -1792,6 +1792,102 @@ def budget_create(request):
     })
 
 
+@login_required
+def budget_edit(request, pk):
+    """Edit a budget."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:budget_list')
+    
+    budget = get_object_or_404(Budget, pk=pk, school=school)
+    categories = ExpenseCategory.objects.filter(school=school)
+    
+    if request.method == 'POST':
+        category_id = request.POST.get('category')
+        academic_year = request.POST.get('academic_year', '').strip()
+        term = request.POST.get('term', '').strip()
+        allocated_amount = request.POST.get('allocated_amount')
+        
+        if academic_year and allocated_amount:
+            budget.category = ExpenseCategory.objects.get(id=category_id, school=school) if category_id else None
+            budget.academic_year = academic_year
+            budget.term = term
+            budget.allocated_amount = allocated_amount
+            budget.save()
+            
+            from django.contrib import messages
+            messages.success(request, 'Budget updated successfully!')
+            return redirect('operations:budget_list')
+    
+    return render(request, 'operations/budget_form.html', {
+        'school': school,
+        'categories': categories,
+        'budget': budget
+    })
+
+
+@login_required
+def budget_delete(request, pk):
+    """Delete a budget."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:budget_list')
+    
+    budget = get_object_or_404(Budget, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        budget.delete()
+        from django.contrib import messages
+        messages.success(request, 'Budget deleted successfully!')
+        return redirect('operations:budget_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': budget, 'type': 'budget'
+    })
+
+
+@login_required
+def health_record_edit(request, pk):
+    """Edit a health record."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    record = get_object_or_404(StudentHealth, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        blood_type = request.POST.get('blood_type', '').strip()
+        allergies = request.POST.get('allergies', '').strip()
+        conditions = request.POST.get('medical_conditions', '').strip()
+        medications = request.POST.get('medications', '').strip()
+        emergency_contact = request.POST.get('emergency_contact', '').strip()
+        emergency_name = request.POST.get('emergency_contact_name', '').strip()
+        doctor_name = request.POST.get('doctor_name', '').strip()
+        doctor_phone = request.POST.get('doctor_phone', '').strip()
+        
+        record.blood_type = blood_type
+        record.allergies = allergies
+        record.medical_conditions = conditions
+        record.medications = medications
+        record.emergency_contact = emergency_contact
+        record.emergency_contact_name = emergency_name
+        record.doctor_name = doctor_name
+        record.doctor_phone = doctor_phone
+        record.save()
+        
+        from django.contrib import messages
+        messages.success(request, 'Health record updated!')
+        return redirect('operations:health_record_list')
+    
+    return render(request, 'operations/health_record_form.html', {
+        'school': school,
+        'record': record
+    })
+
+
 # ==================== DISCIPLINE ====================
 
 @login_required
@@ -3139,6 +3235,118 @@ def inventory_item_create(request):
     
     return render(request, 'operations/inventory_item_form.html', {
         'school': school, 'categories': categories
+    })
+
+
+@login_required
+def inventory_item_edit(request, pk):
+    """Edit inventory item."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    item = get_object_or_404(InventoryItem, pk=pk, school=school)
+    categories = InventoryCategory.objects.filter(school=school)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        category_id = request.POST.get('category')
+        quantity = request.POST.get('quantity', 0)
+        min_quantity = request.POST.get('min_quantity', 5)
+        unit_cost = request.POST.get('unit_cost', 0)
+        condition = request.POST.get('condition', 'new')
+        location = request.POST.get('location', '').strip()
+        description = request.POST.get('description', '').strip()
+        serial = request.POST.get('serial_number', '').strip()
+        
+        if name:
+            item.name = name
+            item.category = InventoryCategory.objects.get(id=category_id, school=school) if category_id else None
+            item.quantity = int(quantity)
+            item.min_quantity = int(min_quantity)
+            item.unit_cost = unit_cost
+            item.condition = condition
+            item.location = location
+            item.description = description
+            item.serial_number = serial
+            item.save()
+            
+            from django.contrib import messages
+            messages.success(request, 'Item updated!')
+            return redirect('operations:inventory_item_list')
+    
+    return render(request, 'operations/inventory_item_form.html', {
+        'school': school, 'categories': categories, 'item': item
+    })
+
+
+@login_required
+def inventory_item_delete(request, pk):
+    """Delete inventory item."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    item = get_object_or_404(InventoryItem, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        item.delete()
+        from django.contrib import messages
+        messages.success(request, 'Item deleted!')
+        return redirect('operations:inventory_item_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': item, 'type': 'inventory item'
+    })
+
+
+@login_required
+def inventory_category_edit(request, pk):
+    """Edit inventory category."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    category = get_object_or_404(InventoryCategory, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        
+        if name:
+            category.name = name
+            category.description = description
+            category.save()
+            from django.contrib import messages
+            messages.success(request, 'Category updated!')
+            return redirect('operations:inventory_category_list')
+    
+    return render(request, 'operations/inventory_category_form.html', {
+        'school': school, 'category': category
+    })
+
+
+@login_required
+def inventory_category_delete(request, pk):
+    """Delete inventory category."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    category = get_object_or_404(InventoryCategory, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        category.delete()
+        from django.contrib import messages
+        messages.success(request, 'Category deleted!')
+        return redirect('operations:inventory_category_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': category, 'type': 'inventory category'
     })
 
 

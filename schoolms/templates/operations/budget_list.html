@@ -2,24 +2,39 @@
 {% load static %}
 {% block title %}Budgets - {{ school.name }}{% endblock %}
 {% block page_title %}Budget Management{% endblock %}
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
-{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>📊 Budgets</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>💰 Budgets</h2>
+        <a href="{% url 'operations:budget_create' %}" class="btn btn-primary">➕ Create Budget</a>
+    </div>
+    
     {% if budgets %}
     <table class="data-table">
-        <thead><tr><th>Category</th><th>Year</th><th>Term</th><th>Allocated</th><th>Spent</th><th>Remaining</th></tr></thead>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th>Academic Year</th>
+                <th>Term</th>
+                <th>Allocated Amount</th>
+                <th>Spent</th>
+                <th>Remaining</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
         <tbody>
         {% for budget in budgets %}
         <tr>
             <td>{{ budget.category.name|default:"General" }}</td>
             <td>{{ budget.academic_year }}</td>
-            <td>{{ budget.term|default:"All" }}</td>
-            <td>${{ budget.allocated_amount|floatformat:2 }}</td>
-            <td>${{ budget.spent_amount|floatformat:2 }}</td>
-            <td>${{ budget.remaining|floatformat:2 }}</td>
+            <td>{{ budget.term|default:"All Terms" }}</td>
+            <td>${{ budget.allocated_amount }}</td>
+            <td>${{ budget.spent_amount|default:"0" }}</td>
+            <td>${{ budget.remaining|default:budget.allocated_amount }}</td>
+            <td>
+                <a href="{% url 'operations:budget_edit' budget.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:budget_delete' budget.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+            </td>
         </tr>
         {% endfor %}
         </tbody>

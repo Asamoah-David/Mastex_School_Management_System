@@ -1,15 +1,32 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Inventory Categories - {{ school.name }}{% endblock %}
 {% block page_title %}Inventory Categories{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>📦 Inventory Categories</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>📁 Inventory Categories</h2>
+        <div>
+            <a href="{% url 'operations:inventory_category_create' %}" class="btn btn-primary">➕ Add Category</a>
+            <a href="{% url 'operations:inventory_item_list' %}" class="btn btn-secondary">📦 Items</a>
+        </div>
+    </div>
+    
     {% if categories %}
     <table class="data-table">
-        <thead><tr><th>Name</th><th>Description</th></tr></thead>
+        <thead>
+            <tr><th>Name</th><th>Description</th><th>Actions</th></tr>
+        </thead>
         <tbody>
         {% for cat in categories %}
-        <tr><td>{{ cat.name }}</td><td>{{ cat.description|default:"N/A" }}</td></tr>
+        <tr>
+            <td>{{ cat.name }}</td>
+            <td>{{ cat.description|default:"N/A" }}</td>
+            <td>
+                <a href="{% url 'operations:inventory_category_edit' cat.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:inventory_category_delete' cat.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+            </td>
+        </tr>
         {% endfor %}
         </tbody>
     </table>

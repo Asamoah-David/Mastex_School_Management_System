@@ -1,25 +1,42 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Student ID Cards - {{ school.name }}{% endblock %}
 {% block page_title %}Student ID Cards{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>Student ID Cards</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>🪪 Student ID Cards</h2>
+        <a href="{% url 'operations:id_card_create' %}" class="btn btn-primary">➕ Create ID Card</a>
+    </div>
+    
     {% if id_cards %}
-    <table>
-        <thead><tr><th>Student</th><th>Card Number</th><th>Issued</th><th>Expiry</th></tr></thead>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Card Number</th>
+                <th>Issue Date</th>
+                <th>Expiry Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
         <tbody>
         {% for card in id_cards %}
         <tr>
             <td>{{ card.student.user.get_full_name }}</td>
             <td>{{ card.card_number }}</td>
-            <td>{{ card.issue_date|date }}</td>
-            <td>{{ card.expiry_date|date|default:"N/A" }}</td>
+            <td>{{ card.issue_date|date:"M d, Y" }}</td>
+            <td>{{ card.expiry_date|date:"M d, Y"|default:"N/A" }}</td>
+            <td>
+                <a href="{% url 'operations:id_card_view' card.pk %}" class="btn btn-sm btn-info">👁️ View</a>
+                <a href="{% url 'operations:id_card_print' card.pk %}" class="btn btn-sm btn-success">🖨️ Print</a>
+            </td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">No ID cards found.</p>
+    <p class="empty-state">📭 No ID cards found.</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -96,6 +96,8 @@ urlpatterns = [
     # Budget
     path("budgets/", views.budget_list, name="budget_list"),
     path("budgets/create/", views.budget_create, name="budget_create"),
+    path("budgets/<int:pk>/edit/", views.budget_edit, name="budget_edit"),
+    path("budgets/<int:pk>/delete/", views.budget_delete, name="budget_delete"),
     
     # Expense Categories
     path("expense-categories/", views.expense_category_list, name="expense_category_list"),
@@ -159,14 +161,19 @@ urlpatterns = [
     # Health Records
     path("health-records/", views.health_record_list, name="health_record_list"),
     path("health-records/create/", views.health_record_create, name="health_record_create"),
+    path("health-records/<int:pk>/edit/", views.health_record_edit, name="health_record_edit"),
     path("health-visits/", views.health_visit_list, name="health_visit_list"),
     path("health-visits/create/", views.health_visit_create, name="health_visit_create"),
     
     # Inventory Management
     path("inventory/categories/", views.inventory_category_list, name="inventory_category_list"),
     path("inventory/categories/create/", views.inventory_category_create, name="inventory_category_create"),
+    path("inventory/categories/<int:pk>/edit/", views.inventory_category_edit, name="inventory_category_edit"),
+    path("inventory/categories/<int:pk>/delete/", views.inventory_category_delete, name="inventory_category_delete"),
     path("inventory/items/", views.inventory_item_list, name="inventory_item_list"),
     path("inventory/items/create/", views.inventory_item_create, name="inventory_item_create"),
+    path("inventory/items/<int:pk>/edit/", views.inventory_item_edit, name="inventory_item_edit"),
+    path("inventory/items/<int:pk>/delete/", views.inventory_item_delete, name="inventory_item_delete"),
     path("inventory/transactions/", views.inventory_transaction_list, name="inventory_transaction_list"),
     path("inventory/transactions/create/", views.inventory_transaction_create, name="inventory_transaction_create"),
     
