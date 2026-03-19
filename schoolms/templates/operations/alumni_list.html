@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Alumni - {{ school.name }}{% endblock %}
+{% block page_title %}Alumni Records{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>🎓 Alumni</h2>
+    {% if alumni %}
+    <table class="data-table">
+        <thead><tr><th>Name</th><th>Class</th><th>Year</th><th>Occupation</th></tr></thead>
+        <tbody>
+        {% for alum in alumni %}
+        <tr>
+            <td>{{ alum.first_name }} {{ alum.last_name }}</td>
+            <td>{{ alum.class_name }}</td>
+            <td>{{ alum.graduation_year }}</td>
+            <td>{{ alum.current_occupation|default:"N/A" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No alumni records found.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}School Events - {{ school.name }}{% endblock %}
+{% block page_title %}School Events{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>🎉 School Events</h2>
+    {% if events %}
+    <table class="data-table">
+        <thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Type</th></tr></thead>
+        <tbody>
+        {% for event in events %}
+        <tr>
+            <td>{{ event.title }}</td>
+            <td>{{ event.start_date|date:"M d, Y" }}</td>
+            <td>{{ event.location }}</td>
+            <td>{{ event.event_type|title }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No events found.</p>
+    {% endif %}
+</div>
+{% endblock %}

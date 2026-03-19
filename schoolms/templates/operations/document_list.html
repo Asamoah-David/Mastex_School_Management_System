@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Documents - {{ school.name }}{% endblock %}
+{% block page_title %}Student Documents{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>📄 Documents</h2>
+    {% if documents %}
+    <table class="data-table">
+        <thead><tr><th>Student</th><th>Type</th><th>Title</th><th>Uploaded</th></tr></thead>
+        <tbody>
+        {% for doc in documents %}
+        <tr>
+            <td>{{ doc.student.user.get_full_name }}</td>
+            <td>{{ doc.document_type|title }}</td>
+            <td>{{ doc.title }}</td>
+            <td>{{ doc.uploaded_at|date:"M d, Y" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No documents found.</p>
+    {% endif %}
+</div>
+{% endblock %}

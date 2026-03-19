@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Assignment Submissions - {{ school.name }}{% endblock %}
+{% block page_title %}Assignment Submissions{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>📝 Assignment Submissions</h2>
+    {% if submissions %}
+    <table class="data-table">
+        <thead><tr><th>Student</th><th>Assignment</th><th>Subject</th><th>Submitted</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for sub in submissions %}
+        <tr>
+            <td>{{ sub.student.user.get_full_name }}</td>
+            <td>{{ sub.homework.title }}</td>
+            <td>{{ sub.homework.subject.name }}</td>
+            <td>{{ sub.submitted_at|date:"M d, Y H:i" }}</td>
+            <td><span class="badge badge-{{ sub.status }}">{{ sub.status|title }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No submissions found.</p>
+    {% endif %}
+</div>
+{% endblock %}

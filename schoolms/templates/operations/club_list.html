@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Clubs - {{ school.name }}{% endblock %}
+{% block page_title %}School Clubs{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>🎭 Clubs</h2>
+    {% if clubs %}
+    <table class="data-table">
+        <thead><tr><th>Club</th><th>Category</th><th>Sponsor</th></tr></thead>
+        <tbody>
+        {% for club in clubs %}
+        <tr>
+            <td>{{ club.name }}</td>
+            <td>{{ club.category|title }}</td>
+            <td>{{ club.sponsor.get_full_name|default:"N/A" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No clubs found.</p>
+    {% endif %}
+</div>
+{% endblock %}

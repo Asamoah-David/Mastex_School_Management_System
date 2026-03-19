@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Budgets - {{ school.name }}{% endblock %}
+{% block page_title %}Budget Management{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>📊 Budgets</h2>
+    {% if budgets %}
+    <table class="data-table">
+        <thead><tr><th>Category</th><th>Year</th><th>Term</th><th>Allocated</th></tr></thead>
+        <tbody>
+        {% for budget in budgets %}
+        <tr>
+            <td>{{ budget.category.name|default:"General" }}</td>
+            <td>{{ budget.academic_year }}</td>
+            <td>{{ budget.term|default:"All" }}</td>
+            <td>${{ budget.allocated_amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No budgets found.</p>
+    {% endif %}
+</div>
+{% endblock %}

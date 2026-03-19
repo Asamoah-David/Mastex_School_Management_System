@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Timetable - {{ school.name }}{% endblock %}
+{% block page_title %}Class Timetable{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>📅 Timetable</h2>
+    {% if slots %}
+    <table class="data-table">
+        <thead><tr><th>Day</th><th>Period</th><th>Subject</th><th>Teacher</th><th>Room</th></tr></thead>
+        <tbody>
+        {% for slot in slots %}
+        <tr>
+            <td>{{ slot.day }}</td>
+            <td>{{ slot.period_number }}</td>
+            <td>{{ slot.subject.name }}</td>
+            <td>{{ slot.teacher.get_full_name|default:"N/A" }}</td>
+            <td>{{ slot.room|default:"N/A" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No timetable entries found.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Discipline - {{ school.name }}{% endblock %}
+{% block page_title %}Discipline Incidents{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>⚖️ Discipline Incidents</h2>
+    {% if incidents %}
+    <table class="data-table">
+        <thead><tr><th>Student</th><th>Type</th><th>Date</th><th>Severity</th></tr></thead>
+        <tbody>
+        {% for inc in incidents %}
+        <tr>
+            <td>{{ inc.student.user.get_full_name }}</td>
+            <td>{{ inc.incident_type }}</td>
+            <td>{{ inc.incident_date|date:"M d, Y" }}</td>
+            <td><span class="badge badge-{{ inc.severity }}">{{ inc.severity|title }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No incidents recorded.</p>
+    {% endif %}
+</div>
+{% endblock %}

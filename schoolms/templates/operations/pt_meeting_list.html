@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}PT Meetings - {{ school.name }}{% endblock %}
+{% block page_title %}Parent-Teacher Meetings{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>📅 Parent-Teacher Meetings</h2>
+    {% if meetings %}
+    <table class="data-table">
+        <thead>
+            <tr><th>Title</th><th>Date</th><th>Location</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+        {% for meeting in meetings %}
+        <tr>
+            <td>{{ meeting.title }}</td>
+            <td>{{ meeting.meeting_date|date:"M d, Y" }}</td>
+            <td>{{ meeting.location }}</td>
+            <td><span class="badge badge-{{ meeting.status }}">{{ meeting.status|title }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No meetings scheduled.</p>
+    {% endif %}
+</div>
+{% endblock %}

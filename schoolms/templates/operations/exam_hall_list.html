@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Exam Halls - {{ school.name }}{% endblock %}
+{% block page_title %}Exam Halls{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>🏫 Exam Halls</h2>
+    {% if halls %}
+    <table class="data-table">
+        <thead><tr><th>Hall</th><th>Capacity</th><th>Description</th></tr></thead>
+        <tbody>
+        {% for hall in halls %}
+        <tr>
+            <td>{{ hall.name }}</td>
+            <td>{{ hall.rows }} × {{ hall.seats_per_row }} = {{ hall.rows|mult:hall.seats_per_row }}</td>
+            <td>{{ hall.description|default:"N/A" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No exam halls found.</p>
+    {% endif %}
+</div>
+{% endblock %}

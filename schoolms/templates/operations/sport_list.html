@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Sports - {{ school.name }}{% endblock %}
+{% block page_title %}Sports Activities{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>⚽ Sports</h2>
+    {% if sports %}
+    <table class="data-table">
+        <thead><tr><th>Sport</th><th>Coach</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for sport in sports %}
+        <tr>
+            <td>{{ sport.name }}</td>
+            <td>{{ sport.coach.get_full_name|default:"N/A" }}</td>
+            <td>{% if sport.is_active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No sports found.</p>
+    {% endif %}
+</div>
+{% endblock %}

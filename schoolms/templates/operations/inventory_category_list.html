@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Inventory Categories - {{ school.name }}{% endblock %}
+{% block page_title %}Inventory Categories{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>📦 Inventory Categories</h2>
+    {% if categories %}
+    <table class="data-table">
+        <thead><tr><th>Name</th><th>Description</th></tr></thead>
+        <tbody>
+        {% for cat in categories %}
+        <tr><td>{{ cat.name }}</td><td>{{ cat.description|default:"N/A" }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">📭 No categories found.</p>
+    {% endif %}
+</div>
+{% endblock %}
