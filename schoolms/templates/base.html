@@ -402,10 +402,11 @@
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
+                                <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span></div></a></li>
                                 <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
-                                <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
+                                <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport/Bus</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
+                                <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>
                                 {% feature_enabled 'library' as feat_library %}{% if feat_library %}
                                 <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
                                 {% endif %}
