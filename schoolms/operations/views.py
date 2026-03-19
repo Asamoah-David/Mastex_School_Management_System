@@ -3344,8 +3344,8 @@ def online_exam_list(request):
     if is_staff:
         exams = OnlineExam.objects.filter(school=school).select_related('subject', 'created_by').order_by('-start_time')[:100]
     else:
-        # Students see available exams for their class
-        exams = OnlineExam.objects.filter(school=school, is_active=True).select_related('subject', 'created_by').order_by('-start_time')[:100]
+        # Students see published exams
+        exams = OnlineExam.objects.filter(school=school, status='published').select_related('subject', 'created_by').order_by('-start_time')[:100]
     
     return render(request, 'operations/online_exam_list.html', {
         'exams': exams,
