@@ -17,7 +17,12 @@ from functools import wraps
 
 def is_school_admin(user):
     """Headteacher/School Admin - Full management access"""
-    return getattr(user, "role", None) in ("admin", "school_admin")
+    if getattr(user, "role", None) in ("admin", "school_admin"):
+        return True
+    # Check secondary roles
+    if hasattr(user, 'secondary_roles'):
+        return user.secondary_roles.filter(role__in=("admin", "school_admin")).exists()
+    return False
 
 
 def is_deputy_head(user):

@@ -37,6 +37,8 @@ class User(AbstractUser):
     parent_type = models.CharField(max_length=20, choices=PARENT_TYPE_CHOICES, blank=True, null=True)
     # Teachers can be assigned to specific subjects
     assigned_subjects = models.ManyToManyField('academics.Subject', blank=True, related_name='assigned_teachers')
+    # Secondary roles - allows users to have multiple roles (e.g., teacher + librarian)
+    secondary_roles = models.ManyToManyField('self', blank=True, symmetrical=False, related_name='primary_role_of')
     
     @property
     def is_super_admin(self):
