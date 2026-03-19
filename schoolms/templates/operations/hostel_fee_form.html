@@ -1,44 +1,154 @@
 {% extends "base.html" %}
-{% block title %}Add Hostel Fee · Mastex SchoolOS{% endblock %}
-{% block page_title %}Add Hostel Fee{% endblock %}
-{% block page_subtitle %}Create a hostel fee record.{% endblock %}
+{% block title %}Record Hostel Fee · Mastex SchoolOS{% endblock %}
+{% block page_title %}Record Hostel Fee{% endblock %}
+{% block page_subtitle %}Record hostel fee payment for a student{% endblock %}
 {% block content %}
 
-<form method="post" class="card" style="max-width: 820px;">
-    {% csrf_token %}
-    <div class="form-grid">
-        <div class="form-group full-width">
-            <label for="id_student">Student *</label>
-            <select id="id_student" name="student" class="form-control" required>
-                <option value="">Select student</option>
-                {% for s in students %}
-                <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} · {{ s.admission_number }} · {{ s.class_name|default:"—" }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group full-width">
-            <label for="id_hostel">Hostel *</label>
-            <select id="id_hostel" name="hostel" class="form-control" required>
-                <option value="">Select hostel</option>
-                {% for h in hostels %}
-                <option value="{{ h.id }}">{{ h.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="id_term">Term *</label>
-            <input id="id_term" name="term" class="form-control" placeholder="e.g. Term 1 2026" required>
-        </div>
-        <div class="form-group">
-            <label for="id_amount">Amount (GHS) *</label>
-            <input id="id_amount" name="amount" type="number" step="0.01" class="form-control" required>
-        </div>
-    </div>
-    <div class="button-row mt-sm">
-        <button class="btn btn-primary" type="submit">Save fee</button>
-        <a class="btn btn-secondary" href="{% url 'operations:hostel_fees' %}">Cancel</a>
-    </div>
-</form>
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
 
+<div class="content-card">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">💰</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Record Hostel Fee</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Record payment for hostel accommodation</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="feeForm" onsubmit="return validateFeeForm()">
+        {% csrf_token %}
+        <div style="display: grid; gap: 1.25rem;">
+            <!-- Student Selection -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>👨‍🎓</span> Student <span style="color: #ef4444;">*</span>
+                </label>
+                <select name="student" id="student" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                    <option value="">Select Student</option>
+                    {% for student in students %}
+                    <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.class_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Hostel and Term -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>🏢</span> Hostel <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select name="hostel" id="hostel" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateFeeAmount()">
+                        <option value="">Select Hostel</option>
+                        {% for hostel in hostels %}
+                        <option value="{{ hostel.id }}" data-fee="{{ hostel.fee_per_term }}">{{ hostel.name }} (GH₵{{ hostel.fee_per_term|floatformat:2 }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>📅</span> Term <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select name="term" id="term" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                        <option value="">Select Term</option>
+                        <option value="Term 1">Term 1</option>
+                        <option value="Term 2">Term 2</option>
+                        <option value="Term 3">Term 3</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Amount -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>💰</span> Amount (GH₵) <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="number" name="amount" id="amount" required step="0.01" min="0" value="0.00"
+                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateAmountDisplay()">
+                <small id="amountDisplay" style="color: var(--accent); font-size: 0.75rem; margin-top: 0.25rem; display: block;">GH₵ 0.00</small>
+            </div>
+            
+            <!-- Fee Summary Card -->
+            <div style="padding: 1rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1)); border: 1px solid rgba(245, 158, 11, 0.3);">
+                <h4 style="margin: 0 0 0.5rem; color: #f59e0b;">💡 Fee Information</h4>
+                <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;">Select a hostel to auto-fill the fee amount. You can adjust the amount if needed.</p>
+            </div>
+        </div>
+        
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                <span style="margin-right: 0.5rem;">✓</span> Save Fee
+            </button>
+            <a href="{% url 'operations:hostel_fees' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+function validateFeeForm() {
+    const student = document.getElementById('student').value;
+    const hostel = document.getElementById('hostel').value;
+    const term = document.getElementById('term').value;
+    const amount = document.getElementById('amount').value;
+    
+    if (!student) {
+        alert('Please select a student');
+        return false;
+    }
+    if (!hostel) {
+        alert('Please select a hostel');
+        return false;
+    }
+    if (!term) {
+        alert('Please select a term');
+        return false;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+        alert('Please enter a valid amount');
+        return false;
+    }
+    
+    return true;
+}
+
+function updateFeeAmount() {
+    const hostelSelect = document.getElementById('hostel');
+    const selectedOption = hostelSelect.options[hostelSelect.selectedIndex];
+    const amountInput = document.getElementById('amount');
+    
+    if (selectedOption.value) {
+        const fee = selectedOption.getAttribute('data-fee');
+        amountInput.value = fee || '0.00';
+        updateAmountDisplay();
+    } else {
+        amountInput.value = '0.00';
+        updateAmountDisplay();
+    }
+}
+
+function updateAmountDisplay() {
+    const amount = document.getElementById('amount').value;
+    const display = document.getElementById('amountDisplay');
+    if (amount && !isNaN(amount)) {
+        display.textContent = 'GH₵ ' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    } else {
+        display.textContent = 'GH₵ 0.00';
+    }
+}
+</script>
 {% endblock %}
-
