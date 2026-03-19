@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Create Seating Plan · Mastex SchoolOS{% endblock %}
-{% block page_title %}Create Seating Plan{% endblock %}
+{% block page_title %}Create Exam Seating Plan{% endblock %}
 {% block page_subtitle %}Assign students to exam hall seats{% endblock %}
 {% block content %}
 
@@ -13,32 +13,100 @@
 {% endif %}
 
 <div class="content-card">
-    <form method="POST">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🪑</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Create Seating Plan</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Assign students to seats for exams</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="seatingForm" onsubmit="return validateSeatingForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Exam *</label>
-                <select name="exam" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+        <div style="display: grid; gap: 1.25rem;">
+            <!-- Exam Selection -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📝</span> Select Exam <span style="color: #ef4444;">*</span>
+                </label>
+                <select name="exam" id="exam" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
                     <option value="">Select Exam</option>
                     {% for exam in exams %}
                     <option value="{{ exam.id }}">{{ exam.subject.name }} - {{ exam.exam_date|date:"M d, Y" }}</option>
                     {% endfor %}
                 </select>
+                <small style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Choose the exam for this seating arrangement</small>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Hall *</label>
-                <select name="hall" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            
+            <!-- Hall Selection -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>🏫</span> Select Hall <span style="color: #ef4444;">*</span>
+                </label>
+                <select name="hall" id="hall" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; checkHallCapacity()">
                     <option value="">Select Hall</option>
                     {% for hall in halls %}
-                    <option value="{{ hall.id }}">{{ hall.name }} ({{ hall.total_seats }} seats)</option>
+                    <option value="{{ hall.id }}" data-seats="{{ hall.total_seats }}">{{ hall.name }} ({{ hall.total_seats }} seats)</option>
                     {% endfor %}
                 </select>
+                <small id="hallInfo" style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Select a hall to see available capacity</small>
+            </div>
+            
+            <!-- Hall Preview Card -->
+            <div id="hallPreview" style="display: none; padding: 1rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(124, 58, 237, 0.1)); border: 1px solid rgba(139, 92, 246, 0.3);">
+                <h4 style="margin: 0 0 0.5rem; color: #8b5cf6;">Hall Information</h4>
+                <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;" id="hallDetails"></p>
             </div>
         </div>
+        
         <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Create Plan</button>
-            <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                <span style="margin-right: 0.5rem;">✓</span> Create Plan
+            </button>
+            <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                Cancel
+            </a>
         </div>
     </form>
 </div>
+
+<script>
+function validateSeatingForm() {
+    const exam = document.getElementById('exam').value;
+    const hall = document.getElementById('hall').value;
+    
+    if (!exam) {
+        alert('Please select an exam');
+        return false;
+    }
+    if (!hall) {
+        alert('Please select a hall');
+        return false;
+    }
+    
+    return true;
+}
+
+function checkHallCapacity() {
+    const hallSelect = document.getElementById('hall');
+    const selectedOption = hallSelect.options[hallSelect.selectedIndex];
+    const preview = document.getElementById('hallPreview');
+    const details = document.getElementById('hallDetails');
+    const info = document.getElementById('hallInfo');
+    
+    if (selectedOption.value) {
+        const seats = selectedOption.getAttribute('data-seats');
+        preview.style.display = 'block';
+        details.textContent = `This hall has a capacity of ${seats} seats. Make sure your exam has ${seats} or fewer registered students.`;
+        info.textContent = `Capacity: ${seats} seats`;
+    } else {
+        preview.style.display = 'none';
+        info.textContent = 'Select a hall to see available capacity';
+    }
+}
+</script>
 {% endblock %}
