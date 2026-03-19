@@ -12,7 +12,7 @@
 </div>
 {% endif %}
 
-<div class="content-card" style="max-width: 800px; margin: 0 auto;">
+<div class="content-card" style="max-width: 900px; margin: 0 auto;">
     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
         <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🎓</div>
         <div>
@@ -23,6 +23,29 @@
     
     <form method="POST" id="admissionForm" onsubmit="return validateAdmissionForm()">
         {% csrf_token %}
+        
+        <!-- School Selection - CRITICAL FOR MULTI-SCHOOL -->
+        <div style="padding: 1.25rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.4); margin-bottom: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                <span style="font-size: 1.25rem;">🏫</span>
+                <h4 style="margin: 0; color: #fbbf24;">Select School</h4>
+                <span style="color: #ef4444; font-size: 0.75rem;">* Required</span>
+            </div>
+            <div class="form-group">
+                <select name="school" id="school" required 
+                        style="width: 100%; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 1rem; transition: all 0.2s; font-weight: 500;"
+                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                    <option value="">🏢 Select the school you want to apply to</option>
+                    {% for school in schools %}
+                    <option value="{{ school.id }}">{{ school.name }}{% if school.address %} - {{ school.address }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <small style="color: var(--text-soft); font-size: 0.8rem; margin-top: 0.5rem; display: block;">
+                    ℹ️ Each school manages their own admissions. Your application will be sent to the selected school.
+                </small>
+            </div>
+        </div>
         
         <!-- Step Indicator -->
         <div style="display: flex; justify-content: space-between; margin-bottom: 2rem; padding: 1rem; background: rgba(148, 163, 184, 0.1); border-radius: 0.75rem;">
@@ -241,6 +264,7 @@
 
 <script>
 function validateAdmissionForm() {
+    const school = document.getElementById('school').value;
     const firstName = document.getElementById('first_name').value.trim();
     const lastName = document.getElementById('last_name').value.trim();
     const dob = document.getElementById('date_of_birth').value;
@@ -251,6 +275,10 @@ function validateAdmissionForm() {
     const phone = document.getElementById('parent_phone').value.trim();
     const address = document.getElementById('address').value.trim();
     
+    if (!school) {
+        alert('Please select the school you want to apply to');
+        return false;
+    }
     if (!firstName || !lastName) {
         alert('Please enter student\'s full name');
         return false;
@@ -280,7 +308,7 @@ function validateAdmissionForm() {
         return false;
     }
     
-    return confirm('Are you ready to submit this admission application?');
+    return confirm('Are you ready to submit this admission application?\n\nMake sure you selected the correct school.');
 }
 </script>
 {% endblock %}
