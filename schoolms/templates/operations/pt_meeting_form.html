@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Schedule Meeting · Mastex SchoolOS{% endblock %}
-{% block page_title %}Schedule PT Meeting{% endblock %}
-{% block page_subtitle %}Create a new parent-teacher meeting{% endblock %}
+{% block title %}Schedule PT Meeting · Mastex SchoolOS{% endblock %}
+{% block page_title %}Schedule Parent-Teacher Meeting{% endblock %}
+{% block page_subtitle %}Create a new meeting for parents and teachers{% endblock %}
 {% block content %}
 
 {% if messages %}
@@ -13,36 +13,118 @@
 {% endif %}
 
 <div class="content-card">
-    <form method="POST">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #22c55e, #16a34a); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">📅</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Schedule New Meeting</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Fill in the details to create a parent-teacher meeting</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="meetingForm" onsubmit="return validateForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Meeting Title *</label>
-                <input type="text" name="title" required placeholder="e.g. JHS 1 Parent-Teacher Meeting" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+        <div style="display: grid; gap: 1.25rem;">
+            <!-- Meeting Title -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📝</span> Meeting Title <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="text" name="title" id="title" required 
+                       placeholder="e.g. JHS 1 Parent-Teacher Meeting" 
+                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                <small style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Enter a descriptive title for the meeting</small>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description</label>
-                <textarea name="description" rows="3" placeholder="Meeting description (optional)" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            
+            <!-- Description -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📋</span> Description
+                </label>
+                <textarea name="description" id="description" rows="3" 
+                          placeholder="Describe the meeting agenda and topics to be discussed..."
+                          style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; resize: vertical; font-family: inherit; transition: all 0.2s;"
+                          onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                          onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'"></textarea>
             </div>
+            
+            <!-- Date and Time + Location -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Meeting Date & Time *</label>
-                    <input type="datetime-local" name="meeting_date" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>🗓️</span> Date & Time <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="datetime-local" name="meeting_date" id="meeting_date" required 
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Location *</label>
-                    <input type="text" name="location" required placeholder="e.g. School Hall, Classroom 1" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>📍</span> Location <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="text" name="location" id="location" required 
+                           placeholder="e.g. School Hall, Classroom 1" 
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
                 </div>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Maximum Slots</label>
-                <input type="number" name="max_slots" value="20" min="1" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            
+            <!-- Maximum Slots -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>👥</span> Maximum Booking Slots
+                </label>
+                <input type="number" name="max_slots" id="max_slots" value="20" min="1" max="100" 
+                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                <small style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Number of parent-teacher slots available (default: 20)</small>
             </div>
         </div>
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Schedule Meeting</button>
-            <a href="{% url 'operations:pt_meeting_list' %}" class="btn btn-secondary">Cancel</a>
+        
+        <!-- Form Actions -->
+        <div style="display: flex; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2);">
+            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                <span style="margin-right: 0.5rem;">✓</span> Schedule Meeting
+            </button>
+            <a href="{% url 'operations:pt_meeting_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                Cancel
+            </a>
         </div>
     </form>
 </div>
+
+<script>
+function validateForm() {
+    const title = document.getElementById('title').value.trim();
+    const meetingDate = document.getElementById('meeting_date').value;
+    const location = document.getElementById('location').value.trim();
+    
+    if (!title) {
+        alert('Please enter a meeting title');
+        return false;
+    }
+    if (!meetingDate) {
+        alert('Please select a meeting date and time');
+        return false;
+    }
+    if (!location) {
+        alert('Please enter a location');
+        return false;
+    }
+    
+    // Check if date is in the future
+    const selectedDate = new Date(meetingDate);
+    const now = new Date();
+    if (selectedDate <= now) {
+        alert('Meeting date must be in the future');
+        return false;
+    }
+    
+    return true;
+}
+</script>
 {% endblock %}
