@@ -3,13 +3,21 @@
 {% block page_title %}Announcements{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>Announcements</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>Announcements</h2>
+        {% if user.role == "school_admin" or user.role == "admin" or user.role == "teacher" or user.is_superuser %}
+        <a href="{% url 'operations:announcement_create' %}" class="btn btn-primary">+ Create Announcement</a>
+        {% endif %}
+    </div>
     {% if announcements %}
     {% for ann in announcements %}
     <div class="announcement-item">
         <h3>{{ ann.title }}</h3>
         <p>{{ ann.content }}</p>
         <small>{{ ann.created_at|date }}</small>
+        {% if user.role == "school_admin" or user.role == "admin" or user.is_superuser %}
+        <a href="{% url 'operations:announcement_delete' ann.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this announcement?');">Delete</a>
+        {% endif %}
     </div>
     {% endfor %}
     {% else %}
