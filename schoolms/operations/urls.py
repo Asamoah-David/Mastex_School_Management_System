@@ -85,4 +85,77 @@ urlpatterns = [
     path("certificates/create/", views.certificate_create, name="certificate_create"),
     path("certificates/<int:pk>/", views.certificate_view, name="certificate_view"),
     path("certificates/<int:pk>/delete/", views.certificate_delete, name="certificate_delete"),
+    
+    # Expense Tracking
+    path("expenses/", views.expense_list, name="expense_list"),
+    path("expenses/create/", views.expense_create, name="expense_create"),
+    path("expenses/<int:pk>/", views.expense_detail, name="expense_detail"),
+    
+    # Budget
+    path("budgets/", views.budget_list, name="budget_list"),
+    path("budgets/create/", views.budget_create, name="budget_create"),
+    
+    # Expense Categories
+    path("expense-categories/", views.expense_category_list, name="expense_category_list"),
+    path("expense-categories/create/", views.expense_category_create, name="expense_category_create"),
+    
+    # Discipline
+    path("discipline/", views.discipline_list, name="discipline_list"),
+    path("discipline/create/", views.discipline_create, name="discipline_create"),
+    path("discipline/<int:pk>/", views.discipline_detail, name="discipline_detail"),
+    
+    # Behavior Points
+    path("behavior-points/", views.behavior_points_list, name="behavior_points_list"),
+    path("behavior-points/create/", views.behavior_points_create, name="behavior_points_create"),
+    
+    # Documents
+    path("documents/", views.document_list, name="document_list"),
+    path("documents/upload/", views.document_upload, name="document_upload"),
+    
+    # Alumni
+    path("alumni/", views.alumni_list, name="alumni_list"),
+    path("alumni/create/", views.alumni_create, name="alumni_create"),
+    path("alumni/<int:pk>/", views.alumni_detail, name="alumni_detail"),
+    path("alumni/events/", views.alumni_event_list, name="alumni_event_list"),
+    
+    # Timetable
+    path("timetable/", views.timetable_view, name="timetable_view"),
+    path("timetable/create/", views.timetable_create, name="timetable_create"),
+    path("timetable/conflicts/", views.timetable_conflicts, name="timetable_conflicts"),
+    
+    # Student ID Cards
+    path("id-cards/", views.id_card_list, name="id_card_list"),
+    path("id-cards/create/", views.id_card_create, name="id_card_create"),
+    path("id-cards/<int:pk>/", views.id_card_view, name="id_card_view"),
+    path("id-cards/<int:pk>/print/", views.id_card_print, name="id_card_print"),
+    
+    # Sports
+    path("sports/", views.sport_list, name="sport_list"),
+    path("sports/create/", views.sport_create, name="sport_create"),
+    path("sports/<int:pk>/", views.sport_detail, name="sport_detail"),
+    path("sports/<int:pk>/add-member/", views.sport_add_member, name="sport_add_member"),
+    
+    # Clubs
+    path("clubs/", views.club_list, name="club_list"),
+    path("clubs/create/", views.club_create, name="club_create"),
+    path("clubs/<int:pk>/", views.club_detail, name="club_detail"),
+    path("clubs/<int:pk>/add-member/", views.club_add_member, name="club_add_member"),
+    
+    # My Activities (Student View)
+    path("my-activities/", views.my_activities, name="my_activities"),
+    
+    # Exam Halls
+    path("exam-halls/", views.exam_hall_list, name="exam_hall_list"),
+    path("exam-halls/create/", views.exam_hall_create, name="exam_hall_create"),
+    
+    # Seating Plans
+    path("seating-plans/", views.seating_plan_list, name="seating_plan_list"),
+    path("seating-plans/create/", views.seating_plan_create, name="seating_plan_create"),
+    path("seating-plans/<int:pk>/", views.seating_plan_view, name="seating_plan_view"),
+    
+    # PT Meetings
+    path("pt-meetings/", views.pt_meeting_list, name="pt_meeting_list"),
+    path("pt-meetings/create/", views.pt_meeting_create, name="pt_meeting_create"),
+    path("pt-meetings/<int:pk>/", views.pt_meeting_detail, name="pt_meeting_detail"),
+    path("pt-meetings/<int:pk>/book/", views.pt_meeting_book, name="pt_meeting_book"),
 ]

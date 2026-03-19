@@ -4,6 +4,7 @@ from django.db.models import Sum
 from django.db import models
 from django.utils.dateparse import parse_date
 from django.utils import timezone
+from django.http import HttpResponse
 
 from schools.models import School
 from students.models import Student
@@ -39,6 +40,16 @@ from .models import (
     AlumniEvent,
     TimetableSlot,
     TimetableConflict,
+    StudentIDCard,
+    PTMeeting,
+    PTMeetingBooking,
+    Sport,
+    Club,
+    StudentSport,
+    StudentClub,
+    ExamHall,
+    SeatingPlan,
+    SeatAssignment,
 )
 
 
@@ -2111,6 +2122,625 @@ def timetable_conflicts(request):
     
     return render(request, 'operations/timetable_conflicts.html', {
         'conflicts': conflicts,
+        'school': school
+    })
+
+
+# ==================== STUDENT ID CARDS ====================
+
+@login_required
+def id_card_list(request):
+    """List all student ID cards."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    id_cards = StudentIDCard.objects.filter(school=school).select_related('student', 'student__user', 'created_by').order_by('-created_at')[:200]
+    
+    return render(request, 'operations/id_card_list.html', {
+        'id_cards': id_cards,
+        'school': school
+    })
+
+
+@login_required
+def id_card_create(request):
+    """Create a new student ID card."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:id_card_list')
+    
+    students = Student.objects.filter(school=school).exclude(id_card__isnull=False).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        card_number = request.POST.get('card_number', '').strip()
+        issue_date = request.POST.get('issue_date')
+        expiry_date = request.POST.get('expiry_date') or None
+        
+        if student_id and card_number and issue_date:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                try:
+                    StudentIDCard.objects.create(
+                        student=student,
+                        school=school,
+                        card_number=card_number,
+                        issue_date=issue_date,
+                        expiry_date=expiry_date,
+                        created_by=request.user
+                    )
+                    from django.contrib import messages
+                    messages.success(request, 'ID Card created successfully!')
+                    return redirect('operations:id_card_list')
+                except Exception:
+                    pass
+    
+    return render(request, 'operations/id_card_form.html', {
+        'school': school,
+        'students': students
+    })
+
+
+@login_required
+def id_card_view(request, pk):
+    """View ID card details."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    id_card = get_object_or_404(StudentIDCard, pk=pk)
+    
+    # Check permission
+    if school and id_card.school != school:
+        return redirect('home')
+    
+    can_view = user_can_manage_school(request.user) or request.user.is_superuser
+    can_view = can_view or (id_card.student and id_card.student.user == request.user)
+    
+    if not can_view:
+        return redirect('home')
+    
+    return render(request, 'operations/id_card_view.html', {
+        'id_card': id_card,
+        'school': school
+    })
+
+
+@login_required
+def id_card_print(request, pk):
+    """Print ID card (returns printable view)."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
+    
+    return render(request, 'operations/id_card_print.html', {
+        'id_card': id_card,
+        'school': school
+    })
+
+
+# ==================== SPORTS & CLUBS ====================
+
+@login_required
+def sport_list(request):
+    """List all sports."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    sports = Sport.objects.filter(school=school).select_related('coach').order_by('name')
+    can_manage = user_can_manage_school(request.user) or request.user.is_superuser
+    
+    return render(request, 'operations/sport_list.html', {
+        'sports': sports,
+        'school': school,
+        'can_manage': can_manage
+    })
+
+
+@login_required
+def sport_create(request):
+    """Create a new sport."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:sport_list')
+    
+    teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        coach_id = request.POST.get('coach')
+        description = request.POST.get('description', '').strip()
+        is_active = request.POST.get('is_active') == 'on'
+        
+        if name:
+            coach = User.objects.filter(id=coach_id, school=school).first() if coach_id else None
+            Sport.objects.create(
+                school=school,
+                name=name,
+                coach=coach,
+                description=description,
+                is_active=is_active
+            )
+            from django.contrib import messages
+            messages.success(request, 'Sport created successfully!')
+            return redirect('operations:sport_list')
+    
+    return render(request, 'operations/sport_form.html', {
+        'school': school,
+        'teachers': teachers
+    })
+
+
+@login_required
+def sport_detail(request, pk):
+    """View sport details with members."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    sport = get_object_or_404(Sport, pk=pk, school=school)
+    members = StudentSport.objects.filter(sport=sport, is_active=True).select_related('student', 'student__user')[:100]
+    
+    return render(request, 'operations/sport_detail.html', {
+        'sport': sport,
+        'members': members,
+        'school': school
+    })
+
+
+@login_required
+def sport_add_member(request, pk):
+    """Add student to sport."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    sport = get_object_or_404(Sport, pk=pk, school=school)
+    students = Student.objects.filter(school=school).exclude(
+        id__in=StudentSport.objects.filter(sport=sport, is_active=True).values_list('student_id', flat=True)
+    ).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        jersey_number = request.POST.get('jersey_number', '').strip()
+        position = request.POST.get('position', '').strip()
+        
+        if student_id:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                StudentSport.objects.create(
+                    student=student,
+                    sport=sport,
+                    jersey_number=jersey_number,
+                    position=position
+                )
+                from django.contrib import messages
+                messages.success(request, 'Member added successfully!')
+                return redirect('operations:sport_detail', pk=sport.pk)
+    
+    return render(request, 'operations/sport_add_member.html', {
+        'sport': sport,
+        'students': students,
+        'school': school
+    })
+
+
+@login_required
+def club_list(request):
+    """List all clubs."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    clubs = Club.objects.filter(school=school).select_related('sponsor').order_by('name')
+    can_manage = user_can_manage_school(request.user) or request.user.is_superuser
+    
+    return render(request, 'operations/club_list.html', {
+        'clubs': clubs,
+        'school': school,
+        'can_manage': can_manage
+    })
+
+
+@login_required
+def club_create(request):
+    """Create a new club."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:club_list')
+    
+    teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        category = request.POST.get('category', 'other')
+        sponsor_id = request.POST.get('sponsor')
+        description = request.POST.get('description', '').strip()
+        meeting_day = request.POST.get('meeting_day', '').strip()
+        meeting_time = request.POST.get('meeting_time') or None
+        is_active = request.POST.get('is_active') == 'on'
+        
+        if name:
+            sponsor = User.objects.filter(id=sponsor_id, school=school).first() if sponsor_id else None
+            Club.objects.create(
+                school=school,
+                name=name,
+                category=category,
+                sponsor=sponsor,
+                description=description,
+                meeting_day=meeting_day,
+                meeting_time=meeting_time,
+                is_active=is_active
+            )
+            from django.contrib import messages
+            messages.success(request, 'Club created successfully!')
+            return redirect('operations:club_list')
+    
+    return render(request, 'operations/club_form.html', {
+        'school': school,
+        'teachers': teachers
+    })
+
+
+@login_required
+def club_detail(request, pk):
+    """View club details with members."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    club = get_object_or_404(Club, pk=pk, school=school)
+    members = StudentClub.objects.filter(club=club, is_active=True).select_related('student', 'student__user')[:100]
+    
+    return render(request, 'operations/club_detail.html', {
+        'club': club,
+        'members': members,
+        'school': school
+    })
+
+
+@login_required
+def club_add_member(request, pk):
+    """Add student to club."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    club = get_object_or_404(Club, pk=pk, school=school)
+    students = Student.objects.filter(school=school).exclude(
+        id__in=StudentClub.objects.filter(club=club, is_active=True).values_list('student_id', flat=True)
+    ).select_related('user').order_by('class_name', 'admission_number')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        role = request.POST.get('role', 'member')
+        
+        if student_id:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if student:
+                StudentClub.objects.create(
+                    student=student,
+                    club=club,
+                    role=role
+                )
+                from django.contrib import messages
+                messages.success(request, 'Member added successfully!')
+                return redirect('operations:club_detail', pk=club.pk)
+    
+    return render(request, 'operations/club_add_member.html', {
+        'club': club,
+        'students': students,
+        'school': school
+    })
+
+
+@login_required
+def my_activities(request):
+    """Student's sports and clubs."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    role = getattr(request.user, 'role', None)
+    
+    if role == 'student':
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student:
+            sports = StudentSport.objects.filter(student=student, is_active=True).select_related('sport')
+            clubs = StudentClub.objects.filter(student=student, is_active=True).select_related('club')
+            return render(request, 'operations/my_activities.html', {
+                'sports': sports,
+                'clubs': clubs,
+                'school': school
+            })
+    
+    return redirect('home')
+
+
+# ==================== EXAM HALLS & SEATING ====================
+
+@login_required
+def exam_hall_list(request):
+    """List exam halls."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    halls = ExamHall.objects.filter(school=school).order_by('name')
+    
+    return render(request, 'operations/exam_hall_list.html', {
+        'halls': halls,
+        'school': school
+    })
+
+
+@login_required
+def exam_hall_create(request):
+    """Create exam hall."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:exam_hall_list')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        rows = request.POST.get('rows')
+        seats_per_row = request.POST.get('seats_per_row')
+        description = request.POST.get('description', '').strip()
+        
+        if name and rows and seats_per_row:
+            ExamHall.objects.create(
+                school=school,
+                name=name,
+                rows=int(rows),
+                seats_per_row=int(seats_per_row),
+                description=description
+            )
+            from django.contrib import messages
+            messages.success(request, 'Exam hall created!')
+            return redirect('operations:exam_hall_list')
+    
+    return render(request, 'operations/exam_hall_form.html', {
+        'school': school
+    })
+
+
+@login_required
+def seating_plan_list(request):
+    """List seating plans."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    plans = SeatingPlan.objects.filter(school=school).select_related('exam_schedule', 'exam_schedule__subject', 'hall', 'created_by').order_by('-created_at')[:100]
+    
+    return render(request, 'operations/seating_plan_list.html', {
+        'plans': plans,
+        'school': school
+    })
+
+
+@login_required
+def seating_plan_create(request):
+    """Create seating plan."""
+    from accounts.permissions import is_school_admin
+    from academics.models import ExamSchedule
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:seating_plan_list')
+    
+    exams = ExamSchedule.objects.filter(school=school).select_related('subject').order_by('-exam_date')[:50]
+    halls = ExamHall.objects.filter(school=school).order_by('name')
+    
+    if request.method == 'POST':
+        exam_id = request.POST.get('exam')
+        hall_id = request.POST.get('hall')
+        
+        if exam_id and hall_id:
+            exam = ExamSchedule.objects.filter(id=exam_id, school=school).first()
+            hall = ExamHall.objects.filter(id=hall_id, school=school).first()
+            if exam and hall:
+                SeatingPlan.objects.create(
+                    school=school,
+                    exam_schedule=exam,
+                    hall=hall,
+                    created_by=request.user
+                )
+                from django.contrib import messages
+                messages.success(request, 'Seating plan created!')
+                return redirect('operations:seating_plan_list')
+    
+    return render(request, 'operations/seating_plan_form.html', {
+        'school': school,
+        'exams': exams,
+        'halls': halls
+    })
+
+
+@login_required
+def seating_plan_view(request, pk):
+    """View seating plan."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    plan = get_object_or_404(SeatingPlan, pk=pk, school=school)
+    assignments = SeatAssignment.objects.filter(seating_plan=plan).select_related('student', 'student__user').order_by('row_number', 'seat_number')
+    
+    return render(request, 'operations/seating_plan_view.html', {
+        'plan': plan,
+        'assignments': assignments,
+        'school': school
+    })
+
+
+# ==================== EXPENSE CATEGORIES ====================
+
+@login_required
+def expense_category_list(request):
+    """List expense categories."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    categories = ExpenseCategory.objects.filter(school=school).order_by('name')
+    
+    return render(request, 'operations/expense_category_list.html', {
+        'categories': categories,
+        'school': school
+    })
+
+
+@login_required
+def expense_category_create(request):
+    """Create expense category."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:expense_category_list')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        
+        if name:
+            ExpenseCategory.objects.create(
+                school=school,
+                name=name,
+                description=description
+            )
+            from django.contrib import messages
+            messages.success(request, 'Category created!')
+            return redirect('operations:expense_category_list')
+    
+    return render(request, 'operations/expense_category_form.html', {
+        'school': school
+    })
+
+
+# ==================== PT MEETINGS ====================
+
+@login_required
+def pt_meeting_list(request):
+    """List PT meetings."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    meetings = PTMeeting.objects.filter(school=school).order_by('-meeting_date')[:50]
+    
+    return render(request, 'operations/pt_meeting_list.html', {
+        'meetings': meetings,
+        'school': school
+    })
+
+
+@login_required
+def pt_meeting_create(request):
+    """Create PT meeting."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:pt_meeting_list')
+    
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        meeting_date = request.POST.get('meeting_date')
+        location = request.POST.get('location', '').strip()
+        max_slots = request.POST.get('max_slots') or 20
+        
+        if title and meeting_date and location:
+            PTMeeting.objects.create(
+                school=school,
+                title=title,
+                description=description,
+                meeting_date=meeting_date,
+                location=location,
+                max_slots=int(max_slots),
+                created_by=request.user
+            )
+            from django.contrib import messages
+            messages.success(request, 'Meeting scheduled!')
+            return redirect('operations:pt_meeting_list')
+    
+    return render(request, 'operations/pt_meeting_form.html', {
+        'school': school
+    })
+
+
+@login_required
+def pt_meeting_detail(request, pk):
+    """View PT meeting details and bookings."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
+    bookings = PTMeetingBooking.objects.filter(meeting=meeting).select_related('parent', 'student', 'student__user')[:100]
+    
+    return render(request, 'operations/pt_meeting_detail.html', {
+        'meeting': meeting,
+        'bookings': bookings,
+        'school': school
+    })
+
+
+@login_required
+def pt_meeting_book(request, pk):
+    """Book PT meeting slot (for parents)."""
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    role = getattr(request.user, 'role', None)
+    if role != 'parent':
+        return redirect('home')
+    
+    meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
+    children = Student.objects.filter(parent=request.user, school=school).select_related('user')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student')
+        preferred_time = request.POST.get('preferred_time') or None
+        topics = request.POST.get('topics_to_discuss', '').strip()
+        
+        if student_id:
+            student = Student.objects.filter(id=student_id, school=school, parent=request.user).first()
+            if student and meeting.available_slots > 0:
+                PTMeetingBooking.objects.create(
+                    meeting=meeting,
+                    parent=request.user,
+                    student=student,
+                    preferred_time=preferred_time,
+                    topics_to_discuss=topics
+                )
+                from django.contrib import messages
+                messages.success(request, 'Booking confirmed!')
+                return redirect('operations:pt_meeting_detail', pk=meeting.pk)
+    
+    return render(request, 'operations/pt_meeting_book.html', {
+        'meeting': meeting,
+        'children': children,
         'school': school
     })
 
