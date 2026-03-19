@@ -12,10 +12,12 @@
 </div>
 {% endif %}
 
+{% if user.role == "school_admin" or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary">+ Add Alumni</a>
     <a href="{% url 'operations:alumni_event_list' %}" class="btn btn-secondary">Alumni Events</a>
 </div>
+{% endif %}
 
 <div class="content-card mt-sm">
     <h3 style="margin: 0 0 1rem; color: #22c55e;">Alumni Records</h3>
@@ -50,7 +52,9 @@
     {% else %}
     <div class="empty-state">
         <p>No alumni records found.</p>
+        {% if user.role == "school_admin" or user.is_superuser %}
         <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary mt-sm">Add First Alumni</a>
+        {% endif %}
     </div>
     {% endif %}
 </div>

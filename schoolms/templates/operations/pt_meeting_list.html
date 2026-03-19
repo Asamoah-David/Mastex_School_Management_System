@@ -12,9 +12,11 @@
 </div>
 {% endif %}
 
+{% if user.role == "school_admin" or user.role == "admin" %}
 <div class="button-row">
     <a href="{% url 'operations:pt_meeting_create' %}" class="btn btn-primary">+ Schedule Meeting</a>
 </div>
+{% endif %}
 
 <div class="content-card mt-sm">
     <h3 style="margin: 0 0 1rem; color: #22c55e;">Upcoming Meetings</h3>
@@ -36,9 +38,13 @@
                 <td><strong>{{ meeting.title }}</strong></td>
                 <td>{{ meeting.meeting_date|date:"M d, Y H:i" }}</td>
                 <td>{{ meeting.location }}</td>
-                <td>{{ meeting.booked_slots }}/{{ meeting.max_slots }}</td>
+                <td>{{ meeting.booked_slots|default:"0" }}/{{ meeting.max_slots }}</td>
                 <td>
+                    {% if user.role == "parent" %}
+                    <a href="{% url 'operations:pt_meeting_book' meeting.id %}" class="btn btn-primary btn-sm">Book Slot</a>
+                    {% else %}
                     <a href="{% url 'operations:pt_meeting_detail' meeting.id %}" class="btn btn-secondary btn-sm">View</a>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -46,8 +52,14 @@
     </table>
     {% else %}
     <div class="empty-state">
+        {% if user.role == "parent" %}
+        <p>No meetings scheduled yet. Please check back later.</p>
+        {% else %}
         <p>No meetings scheduled yet.</p>
+        {% if user.role == "school_admin" or user.role == "admin" %}
         <a href="{% url 'operations:pt_meeting_create' %}" class="btn btn-primary mt-sm">Schedule First Meeting</a>
+        {% endif %}
+        {% endif %}
     </div>
     {% endif %}
 </div>

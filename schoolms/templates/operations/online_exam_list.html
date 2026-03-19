@@ -12,9 +12,11 @@
 </div>
 {% endif %}
 
+{% if user.role == "school_admin" or user.role == "teacher" or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:online_exam_create' %}" class="btn btn-primary">+ Create Exam</a>
 </div>
+{% endif %}
 
 <div class="content-card mt-sm">
     <h3 style="margin: 0 0 1rem; color: #22c55e;">Online Exams</h3>
@@ -59,7 +61,11 @@
     {% else %}
     <div class="empty-state">
         <p>No online exams created yet.</p>
+        {% if user.role == "school_admin" or user.role == "teacher" or user.is_superuser %}
         <a href="{% url 'operations:online_exam_create' %}" class="btn btn-primary mt-sm">Create First Exam</a>
+        {% else %}
+        <p style="color: var(--text-soft); font-size: 0.8rem;">No exams available at the moment.</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>

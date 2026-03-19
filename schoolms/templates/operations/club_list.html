@@ -12,9 +12,11 @@
 </div>
 {% endif %}
 
+{% if user.role == "school_admin" or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:club_create' %}" class="btn btn-primary">+ Add Club</a>
 </div>
+{% endif %}
 
 <div class="content-card mt-sm">
     <h3 style="margin: 0 0 1rem; color: #22c55e;">School Clubs</h3>
@@ -55,7 +57,11 @@
     {% else %}
     <div class="empty-state">
         <p>No clubs configured yet.</p>
+        {% if user.role == "school_admin" or user.is_superuser %}
         <a href="{% url 'operations:club_create' %}" class="btn btn-primary mt-sm">Add First Club</a>
+        {% else %}
+        <p style="color: var(--text-soft); font-size: 0.8rem;">Contact your administrator to add clubs.</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>

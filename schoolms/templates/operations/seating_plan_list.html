@@ -12,9 +12,11 @@
 </div>
 {% endif %}
 
+{% if user.role == "school_admin" or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:seating_plan_create' %}" class="btn btn-primary">+ Create Seating Plan</a>
 </div>
+{% endif %}
 
 <div class="content-card mt-sm">
     <h3 style="margin: 0 0 1rem; color: #22c55e;">Seating Plans</h3>
@@ -35,7 +37,7 @@
             <tr>
                 <td><strong>{{ plan.exam_schedule.subject.name|default:"Exam" }}</strong><br><small>{{ plan.exam_schedule.exam_date|date:"M d, Y" }}</small></td>
                 <td>{{ plan.hall.name }}</td>
-                <td>{{ plan.assigned_seats }}/{{ plan.hall.total_seats }}</td>
+                <td>{{ plan.assigned_seats|default:"0" }}/{{ plan.hall.total_seats }}</td>
                 <td>{{ plan.created_at|date:"M d, Y" }}</td>
                 <td>
                     <a href="{% url 'operations:seating_plan_view' plan.id %}" class="btn btn-secondary btn-sm">View</a>
@@ -47,7 +49,11 @@
     {% else %}
     <div class="empty-state">
         <p>No seating plans created yet.</p>
+        {% if user.role == "school_admin" or user.is_superuser %}
         <a href="{% url 'operations:seating_plan_create' %}" class="btn btn-primary mt-sm">Create First Plan</a>
+        {% else %}
+        <p style="color: var(--text-soft); font-size: 0.8rem;">Contact your administrator to create seating plans.</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>
