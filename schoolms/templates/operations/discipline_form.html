@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Report Incident · Mastex SchoolOS{% endblock %}
 {% block page_title %}Report Discipline Incident{% endblock %}
-{% block page_subtitle %}Record a student discipline incident{% endblock %}
+{% block page_subtitle %}Document student discipline issues{% endblock %}
 {% block content %}
 
 {% if messages %}
@@ -13,54 +13,141 @@
 {% endif %}
 
 <div class="content-card">
-    <form method="POST">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #ef4444, #dc2626); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">⚠️</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Report Discipline Incident</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Document a student discipline issue</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="disciplineForm" onsubmit="return validateDisciplineForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Student *</label>
-                <select name="student" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+        <div style="display: grid; gap: 1.25rem;">
+            <!-- Student Selection -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>👨‍🎓</span> Student <span style="color: #ef4444;">*</span>
+                </label>
+                <select name="student" id="student" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
                     <option value="">Select Student</option>
                     {% for student in students %}
                     <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.class_name }})</option>
                     {% endfor %}
                 </select>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Incident Type *</label>
-                <select name="incident_type" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                    <option value="">Select Type</option>
-                    <option value="misconduct">General Misconduct</option>
-                    <option value="academic_dishonesty">Academic Dishonesty</option>
-                    <option value="bullying">Bullying</option>
-                    <option value="violence">Violence</option>
-                    <option value="property_damage">Property Damage</option>
-                    <option value="attendance">Attendance Violation</option>
-                    <option value="other">Other</option>
-                </select>
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description *</label>
-                <textarea name="description" required rows="4" placeholder="Describe the incident in detail" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
-            </div>
+            
+            <!-- Incident Type and Severity -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Date *</label>
-                    <input type="date" name="incident_date" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>🏷️</span> Incident Type <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select name="incident_type" id="incident_type" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                        <option value="">Select Type</option>
+                        <option value="misconduct">General Misconduct</option>
+                        <option value="academic_dishonesty">Academic Dishonesty</option>
+                        <option value="bullying">Bullying</option>
+                        <option value="violence">Violence</option>
+                        <option value="property_damage">Property Damage</option>
+                        <option value="attendance">Attendance Violation</option>
+                        <option value="other">Other</option>
+                    </select>
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Severity</label>
-                    <select name="severity" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                        <option value="low">Low</option>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>⚡</span> Severity <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select name="severity" id="severity" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                        <option value="low" selected>Low</option>
                         <option value="medium">Medium</option>
                         <option value="high">High</option>
                     </select>
                 </div>
             </div>
+            
+            <!-- Date -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>🗓️</span> Incident Date <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="date" name="incident_date" id="incident_date" required 
+                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+            </div>
+            
+            <!-- Description -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📋</span> Description <span style="color: #ef4444;">*</span>
+                </label>
+                <textarea name="description" id="description" required rows="4" 
+                          placeholder="Describe the incident in detail. Include what happened, where, when, and any witnesses..."
+                          style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; resize: vertical; font-family: inherit; transition: all 0.2s;"
+                          onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                          onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateCharCount()"></textarea>
+                <small id="charCount" style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">0/500 characters (minimum 20)</small>
+            </div>
+            
+            <!-- Reporter Info -->
+            <div style="padding: 1rem; border-radius: 0.75rem; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.2);">
+                <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;">
+                    <strong>Note:</strong> This report will be logged under your name as the reporter. All reports are treated confidentially.
+                </p>
+            </div>
         </div>
+        
         <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Report Incident</button>
-            <a href="{% url 'operations:discipline_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem; background: linear-gradient(135deg, #ef4444, #dc2626);">
+                <span style="margin-right: 0.5rem;">⚠️</span> Report Incident
+            </button>
+            <a href="{% url 'operations:discipline_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                Cancel
+            </a>
         </div>
     </form>
 </div>
+
+<script>
+function validateDisciplineForm() {
+    const student = document.getElementById('student').value;
+    const incidentType = document.getElementById('incident_type').value;
+    const incidentDate = document.getElementById('incident_date').value;
+    const description = document.getElementById('description').value.trim();
+    
+    if (!student) {
+        alert('Please select a student');
+        return false;
+    }
+    if (!incidentType) {
+        alert('Please select an incident type');
+        return false;
+    }
+    if (!incidentDate) {
+        alert('Please select the incident date');
+        return false;
+    }
+    if (description.length < 20) {
+        alert('Please provide a detailed description (at least 20 characters)');
+        return false;
+    }
+    
+    // Confirm before submitting
+    return confirm('Are you sure you want to report this incident? This action will be logged.');
+}
+
+function updateCharCount() {
+    const desc = document.getElementById('description');
+    const count = document.getElementById('charCount');
+    count.textContent = desc.value.length + '/500 characters (minimum 20)';
+    count.style.color = desc.value.length < 20 ? '#ef4444' : '#22c55e';
+}
+</script>
 {% endblock %}
