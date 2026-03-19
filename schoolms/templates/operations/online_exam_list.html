@@ -1,72 +1,59 @@
 {% extends "base.html" %}
-{% block title %}Online Exams · Mastex SchoolOS{% endblock %}
+{% load static %}
+{% block title %}Online Exams - {{ school.name }}{% endblock %}
 {% block page_title %}Online Exams{% endblock %}
-{% block page_subtitle %}Create and manage online examinations{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+<style>
+.status-draft { background: #6c757d; color: #fff; }
+.status-published { background: #28a745; color: #fff; }
+.status-closed { background: #dc3545; color: #fff; }
+</style>
+{% endblock %}
 {% block content %}
-
-{% if messages %}
-<div class="messages">
-{% for message in messages %}
-    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
-{% endfor %}
-</div>
-{% endif %}
-
-{% if user.role == "school_admin" or user.role == "teacher" or user.is_superuser %}
-<div class="button-row">
-    <a href="{% url 'operations:online_exam_create' %}" class="btn btn-primary">+ Create Exam</a>
-</div>
-{% endif %}
-
-<div class="content-card mt-sm">
-    <h3 style="margin: 0 0 1rem; color: #22c55e;">Online Exams</h3>
+<div class="content-card">
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>💻 Online Exams</h2>
+        {% if is_staff %}
+        <a href="{% url 'operations:online_exam_create' %}" class="btn btn-primary">➕ Create Exam</a>
+        {% endif %}
+    </div>
+    
     {% if exams %}
-    <div class="table-card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Subject</th>
-                    <th>Duration</th>
-                    <th>Total Marks</th>
-                    <th>Start Time</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for exam in exams %}
+    <table class="data-table">
+        <thead>
             <tr>
-                <td><strong>{{ exam.title }}</strong></td>
-                <td>{{ exam.subject.name }}</td>
-                <td>{{ exam.duration_minutes }} min</td>
-                <td>{{ exam.total_marks }}</td>
-                <td>{{ exam.start_time|date:"M d, Y H:i" }}</td>
-                <td>
-                    {% if exam.status == 'published' %}
-                    <span style="color: #22c55e;">Published</span>
-                    {% elif exam.status == 'draft' %}
-                    <span style="color: #f59e0b;">Draft</span>
-                    {% else %}
-                    <span style="color: #6b7280;">Ended</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="{% url 'operations:online_exam_detail' exam.id %}" class="btn btn-secondary btn-sm">Manage</a>
-                </td>
+                <th>Title</th>
+                <th>Subject</th>
+                <th>Class</th>
+                <th>Duration</th>
+                <th>Total Marks</th>
+                <th>Status</th>
+                <th>Actions</th>
             </tr>
-            {% endfor %}
+        </thead>
+        <tbody>
+        {% for exam in exams %}
+        <tr>
+            <td>{{ exam.title }}</td>
+            <td>{{ exam.subject.name }}</td>
+            <td>{{ exam.class_level|default:"All Classes" }}</td>
+            <td>{{ exam.duration_minutes }} min</td>
+            <td>{{ exam.total_marks }}</td>
+            <td><span class="badge status-{{ exam.status }}">{{ exam.status|title }}</span></td>
+            <td>
+                <a href="{% url 'operations:online_exam_detail' exam.pk %}" class="btn btn-sm btn-info">👁️ View</a>
+                {% if is_staff %}
+                <a href="{% url 'operations:online_exam_edit' exam.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:online_exam_delete' exam.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <div class="empty-state">
-        <p>No online exams created yet.</p>
-        {% if user.role == "school_admin" or user.role == "teacher" or user.is_superuser %}
-        <a href="{% url 'operations:online_exam_create' %}" class="btn btn-primary mt-sm">Create First Exam</a>
-        {% else %}
-        <p style="color: var(--text-soft); font-size: 0.8rem;">No exams available at the moment.</p>
-        {% endif %}
-    </div>
+    <p class="empty-state">📭 No exams found.</p>
     {% endif %}
 </div>
 {% endblock %}

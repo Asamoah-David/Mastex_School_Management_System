@@ -90,6 +90,8 @@ urlpatterns = [
     path("expenses/", views.expense_list, name="expense_list"),
     path("expenses/create/", views.expense_create, name="expense_create"),
     path("expenses/<int:pk>/", views.expense_detail, name="expense_detail"),
+    path("expenses/<int:pk>/edit/", views.expense_edit, name="expense_edit"),
+    path("expenses/<int:pk>/delete/", views.expense_delete, name="expense_delete"),
     
     # Budget
     path("budgets/", views.budget_list, name="budget_list"),
@@ -103,6 +105,7 @@ urlpatterns = [
     path("discipline/", views.discipline_list, name="discipline_list"),
     path("discipline/create/", views.discipline_create, name="discipline_create"),
     path("discipline/<int:pk>/", views.discipline_detail, name="discipline_detail"),
+    path("discipline/<int:pk>/delete/", views.discipline_delete, name="discipline_delete"),
     
     # Behavior Points
     path("behavior-points/", views.behavior_points_list, name="behavior_points_list"),
@@ -153,12 +156,6 @@ urlpatterns = [
     path("seating-plans/create/", views.seating_plan_create, name="seating_plan_create"),
     path("seating-plans/<int:pk>/", views.seating_plan_view, name="seating_plan_view"),
     
-    # PT Meetings
-    path("pt-meetings/", views.pt_meeting_list, name="pt_meeting_list"),
-    path("pt-meetings/create/", views.pt_meeting_create, name="pt_meeting_create"),
-    path("pt-meetings/<int:pk>/", views.pt_meeting_detail, name="pt_meeting_detail"),
-    path("pt-meetings/<int:pk>/book/", views.pt_meeting_book, name="pt_meeting_book"),
-    
     # Health Records
     path("health-records/", views.health_record_list, name="health_record_list"),
     path("health-records/create/", views.health_record_create, name="health_record_create"),
@@ -177,6 +174,8 @@ urlpatterns = [
     path("events/", views.school_event_list, name="school_event_list"),
     path("events/create/", views.school_event_create, name="school_event_create"),
     path("events/<int:pk>/", views.school_event_detail, name="school_event_detail"),
+    path("events/<int:pk>/edit/", views.school_event_edit, name="school_event_edit"),
+    path("events/<int:pk>/delete/", views.school_event_delete, name="school_event_delete"),
     path("events/<int:pk>/rsvp/", views.school_event_rsvp, name="school_event_rsvp"),
     
     # Homework for Students & Parents
@@ -192,7 +191,18 @@ urlpatterns = [
     path("online-exams/", views.online_exam_list, name="online_exam_list"),
     path("online-exams/create/", views.online_exam_create, name="online_exam_create"),
     path("online-exams/<int:pk>/", views.online_exam_detail, name="online_exam_detail"),
+    path("online-exams/<int:pk>/edit/", views.online_exam_edit, name="online_exam_edit"),
+    path("online-exams/<int:pk>/delete/", views.online_exam_delete, name="online_exam_delete"),
+    path("online-exams/<int:pk>/publish/", views.online_exam_publish, name="online_exam_publish"),
     path("online-exams/<int:pk>/add-question/", views.online_exam_add_question, name="online_exam_add_question"),
     path("online-exams/<int:pk>/take/", views.online_exam_take, name="online_exam_take"),
     path("online-exams/result/<int:pk>/", views.online_exam_result, name="online_exam_result"),
+    
+    # PT Meetings
+    path("pt-meetings/", views.pt_meeting_list, name="pt_meeting_list"),
+    path("pt-meetings/create/", views.pt_meeting_create, name="pt_meeting_create"),
+    path("pt-meetings/<int:pk>/", views.pt_meeting_detail, name="pt_meeting_detail"),
+    path("pt-meetings/<int:pk>/edit/", views.pt_meeting_edit, name="pt_meeting_edit"),
+    path("pt-meetings/<int:pk>/delete/", views.pt_meeting_delete, name="pt_meeting_delete"),
+    path("pt-meetings/<int:pk>/book/", views.pt_meeting_book, name="pt_meeting_book"),
 ]

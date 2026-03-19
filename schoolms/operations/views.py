@@ -1677,6 +1677,68 @@ def expense_detail(request, pk):
 
 
 @login_required
+def expense_edit(request, pk):
+    """Edit an expense."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:expense_list')
+    
+    expense = get_object_or_404(Expense, pk=pk, school=school)
+    categories = ExpenseCategory.objects.filter(school=school)
+    
+    if request.method == 'POST':
+        category_id = request.POST.get('category')
+        description = request.POST.get('description', '').strip()
+        amount = request.POST.get('amount')
+        expense_date = request.POST.get('expense_date')
+        vendor = request.POST.get('vendor', '').strip()
+        payment_method = request.POST.get('payment_method', 'cash')
+        receipt_number = request.POST.get('receipt_number', '').strip()
+        
+        if description and amount and expense_date:
+            expense.category = ExpenseCategory.objects.get(id=category_id, school=school) if category_id else None
+            expense.description = description
+            expense.amount = amount
+            expense.expense_date = expense_date
+            expense.vendor = vendor
+            expense.payment_method = payment_method
+            expense.receipt_number = receipt_number
+            expense.save()
+            
+            from django.contrib import messages
+            messages.success(request, 'Expense updated successfully!')
+            return redirect('operations:expense_list')
+    
+    return render(request, 'operations/expense_form.html', {
+        'school': school,
+        'categories': categories,
+        'expense': expense
+    })
+
+
+@login_required
+def expense_delete(request, pk):
+    """Delete an expense."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:expense_list')
+    
+    expense = get_object_or_404(Expense, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        expense.delete()
+        from django.contrib import messages
+        messages.success(request, 'Expense deleted successfully!')
+        return redirect('operations:expense_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': expense, 'type': 'expense'
+    })
+
+
+@login_required
 def budget_list(request):
     """List budgets."""
     from accounts.permissions import user_can_manage_school
@@ -1737,10 +1799,25 @@ def discipline_list(request):
     """List discipline incidents."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
         return redirect('home')
     
-    incidents = DisciplineIncident.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+    role = getattr(request.user, 'role', None)
+    
+    # Parents see their children's incidents, students see their own
+    if role == 'parent':
+        children = Student.objects.filter(parent=request.user, school=school)
+        incidents = DisciplineIncident.objects.filter(school=school, student__in=children).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+    elif role == 'student':
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student:
+            incidents = DisciplineIncident.objects.filter(school=school, student=student).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+        else:
+            incidents = []
+    elif user_can_manage_school(request.user) or request.user.is_superuser:
+        incidents = DisciplineIncident.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+    else:
+        return redirect('home')
     
     return render(request, 'operations/discipline_list.html', {
         'incidents': incidents,
@@ -1801,6 +1878,27 @@ def discipline_detail(request, pk):
     return render(request, 'operations/discipline_detail.html', {
         'incident': incident,
         'school': school
+    })
+
+
+@login_required
+def discipline_delete(request, pk):
+    """Delete a discipline incident."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    incident = get_object_or_404(DisciplineIncident, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        incident.delete()
+        from django.contrib import messages
+        messages.success(request, 'Incident deleted successfully!')
+        return redirect('operations:discipline_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': incident, 'type': 'discipline incident'
     })
 
 
@@ -2757,6 +2855,62 @@ def pt_meeting_book(request, pk):
     })
 
 
+@login_required
+def pt_meeting_edit(request, pk):
+    """Edit a PT meeting."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        meeting_date = request.POST.get('meeting_date')
+        location = request.POST.get('location', '').strip()
+        max_slots = request.POST.get('max_slots') or 20
+        
+        if title and meeting_date and location:
+            meeting.title = title
+            meeting.description = description
+            meeting.meeting_date = meeting_date
+            meeting.location = location
+            meeting.max_slots = int(max_slots)
+            meeting.save()
+            
+            from django.contrib import messages
+            messages.success(request, 'Meeting updated!')
+            return redirect('operations:pt_meeting_detail', pk=meeting.pk)
+    
+    return render(request, 'operations/pt_meeting_form.html', {
+        'school': school,
+        'meeting': meeting
+    })
+
+
+@login_required
+def pt_meeting_delete(request, pk):
+    """Delete a PT meeting."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        meeting.delete()
+        from django.contrib import messages
+        messages.success(request, 'Meeting deleted!')
+        return redirect('operations:pt_meeting_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': meeting, 'type': 'PT meeting'
+    })
+
+
 # ==================== HEALTH RECORDS ====================
 
 @login_required
@@ -2764,10 +2918,25 @@ def health_record_list(request):
     """List student health records."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
         return redirect('home')
     
-    records = StudentHealth.objects.filter(school=school).select_related('student', 'student__user').order_by('-last_updated')[:200]
+    role = getattr(request.user, 'role', None)
+    
+    # Parents see their children's health records, students see their own
+    if role == 'parent':
+        children = Student.objects.filter(parent=request.user, school=school)
+        records = StudentHealth.objects.filter(school=school, student__in=children).select_related('student', 'student__user').order_by('-last_updated')[:200]
+    elif role == 'student':
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student:
+            records = StudentHealth.objects.filter(school=school, student=student).select_related('student', 'student__user').order_by('-last_updated')[:200]
+        else:
+            records = []
+    elif user_can_manage_school(request.user) or request.user.is_superuser:
+        records = StudentHealth.objects.filter(school=school).select_related('student', 'student__user').order_by('-last_updated')[:200]
+    else:
+        return redirect('home')
     
     return render(request, 'operations/health_record_list.html', {
         'records': records,
@@ -3116,6 +3285,84 @@ def school_event_detail(request, pk):
 
 
 @login_required
+def school_event_edit(request, pk):
+    """Edit a school event."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    event = get_object_or_404(SchoolEvent, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        from datetime import datetime
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        event_type = request.POST.get('event_type', 'other')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date') or None
+        location = request.POST.get('location', '').strip()
+        target = request.POST.get('target_audience', 'all')
+        mandatory = request.POST.get('is_mandatory') == 'on'
+        
+        if title and start_date:
+            try:
+                start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M')
+            except:
+                try:
+                    start = datetime.strptime(start_date, '%Y-%m-%d')
+                except:
+                    start = timezone.now()
+            
+            end = None
+            if end_date:
+                try:
+                    end = datetime.strptime(end_date, '%Y-%m-%dT%H:%M')
+                except:
+                    try:
+                        end = datetime.strptime(end_date, '%Y-%m-%d')
+                    except:
+                        end = None
+            
+            event.title = title
+            event.description = description
+            event.event_type = event_type
+            event.start_date = start
+            event.end_date = end
+            event.location = location
+            event.target_audience = target
+            event.is_mandatory = mandatory
+            event.save()
+            
+            from django.contrib import messages
+            messages.success(request, 'Event updated!')
+            return redirect('operations:school_event_detail', pk=event.pk)
+    
+    return render(request, 'operations/school_event_form.html', {'school': school, 'event': event})
+
+
+@login_required
+def school_event_delete(request, pk):
+    """Delete a school event."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    event = get_object_or_404(SchoolEvent, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        event.delete()
+        from django.contrib import messages
+        messages.success(request, 'Event deleted!')
+        return redirect('operations:school_event_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': event, 'type': 'school event'
+    })
+
+
+@login_required
 def school_event_rsvp(request, pk):
     """RSVP for an event (students/parents)."""
     school = _get_school(request)
@@ -3454,6 +3701,102 @@ def online_exam_add_question(request, pk):
     
     return render(request, 'operations/online_exam_question_form.html', {
         'exam': exam, 'school': school
+    })
+
+
+@login_required
+def online_exam_edit(request, pk):
+    """Edit an online exam."""
+    from accounts.permissions import is_school_admin
+    from academics.models import Subject
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    exam = get_object_or_404(OnlineExam, pk=pk, school=school)
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    
+    if request.method == 'POST':
+        from datetime import datetime
+        title = request.POST.get('title', '').strip()
+        subject_id = request.POST.get('subject')
+        class_level = request.POST.get('class_level', '').strip()
+        exam_type = request.POST.get('exam_type', 'quiz')
+        duration = request.POST.get('duration_minutes', 30)
+        total_marks = request.POST.get('total_marks', 100)
+        passing = request.POST.get('passing_marks', 50)
+        start_time = request.POST.get('start_time')
+        end_time = request.POST.get('end_time')
+        
+        if title and subject_id and start_time and end_time:
+            subject = Subject.objects.filter(id=subject_id, school=school).first()
+            if subject:
+                try:
+                    start = datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
+                    end = datetime.strptime(end_time, '%Y-%m-%dT%H:%M')
+                    
+                    exam.title = title
+                    exam.subject = subject
+                    exam.class_level = class_level
+                    exam.exam_type = exam_type
+                    exam.duration_minutes = int(duration)
+                    exam.total_marks = total_marks
+                    exam.passing_marks = passing
+                    exam.start_time = start
+                    exam.end_time = end
+                    exam.save()
+                    
+                    from django.contrib import messages
+                    messages.success(request, 'Exam updated!')
+                    return redirect('operations:online_exam_detail', pk=exam.pk)
+                except Exception:
+                    pass
+    
+    return render(request, 'operations/online_exam_form.html', {
+        'school': school, 'subjects': subjects, 'exam': exam
+    })
+
+
+@login_required
+def online_exam_delete(request, pk):
+    """Delete an online exam."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    exam = get_object_or_404(OnlineExam, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        exam.delete()
+        from django.contrib import messages
+        messages.success(request, 'Exam deleted!')
+        return redirect('operations:online_exam_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': exam, 'type': 'online exam'
+    })
+
+
+@login_required
+def online_exam_publish(request, pk):
+    """Publish an online exam."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('home')
+    
+    exam = get_object_or_404(OnlineExam, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        exam.status = 'published'
+        exam.save(update_fields=['status'])
+        from django.contrib import messages
+        messages.success(request, 'Exam published! Students can now see it.')
+        return redirect('operations:online_exam_detail', pk=exam.pk)
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': exam, 'type': 'publish this exam'
     })
 
 

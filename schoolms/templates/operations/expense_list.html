@@ -7,21 +7,37 @@
 {% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>💰 Expenses</h2>
-    <p class="total-badge">Total: ${{ total|floatformat:2 }}</p>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>💰 Expenses</h2>
+        <a href="{% url 'operations:expense_create' %}" class="btn btn-primary">➕ Add Expense</a>
+    </div>
+    
     {% if expenses %}
+    <p class="total-display">Total: <strong>${{ total }}</strong></p>
     <table class="data-table">
         <thead>
-            <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Recorded By</th></tr>
+            <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Vendor</th>
+                <th>Actions</th>
+            </tr>
         </thead>
         <tbody>
         {% for expense in expenses %}
         <tr>
             <td>{{ expense.expense_date|date:"M d, Y" }}</td>
-            <td>{{ expense.description }}</td>
             <td>{{ expense.category.name|default:"N/A" }}</td>
-            <td class="text-danger">${{ expense.amount|floatformat:2 }}</td>
-            <td>{{ expense.recorded_by.get_full_name|default:"N/A" }}</td>
+            <td>{{ expense.description }}</td>
+            <td>${{ expense.amount }}</td>
+            <td>{{ expense.vendor|default:"N/A" }}</td>
+            <td>
+                <a href="{% url 'operations:expense_detail' expense.pk %}" class="btn btn-sm btn-info">👁️ View</a>
+                <a href="{% url 'operations:expense_edit' expense.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:expense_delete' expense.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+            </td>
         </tr>
         {% endfor %}
         </tbody>

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Create Club - Mastex SchoolOS{% endblock %}
+
+{% block page_title %}Create Club{% endblock %}
+{% block page_subtitle %}Clubs Management{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <h2 style="margin-top: 0; color: var(--accent);">🎭 Create Club</h2>
+    
+    <form method="POST">
+        {% csrf_token %}
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Club Name *</label>
+            <input type="text" name="name" required placeholder="e.g., Drama Club, Science Club, Debating Society" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Category</label>
+            <select name="category" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+                <option value="academic">Academic</option>
+                <option value="arts">Arts</option>
+                <option value="sports">Sports</option>
+                <option value="music">Music</option>
+                <option value="technology">Technology</option>
+                <option value="social">Social Service</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Sponsor / Teacher</label>
+            <select name="sponsor" title="Select Sponsor" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+                <option value="">Select Sponsor</option>
+                {% for teacher in teachers %}
+                <option value="{{ teacher.id }}">{{ teacher.get_full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Meeting Day</label>
+                <select name="meeting_day" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+                    <option value="">Select Day</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Meeting Time</label>
+                <input type="time" name="meeting_time" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Description</label>
+            <textarea name="description" rows="3" placeholder="Describe the club..." style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);"></textarea>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="is_active" checked style="width: 18px; height: 18px;">
+                <span>Active / Currently Running</span>
+            </label>
+        </div>
+        
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Create Club</button>
+            <a href="{% url 'operations:club_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

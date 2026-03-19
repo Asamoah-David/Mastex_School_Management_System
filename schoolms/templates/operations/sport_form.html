@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Create Sport - Mastex SchoolOS{% endblock %}
+
+{% block page_title %}Create Sport{% endblock %}
+{% block page_subtitle %}Sports Management{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <h2 style="margin-top: 0; color: var(--accent);">⚽ Create Sport</h2>
+    
+    <form method="POST">
+        {% csrf_token %}
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Sport Name *</label>
+            <input type="text" name="name" required placeholder="e.g., Football, Basketball, Swimming" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Coach</label>
+            <select name="coach" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+                <option value="">Select Coach</option>
+                {% for teacher in teachers %}
+                <option value="{{ teacher.id }}">{{ teacher.get_full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Description</label>
+            <textarea name="description" rows="3" placeholder="Describe the sport..." style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);"></textarea>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="is_active" checked style="width: 18px; height: 18px;">
+                <span>Active / Currently Running</span>
+            </label>
+        </div>
+        
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Create Sport</button>
+            <a href="{% url 'operations:sport_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

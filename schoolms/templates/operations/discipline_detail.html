@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Incident Details - {{ school.name }}{% endblock %}
+{% block page_title %}Incident Details{% endblock %}
+{% block content %}
+<div class="content-card">
+    <h2>⚖️ Incident #{{ incident.pk }}</h2>
+    
+    <div class="detail-grid">
+        <div class="detail-item">
+            <label>Student:</label>
+            <span>{{ incident.student.user.get_full_name }}</span>
+        </div>
+        <div class="detail-item">
+            <label>Class:</label>
+            <span>{{ incident.student.class_name }}</span>
+        </div>
+        <div class="detail-item">
+            <label>Date:</label>
+            <span>{{ incident.incident_date|date:"M d, Y" }}</span>
+        </div>
+        <div class="detail-item">
+            <label>Type:</label>
+            <span>{{ incident.incident_type }}</span>
+        </div>
+        <div class="detail-item">
+            <label>Severity:</label>
+            <span class="badge badge-{{ incident.severity }}">{{ incident.severity|title }}</span>
+        </div>
+        <div class="detail-item">
+            <label>Reported By:</label>
+            <span>{{ incident.reported_by.get_full_name|default:"N/A" }}</span>
+        </div>
+    </div>
+    
+    <div class="detail-section">
+        <h4>Description</h4>
+        <p>{{ incident.description }}</p>
+    </div>
+    
+    {% if incident.action_taken %}
+    <div class="detail-section">
+        <h4>Action Taken</h4>
+        <p>{{ incident.action_taken }}</p>
+    </div>
+    {% endif %}
+    
+    <div class="actions">
+        <a href="{% url 'operations:discipline_list' %}" class="btn btn-secondary">← Back</a>
+        <a href="{% url 'operations:discipline_delete' incident.pk %}" class="btn btn-danger">🗑️ Delete</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,25 +1,49 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}School Events - {{ school.name }}{% endblock %}
 {% block page_title %}School Events{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+<style>
+.event-upcoming { border-left: 4px solid #22c55e; }
+.event-ongoing { border-left: 4px solid #3b82f6; }
+.event-past { border-left: 4px solid #6c757d; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>🎉 School Events</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>📅 School Events</h2>
+        <a href="{% url 'operations:school_event_create' %}" class="btn btn-primary">➕ Create Event</a>
+    </div>
+    
     {% if events %}
-    <table class="data-table">
-        <thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Type</th></tr></thead>
-        <tbody>
-        {% for event in events %}
-        <tr>
-            <td>{{ event.title }}</td>
-            <td>{{ event.start_date|date:"M d, Y" }}</td>
-            <td>{{ event.location }}</td>
-            <td>{{ event.event_type|title }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div class="event-grid">
+    {% for event in events %}
+        <div class="event-card event-{% if event.is_upcoming %}upcoming{% elif event.is_ongoing %}ongoing{% else %}past{% endif %}">
+            <div class="event-header">
+                <span class="badge badge-{{ event.event_type }}">{{ event.get_event_type_display }}</span>
+                {% if event.is_mandatory %}<span class="badge badge-warning">Mandatory</span>{% endif %}
+            </div>
+            <h3>{{ event.title }}</h3>
+            <p>{{ event.description|truncatewords:20 }}</p>
+            <div class="event-meta">
+                <span>📍 {{ event.location }}</span>
+                <span>🗓️ {{ event.start_date|date:"M d, Y" }}</span>
+                {% if event.target_audience != 'all' %}
+                <span>👥 {{ event.get_target_audience_display }}</span>
+                {% endif %}
+            </div>
+            <div class="event-actions">
+                <a href="{% url 'operations:school_event_detail' event.pk %}" class="btn btn-sm btn-info">👁️ View</a>
+                <a href="{% url 'operations:school_event_edit' event.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:school_event_delete' event.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+            </div>
+        </div>
+    {% endfor %}
+    </div>
     {% else %}
-    <p class="empty-state">📭 No events found.</p>
+    <p class="empty-state">📭 No events scheduled.</p>
     {% endif %}
 </div>
 {% endblock %}
