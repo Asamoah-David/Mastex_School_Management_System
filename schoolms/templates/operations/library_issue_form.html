@@ -1,48 +1,145 @@
 {% extends "base.html" %}
 {% block title %}Issue Book · Mastex SchoolOS{% endblock %}
-{% block page_title %}Issue Book{% endblock %}
-{% block page_subtitle %}Record a book issue for a student.{% endblock %}
+{% block page_title %}Issue Book to Student{% endblock %}
+{% block page_subtitle %}Lend a library book to a student{% endblock %}
 {% block content %}
 
-<form method="post" class="card" style="max-width: 820px;">
-    {% csrf_token %}
-    <div class="form-grid">
-        <div class="form-group full-width">
-            <label for="id_student">Student *</label>
-            <select id="id_student" name="student" class="form-control" required>
-                <option value="">Select student</option>
-                {% for s in students %}
-                <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} · {{ s.admission_number }} · {{ s.class_name|default:"—" }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group full-width">
-            <label for="id_book">Book *</label>
-            <select id="id_book" name="book" class="form-control" required>
-                <option value="">Select book</option>
-                {% for b in books %}
-                <option value="{{ b.id }}">{{ b.title }} — {{ b.author }} ({{ b.available_copies }}/{{ b.total_copies }} available)</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="id_issue_date">Issue date</label>
-            <input id="id_issue_date" name="issue_date" type="date" class="form-control">
-        </div>
-        <div class="form-group">
-            <label for="id_due_date">Due date</label>
-            <input id="id_due_date" name="due_date" type="date" class="form-control">
-        </div>
-        <div class="form-group full-width">
-            <label for="id_notes">Notes</label>
-            <textarea id="id_notes" name="notes" class="form-control" rows="3"></textarea>
-        </div>
-    </div>
-    <div class="button-row mt-sm">
-        <button class="btn btn-primary" type="submit">Issue book</button>
-        <a class="btn btn-secondary" href="{% url 'operations:library_issues' %}">Cancel</a>
-    </div>
-</form>
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
 
+<div class="content-card">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">📚</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Issue Book</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Lend a library book to a student</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="issueForm" onsubmit="return validateIssueForm()">
+        {% csrf_token %}
+        <div style="display: grid; gap: 1.25rem;">
+            <!-- Student Selection -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>👨‍🎓</span> Student <span style="color: #ef4444;">*</span>
+                </label>
+                <select name="student" id="student" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                    <option value="">Select Student</option>
+                    {% for student in students %}
+                    <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.class_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Book Selection -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📖</span> Book <span style="color: #ef4444;">*</span>
+                </label>
+                <select name="book" id="book" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                    <option value="">Select Book</option>
+                    {% for book in books %}
+                    <option value="{{ book.id }}" data-available="{{ book.available_copies }}">{{ book.title }} by {{ book.author }} ({{ book.available_copies }} available)</option>
+                    {% endfor %}
+                </select>
+                <small id="bookInfo" style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Select a book to check availability</small>
+            </div>
+            
+            <!-- Dates -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>🗓️</span> Issue Date <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="date" name="issue_date" id="issue_date" required 
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>📅</span> Due Date <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="date" name="due_date" id="due_date" required 
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
+                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                </div>
+            </div>
+            
+            <!-- Notes -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                    <span>📝</span> Notes
+                </label>
+                <textarea name="notes" id="notes" rows="2" 
+                          placeholder="Any special notes about this issue..."
+                          style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; resize: vertical; font-family: inherit; transition: all 0.2s;"
+                          onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
+                          onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'"></textarea>
+            </div>
+        </div>
+        
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                <span style="margin-right: 0.5rem;">✓</span> Issue Book
+            </button>
+            <a href="{% url 'operations:library_issues' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+// Set default dates
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('issue_date').value = today;
+    
+    // Set due date to 14 days from now
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14);
+    document.getElementById('due_date').value = dueDate.toISOString().split('T')[0];
+});
+
+function validateIssueForm() {
+    const student = document.getElementById('student').value;
+    const book = document.getElementById('book').value;
+    const issueDate = document.getElementById('issue_date').value;
+    const dueDate = document.getElementById('due_date').value;
+    
+    if (!student) {
+        alert('Please select a student');
+        return false;
+    }
+    if (!book) {
+        alert('Please select a book');
+        return false;
+    }
+    if (!issueDate || !dueDate) {
+        alert('Please select issue and due dates');
+        return false;
+    }
+    
+    const issue = new Date(issueDate);
+    const due = new Date(dueDate);
+    if (due <= issue) {
+        alert('Due date must be after issue date');
+        return false;
+    }
+    
+    return true;
+}
+</script>
 {% endblock %}
-
