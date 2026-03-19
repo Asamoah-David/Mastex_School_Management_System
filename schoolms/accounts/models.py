@@ -4,11 +4,22 @@ from schools.models import School
 
 ROLE_CHOICES = (
     ('super_admin', 'Super Admin'),
-    ('school_admin', 'School Admin'),
+    # School Administration
+    ('school_admin', 'Headteacher/Admin'),
+    ('deputy_head', 'Deputy Headteacher'),
+    ('hod', 'Head of Department'),
+    # Teachers
     ('teacher', 'Teacher'),
+    # Administration Staff
+    ('accountant', 'Accountant/Bursar'),
+    ('librarian', 'Librarian'),
+    ('admission_officer', 'Admission Officer'),
+    ('school_nurse', 'School Nurse'),
+    ('admin_assistant', 'Admin Assistant'),
+    ('staff', 'Staff'),
+    # Parents & Students
     ('student', 'Student'),
     ('parent', 'Parent'),
-    ('staff', 'Staff'),
 )
 
 PARENT_TYPE_CHOICES = (
