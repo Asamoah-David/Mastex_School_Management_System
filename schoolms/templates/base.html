@@ -109,40 +109,79 @@
             grid-template-columns: minmax(0, 1fr);
             gap: 1.5rem;
         }
-        @media (min-width: 900px) { .layout { grid-template-columns: 240px minmax(0, 1fr); } }
+        @media (min-width: 900px) { .layout { grid-template-columns: 260px minmax(0, 1fr); } }
         .sidebar { display: none; }
-        .sidebar.sidebar--open { display: flex; flex-direction: column; gap: 1rem; }
+        .sidebar.sidebar--open { display: flex; flex-direction: column; gap: 0.5rem; }
         .sidebar-card {
             border-radius: 1.1rem;
-            background: radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.16) 0, rgba(15, 23, 42, 0.95) 45%, rgba(15, 23, 42, 1) 100%);
+            background: radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.12) 0, rgba(15, 23, 42, 0.98) 45%, rgba(15, 23, 42, 1) 100%);
             border: 1px solid rgba(148, 163, 184, 0.35);
-            padding: 1rem;
+            padding: 0.75rem;
             box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
         }
-        .sidebar-section-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-soft); margin-bottom: 0.75rem; }
-        .nav-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-        .nav-item {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            padding: 0.5rem 0.65rem;
-            border-radius: 0.7rem;
+        
+        /* Collapsible Section Styles */
+        .nav-section {
+            margin-bottom: 0.25rem;
+        }
+        .nav-section-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            padding: 0.6rem 0.75rem;
+            border-radius: 0.7rem;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--accent);
+            background: var(--accent-soft);
+            border: 1px solid var(--accent-strong);
+            transition: all 0.2s ease;
+        }
+        .nav-section-header:hover {
+            background: rgba(34, 197, 94, 0.15);
+        }
+        .nav-section-header .toggle-icon {
+            font-size: 0.65rem;
+            transition: transform 0.2s ease;
+        }
+        .nav-section.collapsed .nav-section-header .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        .nav-section.collapsed .nav-section-items {
+            display: none;
+        }
+        .nav-section-items {
+            margin-top: 0.35rem;
+        }
+        
+        .nav-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+        .nav-item {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            padding: 0.45rem 0.65rem;
+            border-radius: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             text-decoration: none;
             transition: background 0.15s, color 0.15s;
         }
         .nav-item:hover { color: var(--text-main); background: rgba(148,163,184,0.08); }
         .nav-item--active {
-            background: radial-gradient(circle at 0 0, var(--accent-soft) 0, rgba(15, 23, 42, 0.98) 42%);
+            background: var(--accent-soft);
             border: 1px solid var(--accent-strong);
             color: #e5ffe9;
         }
-        .nav-item-label { display: flex; flex-direction: column; gap: 0.08rem; }
-        .nav-item-title { font-weight: 500; font-size: 0.82rem; }
-        .nav-item-subtitle { font-size: 0.73rem; color: var(--text-soft); }
-        .nav-badge { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.55); color: var(--text-soft); background: rgba(15, 23, 42, 0.85); }
-        .nav-footer { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed rgba(148, 163, 184, 0.4); font-size: 0.75rem; color: var(--text-soft); }
+        .nav-item-icon { font-size: 0.9rem; width: 20px; text-align: center; }
+        .nav-item-label { display: flex; flex-direction: column; gap: 0.02rem; }
+        .nav-item-title { font-weight: 500; font-size: 0.8rem; }
+        .nav-item-subtitle { font-size: 0.68rem; color: var(--text-soft); }
+        .nav-badge { font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.55); color: var(--text-soft); background: rgba(15, 23, 42, 0.85); }
+        
+        .nav-footer { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed rgba(148, 163, 184, 0.4); font-size: 0.72rem; color: var(--text-soft); text-align: center; }
         .main-panel { display: flex; flex-direction: column; gap: 1.1rem; }
         .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
         .page-title { font-size: 1.35rem; font-weight: 600; letter-spacing: 0.01em; }
@@ -299,259 +338,398 @@
         <main class="layout">
             <aside class="sidebar">
                 <div class="sidebar-card">
-                    <div class="sidebar-section-title">Navigation</div>
-                    <ul class="nav-list">
-                        <li>
-                            <a href="{% url 'home' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'home' %}nav-item--active{% endif %}">
-                                <div class="nav-item-label">
-                                    <span class="nav-item-title">Overview</span>
-                                    <span class="nav-item-subtitle">Key metrics at a glance</span>
-                                </div>
-                                <span class="nav-badge">
-                                    {% if user.role == "student" %}Student
-                                    {% elif user.role == "parent" %}Parent
-                                    {% elif user.role == "teacher" %}Teacher
-                                    {% elif user.role == "admin" %}Admin
-                                    {% elif user.role == "super_admin" or user.is_superuser %}Superadmin
-                                    {% else %}School{% endif %}
-                                </span>
-                            </a>
-                        </li>
-                        {% if user.is_authenticated %}
-                            {% if user.role == "super_admin" or user.is_superuser %}
-                            <li><a href="{% url 'accounts:dashboard' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Platform Dashboard</span><span class="nav-item-subtitle">All schools overview</span></div></a></li>
-                            <li><a href="{% url 'schools:school_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Schools</span><span class="nav-item-subtitle">View all schools</span></div></a></li>
-                            <li><a href="{% url 'school_register' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Register School</span><span class="nav-item-subtitle">Add a new school</span></div></a></li>
-                            <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Activity Log</span><span class="nav-item-subtitle">Platform audit trail</span></div></a></li>
-                            {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if feat_messaging %}
-                            <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Broadcast</span><span class="nav-item-subtitle">Send SMS/Email</span></div></a></li>
-                            {% endif %}
-                            <li><a href="/admin/" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Django Admin</span><span class="nav-item-subtitle">Full admin tools</span></div></a></li>
-                            {% elif user.role == "student" %}
-                            <li><a href="{% url 'portal' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">My Portal</span><span class="nav-item-subtitle">View my details</span></div></a></li>
-                            <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
-                            <li><a href="{% url 'students:fees_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Fees</span><span class="nav-item-subtitle">View fees & pay</span></div></a></li>
-                            <li><a href="{% url 'students:results_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Results</span><span class="nav-item-subtitle">Scores & report card</span></div></a></li>
-                            <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Homework</span><span class="nav-item-subtitle">Assignments</span></div></a></li>
-                            <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
-                            <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span><span class="nav-item-subtitle">My lessons</span></div></a></li>
-                            <li><a href="{% url 'students:my_absence_requests' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">My Absence Requests</span><span class="nav-item-subtitle">Request time off</span></div></a></li>
-                            {% feature_enabled 'library' as feat_library %}
-                            {% if feat_library %}
-                            <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Browse books</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if feat_hostel %}
-                            <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostel</span><span class="nav-item-subtitle">My assignment & fees</span></div></a></li>
-                            {% endif %}
-                            <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">View items & prices</span></div></a></li>
-                            <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Textbooks</span><span class="nav-item-subtitle">View books & prices</span></div></a></li>
-                            <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Bus</span><span class="nav-item-subtitle">View routes & prices</span></div></a></li>
-                            {% elif user.role == "parent" %}
-                            <li><a href="{% url 'portal' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">My Children</span><span class="nav-item-subtitle">View my children</span></div></a></li>
-                            <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
-                            <li><a href="{% url 'students:fees_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Fees</span><span class="nav-item-subtitle">View fees & pay</span></div></a></li>
-                            <li><a href="{% url 'students:results_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Results</span><span class="nav-item-subtitle">Scores & report card</span></div></a></li>
-                            <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Homework</span><span class="nav-item-subtitle">Assignments</span></div></a></li>
-                            <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
-                            <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span><span class="nav-item-subtitle">Children lessons</span></div></a></li>
-                            <li><a href="{% url 'students:parent_absence_requests' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Request time off</span></div></a></li>
-                            {% feature_enabled 'library' as feat_library %}
-                            {% if feat_library %}
-                            <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Browse books</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if feat_hostel %}
-                            <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostel</span><span class="nav-item-subtitle">Assignments & fees</span></div></a></li>
-                            {% endif %}
-                            <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">View items & prices</span></div></a></li>
-                            <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Textbooks</span><span class="nav-item-subtitle">View books & prices</span></div></a></li>
-                            <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Bus</span><span class="nav-item-subtitle">View routes & prices</span></div></a></li>
-                            {% elif user.role == "teacher" %}
-                            <li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span><span class="nav-item-subtitle">Daily attendance</span></div></a></li>
-                            <li><a href="{% url 'operations:calendar' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Calendar</span><span class="nav-item-subtitle">Academic calendar</span></div></a></li>
-                            <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Homework</span><span class="nav-item-subtitle">Assignments</span></div></a></li>
-                            <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
-                            <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span><span class="nav-item-subtitle">Manage lessons</span></div></a></li>
-                            <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Upload Results</span><span class="nav-item-subtitle">Enter student scores</span></div></a></li>
-                            <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Report Cards</span><span class="nav-item-subtitle">Generate & print</span></div></a></li>
-                            <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
-                            <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span><span class="nav-item-subtitle">My leave</span></div></a></li>
-                            <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Review student requests</span></div></a></li>
-                            {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if feat_messaging %}
-                            <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send messages</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if feat_ai %}
-                            <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'library' as feat_library %}
-                            {% if feat_library %}
-                            <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Browse & issue books</span></div></a></li>
-                            {% endif %}
-                            <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostels</span><span class="nav-item-subtitle">Rooms, assignments & fees</span></div></a></li>
-                            {% elif user.role == "school_admin" %}
-                            <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Users</span><span class="nav-item-subtitle">Manage staff, parents, students</span></div></a></li>
-                            <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Attendance</span><span class="nav-item-subtitle">Mark & view attendance</span></div></a></li>
-                            <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span><span class="nav-item-subtitle">Mark & view teacher attendance</span></div></a></li>
-                            <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">Items & payments</span></div></a></li>
-                            <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Bus</span><span class="nav-item-subtitle">Routes & payments</span></div></a></li>
-                            <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Textbooks</span><span class="nav-item-subtitle">Books for sale</span></div></a></li>
-                            <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span><span class="nav-item-subtitle">Manage lessons</span></div></a></li>
-                            <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Parents</span><span class="nav-item-subtitle">Manage parents</span></div></a></li>
-                            <li><a href="{% url 'students:class_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Classes</span><span class="nav-item-subtitle">Manage classes</span></div></a></li>
-                            <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
-                            <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span><span class="nav-item-subtitle">Leave requests</span></div></a></li>
-                            <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Review student requests</span></div></a></li>
-                            <li><a href="{% url 'academics:grade_boundary_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Grade Boundaries</span><span class="nav-item-subtitle">Grading scale</span></div></a></li>
-                            <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Homework</span><span class="nav-item-subtitle">Assignments</span></div></a></li>
-                            <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
-                            <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Upload Results</span><span class="nav-item-subtitle">Enter student scores</span></div></a></li>
-                            <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Report Cards</span><span class="nav-item-subtitle">Generate & print</span></div></a></li>
-                            <li><a href="{% url 'finance:fee_structure_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Fee Structure</span><span class="nav-item-subtitle">Fee types</span></div></a></li>
-                            <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Activity Log</span><span class="nav-item-subtitle">Audit trail</span></div></a></li>
-                            <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">School Settings</span><span class="nav-item-subtitle">Profile</span></div></a></li>
-                            <li><a href="{% url 'operations:calendar' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span><span class="nav-item-subtitle">Events & holidays</span></div></a></li>
-                            <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Books & issues</span></div></a></li>
-                            <li><a href="{% url 'operations:library_issues' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library Issues</span><span class="nav-item-subtitle">Book borrowing</span></div></a></li>
-                            <li><a href="{% url 'operations:hostel_fees' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span><span class="nav-item-subtitle">Track fees</span></div></a></li>
-                            <li><a href="{% url 'operations:admission_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Admission</span><span class="nav-item-subtitle">Applications</span></div></a></li>
-                            <li><a href="{% url 'operations:admission_apply' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Apply Online</span><span class="nav-item-subtitle">New admission</span></div></a></li>
-                            <li><a href="{% url 'operations:certificate_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Certificates</span><span class="nav-item-subtitle">Issue certificates</span></div></a></li>
-                            <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Expenses</span><span class="nav-item-subtitle">Track expenses</span></div></a></li>
-                            <li><a href="{% url 'operations:expense_category_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Expense Categories</span><span class="nav-item-subtitle">Manage categories</span></div></a></li>
-                            <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Budget</span><span class="nav-item-subtitle">Budget planning</span></div></a></li>
-                            <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Discipline</span><span class="nav-item-subtitle">Behavior incidents</span></div></a></li>
-                            <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span><span class="nav-item-subtitle">Rewards & penalties</span></div></a></li>
-                            <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">ID Cards</span><span class="nav-item-subtitle">Student ID cards</span></div></a></li>
-                            <li><a href="{% url 'operations:sport_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Sports</span><span class="nav-item-subtitle">Sports & teams</span></div></a></li>
-                            <li><a href="{% url 'operations:club_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Clubs</span><span class="nav-item-subtitle">School clubs</span></div></a></li>
-                            <li><a href="{% url 'operations:exam_hall_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Halls</span><span class="nav-item-subtitle">Manage exam halls</span></div></a></li>
-                            <li><a href="{% url 'operations:seating_plan_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Seating Plans</span><span class="nav-item-subtitle">Exam seating</span></div></a></li>
-                            <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span><span class="nav-item-subtitle">Parent-teacher meetings</span></div></a></li>
-                            <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Health Records</span><span class="nav-item-subtitle">Student health</span></div></a></li>
-                            <li><a href="{% url 'operations:health_visit_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Health Visits</span><span class="nav-item-subtitle">Clinic visits</span></div></a></li>
-                            <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Inventory</span><span class="nav-item-subtitle">School inventory</span></div></a></li>
-                            <li><a href="{% url 'operations:inventory_category_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Inventory Categories</span><span class="nav-item-subtitle">Manage categories</span></div></a></li>
-                            <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Events</span><span class="nav-item-subtitle">School events</span></div></a></li>
-                            <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Online Exams</span><span class="nav-item-subtitle">Take exams online</span></div></a></li>
-                            <li><a href="{% url 'operations:alumni_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Alumni</span><span class="nav-item-subtitle">Past students</span></div></a></li>
-                            <li><a href="{% url 'operations:alumni_event_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Alumni Events</span><span class="nav-item-subtitle">Alumni gatherings</span></div></a></li>
-                            <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Submissions</span><span class="nav-item-subtitle">Assignment submissions</span></div></a></li>
-                            <li><a href="{% url 'operations:document_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Documents</span><span class="nav-item-subtitle">Student documents</span></div></a></li>
-                            <li><a href="{% url 'operations:timetable_view' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Timetable</span><span class="nav-item-subtitle">Class schedule</span></div></a></li>
-                            {% feature_enabled 'library' as feat_library %}
-                            {% if feat_library %}
-                            <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Books & issues</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if feat_hostel %}
-                            <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostels</span><span class="nav-item-subtitle">Rooms, assignments & fees</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if feat_messaging %}
-                            <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send SMS</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if feat_ai %}
-                            <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
-                            {% endif %}
-                            <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Staff</span><span class="nav-item-subtitle">View staff details</span></div></a></li>
-                            <li><a href="{% url 'students:student_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Students</span><span class="nav-item-subtitle">View student details</span></div></a></li>
+                    <!-- DASHBOARD SECTION -->
+                    {% if user.role == "school_admin" or user.role == "admin" %}
+                    <div class="nav-section">
+                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;">
+                            <span>📊 Dashboard</span>
+                        </a>
+                    </div>
+                    {% endif %}
 
-                            {% elif user.role == "admin" %}
-                            <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Users</span><span class="nav-item-subtitle">Manage staff, parents, students</span></div></a></li>
-                            <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Attendance</span><span class="nav-item-subtitle">Mark & view attendance</span></div></a></li>
-                            <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span><span class="nav-item-subtitle">Mark & view teacher attendance</span></div></a></li>
-                            <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">Items & payments</span></div></a></li>
-                            <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Bus</span><span class="nav-item-subtitle">Routes & payments</span></div></a></li>
-                            <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Textbooks</span><span class="nav-item-subtitle">Books for sale</span></div></a></li>
-                            <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span><span class="nav-item-subtitle">Manage lessons</span></div></a></li>
-                            <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Parents</span><span class="nav-item-subtitle">Manage parents</span></div></a></li>
-                            <li><a href="{% url 'students:class_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Classes</span><span class="nav-item-subtitle">Manage classes</span></div></a></li>
-                            <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Announcements</span><span class="nav-item-subtitle">School notices</span></div></a></li>
-                            <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span><span class="nav-item-subtitle">Leave requests</span></div></a></li>
-                            <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span><span class="nav-item-subtitle">Review student requests</span></div></a></li>
-                            <li><a href="{% url 'academics:grade_boundary_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Grade Boundaries</span><span class="nav-item-subtitle">Grading scale</span></div></a></li>
-                            <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Homework</span><span class="nav-item-subtitle">Assignments</span></div></a></li>
-                            <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span><span class="nav-item-subtitle">Timetable</span></div></a></li>
-                            <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Upload Results</span><span class="nav-item-subtitle">Enter student scores</span></div></a></li>
-                            <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Report Cards</span><span class="nav-item-subtitle">Generate & print</span></div></a></li>
-                            <li><a href="{% url 'finance:fee_structure_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Fee Structure</span><span class="nav-item-subtitle">Fee types</span></div></a></li>
-                            <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Activity Log</span><span class="nav-item-subtitle">Audit trail</span></div></a></li>
-                            <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">School Settings</span><span class="nav-item-subtitle">Profile</span></div></a></li>
-                            <li><a href="{% url 'operations:calendar' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span><span class="nav-item-subtitle">Events & holidays</span></div></a></li>
-                            <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Books & issues</span></div></a></li>
-                            <li><a href="{% url 'operations:library_issues' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library Issues</span><span class="nav-item-subtitle">Book borrowing</span></div></a></li>
-                            <li><a href="{% url 'operations:hostel_fees' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span><span class="nav-item-subtitle">Track fees</span></div></a></li>
-                            <li><a href="{% url 'operations:admission_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Admission</span><span class="nav-item-subtitle">Applications</span></div></a></li>
-                            <li><a href="{% url 'operations:admission_apply' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Apply Online</span><span class="nav-item-subtitle">New admission</span></div></a></li>
-                            <li><a href="{% url 'operations:certificate_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Certificates</span><span class="nav-item-subtitle">Issue certificates</span></div></a></li>
-                            <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Expenses</span><span class="nav-item-subtitle">Track expenses</span></div></a></li>
-                            <li><a href="{% url 'operations:expense_category_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Expense Categories</span><span class="nav-item-subtitle">Manage categories</span></div></a></li>
-                            <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Budget</span><span class="nav-item-subtitle">Budget planning</span></div></a></li>
-                            <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Discipline</span><span class="nav-item-subtitle">Behavior incidents</span></div></a></li>
-                            <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span><span class="nav-item-subtitle">Rewards & penalties</span></div></a></li>
-                            <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">ID Cards</span><span class="nav-item-subtitle">Student ID cards</span></div></a></li>
-                            <li><a href="{% url 'operations:sport_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Sports</span><span class="nav-item-subtitle">Sports & teams</span></div></a></li>
-                            <li><a href="{% url 'operations:club_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Clubs</span><span class="nav-item-subtitle">School clubs</span></div></a></li>
-                            <li><a href="{% url 'operations:exam_hall_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Exam Halls</span><span class="nav-item-subtitle">Manage exam halls</span></div></a></li>
-                            <li><a href="{% url 'operations:seating_plan_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Seating Plans</span><span class="nav-item-subtitle">Exam seating</span></div></a></li>
-                            <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span><span class="nav-item-subtitle">Parent-teacher meetings</span></div></a></li>
-                            <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Health Records</span><span class="nav-item-subtitle">Student health</span></div></a></li>
-                            <li><a href="{% url 'operations:health_visit_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Health Visits</span><span class="nav-item-subtitle">Clinic visits</span></div></a></li>
-                            <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Inventory</span><span class="nav-item-subtitle">School inventory</span></div></a></li>
-                            <li><a href="{% url 'operations:inventory_category_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Inventory Categories</span><span class="nav-item-subtitle">Manage categories</span></div></a></li>
-                            <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Events</span><span class="nav-item-subtitle">School events</span></div></a></li>
-                            <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Online Exams</span><span class="nav-item-subtitle">Take exams online</span></div></a></li>
-                            <li><a href="{% url 'operations:alumni_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Alumni</span><span class="nav-item-subtitle">Past students</span></div></a></li>
-                            <li><a href="{% url 'operations:alumni_event_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Alumni Events</span><span class="nav-item-subtitle">Alumni gatherings</span></div></a></li>
-                            <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Submissions</span><span class="nav-item-subtitle">Assignment submissions</span></div></a></li>
-                            <li><a href="{% url 'operations:document_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Documents</span><span class="nav-item-subtitle">Student documents</span></div></a></li>
-                            <li><a href="{% url 'operations:timetable_view' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Timetable</span><span class="nav-item-subtitle">Class schedule</span></div></a></li>
-                            {% feature_enabled 'library' as feat_library %}
-                            {% if feat_library %}
-                            <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Library</span><span class="nav-item-subtitle">Books & issues</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'hostel' as feat_hostel %}
-                            {% if feat_hostel %}
-                            <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Hostels</span><span class="nav-item-subtitle">Rooms, assignments & fees</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if feat_messaging %}
-                            <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send SMS</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if feat_ai %}
-                            <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
-                            {% endif %}
-                            <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Staff</span><span class="nav-item-subtitle">View staff details</span></div></a></li>
-                            <li><a href="{% url 'students:student_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">View All Students</span><span class="nav-item-subtitle">View student details</span></div></a></li>
-
-                            {% elif user.role == "staff" %}
-                            <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Attendance</span><span class="nav-item-subtitle">View attendance</span></div></a></li>
-                            <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Canteen</span><span class="nav-item-subtitle">Items & payments</span></div></a></li>
-                            <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Bus</span><span class="nav-item-subtitle">Routes & payments</span></div></a></li>
-                            <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Textbooks</span><span class="nav-item-subtitle">Books for sale</span></div></a></li>
-                            {% feature_enabled 'messaging' as feat_messaging %}
-                            {% if feat_messaging %}
-                            <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Messaging</span><span class="nav-item-subtitle">Send messages</span></div></a></li>
-                            {% endif %}
-                            {% feature_enabled 'ai_assistant' as feat_ai %}
-                            {% if feat_ai %}
-                            <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span><span class="nav-item-subtitle">Get AI help</span></div></a></li>
-                            {% endif %}
-                            {% endif %}
-                            {% if user.is_superuser %}
-                            <li><a href="/admin/" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Mastex Admin</span><span class="nav-item-subtitle">Full admin</span></div></a></li>
-                            {% endif %}
-                        {% else %}
-                            <li><a href="{% url 'school_register' %}" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Register School</span><span class="nav-item-subtitle">Add new school</span></div></a></li>
-                            <li><a href="/admin/" class="nav-item"><div class="nav-item-label"><span class="nav-item-title">Mastex Admin</span><span class="nav-item-subtitle">Full admin</span></div></a></li>
+                    {% if user.is_authenticated %}
+                        {% if user.role == "super_admin" or user.is_superuser %}
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>🏛️ Platform</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'accounts:dashboard' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Platform Dashboard</span></div></a></li>
+                                    <li><a href="{% url 'schools:school_list' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Schools</span></div></a></li>
+                                    <li><a href="{% url 'school_register' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Register School</span></div></a></li>
+                                    <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Activity Log</span></div></a></li>
+                                    <li><a href="/admin/" class="nav-item"><span class="nav-item-icon">⚙️</span><div class="nav-item-label"><span class="nav-item-title">Django Admin</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        {% feature_enabled 'messaging' as feat_messaging %}
+                        {% if feat_messaging %}
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📱 Communications</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Broadcast SMS/Email</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
                         {% endif %}
-                    </ul>
+
+                        {% elif user.role == "school_admin" or user.role == "admin" %}
+                        
+                        <!-- USER MANAGEMENT SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>👥 Users</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><span class="nav-item-icon">👔</span><div class="nav-item-label"><span class="nav-item-title">User Management</span></div></a></li>
+                                    <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff List</span></div></a></li>
+                                    <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
+                                    <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                                    <li><a href="{% url 'students:class_list' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Classes</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- ACADEMICS SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📖 Academics</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                    <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
+                                    <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Class Timetable</span></div></a></li>
+                                    <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
+                                    <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">📄</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
+                                    <li><a href="{% url 'academics:grade_boundary_list' %}" class="nav-item"><span class="nav-item-icon">📏</span><div class="nav-item-label"><span class="nav-item-title">Grade Boundaries</span></div></a></li>
+                                    <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><span class="nav-item-icon">📨</span><div class="nav-item-label"><span class="nav-item-title">Submissions</span></div></a></li>
+                                    <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- ATTENDANCE SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>✅ Attendance</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">👥</span><div class="nav-item-label"><span class="nav-item-title">Student Attendance</span></div></a></li>
+                                    <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span></div></a></li>
+                                    <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- FINANCE SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>💰 Finance</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'finance:fee_structure_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Fee Structure</span></div></a></li>
+                                    <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">💸</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
+                                    <li><a href="{% url 'operations:expense_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Expense Categories</span></div></a></li>
+                                    <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Budget</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- OPERATIONS SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>🏢 Operations</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                    <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span></div></a></li>
+                                    <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                    <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Bus/Transport</span></div></a></li>
+                                    <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
+                                    {% feature_enabled 'library' as feat_library %}
+                                    {% if feat_library %}
+                                    <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
+                                    {% endif %}
+                                    {% feature_enabled 'hostel' as feat_hostel %}
+                                    {% if feat_hostel %}
+                                    <li><a href="{% url 'operations:hostel_fees' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- STUDENT SERVICES SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>🎓 Student Services</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><span class="nav-item-icon">🏥</span><div class="nav-item-label"><span class="nav-item-title">Health Records</span></div></a></li>
+                                    <li><a href="{% url 'operations:health_visit_list' %}" class="nav-item"><span class="nav-item-icon">💊</span><div class="nav-item-label"><span class="nav-item-title">Health Visits</span></div></a></li>
+                                    <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><span class="nav-item-icon">🪪</span><div class="nav-item-label"><span class="nav-item-title">ID Cards</span></div></a></li>
+                                    <li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">📁</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>
+                                    <li><a href="{% url 'operations:admission_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Admissions</span></div></a></li>
+                                    <li><a href="{% url 'operations:certificate_list' %}" class="nav-item"><span class="nav-item-icon">📜</span><div class="nav-item-label"><span class="nav-item-title">Certificates</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- DISCIPLINE & BEHAVIOR SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>⚖️ Discipline</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Incidents</span></div></a></li>
+                                    <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">⭐</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- EXAMS & SEATING SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📝 Exams</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:exam_hall_list' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Exam Halls</span></div></a></li>
+                                    <li><a href="{% url 'operations:seating_plan_list' %}" class="nav-item"><span class="nav-item-icon">🪑</span><div class="nav-item-label"><span class="nav-item-title">Seating Plans</span></div></a></li>
+                                    <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- SPORTS & CLUBS SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>⚽ Activities</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:sport_list' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">Sports</span></div></a></li>
+                                    <li><a href="{% url 'operations:club_list' %}" class="nav-item"><span class="nav-item-icon">🎭</span><div class="nav-item-label"><span class="nav-item-title">Clubs</span></div></a></li>
+                                    <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">Events</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- INVENTORY SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📦 Inventory</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">📦</span><div class="nav-item-label"><span class="nav-item-title">Items</span></div></a></li>
+                                    <li><a href="{% url 'operations:inventory_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Categories</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- ALUMNI SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>🎓 Alumni</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:alumni_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Alumni</span></div></a></li>
+                                    <li><a href="{% url 'operations:alumni_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">Alumni Events</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- STAFF SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>👔 Staff</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">Staff Leave</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- ADMINISTRATION SECTION -->
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>⚙️ Admin</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">School Settings</span></div></a></li>
+                                    <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Activity Log</span></div></a></li>
+                                    {% feature_enabled 'messaging' as feat_messaging %}
+                                    {% if feat_messaging %}
+                                    <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Messaging</span></div></a></li>
+                                    {% endif %}
+                                    {% feature_enabled 'ai_assistant' as feat_ai %}
+                                    {% if feat_ai %}
+                                    <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </div>
+
+                        {% elif user.role == "student" %}
+                        <div class="nav-section">
+                            <a href="{% url 'portal' %}" class="nav-section-header" style="text-decoration:none;">
+                                <span>📱 My Portal</span>
+                            </a>
+                        </div>
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📚 Academics</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'students:results_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">My Results</span></div></a></li>
+                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                    <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
+                                    <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>💳 Fees</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">My Fees</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>🏫 School</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                    {% feature_enabled 'library' as feat_library %}
+                                    {% if feat_library %}
+                                    <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
+                                    {% endif %}
+                                    <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {% elif user.role == "parent" %}
+                        <div class="nav-section">
+                            <a href="{% url 'portal' %}" class="nav-section-header" style="text-decoration:none;">
+                                <span>👨‍👩‍👧 My Children</span>
+                            </a>
+                        </div>
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📚 Academics</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'students:results_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Results</span></div></a></li>
+                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                    <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exams</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>💳 Fees</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">Fees</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {% elif user.role == "teacher" %}
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📋 Daily Tasks</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span></div></a></li>
+                                    <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                    <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>📖 Academics</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
+                                    <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">📄</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="nav-section">
+                            <div class="nav-section-header" onclick="toggleSection(this)">
+                                <span>🏢 School</span>
+                                <span class="toggle-icon">▾</span>
+                            </div>
+                            <div class="nav-section-items">
+                                <ul class="nav-list">
+                                    <li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>
+                                    <li><a href="{% url 'operations:announcement_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                    <li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">My Leave</span></div></a></li>
+                                    {% feature_enabled 'library' as feat_library %}
+                                    {% if feat_library %}
+                                    <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="nav-section">
+                            <a href="{% url 'school_register' %}" class="nav-section-header" style="text-decoration:none;">
+                                <span>🏫 Register School</span>
+                            </a>
+                        </div>
+                    {% endif %}
+
                     <div class="nav-footer">Smart, secure, and automated tools to keep your school running smoothly.</div>
                 </div>
             </aside>
@@ -583,6 +761,7 @@
         </footer>
     </div>
     <script>
+    // Sidebar toggle
     (function() {
         const toggle = document.getElementById('sidebarToggle');
         const sidebar = document.querySelector('.sidebar');
@@ -591,6 +770,22 @@
                 sidebar.classList.toggle('sidebar--open');
             });
         }
+    })();
+    
+    // Collapsible sections
+    function toggleSection(header) {
+        const section = header.closest('.nav-section');
+        if (section) {
+            section.classList.toggle('collapsed');
+        }
+    }
+    
+    // Initialize: collapse all sections except dashboard
+    (function() {
+        const sections = document.querySelectorAll('.nav-section:not(:first-child)');
+        sections.forEach(function(section) {
+            section.classList.add('collapsed');
+        });
     })();
     </script>
     <script>
