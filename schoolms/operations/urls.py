@@ -179,6 +179,10 @@ urlpatterns = [
     path("events/<int:pk>/", views.school_event_detail, name="school_event_detail"),
     path("events/<int:pk>/rsvp/", views.school_event_rsvp, name="school_event_rsvp"),
     
+    # Homework for Students & Parents
+    path("homework/", views.homework_for_student, name="homework_for_student"),
+    path("homework/<int:homework_id>/submit/", views.homework_submit, name="homework_submit"),
+    
     # Assignment Submissions
     path("submissions/", views.assignment_submission_list, name="assignment_submission_list"),
     path("submissions/<int:pk>/grade/", views.assignment_submission_grade, name="assignment_submission_grade"),

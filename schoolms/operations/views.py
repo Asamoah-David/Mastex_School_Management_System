@@ -3148,6 +3148,104 @@ def school_event_rsvp(request, pk):
     return redirect('operations:school_event_detail', pk=event.pk)
 
 
+# ==================== HOMEWORK FOR STUDENTS & PARENTS ====================
+
+@login_required
+def homework_for_student(request):
+    """Student sees homework and can submit. Parent sees children's homework."""
+    from django.contrib import messages
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+
+    role = getattr(request.user, 'role', None)
+    if role not in ['student', 'parent']:
+        return redirect('home')
+
+    from academics.models import Homework
+
+    if role == 'student':
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if not student:
+            return redirect('home')
+        students = [student]
+        is_parent = False
+    else:
+        children = Student.objects.filter(parent=request.user, school=school)
+        students = list(children)
+        is_parent = True
+
+    homeworks = []
+    for student in students:
+        hw_list = Homework.objects.filter(school=school, class_name=student.class_name).select_related('subject').order_by('-due_date')
+        for hw in hw_list:
+            submission = AssignmentSubmission.objects.filter(homework=hw, student=student).first()
+            homeworks.append({
+                'homework': hw,
+                'student': student,
+                'submission': submission,
+                'is_submitted': submission is not None,
+                'is_graded': submission.grade is not None if submission else False
+            })
+
+    return render(request, 'operations/homework_for_student.html', {
+        'homeworks': homeworks,
+        'school': school,
+        'is_parent': is_parent
+    })
+
+
+@login_required
+def homework_submit(request, homework_id):
+    """Student submits homework."""
+    from django.contrib import messages
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+
+    role = getattr(request.user, 'role', None)
+    if role != 'student':
+        return redirect('home')
+
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        return redirect('home')
+
+    from academics.models import Homework
+    homework = Homework.objects.filter(id=homework_id, school=school).first()
+    if not homework:
+        messages.error(request, 'Homework not found.')
+        return redirect('operations:homework_for_student')
+
+    existing = AssignmentSubmission.objects.filter(homework=homework, student=student).first()
+    if existing:
+        messages.error(request, 'You have already submitted this homework.')
+        return redirect('operations:homework_for_student')
+
+    if request.method == 'POST':
+        submission_text = request.POST.get('submission_text', '').strip()
+        file = request.FILES.get('file')
+
+        if submission_text or file:
+            AssignmentSubmission.objects.create(
+                homework=homework,
+                student=student,
+                submission_text=submission_text,
+                file=file,
+                submitted_at=timezone.now()
+            )
+            messages.success(request, 'Homework submitted successfully!')
+            return redirect('operations:homework_for_student')
+        else:
+            messages.error(request, 'Please provide text or upload a file.')
+
+    return render(request, 'operations/homework_submit.html', {
+        'homework': homework,
+        'student': student,
+        'school': school
+    })
+
+
 # ==================== ASSIGNMENT SUBMISSIONS ====================
 
 @login_required

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}My Homework{% endblock %}
+{% block page_title %}My Homework{% endblock %}
+{% block page_subtitle %}{% if is_parent %}View your children's homework assignments{% else %}View and submit your homework assignments{% endif %}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <h3 style="margin-top:0;">{% if is_parent %}Children's Homework{% else %}My Homework{% endif %}</h3>
+    {% if not homeworks %}
+    <div class="empty-state">No homework assignments found for your class.</div>
+    {% else %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in homeworks %}
+                <tr>
+                    <td>{{ item.homework.subject.name }}</td>
+                    <td>{{ item.homework.title }}</td>
+                    <td>{{ item.homework.description|truncatechars:50 }}</td>
+                    <td>{{ item.homework.due_date|date:"M d, Y" }}</td>
+                    <td>
+                        {% if item.is_graded %}
+                        <span class="badge-pill" style="background:rgba(34,197,94,0.15);border-color:#22c55e;color:#22c55e;">Graded</span>
+                        {% elif item.is_submitted %}
+                        <span class="badge-pill" style="background:rgba(59,130,246,0.15);border-color:#3b82f6;color:#3b82f6;">Submitted</span>
+                        {% else %}
+                        <span class="badge-pill" style="background:rgba(249,115,115,0.15);border-color:#f97316;color:#f97316;">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not item.is_submitted %}
+                        <a href="{% url 'operations:homework_submit' item.homework.id %}" class="btn btn-primary" style="padding:0.3rem 0.7rem;font-size:0.75rem;">Submit</a>
+                        {% else %}
+                        <span style="font-size:0.75rem;color:#9ca3af;">View</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
