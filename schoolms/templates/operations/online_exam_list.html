@@ -42,10 +42,16 @@
             <td>{{ exam.total_marks }}</td>
             <td><span class="badge status-{{ exam.status }}">{{ exam.status|title }}</span></td>
             <td>
-                <a href="{% url 'operations:online_exam_detail' exam.pk %}" class="btn btn-sm btn-info">👁️ View</a>
                 {% if is_staff %}
+                <a href="{% url 'operations:online_exam_detail' exam.pk %}" class="btn btn-sm btn-info">👁️ View</a>
                 <a href="{% url 'operations:online_exam_edit' exam.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                 <a href="{% url 'operations:online_exam_delete' exam.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+                {% else %}
+                {% if exam.status == 'published' %}
+                <a href="{% url 'operations:online_exam_take' exam.pk %}" class="btn btn-sm btn-success">📝 Take Exam</a>
+                {% else %}
+                <span style="color: #6c757d;">Not Available</span>
+                {% endif %}
                 {% endif %}
             </td>
         </tr>

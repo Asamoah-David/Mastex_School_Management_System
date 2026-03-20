@@ -14,7 +14,7 @@
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>📅 School Events</h2>
-        {% if user.role == "school_admin" or user.is_superuser %}
+        {% if can_manage %}
         <a href="{% url 'operations:school_event_create' %}" class="btn btn-primary">➕ Create Event</a>
         {% endif %}
     </div>
@@ -38,8 +38,10 @@
             </div>
             <div class="event-actions">
                 <a href="{% url 'operations:school_event_detail' event.pk %}" class="btn btn-sm btn-info">👁️ View</a>
+                {% if can_manage %}
                 <a href="{% url 'operations:school_event_edit' event.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                 <a href="{% url 'operations:school_event_delete' event.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+                {% endif %}
             </div>
         </div>
     {% endfor %}

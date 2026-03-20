@@ -30,6 +30,9 @@
                         {% if request.user.role == 'student' %}
                         <a href="{% url 'academics:quiz_take' quiz.pk %}" class="btn btn-sm btn-success">Take Quiz</a>
                         {% endif %}
+                        {% if can_manage %}
+                        <a href="{% url 'academics:quiz_delete' quiz.pk %}" class="btn btn-sm btn-danger">Delete</a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
