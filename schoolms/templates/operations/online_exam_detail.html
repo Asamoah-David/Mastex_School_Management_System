@@ -12,23 +12,71 @@
 </div>
 {% endif %}
 
-<div class="button-row">
-    <a href="{% url 'operations:online_exam_add_question' exam.id %}" class="btn btn-primary">+ Add Question</a>
-</div>
-
-<div class="content-card mt-sm">
-    <h3 style="margin: 0 0 1rem; color: #22c55e;">Exam Details</h3>
-    <div style="display: grid; gap: 0.5rem; margin-bottom: 1.5rem;">
-        <p><strong>Subject:</strong> {{ exam.subject.name }}</p>
-        <p><strong>Duration:</strong> {{ exam.duration_minutes }} minutes</p>
-        <p><strong>Total Marks:</strong> {{ exam.total_marks }}</p>
-        <p><strong>Passing Marks:</strong> {{ exam.passing_marks }}</p>
-        <p><strong>Start:</strong> {{ exam.start_time }}</p>
-        <p><strong>End:</strong> {{ exam.end_time }}</p>
-        <p><strong>Status:</strong> {{ exam.status }}</p>
+<div class="content-card">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">💻</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">{{ exam.title }}</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Manage exam questions and settings</p>
+        </div>
     </div>
     
-    <h4 style="color: #22c55e;">Questions ({{ questions.count }})</h4>
+    <div class="button-row mb-3">
+        <a href="{% url 'operations:online_exam_add_question' exam.id %}" class="btn btn-primary">➕ Add Question</a>
+        
+        {% if exam.status == 'draft' %}
+        <form method="POST" action="{% url 'operations:online_exam_publish' exam.id %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success" onclick="return confirm('Publish this exam? Students will be able to see and take it.')">🚀 Publish Exam</button>
+        </form>
+        {% else %}
+        <span class="badge badge-success">✅ Published</span>
+        {% endif %}
+        
+        <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">← Back to Exams</a>
+    </div>
+    
+    <div style="background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0 0 1rem; color: #22c55e;">📋 Exam Details</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">📚 Subject</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.subject.name }}</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">⏱️ Duration</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.duration_minutes }} minutes</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">🎯 Total Marks</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.total_marks }}</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">✅ Passing Marks</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.passing_marks }}</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">🗓️ Start Time</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.start_time }}</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">🛑 End Time</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.end_time }}</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">📊 Status</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">
+                    {% if exam.status == 'draft' %}
+                    <span style="color: #f59e0b;">📝 Draft</span>
+                    {% else %}
+                    <span style="color: #22c55e;">🚀 Published</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <h4 style="color: #22c55e;">❓ Questions ({{ questions.count }})</h4>
     {% if questions %}
     <div class="table-card">
         <table>
@@ -49,8 +97,9 @@
                 <td>{{ q.marks }}</td>
             </tr>
             {% endfor %}
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <div class="empty-state">
         <p>No questions added yet.</p>
