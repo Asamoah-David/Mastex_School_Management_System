@@ -64,7 +64,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 
 ---
 
-## New Additions (This Build)
+## New Additions (March 2026)
 
 ### 1. Registration & details
 - **Staff registration** (`/accounts/staff/register/`) – School admin adds teachers/school admins (username, email, role, password).
@@ -87,7 +87,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
   - Sales: `/operations/textbooks/sales/`
 
 ### 3. Academic Features
-- **Online Exams** – Create exams with questions, publish when ready, countdown timer for students
+- **Online Exams** – Create exams with questions, publish when ready, **countdown timer** for students, **auto-submit** when time expires
 - **Quizzes** – Create quizzes with questions, students can take quizzes
 - **Homework** – Create homework assignments, students can submit
 - **Report Cards** – Generate and view student report cards
@@ -95,7 +95,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 - **Timetable** – View class timetables
 
 ### 4. School Management Operations
-- **Events** – Create school events with type, audience, date/time
+- **Events** – Create school events with type, audience, date/time, mandatory flag
 - **Clubs & Sports** – Manage school clubs and sports activities
 - **Hostel** – Manage hostel rooms, fees, and assignments
 - **Library** – Manage books, catalog, and book issues
@@ -103,8 +103,8 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 - **Documents** – Upload and manage school documents
 
 ### 5. Financial Management
-- **Expenses** – Record school expenses with categories
-- **Budget** – Create and manage school budgets
+- **Expenses** – Record school expenses with categories, payment methods, receipt numbers
+- **Budget** – Create and manage school budgets by category, academic year, term
 - **Fee Structure** – Define fee structures per class/term
 - **Inventory** – Track school inventory items
 
@@ -123,7 +123,25 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 - **Admission** – Student admission application and approval
 - **Alumni** – Track alumni events and alumni records
 
-All operations are filtered by `request.user.school` (school admin/teacher).
+---
+
+## UI/UX Improvements
+
+### Role-Based Permissions
+- **Students** see "Take Exam" button for published online exams
+- **Students/Parents** do NOT see Edit/Delete buttons on events
+- **Staff** see full management options
+- Delete button added to Quiz list for staff
+
+### Form Field Corrections
+- **Expense Form**: `date` → `expense_date`, added `payment_method`, `receipt_number`
+- **Budget Form**: `title` → `category`, `total_amount` → `allocated_amount`, `period` → `academic_year`, `term`
+- **Event Form**: `event_date` + `event_time` → `start_date` (datetime-local), added `event_type`, `target_audience`, `is_mandatory`, `end_date`
+
+### New Templates Created
+- `online_exam_take.html` - Student exam interface with countdown timer
+- `online_exam_result.html` - Exam results display
+- `school_event_detail.html` - Event details with RSVPs
 
 ---
 
@@ -135,7 +153,7 @@ All operations are filtered by `request.user.school` (school admin/teacher).
 - AI assistant module  
 - Role-based access (admin, teacher, student, parent)  
 - Professional UI (Mastex branding, login, dashboard, sidebar)
-- **Online Quizzes & Exams** with countdown timer
+- **Online Quizzes & Exams** with countdown timer and auto-submit
 - **Multi-school admission** with school selection dropdown
 
 ---
@@ -181,6 +199,5 @@ All operations are filtered by `request.user.school` (school admin/teacher).
 
 ## Last Updated
 
-**Navigation Audit Completed:** March 19, 2026  
-**Commit:** 4283f31 - Add countdown timer to online exam  
+**System Overview Updated:** March 19, 2026  
 **GitHub:** https://github.com/Asamoah-David/Mastex_School_Management_System

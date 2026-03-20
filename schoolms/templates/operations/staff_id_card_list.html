@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Staff ID Cards - {{ school.name }}{% endblock %}
+{% block page_title %}Staff ID Cards{% endblock %}
+{% block content %}
+<div class="content-card">
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>🪪 Staff ID Cards</h2>
+        <a href="{% url 'operations:staff_id_card_create' %}" class="btn btn-primary">➕ Create Staff ID Card</a>
+    </div>
+    
+    {% if id_cards %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Staff Member</th>
+                <th>Position</th>
+                <th>Card Number</th>
+                <th>Issue Date</th>
+                <th>Expiry Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for card in id_cards %}
+        <tr>
+            <td>
+                {% if card.staff.profile_photo %}
+                <img src="{{ card.staff.profile_photo.url }}" alt="{{ card.staff.get_full_name }}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 0.5rem;">
+                {% else %}
+                <span style="width: 30px; height: 30px; border-radius: 50%; background: #10b981; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-right: 0.5rem;">
+                    {{ card.staff.get_full_name|slice:":1" }}
+                </span>
+                {% endif %}
+                {{ card.staff.get_full_name }}
+            </td>
+            <td>{{ card.position|default:"N/A" }}</td>
+            <td>{{ card.card_number }}</td>
+            <td>{{ card.issue_date|date:"M d, Y" }}</td>
+            <td>{{ card.expiry_date|date:"M d, Y"|default:"N/A" }}</td>
+            <td>
+                <a href="{% url 'operations:staff_id_card_print' card.pk %}" class="btn btn-sm btn-success">🖨️ Print</a>
+                <a href="{% url 'operations:staff_id_card_edit' card.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:staff_id_card_delete' card.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this ID card?');">🗑️ Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>📭 No staff ID cards found.</p>
+        <a href="{% url 'operations:staff_id_card_create' %}" class="btn btn-primary">Create First Staff ID Card</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

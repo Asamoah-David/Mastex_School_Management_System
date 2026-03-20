@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{% if id_card %}Edit{% else %}Create{% endif %} Staff ID Card · {{ school.name }}{% endblock %}
+{% block page_title %}{% if id_card %}✏️ Edit{% else %}Create{% endif %} Staff ID Card{% endblock %}
+{% block content %}
+
+<div class="content-card">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #059669, #10b981); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🪪</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">{% if id_card %}Edit{% else %}Create{% endif %} Staff ID Card</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Generate ID cards for school staff members</p>
+        </div>
+    </div>
+    
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-grid-2">
+            {% if not id_card %}
+            <!-- Staff Member -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">👤 Staff Member</label>
+                <select name="staff" id="staff" required>
+                    <option value="">Select Staff Member</option>
+                    {% for member in staff_members %}
+                    <option value="{{ member.id }}" {% if member.id == id_card.staff.id %}selected{% endif %}>
+                        {{ member.get_full_name }} ({{ member.get_role_display|default:member.role|capfirst }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            <!-- Card Number -->
+            <div class="form-group">
+                <label class="required">🔢 Card Number</label>
+                <input type="text" name="card_number" id="card_number" required 
+                       placeholder="e.g. STAFF-001" value="{{ id_card.card_number|default:'' }}">
+            </div>
+            
+            <!-- Position -->
+            <div class="form-group">
+                <label>💼 Position/Title</label>
+                <input type="text" name="position" id="position" 
+                       placeholder="e.g. Senior Teacher, Administrator"
+                       value="{{ id_card.position|default:'' }}">
+            </div>
+            
+            <!-- Issue Date -->
+            <div class="form-group">
+                <label class="required">📅 Issue Date</label>
+                <input type="date" name="issue_date" id="issue_date" required 
+                       value="{{ id_card.issue_date|date:'Y-m-d'|default:'' }}">
+            </div>
+            
+            <!-- Expiry Date -->
+            <div class="form-group">
+                <label>📅 Expiry Date</label>
+                <input type="date" name="expiry_date" id="expiry_date" 
+                       value="{{ id_card.expiry_date|date:'Y-m-d'|default:'' }}">
+                <small class="form-text">Leave empty for lifetime card</small>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if id_card %}💾 Update Card{% else %}✅ Create Card{% endif %}
+            </button>
+            <a href="{% url 'operations:staff_id_card_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

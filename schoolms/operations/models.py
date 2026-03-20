@@ -575,6 +575,27 @@ class StudentIDCard(models.Model):
         return f"{self.student} - {self.card_number}"
 
 
+# ==================== STAFF ID CARDS ====================
+class StaffIDCard(models.Model):
+    """Staff ID Card management"""
+    staff = models.OneToOneField(User, on_delete=models.CASCADE, related_name='id_card')
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    card_number = models.CharField(max_length=50, unique=True)
+    position = models.CharField(max_length=100, blank=True)
+    photo = models.ImageField(upload_to='staff_id_cards/', null=True, blank=True)
+    issue_date = models.DateField()
+    expiry_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-created_at"]
+    
+    def __str__(self):
+        return f"{self.staff.get_full_name()} - {self.card_number}"
+
+
 # ==================== PARENT-TEACHER MEETINGS ====================
 class PTMeeting(models.Model):
     """Parent-Teacher Meeting scheduling"""

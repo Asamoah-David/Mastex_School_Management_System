@@ -2477,6 +2477,364 @@ def id_card_print(request, pk):
     })
 
 
+@login_required
+def id_card_edit(request, pk):
+    """Edit an ID card."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:id_card_list')
+    
+    id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        card_number = request.POST.get('card_number', '').strip()
+        issue_date = request.POST.get('issue_date')
+        expiry_date = request.POST.get('expiry_date') or None
+        
+        if card_number and issue_date:
+            id_card.card_number = card_number
+            id_card.issue_date = issue_date
+            id_card.expiry_date = expiry_date
+            id_card.save()
+            
+            from django.contrib import messages
+            messages.success(request, 'ID Card updated successfully!')
+            return redirect('operations:id_card_list')
+    
+    return render(request, 'operations/id_card_form.html', {
+        'school': school,
+        'id_card': id_card
+    })
+
+
+@login_required
+def id_card_delete(request, pk):
+    """Delete an ID card."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:id_card_list')
+    
+    id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        id_card.delete()
+        from django.contrib import messages
+        messages.success(request, 'ID Card deleted successfully!')
+        return redirect('operations:id_card_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': id_card, 'type': 'ID card'
+    })
+
+
+@login_required
+def id_card_create_bulk(request):
+    """Bulk create ID cards for all students in a class."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:id_card_list')
+    
+    if request.method == 'POST':
+        class_name = request.POST.get('class_name', '').strip()
+        issue_date = request.POST.get('issue_date')
+        expiry_date = request.POST.get('expiry_date') or None
+        
+        if issue_date:
+            students = Student.objects.filter(school=school)
+            if class_name:
+                students = students.filter(class_name=class_name)
+            
+            count = 0
+            for student in students:
+                # Check if student already has an ID card
+                if not StudentIDCard.objects.filter(student=student).exists():
+                    import uuid
+                    card_number = f"ID-{student.admission_number or uuid.uuid4().hex[:8].upper()}"
+                    StudentIDCard.objects.create(
+                        student=student,
+                        school=school,
+                        card_number=card_number,
+                        issue_date=issue_date,
+                        expiry_date=expiry_date,
+                        created_by=request.user
+                    )
+                    count += 1
+            
+            from django.contrib import messages
+            messages.success(request, f'{count} ID Cards created successfully!')
+            return redirect('operations:id_card_list')
+    
+    # Get unique classes for dropdown
+    classes = sorted(set(Student.objects.filter(school=school).values_list('class_name', flat=True)))
+    
+    return render(request, 'operations/id_card_bulk_create.html', {
+        'school': school,
+        'classes': classes
+    })
+
+
+@login_required
+def id_card_export_zip(request):
+    """Export all ID cards as a ZIP file."""
+    from accounts.permissions import user_can_manage_school
+    import zipfile
+    import io
+    from django.http import HttpResponse
+    
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:id_card_list')
+    
+    # For now, return a simple response
+    # In production, you would generate actual ID card images/PDFs
+    response = HttpResponse("ZIP export feature - would contain ID card images", content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="{school.name}_id_cards.zip"'
+    return response
+
+
+@login_required
+def id_card_export_pdf(request):
+    """Export all ID cards as a PDF."""
+    from accounts.permissions import user_can_manage_school
+    from django.http import HttpResponse
+    
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('operations:id_card_list')
+    
+    # For now, return a simple response
+    # In production, you would use a PDF library like reportlab or weasyprint
+    response = HttpResponse("PDF export feature - would contain ID card PDFs", content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{school.name}_id_cards.pdf"'
+    return response
+
+
+# ==================== ONLINE EXAM RESULTS (TEACHER VIEW) ====================
+
+@login_required
+def online_exam_results(request):
+    """View results of all students for an exam (for teachers/admins)."""
+    from accounts.permissions import user_can_manage_school
+    from academics.models import Subject
+    
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    # Get all exams with results
+    exams = OnlineExam.objects.filter(school=school).order_by('-start_time')
+    
+    selected_exam = None
+    attempts = []
+    
+    exam_id = request.GET.get('exam')
+    if exam_id:
+        selected_exam = OnlineExam.objects.filter(id=exam_id, school=school).first()
+        if selected_exam:
+            attempts = ExamAttempt.objects.filter(exam=selected_exam, is_completed=True).select_related(
+                'student', 'student__user'
+            ).order_by('-submitted_at')
+    
+    return render(request, 'operations/online_exam_results.html', {
+        'exams': exams,
+        'selected_exam': selected_exam,
+        'attempts': attempts,
+        'school': school
+    })
+
+
+@login_required
+def online_exam_allow_retake(request, attempt_id):
+    """Allow a student to retake an exam."""
+    from accounts.permissions import user_can_manage_school
+    
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    attempt = get_object_or_404(ExamAttempt, pk=attempt_id)
+    
+    if attempt.exam.school != school:
+        return redirect('home')
+    
+    if request.method == 'POST':
+        attempt.is_completed = False
+        attempt.score = None
+        attempt.submitted_at = None
+        attempt.save()
+        
+        # Delete old answers
+        ExamAnswer.objects.filter(attempt=attempt).delete()
+        
+        from django.contrib import messages
+        messages.success(request, f'Retake allowed for {attempt.student.user.get_full_name()}')
+        return redirect('operations:online_exam_results')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': attempt, 'type': 'allow retake for this exam'
+    })
+
+
+# ==================== STAFF ID CARDS ====================
+
+def _get_staff_id_model():
+    """Dynamically get or create StaffIDCard model."""
+    from .models import StaffIDCard
+    return StaffIDCard
+
+
+@login_required
+def staff_id_card_list(request):
+    """List all staff ID cards."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    # Try to get staff ID cards, create model if needed
+    try:
+        from .models import StaffIDCard
+        id_cards = StaffIDCard.objects.filter(school=school).select_related('staff', 'created_by').order_by('-created_at')[:200]
+    except:
+        id_cards = []
+    
+    return render(request, 'operations/staff_id_card_list.html', {
+        'id_cards': id_cards,
+        'school': school
+    })
+
+
+@login_required
+def staff_id_card_create(request):
+    """Create a new staff ID card."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    staff_members = User.objects.filter(school=school).exclude(
+        role='student'
+    ).exclude(
+        role='parent'
+    ).order_by('first_name', 'last_name')
+    
+    if request.method == 'POST':
+        staff_id = request.POST.get('staff')
+        card_number = request.POST.get('card_number', '').strip()
+        issue_date = request.POST.get('issue_date')
+        expiry_date = request.POST.get('expiry_date') or None
+        position = request.POST.get('position', '').strip()
+        
+        if staff_id and card_number and issue_date:
+            try:
+                from .models import StaffIDCard
+                staff = User.objects.filter(id=staff_id, school=school).first()
+                if staff:
+                    StaffIDCard.objects.create(
+                        staff=staff,
+                        school=school,
+                        card_number=card_number,
+                        position=position,
+                        issue_date=issue_date,
+                        expiry_date=expiry_date,
+                        created_by=request.user
+                    )
+                    from django.contrib import messages
+                    messages.success(request, 'Staff ID Card created successfully!')
+                    return redirect('operations:staff_id_card_list')
+            except Exception:
+                pass
+    
+    return render(request, 'operations/staff_id_card_form.html', {
+        'school': school,
+        'staff_members': staff_members
+    })
+
+
+@login_required
+def staff_id_card_edit(request, pk):
+    """Edit a staff ID card."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    try:
+        from .models import StaffIDCard
+        id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
+        
+        if request.method == 'POST':
+            card_number = request.POST.get('card_number', '').strip()
+            issue_date = request.POST.get('issue_date')
+            expiry_date = request.POST.get('expiry_date') or None
+            position = request.POST.get('position', '').strip()
+            
+            if card_number and issue_date:
+                id_card.card_number = card_number
+                id_card.issue_date = issue_date
+                id_card.expiry_date = expiry_date
+                id_card.position = position
+                id_card.save()
+                
+                from django.contrib import messages
+                messages.success(request, 'Staff ID Card updated successfully!')
+                return redirect('operations:staff_id_card_list')
+        
+        return render(request, 'operations/staff_id_card_form.html', {
+            'school': school,
+            'id_card': id_card
+        })
+    except:
+        return redirect('operations:staff_id_card_list')
+
+
+@login_required
+def staff_id_card_delete(request, pk):
+    """Delete a staff ID card."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    try:
+        from .models import StaffIDCard
+        id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
+        
+        if request.method == 'POST':
+            id_card.delete()
+            from django.contrib import messages
+            messages.success(request, 'Staff ID Card deleted successfully!')
+            return redirect('operations:staff_id_card_list')
+        
+        return render(request, 'operations/confirm_delete.html', {
+            'object': id_card, 'type': 'staff ID card'
+        })
+    except:
+        return redirect('operations:staff_id_card_list')
+
+
+@login_required
+def staff_id_card_print(request, pk):
+    """Print staff ID card."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    try:
+        from .models import StaffIDCard
+        id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
+        return render(request, 'operations/staff_id_card_print.html', {
+            'id_card': id_card,
+            'school': school
+        })
+    except:
+        return redirect('operations:staff_id_card_list')
+
+
 # ==================== SPORTS & CLUBS ====================
 
 @login_required
@@ -3869,6 +4227,9 @@ def online_exam_create(request):
     
     subjects = Subject.objects.filter(school=school).order_by('name')
     
+    # Get unique classes from students for the dropdown
+    school_classes = sorted(set(Student.objects.filter(school=school).values_list('class_name', flat=True)))
+    
     if request.method == 'POST':
         from datetime import datetime
         title = request.POST.get('title', '').strip()
@@ -3880,6 +4241,7 @@ def online_exam_create(request):
         passing = request.POST.get('passing_marks', 50)
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
+        show_results = request.POST.get('show_results') == 'on'
         
         if title and subject_id and start_time and end_time:
             subject = Subject.objects.filter(id=subject_id, school=school).first()
@@ -3893,6 +4255,7 @@ def online_exam_create(request):
                         class_level=class_level, exam_type=exam_type,
                         duration_minutes=int(duration), total_marks=total_marks,
                         passing_marks=passing, start_time=start, end_time=end,
+                        show_results_immediately=show_results,
                         created_by=request.user, status='draft'
                     )
                     from django.contrib import messages
@@ -3902,7 +4265,7 @@ def online_exam_create(request):
                     pass
     
     return render(request, 'operations/online_exam_form.html', {
-        'school': school, 'subjects': subjects
+        'school': school, 'subjects': subjects, 'school_classes': school_classes
     })
 
 

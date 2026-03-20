@@ -1,54 +1,111 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Print ID Card{% endblock %}
+{% block title %}Print ID Card - {{ id_card.student.get_full_name }}{% endblock %}
 
 {% block content %}
-<div class="id-card-print">
-    <div class="id-card" style="border: 2px solid #22c55e; border-radius: 10px; padding: 20px; width: 350px; background: white; color: black;">
-        <div style="text-align: center; border-bottom: 2px solid #22c55e; padding-bottom: 10px; margin-bottom: 10px;">
-            <h3 style="margin: 0; color: #22c55e;">{{ school.name|default:"School Name" }}</h3>
-            <p style="margin: 5px 0 0; font-size: 12px;">Student ID Card</p>
+<div class="content-card" style="display: flex; flex-direction: column; align-items: center; padding: 2rem;">
+    <h2 style="margin-bottom: 1.5rem;">🪪 Student ID Card Preview</h2>
+    
+    <div class="id-card" style="border: 3px solid #1e40af; border-radius: 16px; padding: 0; width: 400px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden;">
+        <!-- Header with School Name -->
+        <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 15px 20px; text-align: center;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700;">{{ school.name|default:"SCHOOL NAME" }}</h3>
+            <p style="margin: 5px 0 0; font-size: 11px; opacity: 0.9;">Student Identification Card</p>
         </div>
         
-        <div style="display: flex; gap: 15px; align-items: center;">
-            {% if id_card.photo %}
-            <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 80px; height: 100px; object-fit: cover; border: 1px solid #ccc;">
-            {% else %}
-            <div style="width: 80px; height: 100px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc;">
-                <span style="color: #666;">No Photo</span>
+        <!-- Card Body -->
+        <div style="padding: 20px;">
+            <!-- Photo and Basic Info Row -->
+            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                <div style="flex-shrink: 0;">
+                    {% if id_card.student.user.profile_photo %}
+                    <img src="{{ id_card.student.user.profile_photo.url }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #e2e8f0; border-radius: 8px;">
+                    {% else %}
+                    <div style="width: 100px; height: 120px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; border-radius: 8px;">
+                        <span style="color: #94a3b8; font-size: 12px;">No Photo</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                    <h4 style="margin: 0 0 8px; font-size: 16px; color: #1e293b; font-weight: 700;">{{ id_card.student.get_full_name }}</h4>
+                    <p style="margin: 4px 0; font-size: 12px; color: #475569;">
+                        <strong>ID:</strong> {{ id_card.student.admission_number|default:id_card.card_number }}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #475569;">
+                        <strong>Class:</strong> {{ id_card.student.class_name|default:"N/A" }}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #475569;">
+                        <strong>Gender:</strong> {{ id_card.student.gender|default:"N/A" }}
+                    </p>
+                </div>
             </div>
-            {% endif %}
             
-            <div>
-                <p style="margin: 0; font-weight: bold; font-size: 14px;">{{ id_card.student.get_full_name }}</p>
-                <p style="margin: 3px 0; font-size: 12px;">ID: {{ id_card.student.admission_number }}</p>
-                <p style="margin: 3px 0; font-size: 12px;">Class: {{ id_card.student.class_name|default:"N/A" }}</p>
+            <!-- Divider -->
+            <div style="border-top: 1px dashed #e2e8f0; margin: 10px 0;"></div>
+            
+            <!-- Additional Details -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>Date of Birth:</strong></p>
+                    <p style="margin: 2px 0 6px; color: #1e293b;">{{ id_card.student.date_of_birth|date:"M d, Y"|default:"N/A" }}</p>
+                </div>
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>Blood Type:</strong></p>
+                    <p style="margin: 2px 0 6px; color: #1e293b;">{{ id_card.student.blood_group|default:"N/A" }}</p>
+                </div>
+            </div>
+            
+            <!-- Emergency Contact -->
+            <div style="background: #fef2f2; border-radius: 8px; padding: 10px; margin-top: 10px;">
+                <p style="margin: 0; font-size: 10px; color: #dc2626; font-weight: 600;">⚠️ EMERGENCY CONTACT</p>
+                {% if id_card.student.parent %}
+                <p style="margin: 4px 0 0; font-size: 11px; color: #1e293b;">
+                    {{ id_card.student.parent.get_full_name }} - {{ id_card.student.parent.phone|default:"N/A" }}
+                </p>
+                {% else %}
+                <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">No emergency contact on file</p>
+                {% endif %}
             </div>
         </div>
         
-        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px;">
-            <p style="margin: 2px 0;">Valid: {{ id_card.issue_date|date:"M Y" }} - {{ id_card.expiry_date|date:"M Y" }}</p>
-            {% if id_card.student.emergency_contact_phone %}
-            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.emergency_contact_phone }}</p>
-            {% elif id_card.student.parent and id_card.student.parent.phone %}
-            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.parent.phone }}</p>
-            {% else %}
-            <p style="margin: 2px 0;">Emergency Contact: N/A</p>
-            {% endif %}
+        <!-- Footer -->
+        <div style="background: #f8fafc; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0;">
+            <div style="font-size: 10px; color: #64748b;">
+                <p style="margin: 0;"><strong>Issued:</strong> {{ id_card.issue_date|date:"M Y" }}</p>
+                <p style="margin: 2px 0 0;"><strong>Expires:</strong> {{ id_card.expiry_date|date:"M Y"|default:"Lifetime" }}</p>
+            </div>
+            <div style="text-align: right;">
+                <p style="margin: 0; font-size: 10px; color: #64748b;">Card #: {{ id_card.card_number }}</p>
+                {% if id_card.student.school.address %}
+                <p style="margin: 2px 0 0; font-size: 9px; color: #94a3b8;">{{ id_card.student.school.address|truncatechars:30 }}</p>
+                {% endif %}
+            </div>
         </div>
     </div>
     
-    <div class="button-row" style="margin-top: 20px;">
-        <button onclick="window.print()" class="btn btn-primary">Print</button>
-        <a href="{% url 'operations:id_card_list' %}" class="btn btn-secondary">Back</a>
+    <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+        <button onclick="window.print()" class="btn btn-primary" style="padding: 0.75rem 2rem;">🖨️ Print Card</button>
+        <a href="{% url 'operations:id_card_list' %}" class="btn btn-secondary">← Back to List</a>
     </div>
 </div>
 
 <style>
 @media print {
-    .id-card-print > *:not(.id-card) { display: none; }
-    .id-card { border: 2px solid #22c55e !important; }
+    body { background: white !important; }
+    .id-card { 
+        box-shadow: none !important; 
+        border: 2px solid #1e40af !important;
+        page-break-inside: avoid;
+    }
+    .btn, h2, nav, footer, .content-card > *:not(.id-card):not(.id-card *):not(style) { 
+        display: none !important; 
+    }
+    .content-card { 
+        padding: 0 !important; 
+        background: white !important;
+    }
 }
 </style>
 {% endblock %}

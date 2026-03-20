@@ -132,8 +132,16 @@ urlpatterns = [
     # Student ID Cards
     path("id-cards/", views.id_card_list, name="id_card_list"),
     path("id-cards/create/", views.id_card_create, name="id_card_create"),
+    path("id-cards/create-bulk/", views.id_card_create_bulk, name="id_card_create_bulk"),
     path("id-cards/<int:pk>/", views.id_card_view, name="id_card_view"),
+    path("id-cards/<int:pk>/edit/", views.id_card_edit, name="id_card_edit"),
+    path("id-cards/<int:pk>/delete/", views.id_card_delete, name="id_card_delete"),
     path("id-cards/<int:pk>/print/", views.id_card_print, name="id_card_print"),
+    path("id-cards/export/zip/", views.id_card_export_zip, name="id_card_export_zip"),
+    path("id-cards/export/pdf/", views.id_card_export_pdf, name="id_card_export_pdf"),
+    
+    # Staff ID Cards
+   
     
     # Sports
     path("sports/", views.sport_list, name="sport_list"),
@@ -200,6 +208,7 @@ urlpatterns = [
     # Online Exams
     path("online-exams/", views.online_exam_list, name="online_exam_list"),
     path("online-exams/create/", views.online_exam_create, name="online_exam_create"),
+    path("online-exams/results/", views.online_exam_results, name="online_exam_results"),
     path("online-exams/<int:pk>/", views.online_exam_detail, name="online_exam_detail"),
     path("online-exams/<int:pk>/edit/", views.online_exam_edit, name="online_exam_edit"),
     path("online-exams/<int:pk>/delete/", views.online_exam_delete, name="online_exam_delete"),
@@ -207,6 +216,7 @@ urlpatterns = [
     path("online-exams/<int:pk>/add-question/", views.online_exam_add_question, name="online_exam_add_question"),
     path("online-exams/<int:pk>/take/", views.online_exam_take, name="online_exam_take"),
     path("online-exams/result/<int:pk>/", views.online_exam_result, name="online_exam_result"),
+    path("online-exams/retake/<int:attempt_id>/", views.online_exam_allow_retake, name="online_exam_allow_retake"),
     
     # PT Meetings
     path("pt-meetings/", views.pt_meeting_list, name="pt_meeting_list"),

@@ -49,13 +49,11 @@
                 <label>🏫 Class</label>
                 <select name="class_name" id="class_name">
                     <option value="">All Classes</option>
-                    <option value="JHS 1">JHS 1</option>
-                    <option value="JHS 2">JHS 2</option>
-                    <option value="JHS 3">JHS 3</option>
-                    <option value="SHS 1">SHS 1</option>
-                    <option value="SHS 2">SHS 2</option>
-                    <option value="SHS 3">SHS 3</option>
+                    {% for class in school_classes %}
+                    <option value="{{ class }}">{{ class }}</option>
+                    {% endfor %}
                 </select>
+                <small class="form-text">Leave empty to allow all classes</small>
             </div>
             
             <!-- Duration -->
@@ -92,6 +90,15 @@
                 <label>📋 Instructions</label>
                 <textarea name="instructions" id="instructions" rows="3" 
                           placeholder="Enter exam instructions for students..."></textarea>
+            </div>
+            
+            <!-- Show Results Setting -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" name="show_results" id="show_results" checked style="width: 18px; height: 18px;">
+                    <span>✅ Show Results Immediately After Submission</span>
+                </label>
+                <small class="form-text">If unchecked, students will not see their scores until you publish them</small>
             </div>
         </div>
         

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Online Exam Results - {{ school.name }}{% endblock %}
+{% block page_title %}Online Exam Results{% endblock %}
+{% block content %}
+<div class="content-card">
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>📊 Online Exam Results</h2>
+        <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">← Back to Exams</a>
+    </div>
+    
+    <div class="form-group" style="max-width: 500px; margin-bottom: 2rem;">
+        <label for="exam_select">Select Exam</label>
+        <form method="GET" id="exam_form">
+            <select name="exam" id="exam_select" class="form-control" onchange="document.getElementById('exam_form').submit();">
+                <option value="">-- Select an Exam --</option>
+                {% for exam in exams %}
+                <option value="{{ exam.id }}" {% if selected_exam.id == exam.id %}selected{% endif %}>
+                    {{ exam.title }} - {{ exam.subject.name }} ({{ exam.start_time|date:"M d, Y" }})
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    
+    {% if selected_exam %}
+    <div class="info-box" style="margin-bottom: 1.5rem;">
+        <h3>{{ selected_exam.title }}</h3>
+        <p><strong>Subject:</strong> {{ selected_exam.subject.name }}</p>
+        <p><strong>Date:</strong> {{ selected_exam.start_time|date:"M d, Y H:i" }}</p>
+        <p><strong>Total Marks:</strong> {{ selected_exam.total_marks }}</p>
+        <p><strong>Passing Marks:</strong> {{ selected_exam.passing_marks }}</p>
+    </div>
+    
+    {% if attempts %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Class</th>
+                <th>Score</th>
+                <th>Percentage</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for attempt in attempts %}
+        <tr>
+            <td>
+                {% if attempt.student.user.profile_photo %}
+                <img src="{{ attempt.student.user.profile_photo.url }}" alt="{{ attempt.student.user.get_full_name }}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 0.5rem;">
+                {% else %}
+                <span style="width: 30px; height: 30px; border-radius: 50%; background: #3b82f6; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-right: 0.5rem;">
+                    {{ attempt.student.user.get_full_name|slice:":1" }}
+                </span>
+                {% endif %}
+                {{ attempt.student.user.get_full_name }}
+            </td>
+            <td>{{ attempt.student.class_name|default:"N/A" }}</td>
+            <td>{{ attempt.score|default:"0" }} / {{ selected_exam.total_marks }}</td>
+            <td>
+                {% widthvar attempt.score as percentage %}
+                {{ percentage|floatformat:1 }}%
+            </td>
+            <td>
+                {% if attempt.score >= selected_exam.passing_marks %}
+                <span style="color: #10b981; font-weight: bold;">✅ Passed</span>
+                {% else %}
+                <span style="color: #ef4444; font-weight: bold;">❌ Failed</span>
+                {% endif %}
+            </td>
+            <td>{{ attempt.submitted_at|date:"M d, Y H:i" }}</td>
+            <td>
+                <a href="{% url 'operations:online_exam_result' attempt.pk %}" class="btn btn-sm btn-info">📋 Details</a>
+                <a href="{% url 'operations:online_exam_allow_retake' attempt.pk %}" class="btn btn-sm btn-warning" onclick="return confirm('Allow this student to retake the exam?');">🔄 Retake</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    
+    <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem;">
+        <p style="margin: 0;"><strong>Summary:</strong></p>
+        <p style="margin: 0.5rem 0 0 0;">
+            Total Students: {{ attempts.count }} | 
+            Passed: {{ passed_count }} | 
+            Failed: {{ failed_count }}
+        </p>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>📭 No student attempts found for this exam.</p>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
