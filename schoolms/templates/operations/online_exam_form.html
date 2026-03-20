@@ -23,116 +23,84 @@
     
     <form method="POST" id="examForm" onsubmit="return validateExamForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="form-grid-2">
             <!-- Exam Title -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>📝</span> Exam Title <span style="color: #ef4444;">*</span>
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">📝 Exam Title</label>
                 <input type="text" name="title" id="title" required 
-                       placeholder="e.g. Mathematics Mid-Term Exam" 
-                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                       placeholder="e.g. Mathematics Mid-Term Exam">
+                <small class="form-error" id="titleError"></small>
             </div>
             
-            <!-- Subject and Class -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>📚</span> Subject <span style="color: #ef4444;">*</span>
-                    </label>
-                    <select name="subject" id="subject" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                        <option value="">Select Subject</option>
-                        {% for subject in subjects %}
-                        <option value="{{ subject.id }}">{{ subject.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🏫</span> Class
-                    </label>
-                    <select name="class_name" id="class_name" style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                        <option value="">All Classes</option>
-                        <option value="JHS 1">JHS 1</option>
-                        <option value="JHS 2">JHS 2</option>
-                        <option value="JHS 3">JHS 3</option>
-                        <option value="SHS 1">SHS 1</option>
-                        <option value="SHS 2">SHS 2</option>
-                        <option value="SHS 3">SHS 3</option>
-                    </select>
-                </div>
+            <!-- Subject -->
+            <div class="form-group">
+                <label class="required">📚 Subject</label>
+                <select name="subject" id="subject" required>
+                    <option value="">Select Subject</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-error" id="subjectError"></small>
             </div>
             
-            <!-- Duration and Total Score -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>⏱️</span> Duration (minutes) <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="number" name="duration" id="duration" required min="5" max="180" value="30"
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                    <small style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">5-180 minutes</small>
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🎯</span> Total Score <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="number" name="total_score" id="total_score" required min="1" value="100"
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
+            <!-- Class -->
+            <div class="form-group">
+                <label>🏫 Class</label>
+                <select name="class_name" id="class_name">
+                    <option value="">All Classes</option>
+                    <option value="JHS 1">JHS 1</option>
+                    <option value="JHS 2">JHS 2</option>
+                    <option value="JHS 3">JHS 3</option>
+                    <option value="SHS 1">SHS 1</option>
+                    <option value="SHS 2">SHS 2</option>
+                    <option value="SHS 3">SHS 3</option>
+                </select>
             </div>
             
-            <!-- Start and End Time -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🗓️</span> Start Time <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="datetime-local" name="start_time" id="start_time" required 
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🕐</span> End Time <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="datetime-local" name="end_time" id="end_time" required 
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
+            <!-- Duration -->
+            <div class="form-group">
+                <label class="required">⏱️ Duration (minutes)</label>
+                <input type="number" name="duration" id="duration" required min="5" max="180" value="30">
+                <small class="form-text">5-180 minutes</small>
+                <small class="form-error" id="durationError"></small>
+            </div>
+            
+            <!-- Total Score -->
+            <div class="form-group">
+                <label class="required">🎯 Total Score</label>
+                <input type="number" name="total_score" id="total_score" required min="1" value="100">
+                <small class="form-error" id="scoreError"></small>
+            </div>
+            
+            <!-- Start Time -->
+            <div class="form-group">
+                <label class="required">🗓️ Start Time</label>
+                <input type="datetime-local" name="start_time" id="start_time" required>
+                <small class="form-error" id="startError"></small>
+            </div>
+            
+            <!-- End Time -->
+            <div class="form-group">
+                <label class="required">🕐 End Time</label>
+                <input type="datetime-local" name="end_time" id="end_time" required>
+                <small class="form-error" id="endError"></small>
             </div>
             
             <!-- Instructions -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>📋</span> Instructions
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📋 Instructions</label>
                 <textarea name="instructions" id="instructions" rows="3" 
-                          placeholder="Enter exam instructions for students..."
-                          style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; resize: vertical; font-family: inherit; transition: all 0.2s;"
-                          onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                          onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'"></textarea>
+                          placeholder="Enter exam instructions for students..."></textarea>
             </div>
         </div>
         
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                <span style="margin-right: 0.5rem;">✓</span> Create Exam
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                💾 Create Exam
             </button>
-            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                Cancel
+            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
             </a>
         </div>
     </form>
@@ -140,6 +108,12 @@
 
 <script>
 function validateExamForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
     const title = document.getElementById('title').value.trim();
     const subject = document.getElementById('subject').value;
     const duration = document.getElementById('duration').value;
@@ -148,34 +122,52 @@ function validateExamForm() {
     const endTime = document.getElementById('end_time').value;
     
     if (!title) {
-        alert('Please enter an exam title');
-        return false;
+        document.getElementById('title').classList.add('error');
+        document.getElementById('titleError').textContent = 'Please enter an exam title';
+        isValid = false;
     }
+    
     if (!subject) {
-        alert('Please select a subject');
-        return false;
+        document.getElementById('subject').classList.add('error');
+        document.getElementById('subjectError').textContent = 'Please select a subject';
+        isValid = false;
     }
+    
     if (!duration || parseInt(duration) < 5) {
-        alert('Duration must be at least 5 minutes');
-        return false;
+        document.getElementById('duration').classList.add('error');
+        document.getElementById('durationError').textContent = 'Duration must be at least 5 minutes';
+        isValid = false;
     }
+    
     if (!totalScore || parseInt(totalScore) < 1) {
-        alert('Please enter a valid total score');
-        return false;
-    }
-    if (!startTime || !endTime) {
-        alert('Please specify start and end times');
-        return false;
+        document.getElementById('total_score').classList.add('error');
+        document.getElementById('scoreError').textContent = 'Please enter a valid total score';
+        isValid = false;
     }
     
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    if (end <= start) {
-        alert('End time must be after start time');
-        return false;
+    if (!startTime) {
+        document.getElementById('start_time').classList.add('error');
+        document.getElementById('startError').textContent = 'Please specify a start time';
+        isValid = false;
     }
     
-    return true;
+    if (!endTime) {
+        document.getElementById('end_time').classList.add('error');
+        document.getElementById('endError').textContent = 'Please specify an end time';
+        isValid = false;
+    }
+    
+    if (startTime && endTime) {
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+        if (end <= start) {
+            document.getElementById('end_time').classList.add('error');
+            document.getElementById('endError').textContent = 'End time must be after start time';
+            isValid = false;
+        }
+    }
+    
+    return isValid;
 }
 </script>
 {% endblock %}

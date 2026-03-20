@@ -13,36 +13,88 @@
 {% endif %}
 
 <div class="content-card">
-    <form method="POST">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🎉</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Create School Event</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Schedule a new event for your school</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="eventForm" onsubmit="return validateEventForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Event Title *</label>
-                <input type="text" name="title" required placeholder="e.g. Graduation Ceremony, Sports Day" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+        <div class="form-grid-2">
+            <!-- Event Title -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">🎉 Event Title</label>
+                <input type="text" name="title" id="title" required 
+                       placeholder="e.g. Graduation Ceremony, Sports Day">
+                <small class="form-error" id="titleError"></small>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description</label>
-                <textarea name="description" rows="3" placeholder="Event description" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            
+            <!-- Description -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📝 Description</label>
+                <textarea name="description" id="description" rows="3" 
+                          placeholder="Event description and details..."></textarea>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Date *</label>
-                    <input type="date" name="event_date" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Time</label>
-                    <input type="time" name="event_time" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                </div>
+            
+            <!-- Date -->
+            <div class="form-group">
+                <label class="required">📅 Date</label>
+                <input type="date" name="event_date" id="event_date" required>
+                <small class="form-error" id="dateError"></small>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Location</label>
-                <input type="text" name="location" placeholder="Event venue" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            
+            <!-- Time -->
+            <div class="form-group">
+                <label>🕐 Time</label>
+                <input type="time" name="event_time" id="event_time">
+            </div>
+            
+            <!-- Location -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📍 Location</label>
+                <input type="text" name="location" id="location" 
+                       placeholder="Event venue">
             </div>
         </div>
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Create Event</button>
-            <a href="{% url 'operations:school_event_list' %}" class="btn btn-secondary">Cancel</a>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                💾 Create Event
+            </button>
+            <a href="{% url 'operations:school_event_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
+            </a>
         </div>
     </form>
 </div>
+
+<script>
+function validateEventForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
+    const title = document.getElementById('title').value.trim();
+    const eventDate = document.getElementById('event_date').value;
+    
+    if (!title) {
+        document.getElementById('title').classList.add('error');
+        document.getElementById('titleError').textContent = 'Please enter an event title';
+        isValid = false;
+    }
+    
+    if (!eventDate) {
+        document.getElementById('event_date').classList.add('error');
+        document.getElementById('dateError').textContent = 'Please select an event date';
+        isValid = false;
+    }
+    
+    return isValid;
+}
+</script>
 {% endblock %}
