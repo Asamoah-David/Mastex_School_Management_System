@@ -23,89 +23,63 @@
     
     <form method="POST" id="expenseForm" onsubmit="return validateExpenseForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="form-grid-2">
             <!-- Description -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>📝</span> Description <span style="color: #ef4444;">*</span>
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">Description</label>
                 <input type="text" name="description" id="description" required 
-                       placeholder="e.g. Office supplies, Cleaning services, Repairs" 
-                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                       placeholder="e.g. Office supplies, Cleaning services, Repairs">
+                <small class="form-error" id="descriptionError"></small>
             </div>
             
-            <!-- Amount and Category -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>💰</span> Amount <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="number" name="amount" id="amount" required step="0.01" min="0" 
-                           placeholder="0.00" 
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateCurrencyDisplay()">
-                    <small id="currencyDisplay" style="color: var(--accent); font-size: 0.75rem; margin-top: 0.25rem; display: block;">GH₵ 0.00</small>
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>📂</span> Category
-                    </label>
-                    <select name="category" id="category" style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                        <option value="">Select Category</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat.id }}">{{ cat.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+            <!-- Amount -->
+            <div class="form-group">
+                <label class="required">Amount (GH₵)</label>
+                <input type="number" name="amount" id="amount" required step="0.01" min="0" 
+                       placeholder="0.00">
+                <small class="form-error" id="amountError"></small>
+                <small id="currencyDisplay" class="form-text" style="color: #22c55e;">GH₵ 0.00</small>
             </div>
             
-            <!-- Date and Vendor -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🗓️</span> Date <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="date" name="date" id="date" required 
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🏪</span> Vendor/Supplier
-                    </label>
-                    <input type="text" name="vendor" id="vendor" placeholder="Vendor or supplier name"
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
+            <!-- Category -->
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category" id="category">
+                    <option value="">Select Category</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Date -->
+            <div class="form-group">
+                <label class="required">Date</label>
+                <input type="date" name="date" id="date" required>
+                <small class="form-error" id="dateError"></small>
+            </div>
+            
+            <!-- Vendor -->
+            <div class="form-group">
+                <label>Vendor/Supplier</label>
+                <input type="text" name="vendor" id="vendor" placeholder="Vendor or supplier name">
             </div>
             
             <!-- Notes -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>📋</span> Notes
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Notes</label>
                 <textarea name="notes" id="notes" rows="3" 
-                          placeholder="Additional notes or payment details..."
-                          style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; resize: vertical; font-family: inherit; transition: all 0.2s;"
-                          onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                          onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'"></textarea>
+                          placeholder="Additional notes or payment details..."></textarea>
             </div>
         </div>
         
         <!-- Form Actions -->
-        <div style="display: flex; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2);">
-            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                <span style="margin-right: 0.5rem;">✓</span> Save Expense
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                💾 Save Expense
             </button>
-            <a href="{% url 'operations:expense_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                Cancel
+            <a href="{% url 'operations:expense_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
             </a>
         </div>
     </form>
@@ -113,24 +87,42 @@
 
 <script>
 function validateExpenseForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
     const description = document.getElementById('description').value.trim();
     const amount = document.getElementById('amount').value;
     const date = document.getElementById('date').value;
     
+    // Description validation
     if (!description) {
-        alert('Please enter a description');
-        return false;
-    }
-    if (!amount || parseFloat(amount) <= 0) {
-        alert('Please enter a valid amount');
-        return false;
-    }
-    if (!date) {
-        alert('Please select a date');
-        return false;
+        document.getElementById('description').classList.add('error');
+        document.getElementById('descriptionError').textContent = 'Please enter a description';
+        isValid = false;
     }
     
-    return true;
+    // Amount validation
+    if (!amount || parseFloat(amount) <= 0) {
+        document.getElementById('amount').classList.add('error');
+        document.getElementById('amountError').textContent = 'Please enter a valid amount greater than 0';
+        isValid = false;
+    }
+    
+    // Date validation
+    if (!date) {
+        document.getElementById('date').classList.add('error');
+        document.getElementById('dateError').textContent = 'Please select a date';
+        isValid = false;
+    }
+    
+    if (isValid) {
+        updateCurrencyDisplay();
+    }
+    
+    return isValid;
 }
 
 function updateCurrencyDisplay() {
@@ -142,5 +134,8 @@ function updateCurrencyDisplay() {
         display.textContent = 'GH₵ 0.00';
     }
 }
+
+// Update currency on amount change
+document.getElementById('amount').addEventListener('input', updateCurrencyDisplay);
 </script>
 {% endblock %}
