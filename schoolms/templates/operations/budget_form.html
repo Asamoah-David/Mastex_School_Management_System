@@ -24,34 +24,42 @@
     <form method="POST" id="budgetForm" onsubmit="return validateBudgetForm()">
         {% csrf_token %}
         <div class="form-grid-2">
-            <!-- Budget Title -->
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label class="required">📝 Budget Title</label>
-                <input type="text" name="title" id="title" required 
-                       placeholder="e.g. 2024 Academic Year Budget">
-                <small class="form-error" id="titleError"></small>
+            <!-- Category -->
+            <div class="form-group">
+                <label>📁 Category</label>
+                <select name="category" id="category">
+                    <option value="">Select Category</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             
-            <!-- Total Amount -->
+            <!-- Allocated Amount -->
             <div class="form-group">
-                <label class="required">💰 Total Amount (GH₵)</label>
-                <input type="number" name="total_amount" id="total_amount" required step="0.01" min="0" 
+                <label class="required">💰 Allocated Amount (GH₵)</label>
+                <input type="number" name="allocated_amount" id="allocated_amount" required step="0.01" min="0" 
                        placeholder="0.00">
                 <small class="form-error" id="amountError"></small>
                 <small id="budgetDisplay" class="form-text" style="color: #22c55e;">GH₵ 0.00</small>
             </div>
             
-            <!-- Period -->
+            <!-- Academic Year -->
             <div class="form-group">
-                <label>📅 Budget Period</label>
-                <input type="text" name="period" id="period" placeholder="e.g. 2024-2025 Academic Year">
+                <label class="required">📅 Academic Year</label>
+                <input type="text" name="academic_year" id="academic_year" required 
+                       placeholder="e.g. 2024-2025">
             </div>
             
-            <!-- Description -->
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label>📋 Description</label>
-                <textarea name="description" id="description" rows="3" 
-                          placeholder="Budget breakdown and details..."></textarea>
+            <!-- Term -->
+            <div class="form-group">
+                <label>🗓️ Term</label>
+                <select name="term" id="term">
+                    <option value="">All Terms</option>
+                    <option value="Term 1">Term 1</option>
+                    <option value="Term 2">Term 2</option>
+                    <option value="Term 3">Term 3</option>
+                </select>
             </div>
         </div>
         
@@ -72,6 +80,9 @@
 </div>
 
 <script>
+// Set default academic year to current year
+document.getElementById('academic_year').value = new Date().getFullYear() + '-' + (new Date().getFullYear() + 1);
+
 function validateBudgetForm() {
     let isValid = true;
     
@@ -79,26 +90,30 @@ function validateBudgetForm() {
     document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
     document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
     
-    const title = document.getElementById('title').value.trim();
-    const totalAmount = document.getElementById('total_amount').value;
+    const academicYear = document.getElementById('academic_year').value.trim();
+    const allocatedAmount = document.getElementById('allocated_amount').value;
     
-    if (!title) {
-        document.getElementById('title').classList.add('error');
-        document.getElementById('titleError').textContent = 'Please enter a budget title';
+    if (!academicYear) {
+        document.getElementById('academic_year').classList.add('error');
+        document.getElementById('academic_yearError').textContent = 'Please enter an academic year';
         isValid = false;
     }
     
-    if (!totalAmount || parseFloat(totalAmount) <= 0) {
-        document.getElementById('total_amount').classList.add('error');
+    if (!allocatedAmount || parseFloat(allocatedAmount) <= 0) {
+        document.getElementById('allocated_amount').classList.add('error');
         document.getElementById('amountError').textContent = 'Please enter a valid budget amount';
         isValid = false;
+    }
+    
+    if (isValid) {
+        updateBudgetDisplay();
     }
     
     return isValid;
 }
 
 function updateBudgetDisplay() {
-    const amount = document.getElementById('total_amount').value;
+    const amount = document.getElementById('allocated_amount').value;
     const display = document.getElementById('budgetDisplay');
     if (amount && !isNaN(amount)) {
         display.textContent = 'GH₵ ' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -108,6 +123,6 @@ function updateBudgetDisplay() {
 }
 
 // Update currency on amount change
-document.getElementById('total_amount').addEventListener('input', updateBudgetDisplay);
+document.getElementById('allocated_amount').addEventListener('input', updateBudgetDisplay);
 </script>
 {% endblock %}

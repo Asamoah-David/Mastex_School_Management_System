@@ -26,7 +26,7 @@
         <div class="form-grid-2">
             <!-- Description -->
             <div class="form-group" style="grid-column: 1 / -1;">
-                <label class="required">Description</label>
+                <label class="required">📝 Description</label>
                 <input type="text" name="description" id="description" required 
                        placeholder="e.g. Office supplies, Cleaning services, Repairs">
                 <small class="form-error" id="descriptionError"></small>
@@ -34,7 +34,7 @@
             
             <!-- Amount -->
             <div class="form-group">
-                <label class="required">Amount (GH₵)</label>
+                <label class="required">💰 Amount (GH₵)</label>
                 <input type="number" name="amount" id="amount" required step="0.01" min="0" 
                        placeholder="0.00">
                 <small class="form-error" id="amountError"></small>
@@ -43,7 +43,7 @@
             
             <!-- Category -->
             <div class="form-group">
-                <label>Category</label>
+                <label>📁 Category</label>
                 <select name="category" id="category">
                     <option value="">Select Category</option>
                     {% for cat in categories %}
@@ -52,24 +52,34 @@
                 </select>
             </div>
             
-            <!-- Date -->
+            <!-- Expense Date -->
             <div class="form-group">
-                <label class="required">Date</label>
-                <input type="date" name="date" id="date" required>
-                <small class="form-error" id="dateError"></small>
+                <label class="required">📅 Date</label>
+                <input type="date" name="expense_date" id="expense_date" required>
+                <small class="form-error" id="expense_dateError"></small>
             </div>
             
             <!-- Vendor -->
             <div class="form-group">
-                <label>Vendor/Supplier</label>
+                <label>🏪 Vendor/Supplier</label>
                 <input type="text" name="vendor" id="vendor" placeholder="Vendor or supplier name">
             </div>
             
-            <!-- Notes -->
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label>Notes</label>
-                <textarea name="notes" id="notes" rows="3" 
-                          placeholder="Additional notes or payment details..."></textarea>
+            <!-- Payment Method -->
+            <div class="form-group">
+                <label>💳 Payment Method</label>
+                <select name="payment_method" id="payment_method">
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="mobile_money">Mobile Money</option>
+                    <option value="cheque">Cheque</option>
+                </select>
+            </div>
+            
+            <!-- Receipt Number -->
+            <div class="form-group">
+                <label>🧾 Receipt Number</label>
+                <input type="text" name="receipt_number" id="receipt_number" placeholder="Receipt/Invoice number">
             </div>
         </div>
         
@@ -86,6 +96,9 @@
 </div>
 
 <script>
+// Set default date to today
+document.getElementById('expense_date').valueAsDate = new Date();
+
 function validateExpenseForm() {
     let isValid = true;
     
@@ -95,7 +108,7 @@ function validateExpenseForm() {
     
     const description = document.getElementById('description').value.trim();
     const amount = document.getElementById('amount').value;
-    const date = document.getElementById('date').value;
+    const expense_date = document.getElementById('expense_date').value;
     
     // Description validation
     if (!description) {
@@ -112,9 +125,9 @@ function validateExpenseForm() {
     }
     
     // Date validation
-    if (!date) {
-        document.getElementById('date').classList.add('error');
-        document.getElementById('dateError').textContent = 'Please select a date';
+    if (!expense_date) {
+        document.getElementById('expense_date').classList.add('error');
+        document.getElementById('expense_dateError').textContent = 'Please select a date';
         isValid = false;
     }
     
