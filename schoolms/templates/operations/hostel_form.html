@@ -23,86 +23,60 @@
     
     <form method="POST" id="hostelForm" onsubmit="return validateHostelForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="form-grid-2">
             <!-- Hostel Name -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>🏢</span> Hostel Name <span style="color: #ef4444;">*</span>
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">🏢 Hostel Name</label>
                 <input type="text" name="name" id="name" required 
-                       placeholder="e.g. Boys Hostel A, Girls Dormitory" 
-                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                       placeholder="e.g. Boys Hostel A, Girls Dormitory">
+                <small class="form-error" id="nameError"></small>
             </div>
             
-            <!-- Type and Total Beds -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>👥</span> Type <span style="color: #ef4444;">*</span>
-                    </label>
-                    <select name="type" id="type" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                        <option value="">Select Type</option>
-                        <option value="boys">Boys Hostel</option>
-                        <option value="girls">Girls Hostel</option>
-                        <option value="mixed">Mixed</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🛏️</span> Total Beds
-                    </label>
-                    <input type="number" name="total_beds" id="total_beds" value="50" min="1" max="500"
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
+            <!-- Type -->
+            <div class="form-group">
+                <label class="required">👥 Type</label>
+                <select name="type" id="type" required>
+                    <option value="">Select Type</option>
+                    <option value="boys">Boys Hostel</option>
+                    <option value="girls">Girls Hostel</option>
+                    <option value="mixed">Mixed</option>
+                </select>
+                <small class="form-error" id="typeError"></small>
             </div>
             
-            <!-- Warden Info -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>👨‍🏫</span> Warden Name
-                    </label>
-                    <input type="text" name="warden_name" id="warden_name" placeholder="Hostel warden's name"
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>📞</span> Warden Phone
-                    </label>
-                    <input type="tel" name="warden_phone" id="warden_phone" placeholder="Warden's contact number"
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
+            <!-- Total Beds -->
+            <div class="form-group">
+                <label>🛏️ Total Beds</label>
+                <input type="number" name="total_beds" id="total_beds" value="50" min="1" max="500">
+            </div>
+            
+            <!-- Warden Name -->
+            <div class="form-group">
+                <label>👨‍🏫 Warden Name</label>
+                <input type="text" name="warden_name" id="warden_name" placeholder="Hostel warden's name">
+            </div>
+            
+            <!-- Warden Phone -->
+            <div class="form-group">
+                <label>📞 Warden Phone</label>
+                <input type="tel" name="warden_phone" id="warden_phone" placeholder="Warden's contact number">
             </div>
             
             <!-- Fee Per Term -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>💰</span> Fee Per Term (GH₵)
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>💰 Fee Per Term (GH₵)</label>
                 <input type="number" name="fee_per_term" id="fee_per_term" step="0.01" min="0" value="0.00"
-                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateFeeDisplay()">
-                <small id="feeDisplay" style="color: var(--accent); font-size: 0.75rem; margin-top: 0.25rem; display: block;">GH₵ 0.00 per term</small>
+                       placeholder="0.00">
+                <small id="feeDisplay" class="form-text" style="color: #22c55e;">GH₵ 0.00 per term</small>
             </div>
         </div>
         
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                <span style="margin-right: 0.5rem;">✓</span> Create Hostel
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                💾 Create Hostel
             </button>
-            <a href="{% url 'operations:hostel_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                Cancel
+            <a href="{% url 'operations:hostel_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
             </a>
         </div>
     </form>
@@ -110,19 +84,32 @@
 
 <script>
 function validateHostelForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
     const name = document.getElementById('name').value.trim();
     const type = document.getElementById('type').value;
     
     if (!name) {
-        alert('Please enter a hostel name');
-        return false;
-    }
-    if (!type) {
-        alert('Please select a hostel type');
-        return false;
+        document.getElementById('name').classList.add('error');
+        document.getElementById('nameError').textContent = 'Please enter a hostel name';
+        isValid = false;
     }
     
-    return true;
+    if (!type) {
+        document.getElementById('type').classList.add('error');
+        document.getElementById('typeError').textContent = 'Please select a hostel type';
+        isValid = false;
+    }
+    
+    if (isValid) {
+        updateFeeDisplay();
+    }
+    
+    return isValid;
 }
 
 function updateFeeDisplay() {
@@ -134,5 +121,8 @@ function updateFeeDisplay() {
         display.textContent = 'GH₵ 0.00 per term';
     }
 }
+
+// Update fee display on change
+document.getElementById('fee_per_term').addEventListener('input', updateFeeDisplay);
 </script>
 {% endblock %}
