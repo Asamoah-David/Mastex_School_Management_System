@@ -1003,9 +1003,9 @@ def report_card_view(request, student_id):
     from operations.models import StudentAttendance
     attendance_qs = StudentAttendance.objects.filter(student=student)
     if term_id:
-        # Filter by term date range (approximate)
+        # Filter by term date range (approximate) - only if term has valid dates
         term = terms.filter(id=term_id).first()
-        if term:
+        if term and term.start_date and term.end_date:
             attendance_qs = attendance_qs.filter(date__gte=term.start_date, date__lte=term.end_date)
     total_days = attendance_qs.count()
     present_days = attendance_qs.filter(status="present").count()
