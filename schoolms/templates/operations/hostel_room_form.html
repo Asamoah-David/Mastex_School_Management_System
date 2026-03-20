@@ -23,65 +23,55 @@
     
     <form method="POST" id="roomForm" onsubmit="return validateRoomForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="form-grid-2">
             <!-- Room Number -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>🚪</span> Room Number <span style="color: #ef4444;">*</span>
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">🚪 Room Number</label>
                 <input type="text" name="room_number" id="room_number" required 
-                       placeholder="e.g. 101, A1, GROUND-01" 
-                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+                       placeholder="e.g. 101, A1, GROUND-01">
+                <small class="form-error" id="roomError"></small>
             </div>
             
-            <!-- Floor and Beds -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🏢</span> Floor <span style="color: #ef4444;">*</span>
-                    </label>
-                    <select name="floor" id="floor" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                        <option value="1">Ground Floor (1)</option>
-                        <option value="2">Floor 2</option>
-                        <option value="3">Floor 3</option>
-                        <option value="4">Floor 4</option>
-                        <option value="5">Floor 5</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🛏️</span> Total Beds <span style="color: #ef4444;">*</span>
-                    </label>
-                    <select name="total_beds" id="total_beds" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                        <option value="2">2 Beds</option>
-                        <option value="4" selected>4 Beds</option>
-                        <option value="6">6 Beds</option>
-                        <option value="8">8 Beds</option>
-                    </select>
-                </div>
+            <!-- Floor -->
+            <div class="form-group">
+                <label class="required">🏢 Floor</label>
+                <select name="floor" id="floor" required>
+                    <option value="">Select Floor</option>
+                    <option value="1">Ground Floor (1)</option>
+                    <option value="2">Floor 2</option>
+                    <option value="3">Floor 3</option>
+                    <option value="4">Floor 4</option>
+                    <option value="5">Floor 5</option>
+                </select>
+                <small class="form-error" id="floorError"></small>
             </div>
             
-            <!-- Hostel Info -->
-            <div style="padding: 1rem; border-radius: 0.75rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3);">
-                <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;">
-                    <strong>Hostel:</strong> {{ hostel.name }} ({{ hostel.type|title }})<br>
-                    <strong>Current Occupancy:</strong> {{ hostel.current_occupancy|default:"0" }} students
-                </p>
+            <!-- Total Beds -->
+            <div class="form-group">
+                <label class="required">🛏️ Total Beds</label>
+                <select name="total_beds" id="total_beds" required>
+                    <option value="">Select Beds</option>
+                    <option value="2">2 Beds</option>
+                    <option value="4" selected>4 Beds</option>
+                    <option value="6">6 Beds</option>
+                    <option value="8">8 Beds</option>
+                </select>
+                <small class="form-error" id="bedsError"></small>
             </div>
         </div>
         
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                <span style="margin-right: 0.5rem;">✓</span> Create Room
+        <!-- Hostel Info -->
+        <div class="info-box">
+            <strong>🏢 Hostel:</strong> {{ hostel.name }} ({{ hostel.type|title }})<br>
+            <strong>👥 Current Occupancy:</strong> {{ hostel.current_occupancy|default:"0" }} students
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                💾 Create Room
             </button>
-            <a href="{% url 'operations:hostel_rooms' hostel.id %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                Cancel
+            <a href="{% url 'operations:hostel_rooms' hostel.id %}" class="btn btn-secondary">
+                ↩️ Cancel
             </a>
         </div>
     </form>
@@ -89,24 +79,35 @@
 
 <script>
 function validateRoomForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
     const roomNumber = document.getElementById('room_number').value.trim();
     const floor = document.getElementById('floor').value;
     const totalBeds = document.getElementById('total_beds').value;
     
     if (!roomNumber) {
-        alert('Please enter a room number');
-        return false;
-    }
-    if (!floor) {
-        alert('Please select a floor');
-        return false;
-    }
-    if (!totalBeds || parseInt(totalBeds) < 1) {
-        alert('Please select number of beds');
-        return false;
+        document.getElementById('room_number').classList.add('error');
+        document.getElementById('roomError').textContent = 'Please enter a room number';
+        isValid = false;
     }
     
-    return true;
+    if (!floor) {
+        document.getElementById('floor').classList.add('error');
+        document.getElementById('floorError').textContent = 'Please select a floor';
+        isValid = false;
+    }
+    
+    if (!totalBeds || parseInt(totalBeds) < 1) {
+        document.getElementById('total_beds').classList.add('error');
+        document.getElementById('bedsError').textContent = 'Please select number of beds';
+        isValid = false;
+    }
+    
+    return isValid;
 }
 </script>
 {% endblock %}

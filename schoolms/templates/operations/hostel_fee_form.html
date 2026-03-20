@@ -23,77 +23,64 @@
     
     <form method="POST" id="feeForm" onsubmit="return validateFeeForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="form-grid-2">
             <!-- Student Selection -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>👨‍🎓</span> Student <span style="color: #ef4444;">*</span>
-                </label>
-                <select name="student" id="student" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">👨‍🎓 Student</label>
+                <select name="student" id="student" required>
                     <option value="">Select Student</option>
                     {% for student in students %}
                     <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.class_name }})</option>
                     {% endfor %}
                 </select>
+                <small class="form-error" id="studentError"></small>
             </div>
             
-            <!-- Hostel and Term -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🏢</span> Hostel <span style="color: #ef4444;">*</span>
-                    </label>
-                    <select name="hostel" id="hostel" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateFeeAmount()">
-                        <option value="">Select Hostel</option>
-                        {% for hostel in hostels %}
-                        <option value="{{ hostel.id }}" data-fee="{{ hostel.fee_per_term }}">{{ hostel.name }} (GH₵{{ hostel.fee_per_term|floatformat:2 }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>📅</span> Term <span style="color: #ef4444;">*</span>
-                    </label>
-                    <select name="term" id="term" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                            onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                            onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                        <option value="">Select Term</option>
-                        <option value="Term 1">Term 1</option>
-                        <option value="Term 2">Term 2</option>
-                        <option value="Term 3">Term 3</option>
-                    </select>
-                </div>
+            <!-- Hostel -->
+            <div class="form-group">
+                <label class="required">🏢 Hostel</label>
+                <select name="hostel" id="hostel" required>
+                    <option value="">Select Hostel</option>
+                    {% for hostel in hostels %}
+                    <option value="{{ hostel.id }}" data-fee="{{ hostel.fee_per_term }}">{{ hostel.name }} (GH₵{{ hostel.fee_per_term|floatformat:2 }})</option>
+                    {% endfor %}
+                </select>
+                <small class="form-error" id="hostelError"></small>
+            </div>
+            
+            <!-- Term -->
+            <div class="form-group">
+                <label class="required">📅 Term</label>
+                <select name="term" id="term" required>
+                    <option value="">Select Term</option>
+                    <option value="Term 1">Term 1</option>
+                    <option value="Term 2">Term 2</option>
+                    <option value="Term 3">Term 3</option>
+                </select>
+                <small class="form-error" id="termError"></small>
             </div>
             
             <!-- Amount -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>💰</span> Amount (GH₵) <span style="color: #ef4444;">*</span>
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">💰 Amount (GH₵)</label>
                 <input type="number" name="amount" id="amount" required step="0.01" min="0" value="0.00"
-                       style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                       onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                       onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; updateAmountDisplay()">
-                <small id="amountDisplay" style="color: var(--accent); font-size: 0.75rem; margin-top: 0.25rem; display: block;">GH₵ 0.00</small>
-            </div>
-            
-            <!-- Fee Summary Card -->
-            <div style="padding: 1rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1)); border: 1px solid rgba(245, 158, 11, 0.3);">
-                <h4 style="margin: 0 0 0.5rem; color: #f59e0b;">💡 Fee Information</h4>
-                <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;">Select a hostel to auto-fill the fee amount. You can adjust the amount if needed.</p>
+                       placeholder="0.00">
+                <small class="form-error" id="amountError"></small>
+                <small id="amountDisplay" class="form-text" style="color: #22c55e;">GH₵ 0.00</small>
             </div>
         </div>
         
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                <span style="margin-right: 0.5rem;">✓</span> Save Fee
+        <!-- Fee Info Box -->
+        <div class="info-box">
+            <strong>💡 Fee Information:</strong> Select a hostel to auto-fill the fee amount. You can adjust the amount if needed.
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                💾 Save Fee
             </button>
-            <a href="{% url 'operations:hostel_fees' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                Cancel
+            <a href="{% url 'operations:hostel_fees' %}" class="btn btn-secondary">
+                ↩️ Cancel
             </a>
         </div>
     </form>
@@ -101,29 +88,42 @@
 
 <script>
 function validateFeeForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
     const student = document.getElementById('student').value;
     const hostel = document.getElementById('hostel').value;
     const term = document.getElementById('term').value;
     const amount = document.getElementById('amount').value;
     
     if (!student) {
-        alert('Please select a student');
-        return false;
-    }
-    if (!hostel) {
-        alert('Please select a hostel');
-        return false;
-    }
-    if (!term) {
-        alert('Please select a term');
-        return false;
-    }
-    if (!amount || parseFloat(amount) <= 0) {
-        alert('Please enter a valid amount');
-        return false;
+        document.getElementById('student').classList.add('error');
+        document.getElementById('studentError').textContent = 'Please select a student';
+        isValid = false;
     }
     
-    return true;
+    if (!hostel) {
+        document.getElementById('hostel').classList.add('error');
+        document.getElementById('hostelError').textContent = 'Please select a hostel';
+        isValid = false;
+    }
+    
+    if (!term) {
+        document.getElementById('term').classList.add('error');
+        document.getElementById('termError').textContent = 'Please select a term';
+        isValid = false;
+    }
+    
+    if (!amount || parseFloat(amount) <= 0) {
+        document.getElementById('amount').classList.add('error');
+        document.getElementById('amountError').textContent = 'Please enter a valid amount';
+        isValid = false;
+    }
+    
+    return isValid;
 }
 
 function updateFeeAmount() {
@@ -150,5 +150,9 @@ function updateAmountDisplay() {
         display.textContent = 'GH₵ 0.00';
     }
 }
+
+// Event listeners
+document.getElementById('hostel').addEventListener('change', updateFeeAmount);
+document.getElementById('amount').addEventListener('input', updateAmountDisplay);
 </script>
 {% endblock %}

@@ -13,41 +13,91 @@
 {% endif %}
 
 <div class="content-card">
-    <form method="POST">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #6366f1, #4f46e5); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">📦</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Add Inventory Item</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Add a new item to school inventory</p>
+        </div>
+    </div>
+    
+    <form method="POST" id="inventoryForm" onsubmit="return validateForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Item Name *</label>
-                <input type="text" name="name" required placeholder="e.g. Whiteboard Markers, Desk" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+        <div class="form-grid-2">
+            <!-- Item Name -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">📦 Item Name</label>
+                <input type="text" name="name" id="name" required placeholder="e.g. Whiteboard Markers, Desk">
+                <small class="form-error" id="nameError"></small>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Category</label>
-                <select name="category" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            
+            <!-- Category -->
+            <div class="form-group">
+                <label>📁 Category</label>
+                <select name="category" id="category">
                     <option value="">Select Category</option>
                     {% for cat in categories %}
                     <option value="{{ cat.id }}">{{ cat.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Quantity *</label>
-                    <input type="number" name="quantity" required min="0" value="1" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Location</label>
-                    <input type="text" name="location" placeholder="e.g. Store Room, Class 1" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                </div>
+            
+            <!-- Quantity -->
+            <div class="form-group">
+                <label class="required">🔢 Quantity</label>
+                <input type="number" name="quantity" id="quantity" required min="0" value="1">
+                <small class="form-error" id="quantityError"></small>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Description</label>
-                <textarea name="description" rows="2" placeholder="Item description (optional)" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            
+            <!-- Location -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📍 Location</label>
+                <input type="text" name="location" id="location" placeholder="e.g. Store Room, Class 1">
+            </div>
+            
+            <!-- Description -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📝 Description</label>
+                <textarea name="description" id="description" rows="2" 
+                          placeholder="Item description (optional)"></textarea>
             </div>
         </div>
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Add Item</button>
-            <a href="{% url 'operations:inventory_item_list' %}" class="btn btn-secondary">Cancel</a>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                💾 Add Item
+            </button>
+            <a href="{% url 'operations:inventory_item_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
+            </a>
         </div>
     </form>
 </div>
+
+<script>
+function validateForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
+    const name = document.getElementById('name').value.trim();
+    const quantity = document.getElementById('quantity').value;
+    
+    if (!name) {
+        document.getElementById('name').classList.add('error');
+        document.getElementById('nameError').textContent = 'Please enter an item name';
+        isValid = false;
+    }
+    
+    if (!quantity || parseInt(quantity) < 0) {
+        document.getElementById('quantity').classList.add('error');
+        document.getElementById('quantityError').textContent = 'Please enter a valid quantity';
+        isValid = false;
+    }
+    
+    return isValid;
+}
+</script>
 {% endblock %}
