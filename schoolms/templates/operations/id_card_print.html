@@ -29,7 +29,13 @@
         
         <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px;">
             <p style="margin: 2px 0;">Valid: {{ id_card.issue_date|date:"M Y" }} - {{ id_card.expiry_date|date:"M Y" }}</p>
-            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.emergency_contact_phone|default:id_card.student.parent.phone|default:"N/A" }}</p>
+            {% if id_card.student.emergency_contact_phone %}
+            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.emergency_contact_phone }}</p>
+            {% elif id_card.student.parent and id_card.student.parent.phone %}
+            <p style="margin: 2px 0;">Emergency Contact: {{ id_card.student.parent.phone }}</p>
+            {% else %}
+            <p style="margin: 2px 0;">Emergency Contact: N/A</p>
+            {% endif %}
         </div>
     </div>
     
