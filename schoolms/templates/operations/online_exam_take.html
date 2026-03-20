@@ -21,6 +21,17 @@
         </div>
     </div>
     
+    <!-- Timer Display -->
+    <div id="timerCard" style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 1rem; padding: 1rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; color: white;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.5rem;">⏱️</span>
+            <span style="font-size: 1rem; font-weight: 500;">Time Remaining:</span>
+        </div>
+        <div id="timerDisplay" style="font-size: 1.5rem; font-weight: 700; font-family: monospace;">
+            {{ exam.duration_minutes }}:00
+        </div>
+    </div>
+    
     <div style="background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; text-align: center;">
             <div>
@@ -80,10 +91,10 @@
         </div>
         
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-lg">
+            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
                 📤 Submit Exam
             </button>
-            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">
+            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary" id="cancelBtn">
                 ↩️ Cancel
             </a>
         </div>
@@ -95,4 +106,95 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+// Countdown Timer
+const durationMinutes = {{ exam.duration_minutes }};
+let totalSeconds = durationMinutes * 60;
+let timerInterval;
+let isSubmitted = false;
+
+const timerDisplay = document.getElementById('timerDisplay');
+const timerCard = document.getElementById('timerCard');
+const examForm = document.getElementById('examForm');
+const submitBtn = document.getElementById('submitBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+
+function updateTimer() {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    // Warning colors
+    if (totalSeconds <= 60) {
+        timerCard.style.background = 'linear-gradient(135deg, #dc2626, #ef4444)';
+        timerDisplay.style.color = '#fff';
+    } else if (totalSeconds <= 300) {
+        timerCard.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
+    }
+    
+    if (totalSeconds <= 0) {
+        clearInterval(timerInterval);
+        autoSubmit();
+    }
+    
+    totalSeconds--;
+}
+
+function autoSubmit() {
+    if (!isSubmitted) {
+        isSubmitted = true;
+        examForm.submit();
+    }
+}
+
+function confirmSubmit() {
+    const unanswered = [];
+    const radios = document.querySelectorAll('input[type="radio"]');
+    const questionIds = [...new Set([...radios].map(r => r.name))];
+    
+    questionIds.forEach(qId => {
+        const checked = document.querySelector(`input[name="${qId}"]:checked`);
+        if (!checked) {
+            unanswered.push(qId);
+        }
+    });
+    
+    if (unanswered.length > 0) {
+        const confirmMsg = `You have ${unanswered.length} unanswered question(s). Are you sure you want to submit?`;
+        if (!confirm(confirmMsg)) {
+            return false;
+        }
+    }
+    
+    if (!isSubmitted) {
+        isSubmitted = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        return true;
+    }
+    return false;
+}
+
+// Disable cancel button when submitting
+if (cancelBtn) {
+    cancelBtn.addEventListener('click', function(e) {
+        if (!confirm('Are you sure you want to cancel? Your progress will be lost.')) {
+            e.preventDefault();
+        }
+    });
+}
+
+// Start the timer
+timerInterval = setInterval(updateTimer, 1000);
+updateTimer();
+
+// Confirm before leaving page
+window.addEventListener('beforeunload', function(e) {
+    if (!isSubmitted) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+</script>
 {% endblock %}
