@@ -15,13 +15,13 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 | **Super Admin** | Platform Dashboard | Schools, Django Admin, Activity Log |
 | **School Admin** | School Dashboard | All school features - Academics, Users, Finance, Operations |
 | **Deputy Head/HOD** | School Dashboard | Staff, Students, Attendance, Discipline |
-| **Teacher** | School Dashboard | **NEW: Quizzes, Online Exams, Create Quiz/Exam**, Attendance, Homework, Timetable |
+| **Teacher** | School Dashboard | **Quizzes, Online Exams, Create Quiz/Exam**, Attendance, Homework, Timetable |
 | **Accountant** | School Dashboard | Finance, Fee Structure, Expenses, Budget |
 | **Librarian** | School Dashboard | Library Books, Book Issues |
 | **Admission Officer** | School Dashboard | Admissions, Students, Documents |
 | **School Nurse** | School Dashboard | Health Records, Health Visits |
 | **Admin Assistant** | School Dashboard | Inventory, Announcements, Documents |
-| **Student** | My Portal | **NEW: Quizzes, Online Exams, My Submissions**, My Results, Homework, Library Books, Hostel, Sports & Clubs |
+| **Student** | My Portal | **Quizzes, Online Exams, My Submissions**, My Results, Homework, Library Books, Hostel, Sports & Clubs |
 | **Parent** | My Children | Results, Fees, PT Meetings, Announcements |
 
 ---
@@ -52,7 +52,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 3. **Staff / Teachers**  
    - Access: `/dashboard`  
    - User has `role=teacher` and `school` set.  
-   - **NEW: Can create Quizzes and Online Exams** for their classes.
+   - **Can create Quizzes and Online Exams** for their classes.
 
 4. **Parents**  
    - Access: `/portal`  
@@ -60,7 +60,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 
 5. **Students**  
    - Access: `/portal`  
-   - **NEW: Can take Quizzes and Online Exams** - sees their own student record with all academic features.
+   - **Can take Quizzes and Online Exams** - sees their own student record with all academic features.
 
 ---
 
@@ -86,16 +86,44 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
   - Books: `/operations/textbooks/`  
   - Sales: `/operations/textbooks/sales/`
 
-All operations are filtered by `request.user.school` (school admin/teacher). Canteen/bus/textbook **records** are created in Django Admin for now; list and payment/sale views are in the dashboard.
+### 3. Academic Features
+- **Online Exams** – Create exams with questions, publish when ready, countdown timer for students
+- **Quizzes** – Create quizzes with questions, students can take quizzes
+- **Homework** – Create homework assignments, students can submit
+- **Report Cards** – Generate and view student report cards
+- **Results** – Enter and manage student exam results
+- **Timetable** – View class timetables
 
-### 3. Models added
-- **Student**: `class_name`, `date_enrolled` (optional).
-- **operations** app: `StudentAttendance`, `CanteenItem`, `CanteenPayment`, `BusRoute`, `BusPayment`, `Textbook`, `TextbookSale`.
+### 4. School Management Operations
+- **Events** – Create school events with type, audience, date/time
+- **Clubs & Sports** – Manage school clubs and sports activities
+- **Hostel** – Manage hostel rooms, fees, and assignments
+- **Library** – Manage books, catalog, and book issues
+- **Announcements** – Post announcements for school community
+- **Documents** – Upload and manage school documents
 
-### 4. Portals & login
-- **Login** – Role-based redirect: parent/student → `/portal`; admin/teacher → `/dashboard` (home).
-- **Portal** – `/portal`: parents see children; students see own info with all academic features.
-- **Dashboard** – School-scoped when `user.school` is set: sidebar shows Staff, Students, Attendance, Canteen, Bus, Textbooks. Platform admin (no school) sees Schools, Students, Fees, Django Admin.
+### 5. Financial Management
+- **Expenses** – Record school expenses with categories
+- **Budget** – Create and manage school budgets
+- **Fee Structure** – Define fee structures per class/term
+- **Inventory** – Track school inventory items
+
+### 6. Health & Safety
+- **Health Records** – Student health records and allergies
+- **Health Visits** – Track health clinic visits
+- **Discipline** – Student discipline records and behavior points
+
+### 7. Communication
+- **Messages** – Send messages to parents/students
+- **PT Meetings** – Parent-Teacher meeting scheduling
+
+### 8. Identity & Records
+- **ID Cards** – Generate and print student ID cards
+- **Certificates** – Generate school certificates
+- **Admission** – Student admission application and approval
+- **Alumni** – Track alumni events and alumni records
+
+All operations are filtered by `request.user.school` (school admin/teacher).
 
 ---
 
@@ -107,7 +135,7 @@ All operations are filtered by `request.user.school` (school admin/teacher). Can
 - AI assistant module  
 - Role-based access (admin, teacher, student, parent)  
 - Professional UI (Mastex branding, login, dashboard, sidebar)
-- **Online Quizzes & Exams** (Students can take, Teachers can create)
+- **Online Quizzes & Exams** with countdown timer
 - **Multi-school admission** with school selection dropdown
 
 ---
@@ -117,7 +145,6 @@ All operations are filtered by `request.user.school` (school admin/teacher). Can
 - **School registration page** – Public form for new schools to sign up (create School + first admin).
 - **Parent payment portal** – Pay fees from `/portal` (e.g. Flutterwave/Paystack).
 - **SMS notifications** – Already integrated; wire to payment confirmations and announcements.
-- **Add/edit canteen, bus, textbook from dashboard** – Currently add via Django Admin; optional forms in app.
 
 ---
 
@@ -155,5 +182,5 @@ All operations are filtered by `request.user.school` (school admin/teacher). Can
 ## Last Updated
 
 **Navigation Audit Completed:** March 19, 2026  
-**Commit:** 073dc66 - Enhanced navigation for all user roles  
+**Commit:** 4283f31 - Add countdown timer to online exam  
 **GitHub:** https://github.com/Asamoah-David/Mastex_School_Management_System
