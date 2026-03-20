@@ -72,6 +72,12 @@ def _get_school(request):
     return getattr(request.user, "school", None)
 
 
+def _user_can_manage_school(request):
+    """Check if user can manage school (admin or superuser)."""
+    from accounts.permissions import user_can_manage_school
+    return request.user.is_superuser or user_can_manage_school(request.user)
+
+
 @login_required
 def _require_school(request):
     school = _get_school(request)
@@ -3455,11 +3461,15 @@ def school_event_list(request):
     if not school:
         return redirect('home')
     
+    role = getattr(request.user, 'role', None)
+    can_manage = _user_can_manage_school(request)
+    
     events = SchoolEvent.objects.filter(school=school).order_by('-start_date')[:100]
     
     return render(request, 'operations/school_event_list.html', {
         'events': events,
-        'school': school
+        'school': school,
+        'can_manage': can_manage
     })
 
 
