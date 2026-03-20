@@ -32,24 +32,41 @@
                 <small class="form-error" id="titleError"></small>
             </div>
             
-            <!-- Description -->
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label>📝 Description</label>
-                <textarea name="description" id="description" rows="3" 
-                          placeholder="Event description and details..."></textarea>
+            <!-- Event Type -->
+            <div class="form-group">
+                <label>🏷️ Event Type</label>
+                <select name="event_type" id="event_type">
+                    <option value="academic">Academic</option>
+                    <option value="sports">Sports</option>
+                    <option value="cultural">Cultural</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="holiday">Holiday</option>
+                    <option value="other">Other</option>
+                </select>
             </div>
             
-            <!-- Date -->
+            <!-- Target Audience -->
             <div class="form-group">
-                <label class="required">📅 Date</label>
-                <input type="date" name="event_date" id="event_date" required>
-                <small class="form-error" id="dateError"></small>
+                <label>👥 Target Audience</label>
+                <select name="target_audience" id="target_audience">
+                    <option value="all">All</option>
+                    <option value="students">Students Only</option>
+                    <option value="staff">Staff Only</option>
+                    <option value="parents">Parents Only</option>
+                </select>
             </div>
             
-            <!-- Time -->
+            <!-- Start Date -->
             <div class="form-group">
-                <label>🕐 Time</label>
-                <input type="time" name="event_time" id="event_time">
+                <label class="required">📅 Start Date & Time</label>
+                <input type="datetime-local" name="start_date" id="start_date" required>
+                <small class="form-error" id="start_dateError"></small>
+            </div>
+            
+            <!-- End Date -->
+            <div class="form-group">
+                <label>🛑 End Date & Time</label>
+                <input type="datetime-local" name="end_date" id="end_date">
             </div>
             
             <!-- Location -->
@@ -57,6 +74,21 @@
                 <label>📍 Location</label>
                 <input type="text" name="location" id="location" 
                        placeholder="Event venue">
+            </div>
+            
+            <!-- Description -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📝 Description</label>
+                <textarea name="description" id="description" rows="3" 
+                          placeholder="Event description and details..."></textarea>
+            </div>
+            
+            <!-- Mandatory -->
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="is_mandatory" id="is_mandatory">
+                    ⭐ Mandatory Attendance
+                </label>
             </div>
         </div>
         
@@ -72,6 +104,11 @@
 </div>
 
 <script>
+// Set default date to today
+const now = new Date();
+now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+document.getElementById('start_date').value = now.toISOString().slice(0, 16);
+
 function validateEventForm() {
     let isValid = true;
     
@@ -80,7 +117,7 @@ function validateEventForm() {
     document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
     
     const title = document.getElementById('title').value.trim();
-    const eventDate = document.getElementById('event_date').value;
+    const startDate = document.getElementById('start_date').value;
     
     if (!title) {
         document.getElementById('title').classList.add('error');
@@ -88,9 +125,9 @@ function validateEventForm() {
         isValid = false;
     }
     
-    if (!eventDate) {
-        document.getElementById('event_date').classList.add('error');
-        document.getElementById('dateError').textContent = 'Please select an event date';
+    if (!startDate) {
+        document.getElementById('start_date').classList.add('error');
+        document.getElementById('start_dateError').textContent = 'Please select a start date and time';
         isValid = false;
     }
     
