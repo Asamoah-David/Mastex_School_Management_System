@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Take Exam - {{ exam.title }}{% endblock %}
+{% block page_title %}{{ exam.title }}{% endblock %}
+{% block page_subtitle %}Online Exam{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">💻</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">{{ exam.title }}</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Online Exam - Answer all questions</p>
+        </div>
+    </div>
+    
+    <div style="background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; text-align: center;">
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">📚 Subject</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 600;">{{ exam.subject.name }}</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">⏱️ Duration</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 600;">{{ exam.duration_minutes }} min</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">🎯 Total Marks</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 600;">{{ exam.total_marks }}</p>
+            </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">✅ Passing</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 600;">{{ exam.passing_marks }}</p>
+            </div>
+        </div>
+    </div>
+    
+    {% if questions %}
+    <form method="POST" id="examForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="submit_exam">
+        
+        <div style="counter-reset: question; padding: 1rem 0;">
+            {% for question in questions %}
+            <div style="background: rgba(30, 41, 59, 0.3); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">
+                <div style="margin-bottom: 1rem;">
+                    <span style="background: #3b82f6; color: white; padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.85rem; margin-right: 0.5rem;">Question {{ forloop.counter }}</span>
+                    <span style="color: #22c55e; font-size: 0.85rem;">{{ question.marks }} marks</span>
+                </div>
+                
+                <p style="font-size: 1rem; margin-bottom: 1rem; color: var(--text-main);">{{ question.question_text }}</p>
+                
+                <div style="display: grid; gap: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="answer_{{ question.id }}" value="A" required>
+                        <span><strong>A.</strong> {{ question.option_a }}</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="answer_{{ question.id }}" value="B">
+                        <span><strong>B.</strong> {{ question.option_b }}</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="answer_{{ question.id }}" value="C">
+                        <span><strong>C.</strong> {{ question.option_c }}</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="answer_{{ question.id }}" value="D">
+                        <span><strong>D.</strong> {{ question.option_d }}</span>
+                    </label>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg">
+                📤 Submit Exam
+            </button>
+            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
+            </a>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state">
+        <p>No questions available for this exam.</p>
+        <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">← Back to Exams</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
