@@ -23,52 +23,45 @@
     
     <form method="POST" id="seatingForm" onsubmit="return validateSeatingForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="form-grid-2">
             <!-- Exam Selection -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>📝</span> Select Exam <span style="color: #ef4444;">*</span>
-                </label>
-                <select name="exam" id="exam" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">📝 Select Exam</label>
+                <select name="exam" id="exam" required>
                     <option value="">Select Exam</option>
                     {% for exam in exams %}
                     <option value="{{ exam.id }}">{{ exam.subject.name }} - {{ exam.exam_date|date:"M d, Y" }}</option>
                     {% endfor %}
                 </select>
-                <small style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Choose the exam for this seating arrangement</small>
+                <small class="form-error" id="examError"></small>
+                <small class="form-text">Choose the exam for this seating arrangement</small>
             </div>
             
             <!-- Hall Selection -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>🏫</span> Select Hall <span style="color: #ef4444;">*</span>
-                </label>
-                <select name="hall" id="hall" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'; checkHallCapacity()">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">🏫 Select Hall</label>
+                <select name="hall" id="hall" required>
                     <option value="">Select Hall</option>
                     {% for hall in halls %}
                     <option value="{{ hall.id }}" data-seats="{{ hall.total_seats }}">{{ hall.name }} ({{ hall.total_seats }} seats)</option>
                     {% endfor %}
                 </select>
-                <small id="hallInfo" style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Select a hall to see available capacity</small>
-            </div>
-            
-            <!-- Hall Preview Card -->
-            <div id="hallPreview" style="display: none; padding: 1rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(124, 58, 237, 0.1)); border: 1px solid rgba(139, 92, 246, 0.3);">
-                <h4 style="margin: 0 0 0.5rem; color: #8b5cf6;">Hall Information</h4>
-                <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;" id="hallDetails"></p>
+                <small class="form-error" id="hallError"></small>
+                <small id="hallInfo" class="form-text">Select a hall to see available capacity</small>
             </div>
         </div>
         
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                <span style="margin-right: 0.5rem;">✓</span> Create Plan
+        <!-- Hall Preview Card -->
+        <div id="hallPreview" class="info-box" style="display: none;">
+            <strong>🏫 Hall Information:</strong> <span id="hallDetails"></span>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                🪑 Create Plan
             </button>
-            <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                Cancel
+            <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary">
+                ↩️ Cancel
             </a>
         </div>
     </form>
@@ -76,19 +69,28 @@
 
 <script>
 function validateSeatingForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
     const exam = document.getElementById('exam').value;
     const hall = document.getElementById('hall').value;
     
     if (!exam) {
-        alert('Please select an exam');
-        return false;
-    }
-    if (!hall) {
-        alert('Please select a hall');
-        return false;
+        document.getElementById('exam').classList.add('error');
+        document.getElementById('examError').textContent = 'Please select an exam';
+        isValid = false;
     }
     
-    return true;
+    if (!hall) {
+        document.getElementById('hall').classList.add('error');
+        document.getElementById('hallError').textContent = 'Please select a hall';
+        isValid = false;
+    }
+    
+    return isValid;
 }
 
 function checkHallCapacity() {
@@ -108,5 +110,7 @@ function checkHallCapacity() {
         info.textContent = 'Select a hall to see available capacity';
     }
 }
+
+document.getElementById('hall').addEventListener('change', checkHallCapacity);
 </script>
 {% endblock %}

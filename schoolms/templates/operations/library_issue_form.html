@@ -23,79 +23,60 @@
     
     <form method="POST" id="issueForm" onsubmit="return validateIssueForm()">
         {% csrf_token %}
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="form-grid-2">
             <!-- Student Selection -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>👨‍🎓</span> Student <span style="color: #ef4444;">*</span>
-                </label>
-                <select name="student" id="student" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">👨‍🎓 Student</label>
+                <select name="student" id="student" required>
                     <option value="">Select Student</option>
                     {% for student in students %}
                     <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.class_name }})</option>
                     {% endfor %}
                 </select>
+                <small class="form-error" id="studentError"></small>
             </div>
             
             <!-- Book Selection -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>📖</span> Book <span style="color: #ef4444;">*</span>
-                </label>
-                <select name="book" id="book" required style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                        onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                        onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="required">📖 Book</label>
+                <select name="book" id="book" required>
                     <option value="">Select Book</option>
                     {% for book in books %}
                     <option value="{{ book.id }}" data-available="{{ book.available_copies }}">{{ book.title }} by {{ book.author }} ({{ book.available_copies }} available)</option>
                     {% endfor %}
                 </select>
-                <small id="bookInfo" style="color: var(--text-soft); font-size: 0.75rem; margin-top: 0.25rem; display: block;">Select a book to check availability</small>
+                <small class="form-error" id="bookError"></small>
+                <small id="bookInfo" class="form-text">Select a book to check availability</small>
             </div>
             
-            <!-- Dates -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>🗓️</span> Issue Date <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="date" name="issue_date" id="issue_date" required 
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                        <span>📅</span> Due Date <span style="color: #ef4444;">*</span>
-                    </label>
-                    <input type="date" name="due_date" id="due_date" required 
-                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; transition: all 0.2s;"
-                           onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                           onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'">
-                </div>
+            <!-- Issue Date -->
+            <div class="form-group">
+                <label class="required">🗓️ Issue Date</label>
+                <input type="date" name="issue_date" id="issue_date" required>
+                <small class="form-error" id="issueError"></small>
+            </div>
+            
+            <!-- Due Date -->
+            <div class="form-group">
+                <label class="required">📅 Due Date</label>
+                <input type="date" name="due_date" id="due_date" required>
+                <small class="form-error" id="dueError"></small>
             </div>
             
             <!-- Notes -->
-            <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
-                    <span>📝</span> Notes
-                </label>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📝 Notes</label>
                 <textarea name="notes" id="notes" rows="2" 
-                          placeholder="Any special notes about this issue..."
-                          style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem; resize: vertical; font-family: inherit; transition: all 0.2s;"
-                          onfocus="this.style.borderColor='#22c55e';this.style.boxShadow='0 0 0 3px rgba(34, 197, 94, 0.2)'"
-                          onblur="this.style.borderColor='rgba(148, 163, 184, 0.4)';this.style.boxShadow='none'"></textarea>
+                          placeholder="Any special notes about this issue..."></textarea>
             </div>
         </div>
         
-        <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                <span style="margin-right: 0.5rem;">✓</span> Issue Book
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                📖 Issue Book
             </button>
-            <a href="{% url 'operations:library_issues' %}" class="btn btn-secondary" style="padding: 0.85rem 1.5rem; font-size: 0.9rem;">
-                Cancel
+            <a href="{% url 'operations:library_issues' %}" class="btn btn-secondary">
+                ↩️ Cancel
             </a>
         </div>
     </form>
@@ -114,32 +95,52 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function validateIssueForm() {
+    let isValid = true;
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+    
     const student = document.getElementById('student').value;
     const book = document.getElementById('book').value;
     const issueDate = document.getElementById('issue_date').value;
     const dueDate = document.getElementById('due_date').value;
     
     if (!student) {
-        alert('Please select a student');
-        return false;
+        document.getElementById('student').classList.add('error');
+        document.getElementById('studentError').textContent = 'Please select a student';
+        isValid = false;
     }
+    
     if (!book) {
-        alert('Please select a book');
-        return false;
-    }
-    if (!issueDate || !dueDate) {
-        alert('Please select issue and due dates');
-        return false;
+        document.getElementById('book').classList.add('error');
+        document.getElementById('bookError').textContent = 'Please select a book';
+        isValid = false;
     }
     
-    const issue = new Date(issueDate);
-    const due = new Date(dueDate);
-    if (due <= issue) {
-        alert('Due date must be after issue date');
-        return false;
+    if (!issueDate) {
+        document.getElementById('issue_date').classList.add('error');
+        document.getElementById('issueError').textContent = 'Please select an issue date';
+        isValid = false;
     }
     
-    return true;
+    if (!dueDate) {
+        document.getElementById('due_date').classList.add('error');
+        document.getElementById('dueError').textContent = 'Please select a due date';
+        isValid = false;
+    }
+    
+    if (issueDate && dueDate) {
+        const issue = new Date(issueDate);
+        const due = new Date(dueDate);
+        if (due <= issue) {
+            document.getElementById('due_date').classList.add('error');
+            document.getElementById('dueError').textContent = 'Due date must be after issue date';
+            isValid = false;
+        }
+    }
+    
+    return isValid;
 }
 </script>
 {% endblock %}
