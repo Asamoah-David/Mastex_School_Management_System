@@ -2624,11 +2624,25 @@ def online_exam_results(request):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
+    # Get filter parameters
+    class_filter = request.GET.get('class')
+    subject_filter = request.GET.get('subject')
+    
     # Get all exams with results
-    exams = OnlineExam.objects.filter(school=school).order_by('-start_time')
+    exams = OnlineExam.objects.filter(school=school)
+    
+    # Apply filters to exam list
+    if class_filter:
+        exams = exams.filter(class_level=class_filter)
+    if subject_filter:
+        exams = exams.filter(subject_id=subject_filter)
+    
+    exams = exams.order_by('-start_time')
     
     selected_exam = None
     attempts = []
+    passed_count = 0
+    failed_count = 0
     
     exam_id = request.GET.get('exam')
     if exam_id:
@@ -2637,12 +2651,26 @@ def online_exam_results(request):
             attempts = ExamAttempt.objects.filter(exam=selected_exam, is_completed=True).select_related(
                 'student', 'student__user'
             ).order_by('-submitted_at')
+            
+            # Calculate pass/fail counts
+            passed_count = attempts.filter(score__gte=selected_exam.passing_marks).count()
+            failed_count = attempts.filter(score__lt=selected_exam.passing_marks).count()
+    
+    # Get unique classes and subjects for filter dropdowns
+    school_classes = sorted(set(OnlineExam.objects.filter(school=school).values_list('class_level', flat=True)))
+    subjects = Subject.objects.filter(school=school).order_by('name')
     
     return render(request, 'operations/online_exam_results.html', {
         'exams': exams,
         'selected_exam': selected_exam,
         'attempts': attempts,
-        'school': school
+        'school': school,
+        'school_classes': school_classes,
+        'subjects': subjects,
+        'class_filter': class_filter,
+        'subject_filter': subject_filter,
+        'passed_count': passed_count,
+        'failed_count': failed_count
     })
 
 
@@ -4196,6 +4224,7 @@ def my_submissions(request):
 def online_exam_list(request):
     """List online exams."""
     from accounts.permissions import user_can_manage_school
+    from academics.models import Subject
     school = _get_school(request)
     if not school:
         return redirect('home')
@@ -4203,16 +4232,36 @@ def online_exam_list(request):
     # Allow both staff (can manage) and students to view exams
     is_staff = user_can_manage_school(request.user)
     
+    # Get filter parameters
+    class_filter = request.GET.get('class')
+    subject_filter = request.GET.get('subject')
+    
+    # Base queryset
     if is_staff:
-        exams = OnlineExam.objects.filter(school=school).select_related('subject', 'created_by').order_by('-start_time')[:100]
+        exams = OnlineExam.objects.filter(school=school)
     else:
-        # Students see published exams
-        exams = OnlineExam.objects.filter(school=school, status='published').select_related('subject', 'created_by').order_by('-start_time')[:100]
+        exams = OnlineExam.objects.filter(school=school, status='published')
+    
+    # Apply filters
+    if class_filter:
+        exams = exams.filter(class_level=class_filter)
+    if subject_filter:
+        exams = exams.filter(subject_id=subject_filter)
+    
+    exams = exams.select_related('subject', 'created_by').order_by('-start_time')[:100]
+    
+    # Get unique classes and subjects for filter dropdowns
+    school_classes = sorted(set(OnlineExam.objects.filter(school=school).values_list('class_level', flat=True)))
+    subjects = Subject.objects.filter(school=school).order_by('name')
     
     return render(request, 'operations/online_exam_list.html', {
         'exams': exams,
         'school': school,
-        'is_staff': is_staff
+        'is_staff': is_staff,
+        'school_classes': school_classes,
+        'subjects': subjects,
+        'class_filter': class_filter,
+        'subject_filter': subject_filter
     })
 
 
@@ -4236,8 +4285,8 @@ def online_exam_create(request):
         subject_id = request.POST.get('subject')
         class_level = request.POST.get('class_level', '').strip()
         exam_type = request.POST.get('exam_type', 'quiz')
-        duration = request.POST.get('duration_minutes', 30)
-        total_marks = request.POST.get('total_marks', 100)
+        duration = request.POST.get('duration', 30)
+        total_marks = request.POST.get('total_score', 100)
         passing = request.POST.get('passing_marks', 50)
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
@@ -4253,8 +4302,8 @@ def online_exam_create(request):
                     exam = OnlineExam.objects.create(
                         school=school, title=title, subject=subject,
                         class_level=class_level, exam_type=exam_type,
-                        duration_minutes=int(duration), total_marks=total_marks,
-                        passing_marks=passing, start_time=start, end_time=end,
+                        duration_minutes=int(duration), total_marks=int(total_marks),
+                        passing_marks=int(passing), start_time=start, end_time=end,
                         show_results_immediately=show_results,
                         created_by=request.user, status='draft'
                     )
@@ -4342,8 +4391,8 @@ def online_exam_edit(request, pk):
         subject_id = request.POST.get('subject')
         class_level = request.POST.get('class_level', '').strip()
         exam_type = request.POST.get('exam_type', 'quiz')
-        duration = request.POST.get('duration_minutes', 30)
-        total_marks = request.POST.get('total_marks', 100)
+        duration = request.POST.get('duration', 30)
+        total_marks = request.POST.get('total_score', 100)
         passing = request.POST.get('passing_marks', 50)
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
@@ -4360,8 +4409,8 @@ def online_exam_edit(request, pk):
                     exam.class_level = class_level
                     exam.exam_type = exam_type
                     exam.duration_minutes = int(duration)
-                    exam.total_marks = total_marks
-                    exam.passing_marks = passing
+                    exam.total_marks = int(total_marks)
+                    exam.passing_marks = int(passing)
                     exam.start_time = start
                     exam.end_time = end
                     exam.save()

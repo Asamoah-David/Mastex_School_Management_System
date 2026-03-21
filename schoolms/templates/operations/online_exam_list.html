@@ -19,6 +19,36 @@
         {% endif %}
     </div>
     
+    {# Filters for Class and Subject #}
+    {% if school_classes or subjects %}
+    <div class="filter-bar mb-3" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+        <form method="get" class="d-flex gap-3 align-center">
+            <div>
+                <label for="class_filter" style="font-weight: bold;">Filter by Class:</label>
+                <select name="class" id="class_filter" class="form-control" style="width: auto; display: inline-block;">
+                    <option value="">All Classes</option>
+                    {% for cls in school_classes %}
+                    <option value="{{ cls }}" {% if class_filter == cls %}selected{% endif %}>{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="subject_filter" style="font-weight: bold;">Filter by Subject:</label>
+                <select name="subject" id="subject_filter" class="form-control" style="width: auto; display: inline-block;">
+                    <option value="">All Subjects</option>
+                    {% for subj in subjects %}
+                    <option value="{{ subj.id }}" {% if subject_filter == subj.id|stringformat:"s" %}selected{% endif %}>{{ subj.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+            {% if class_filter or subject_filter %}
+            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">Clear Filters</a>
+            {% endif %}
+        </form>
+    </div>
+    {% endif %}
+    
     {% if exams %}
     <table class="data-table">
         <thead>
