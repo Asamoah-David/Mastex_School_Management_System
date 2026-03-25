@@ -1001,3 +1001,4 @@ def absence_request_decide(request, pk, decision):
 
     messages.success(request, f"Absence request has been {absence_request.status}.")
     return redirect("students:absence_requests_review")
+from core.utils import log_activity 
