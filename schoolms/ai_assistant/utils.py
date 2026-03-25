@@ -1,33 +1,31 @@
-from openai import OpenAI
+import google.generativeai as genai
 from django.conf import settings
 
 
-def _get_client():
+def _get_model():
     """
-    Lazily create an OpenAI client and guard against missing configuration.
+    Lazily configure and return the Gemini model.
     """
-    api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
+    api_key = getattr(settings, "GEMINI_API_KEY", "") or ""
     if not api_key:
         return None
-    return OpenAI(api_key=api_key)
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel("gemini-2.0-flash")
 
 
 def ask_ai(prompt):
     """
-    Call the AI assistant safely.
+    Call the AI assistant using Google Gemini 2.5 Flash.
 
     - If no API key is configured, return a friendly message instead of raising.
     - Wrap network / API errors so they don't cause 500s.
     """
-    client = _get_client()
-    if client is None:
+    model = _get_model()
+    if model is None:
         return "AI assistant is not configured yet. Please contact the administrator."
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content
+        response = model.generate_content(prompt)
+        return response.text
     except Exception as e:
         return f"AI error: {str(e)}"

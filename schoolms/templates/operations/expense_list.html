@@ -9,7 +9,11 @@
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>💰 Expenses</h2>
-        <a href="{% url 'operations:expense_create' %}" class="btn btn-primary">➕ Add Expense</a>
+        <div class="gap-2 d-flex">
+            <a href="{% url 'operations:export_expenses' %}?format=csv" class="btn btn-success">📥 CSV</a>
+            <a href="{% url 'operations:export_expenses' %}?format=excel" class="btn btn-success">📊 Excel</a>
+            <a href="{% url 'operations:expense_create' %}" class="btn btn-primary">➕ Add Expense</a>
+        </div>
     </div>
     
     {% if expenses %}

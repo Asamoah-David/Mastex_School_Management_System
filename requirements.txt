@@ -2,7 +2,6 @@ Django
 djangorestframework
 djangorestframework-simplejwt
 requests
-stripe
 reportlab
 matplotlib
 python-dotenv
@@ -10,4 +9,7 @@ gunicorn
 whitenoise
 dj-database-url
 psycopg2-binary
-openai
+google-generativeai
+paystack
+mnotify
+openpyxl

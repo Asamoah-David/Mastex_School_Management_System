@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent  # Points to schoolms/
 
 # Developer Information
 DEVELOPER_NAME = "ASAMOAH DAVID"
-DEVELOPER_EMAIL = "asamoadavi6917@6917"
+DEVELOPER_EMAIL = "asamoadavi6917@gmail.com"
 
 # Add schoolms/ to Python path for app imports
 sys.path.insert(0, str(BASE_DIR))
@@ -136,25 +136,21 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=5),
 }
 
-# Stripe (for school SaaS subscriptions)
-STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLIC_KEY = env("STRIPE_PUBLIC_KEY", "")
-STRIPE_PRICE_ID = env("STRIPE_PRICE_ID", "")
-# Optional: if you configure a Stripe webhook endpoint, this can be used
-# for signature verification in future; for now the webhook is permissive.
-STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", "")
-
 # MNotify
 MNOTIFY_API_KEY = env("MNOTIFY_API_KEY", "")
 MNOTIFY_SENDER_ID = env("MNOTIFY_SENDER_ID", "")
 
-# Flutterwave
-FLW_PUBLIC_KEY = env("FLW_PUBLIC_KEY", "")
-FLW_SECRET_KEY = env("FLW_SECRET_KEY", "")
-FLW_WEBHOOK_SECRET = env("FLW_WEBHOOK_SECRET", "")
+# Paystack (for school fee payments)
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
+PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", "")
+PAYSTACK_WEBHOOK_SECRET = env("PAYSTACK_WEBHOOK_SECRET", "")
+PAYSTACK_PLATFORM_FEE_PERCENT = float(env("PAYSTACK_PLATFORM_FEE_PERCENT", "0"))  # Commission percentage (0 = no commission)
 
-# OpenAI
-OPENAI_API_KEY = env("OPENAI_API_KEY", "")
+# Cron job secret key (for securing subscription check endpoint)
+CRON_SECRET_KEY = env("CRON_SECRET_KEY", "")
+
+# Google Gemini (AI Assistant)
+GEMINI_API_KEY = env("GEMINI_API_KEY", "")
 
 # Global admin phone for critical SMS alerts (optional)
 ADMIN_PHONE = env("ADMIN_PHONE", "")

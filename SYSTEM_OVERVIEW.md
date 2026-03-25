@@ -148,7 +148,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 ## Core Features Already in Place
 
 - Student & school management  
-- Fee tracking & payment records (Flutterwave/Stripe)  
+- Fee tracking & payment records (Paystack)  
 - Messaging module (SMS – MNotify)  
 - AI assistant module  
 - Role-based access (admin, teacher, student, parent)  
@@ -161,7 +161,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 ## Features Still Useful Before Selling
 
 - **School registration page** – Public form for new schools to sign up (create School + first admin).
-- **Parent payment portal** – Pay fees from `/portal` (e.g. Flutterwave/Paystack).
+- **Parent payment portal** – Pay fees from `/portal` (Paystack already configured).
 - **SMS notifications** – Already integrated; wire to payment confirmations and announcements.
 
 ---
@@ -191,13 +191,12 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 | Service | Status | Purpose |
 |---------|--------|---------|
 | MNotify SMS | ✅ Configured | Admissions, Announcements, Fee Reminders |
-| Flutterwave | ✅ Configured | School Fee Payments |
-| Stripe | ✅ Configured | SaaS Subscriptions |
-| OpenAI | ✅ Configured | AI Assistant |
+| Paystack | ✅ Configured | School Fee Payments & Subscriptions |
+| Gemini AI | ✅ Configured | AI Assistant (Report Comments) |
 
 ---
 
 ## Last Updated
 
-**System Overview Updated:** March 19, 2026  
+**System Overview Updated:** March 24, 2026  
 **GitHub:** https://github.com/Asamoah-David/Mastex_School_Management_System

@@ -1,39 +1,109 @@
 {% extends "base.html" %}
 {% block title %}School Settings - {{ school.name }}{% endblock %}
 {% block page_title %}School Settings{% endblock %}
-{% block page_subtitle %}Update school profile{% endblock %}
+{% block page_subtitle %}Update school profile and payment settings{% endblock %}
 
 {% block content %}
-<div class="content-card">
-    <form method="post">
-        {% csrf_token %}
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>School Name</label>
-            <input type="text" name="name" value="{{ school.name }}" required style="width:100%;padding:0.5rem;">
+<div class="content-grid" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+    
+    <!-- Basic Information -->
+    <div class="content-card">
+        <h3>Basic Information</h3>
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>School Name</label>
+                <input type="text" name="name" value="{{ school.name }}" required style="width:100%;padding:0.5rem;">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Email</label>
+                <input type="email" name="email" value="{{ school.email|default:'' }}" style="width:100%;padding:0.5rem;">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Phone</label>
+                <input type="text" name="phone" value="{{ school.phone|default:'' }}" style="width:100%;padding:0.5rem;">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Address</label>
+                <textarea name="address" rows="2" style="width:100%;padding:0.5rem;">{{ school.address|default:'' }}</textarea>
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Logo URL (optional)</label>
+                <input type="url" name="logo_url" value="{{ school.logo_url|default:'' }}" placeholder="https://..." style="width:100%;padding:0.5rem;">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Academic Year (e.g. 2024/2025)</label>
+                <input type="text" name="academic_year" value="{{ school.academic_year|default:'' }}" style="width:100%;padding:0.5rem;">
+            </div>
+            <div class="button-row">
+                <button type="submit" class="btn btn-primary">Save Basic Info</button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Paystack Settings -->
+    <div class="content-card">
+        <h3>💳 Paystack Payment Settings</h3>
+        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+            Enter your Paystack subaccount details so parents can pay school fees directly to your bank account.
+        </p>
+        
+        {% if school.paystack_subaccount_code %}
+            <div class="alert alert-success" style="margin-bottom: 1rem;">
+                ✅ Paystack is configured - Parents can pay fees online
+            </div>
+        {% else %}
+            <div class="alert alert-warning" style="margin-bottom: 1rem;">
+                ⚠️ Paystack not configured - Parents cannot pay fees online yet
+            </div>
+        {% endif %}
+        
+        <form method="post">
+            {% csrf_token %}
+            <!-- Hidden fields for basic info (resubmit with paystack) -->
+            <input type="hidden" name="name" value="{{ school.name }}">
+            <input type="hidden" name="email" value="{{ school.email|default:'' }}">
+            <input type="hidden" name="phone" value="{{ school.phone|default:'' }}">
+            <input type="hidden" name="address" value="{{ school.address|default:'' }}">
+            <input type="hidden" name="logo_url" value="{{ school.logo_url|default:'' }}">
+            <input type="hidden" name="academic_year" value="{{ school.academic_year|default:'' }}">
+            
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Paystack Subaccount Code <span style="color: red;">*</span></label>
+                <input type="text" name="paystack_subaccount_code" value="{{ school.paystack_subaccount_code|default:'' }}" placeholder="e.g. ACCT_xxxxxxxxxxxx" style="width:100%;padding:0.5rem;">
+                <small style="color: #666;">Get this from your Paystack dashboard → Settings → API Keys & Webhooks</small>
+            </div>
+            
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Bank Name</label>
+                <input type="text" name="paystack_bank_name" value="{{ school.paystack_bank_name|default:'' }}" placeholder="e.g. Ghana Commercial Bank" style="width:100%;padding:0.5rem;">
+            </div>
+            
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Account Number</label>
+                <input type="text" name="paystack_account_number" value="{{ school.paystack_account_number|default:'' }}" placeholder="e.g. 1234567890" style="width:100%;padding:0.5rem;">
+            </div>
+            
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Account Name</label>
+                <input type="text" name="paystack_account_name" value="{{ school.paystack_account_name|default:'' }}" placeholder="e.g. ABC School Limited" style="width:100%;padding:0.5rem;">
+            </div>
+            
+            <div class="button-row">
+                <button type="submit" class="btn btn-primary">Save Paystack Settings</button>
+            </div>
+        </form>
+        
+        <div style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+            <h4 style="margin: 0 0 0.5rem 0;">How to get Paystack Subaccount Code:</h4>
+            <ol style="margin: 0; padding-left: 1.2rem; color: #666; font-size: 0.85rem;">
+                <li>Sign up at <a href="https://paystack.com" target="_blank">paystack.com</a></li>
+                <li>Complete your merchant KYC verification</li>
+                <li>Go to Settings → Transfer Receipts</li>
+                <li>Add your bank account details</li>
+                <li>Copy the Subaccount Code (starts with ACCT_)</li>
+            </ol>
         </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Email</label>
-            <input type="email" name="email" value="{{ school.email|default:'' }}" style="width:100%;padding:0.5rem;">
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Phone</label>
-            <input type="text" name="phone" value="{{ school.phone|default:'' }}" style="width:100%;padding:0.5rem;">
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Address</label>
-            <textarea name="address" rows="2" style="width:100%;padding:0.5rem;">{{ school.address|default:'' }}</textarea>
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Logo URL (optional)</label>
-            <input type="url" name="logo_url" value="{{ school.logo_url|default:'' }}" placeholder="https://..." style="width:100%;padding:0.5rem;">
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Academic Year (e.g. 2024/2025)</label>
-            <input type="text" name="academic_year" value="{{ school.academic_year|default:'' }}" style="width:100%;padding:0.5rem;">
-        </div>
-        <div class="button-row">
-            <button type="submit" class="btn btn-primary">Save</button>
-        </div>
-    </form>
+    </div>
 </div>
 {% endblock %}

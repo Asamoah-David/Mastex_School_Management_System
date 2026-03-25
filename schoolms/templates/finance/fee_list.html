@@ -1,14 +1,37 @@
 {% extends "base.html" %}
 
 {% block title %}Fees · {{ school.name|default:"Platform" }}{% endblock %}
-{% block page_title %}Fees{% endblock %}
-{% block page_subtitle %}Mark offline payments as paid.{% endblock %}
+{% block page_title %}Fees Management{% endblock %}
+{% block page_subtitle %}View and manage student fee payments{% endblock %}
 
 {% block content %}
+<div class="content-card" style="margin-bottom: 1.5rem;">
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-between;">
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="{% url 'finance:fee_list' %}" class="btn {% if not request.GET.filter %}btn-primary{% else %}btn-secondary{% endif %}">
+            All ({{ total_count|default:fees|length }})
+        </a>
+        <a href="?filter=unpaid" class="btn {% if request.GET.filter == 'unpaid' %}btn-primary{% else %}btn-secondary{% endif %}">
+            Unpaid
+        </a>
+        <a href="?filter=partial" class="btn {% if request.GET.filter == 'partial' %}btn-primary{% else %}btn-secondary{% endif %}">
+            Partial
+        </a>
+        <a href="?filter=paid" class="btn {% if request.GET.filter == 'paid' %}btn-primary{% else %}btn-secondary{% endif %}">
+            Paid
+        </a>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{% url 'operations:export_fees' %}?format=csv" class="btn btn-success">📥 CSV</a>
+            <a href="{% url 'operations:export_fees' %}?format=excel" class="btn btn-success">📊 Excel</a>
+        </div>
+    </div>
+</div>
+
 <div class="content-card">
     {% if not fees %}
     <div class="empty-state">
-        There are currently no unpaid fees to manage.
+        No fees found for the selected filter.
     </div>
     {% else %}
     <div class="table-card">
@@ -18,9 +41,12 @@
                     <th>Student</th>
                     <th>Class</th>
                     <th>School</th>
-                    <th>Amount (GHS)</th>
+                    <th>Total (GHS)</th>
+                    <th>Paid (GHS)</th>
+                    <th>Remaining</th>
+                    <th>Progress</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -29,26 +55,51 @@
                     <td>{{ fee.student.user.get_full_name|default:fee.student.user.username }}</td>
                     <td>{{ fee.student.class_name|default:"—" }}</td>
                     <td>{{ fee.school.name }}</td>
-                    <td>{{ fee.amount }}</td>
+                    <td><strong>{{ fee.amount }}</strong></td>
+                    <td>{{ fee.amount_paid }}</td>
                     <td>
-                        {% if fee.paid %}
-                        <span class="tag tag-success">Paid</span>
+                        {% if fee.remaining_balance > 0 %}
+                            <span style="color: red;">{{ fee.remaining_balance }}</span>
                         {% else %}
-                        <span class="tag tag-unpaid">Unpaid</span>
+                            <span>—</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if not fee.paid %}
-                        <form method="post" style="display:inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="fee_id" value="{{ fee.id }}">
-                            <input type="hidden" name="action" value="mark_paid">
-                            <button type="submit" class="btn btn-primary btn-sm">
-                                Mark as paid
-                            </button>
-                        </form>
+                        <div style="width: 100px; height: 8px; background: #eee; border-radius: 4px; overflow: hidden;">
+                            <div style="width: {{ fee.payment_percentage }}%; height: 100%; background: {% if fee.is_fully_paid %}green{% else %}orange{% endif %};"></div>
+                        </div>
+                        <small>{{ fee.payment_percentage }}%</small>
+                    </td>
+                    <td>
+                        {% if fee.is_fully_paid %}
+                            <span class="tag tag-success">Paid</span>
+                        {% elif fee.amount_paid > 0 %}
+                            <span class="tag tag-warning">Partial</span>
                         {% else %}
-                        <span class="text-muted">—</span>
+                            <span class="tag tag-unpaid">Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not fee.is_fully_paid %}
+                            <form method="post" style="display:inline; margin-right: 0.5rem;">
+                                {% csrf_token %}
+                                <input type="hidden" name="fee_id" value="{{ fee.id }}">
+                                <input type="hidden" name="action" value="record_offline">
+                                <input type="number" name="offline_amount" placeholder="Amount" style="width: 80px; padding: 0.25rem;" step="0.01" min="0">
+                                <button type="submit" class="btn btn-primary btn-sm">Record</button>
+                            </form>
+                            {% if fee.payments.all %}
+                                <details style="display:inline;">
+                                    <summary style="cursor:pointer; font-size:0.8rem;">History</summary>
+                                    <ul style="font-size:0.75rem; margin:0.5rem 0; padding-left:1rem;">
+                                        {% for payment in fee.payments.all %}
+                                            <li>GHS {{ payment.amount }} - {{ payment.created_at|date:"M d, Y" }} ({{ payment.payment_method }})</li>
+                                        {% endfor %}
+                                    </ul>
+                                </details>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">✓ Complete</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -59,4 +110,3 @@
     {% endif %}
 </div>
 {% endblock %}
-

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Grading Policy{% endblock %}
+{% block page_title %}Grading Policy{% endblock %}
+{% block page_subtitle %}Configure your school's grading system{% endblock %}
+
+{% block content %}
+
+<div class="content-card">
+    <h3 style="margin-top: 0;">📊 Grading Policy Configuration</h3>
+    
+    <p style="color: #6b7280; margin-bottom: 1.5rem;">
+        Configure how Continuous Assessment (CA) and Exam scores are weighted to calculate final grades.
+    </p>
+    
+    {# Current Policy Display #}
+    <div style="background: #EEF2FF; border: 1px solid #C7D2FE; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h4 style="margin: 0 0 1rem 0; color: #4338CA;">Current Grading Policy</h4>
+        <div style="display: flex; gap: 2rem;">
+            <div>
+                <div style="color: #6b7280; font-size: 0.875rem;">Continuous Assessment (CA)</div>
+                <div style="font-size: 2rem; font-weight: bold; color: #4F46E5;">{{ policy.ca_weight }}%</div>
+            </div>
+            <div>
+                <div style="color: #6b7280; font-size: 0.875rem;">Exam Score</div>
+                <div style="font-size: 2rem; font-weight: bold; color: #4F46E5;">{{ policy.exam_weight }}%</div>
+            </div>
+        </div>
+    </div>
+    
+    {# Update Form #}
+    <form method="post" action="{% url 'academics:grading_policy_update' %}">
+        {% csrf_token %}
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">CA Weight (%)</label>
+            <input type="number" name="ca_weight" value="{{ policy.ca_weight }}" min="0" max="100" step="1" 
+                   style="padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; width: 200px;" required>
+        </div>
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Exam Weight (%)</label>
+            <input type="number" name="exam_weight" value="{{ policy.exam_weight }}" min="0" max="100" step="1" 
+                   style="padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; width: 200px;" required>
+        </div>
+        <p style="color: #dc2626; font-size: 0.875rem; margin-bottom: 1rem;">
+            ⚠️ CA and Exam weights must add up to exactly 100%
+        </p>
+        <button type="submit" class="button">Update Policy</button>
+    </form>
+</div>
+
+<div class="content-card">
+    <h3 style="margin-top: 0;">📋 Grade Scale (5.0)</h3>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Grade</th>
+                    <th>Score Range</th>
+                    <th>Grade Points</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gp in grade_points %}
+                <tr>
+                    <td><span class="tag">{{ gp.grade }}</span></td>
+                    <td>{{ gp.min_score|floatformat:0 }} - {{ gp.max_score|floatformat:0 }}</td>
+                    <td>{{ gp.point_value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="content-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="margin: 0;">📝 Assessment Types</h3>
+        <a href="{% url 'academics:assessment_type_create' %}" class="button">Add Type</a>
+    </div>
+    
+    {% if assessment_types %}
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+        {% for at in assessment_types %}
+        <div style="background: #f3f4f6; padding: 1rem 1.5rem; border-radius: 8px; display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.5rem;">📋</span>
+            <div>
+                <div style="font-weight: 500;">{{ at.name }}</div>
+                {% if at.description %}
+                <div style="color: #6b7280; font-size: 0.875rem;">{{ at.description }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: #6b7280;">No assessment types configured. Default types will be created on first use.</p>
+    {% endif %}
+</div>
+{% endblock %}

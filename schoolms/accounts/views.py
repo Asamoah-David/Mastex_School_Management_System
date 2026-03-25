@@ -244,6 +244,45 @@ def school_dashboard(request):
     paid_fees = Fee.objects.filter(school=school, paid=True).aggregate(total=Sum("amount"))["total"] or 0
     unpaid_fees = Fee.objects.filter(school=school, paid=False).count()
     
+    # Subscription expiry warning
+    show_expiry_warning = False
+    expiry_severity = "info"
+    expiry_icon = "ℹ️"
+    expiry_title = ""
+    expiry_message = ""
+    expiry_button_text = "Renew Now"
+    
+    if school.subscription_status == 'trial':
+        show_expiry_warning = True
+        expiry_severity = "warning"
+        expiry_icon = "⚠️"
+        expiry_title = "Trial Period Active"
+        expiry_message = "Your trial period is active. Subscribe now to continue using the platform after the trial ends."
+        expiry_button_text = "Subscribe Now"
+    elif school.subscription_status == 'expired':
+        show_expiry_warning = True
+        expiry_severity = "critical"
+        expiry_icon = "🚫"
+        expiry_title = "Subscription Expired"
+        expiry_message = "Your subscription has expired. Renew now to regain access to all features."
+        expiry_button_text = "Renew Now"
+    elif school.subscription_status == 'active' and school.days_until_expiry is not None:
+        days_left = school.days_until_expiry
+        if days_left <= 7:
+            show_expiry_warning = True
+            expiry_severity = "critical"
+            expiry_icon = "⚠️"
+            expiry_title = f"Subscription Expiring in {days_left} Day{'s' if days_left != 1 else ''}!"
+            expiry_message = "Your subscription will expire soon. Renew now to avoid interruption."
+            expiry_button_text = "Renew Now"
+        elif days_left <= 14:
+            show_expiry_warning = True
+            expiry_severity = "warning"
+            expiry_icon = "⏰"
+            expiry_title = f"Subscription Expiring in {days_left} Days"
+            expiry_message = "Your subscription is coming up for renewal. Consider renewing soon."
+            expiry_button_text = "Renew Now"
+    
     context = {
         "school": school,
         "total_students": total_students,
@@ -256,6 +295,12 @@ def school_dashboard(request):
         "total_fees": int(total_fees),
         "paid_fees": int(paid_fees),
         "unpaid_fees": unpaid_fees,
+        "show_expiry_warning": show_expiry_warning,
+        "expiry_severity": expiry_severity,
+        "expiry_icon": expiry_icon,
+        "expiry_title": expiry_title,
+        "expiry_message": expiry_message,
+        "expiry_button_text": expiry_button_text,
     }
     return render(request, "accounts/school_dashboard.html", context)
 

@@ -545,6 +545,49 @@ def student_detail(request, pk):
 
 
 @login_required
+def student_edit(request, pk):
+    """Edit an existing student - including linking to a parent."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    student = get_object_or_404(Student, pk=pk, school=school)
+    
+    if request.method == "POST":
+        # Update student fields
+        student.admission_number = request.POST.get("admission_number", "").strip()
+        student.class_name = request.POST.get("class_name", "").strip()
+        student.status = request.POST.get("status", "active")
+        
+        # Update parent link
+        parent_id = request.POST.get("parent")
+        if parent_id:
+            try:
+                parent = User.objects.get(pk=parent_id, school=school, role="parent")
+                student.parent = parent
+            except User.DoesNotExist:
+                messages.error(request, "Selected parent not found.")
+        else:
+            student.parent = None
+        
+        student.save()
+        messages.success(request, "Student updated successfully.")
+        return redirect("students:student_detail", pk=student.pk)
+    
+    # Get all parents in this school for the dropdown
+    parents = User.objects.filter(school=school, role="parent").order_by("first_name", "last_name")
+    classes = SchoolClass.objects.filter(school=school).order_by("name")
+    
+    return render(request, "students/student_edit.html", {
+        "student": student,
+        "parents": parents,
+        "classes": classes,
+    })
+
+
+@login_required
 def student_register(request):
     if not _user_can_manage_school(request):
         return redirect("home")

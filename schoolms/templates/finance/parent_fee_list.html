@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}My Child's Fees - Mastex SchoolOS{% endblock %}
+{% block page_title %}My Child's Fees{% endblock %}
+{% block page_subtitle %}View and pay school fees{% endblock %}
+
+{% block content %}
+{% if not paystack_available %}
+<div class="alert alert-error">
+    <strong>⚠️ Online payments are currently unavailable.</strong>
+    <p>Please contact the school for payment options.</p>
+</div>
+{% endif %}
+
+{% if not fees %}
+<div class="content-card">
+    <div class="empty-state">
+        {% if students %}
+            No fees have been assigned to your children yet.
+        {% else %}
+            No students are linked to your account. Please contact the school to link your children to your account.
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="content-card">
+    {% if not paystack_available %}
+    <div class="alert alert-warning" style="margin-bottom: 1rem;">
+        <strong>Note:</strong> Online payment system is not configured. Please contact the school for payment options.
+    </div>
+    {% endif %}
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>School</th>
+                <th>Total (GHS)</th>
+                <th>Paid (GHS)</th>
+                <th>Remaining</th>
+                <th>Progress</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fee in fees %}
+            <tr>
+                <td>{{ fee.student.user.get_full_name|default:fee.student.user.username }}</td>
+                <td>{{ fee.school.name }}</td>
+                <td><strong>{{ fee.amount }}</strong></td>
+                <td>{{ fee.amount_paid }}</td>
+                <td>
+                    {% if fee.remaining_balance > 0 %}
+                        <span style="color: red; font-weight: bold;">{{ fee.remaining_balance }}</span>
+                    {% else %}
+                        <span>—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="width: 100px; height: 8px; background: #eee; border-radius: 4px; overflow: hidden;">
+                        <div style="width: {{ fee.payment_percentage }}%; height: 100%; background: {% if fee.is_fully_paid %}green{% else %}orange{% endif %};"></div>
+                    </div>
+                    <small>{{ fee.payment_percentage }}%</small>
+                </td>
+                <td>
+                    {% if fee.is_fully_paid %}
+                        <span class="tag tag-success">Paid</span>
+                    {% elif fee.amount_paid > 0 %}
+                        <span class="tag tag-warning">Partial</span>
+                    {% else %}
+                        <span class="tag tag-unpaid">Unpaid</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if not fee.is_fully_paid and paystack_available %}
+                        <a href="{% url 'finance:pay' fee.id %}" class="btn btn-primary btn-sm">Pay Full</a>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="showCustomPayment({{ fee.id }}, {{ fee.remaining_balance }})">Pay Partially</button>
+                    {% elif not fee.is_fully_paid %}
+                        <span class="text-muted">Contact school</span>
+                    {% else %}
+                        <span class="text-success">✓ Complete</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Custom Payment Modal -->
+<div id="customPaymentModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; max-width: 400px; width: 90%;">
+        <h3>Pay Custom Amount</h3>
+        <p>Remaining balance: <strong id="modalRemaining">GHS 0.00</strong></p>
+        <form method="post" action="{% url 'finance:pay_custom' 0 %}" id="customPaymentForm">
+            {% csrf_token %}
+            <input type="hidden" name="fee_id" id="modalFeeId" value="">
+            <div style="margin-bottom: 1rem;">
+                <label>Amount (GHS):</label>
+                <input type="number" name="amount" id="modalAmount" step="0.01" min="0.01" required style="width: 100%; padding: 0.5rem; margin-top: 0.25rem;">
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-primary">Proceed to Pay</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showCustomPayment(feeId, remaining) {
+    document.getElementById('modalFeeId').value = feeId;
+    document.getElementById('modalRemaining').textContent = 'GHS ' + remaining.toFixed(2);
+    document.getElementById('modalAmount').max = remaining;
+    document.getElementById('customPaymentForm').action = '/finance/pay/' + feeId + '/custom/';
+    document.getElementById('customPaymentModal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('customPaymentModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+document.getElementById('customPaymentModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeModal();
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

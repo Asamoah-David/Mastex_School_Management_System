@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Assessment Scores{% endblock %}
+{% block page_title %}Assessment Scores{% endblock %}
+{% block page_subtitle %}View Continuous Assessment records{% endblock %}
+
+{% block content %}
+
+<div class="content-card">
+    {# Filter Section #}
+    <form method="get" style="margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Class</label>
+                <select name="class" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">All Classes</option>
+                    {% for c in classes %}
+                    <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Subject</label>
+                <select name="subject" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">All Subjects</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}" {% if selected_subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Term</label>
+                <select name="term" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">All Terms</option>
+                    {% for t in terms %}
+                    <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    
+    {# Results Table #}
+    {% if scores %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Student</th>
+                    <th>Subject</th>
+                    <th>Assessment Type</th>
+                    <th>Score</th>
+                    <th>Percentage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in scores %}
+                <tr>
+                    <td>{{ score.date }}</td>
+                    <td>
+                        <div>{{ score.student.user.get_full_name|default:score.student.user.username }}</div>
+                        <div style="color: #6b7280; font-size: 0.75rem;">{{ score.student.admission_number }}</div>
+                    </td>
+                    <td>{{ score.subject.name }}</td>
+                    <td>{{ score.assessment_type.name }}</td>
+                    <td>{{ score.score }}/{{ score.max_score }}</td>
+                    <td><span class="tag">{{ score.normalized_score|floatformat:1 }}%</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No assessment scores found.</div>
+    {% endif %}
+</div>
+
+<div class="button-row" style="margin-top: 1rem;">
+    <a href="{% url 'academics:assessment_score_upload' %}" class="button">📝 Upload New Scores</a>
+</div>
+{% endblock %}

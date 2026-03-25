@@ -6,7 +6,11 @@
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>💰 Budgets</h2>
-        <a href="{% url 'operations:budget_create' %}" class="btn btn-primary">➕ Create Budget</a>
+        <div class="gap-2 d-flex">
+            <a href="{% url 'operations:export_budgets' %}?format=csv" class="btn btn-success">📥 CSV</a>
+            <a href="{% url 'operations:export_budgets' %}?format=excel" class="btn btn-success">📊 Excel</a>
+            <a href="{% url 'operations:budget_create' %}" class="btn btn-primary">➕ Create Budget</a>
+        </div>
     </div>
     
     {% if budgets %}

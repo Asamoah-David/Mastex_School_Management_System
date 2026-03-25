@@ -7,6 +7,23 @@
 {% block page_subtitle %}Overview and statistics for {{ school.name }}{% endblock %}
 
 {% block content %}
+
+{% if show_expiry_warning %}
+<!-- Subscription Expiry Warning Banner -->
+<div class="alert alert-{% if expiry_severity == 'critical' %}error{% elif expiry_severity == 'warning' %}warning{% else %}info{% endif %}" style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span style="font-size: 1.5rem;">{{ expiry_icon }}</span>
+        <div>
+            <strong>{{ expiry_title }}</strong>
+            <p style="margin: 0.25rem 0 0; font-size: 0.9rem;">{{ expiry_message }}</p>
+        </div>
+    </div>
+    <a href="{% url 'finance:subscription' %}" class="btn btn-{% if expiry_severity == 'critical' %}error{% else %}warning{% endif %}" style="white-space: nowrap;">
+        {{ expiry_button_text }}
+    </a>
+</div>
+{% endif %}
+
 <!-- Statistics Cards Grid -->
 <div class="dashboard-grid">
     <!-- Total Students -->
@@ -100,6 +117,12 @@
         </a>
         <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary">
             Send Messages
+        </a>
+        <a href="{% url 'finance:fee_list' %}" class="btn btn-primary">
+            Manage Fees
+        </a>
+        <a href="{% url 'finance:subscription' %}" class="btn btn-secondary">
+            Subscription
         </a>
         <a href="{% url 'operations:calendar' %}" class="btn btn-secondary">
             Academic Calendar

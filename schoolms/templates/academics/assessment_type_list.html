@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Assessment Types{% endblock %}
+{% block page_title %}Assessment Types{% endblock %}
+{% block page_subtitle %}Manage Continuous Assessment categories{% endblock %}
+
+{% block content %}
+
+<div class="content-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+            <h3 style="margin: 0;">📋 Assessment Types</h3>
+            <p style="margin: 0.5rem 0 0; color: #6b7280; font-size: 0.875rem;">
+                These are the categories used for Continuous Assessment scoring.
+            </p>
+        </div>
+        <form method="post" action="{% url 'academics:assessment_type_create' %}" style="display: flex; gap: 0.5rem;">
+            {% csrf_token %}
+            <input type="text" name="name" placeholder="New type name" required 
+                   style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; width: 200px;">
+            <input type="text" name="description" placeholder="Description (optional)" 
+                   style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; width: 200px;">
+            <button type="submit" class="button">Add</button>
+        </form>
+    </div>
+    
+    {% if assessment_types %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Type Name</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for at in assessment_types %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">📋</span>
+                            <strong>{{ at.name }}</strong>
+                        </div>
+                    </td>
+                    <td>{{ at.description|default:"—" }}</td>
+                    <td>
+                        {% if at.is_active %}
+                        <span class="tag" style="background: #d1fae5; color: #065f46;">Active</span>
+                        {% else %}
+                        <span class="tag" style="background: #fee2e2; color: #991b1b;">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="#" class="button-small" style="margin-right: 0.5rem;">Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No assessment types configured. Use the form above to add your first type.
+    </div>
+    {% endif %}
+</div>
+
+<div class="content-card">
+    <h3 style="margin-top: 0;">📚 Default Assessment Types</h3>
+    <p style="color: #6b7280; margin-bottom: 1rem;">The following types are commonly used in schools:</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
+        <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px;">
+            <strong>Class Exercise</strong>
+            <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">In-class activities and pop quizzes</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px;">
+            <strong>Assignment</strong>
+            <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">Homework and take-home tasks</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px;">
+            <strong>Project</strong>
+            <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">Group or individual projects</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px;">
+            <strong>Quiz</strong>
+            <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">Short assessments</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px;">
+            <strong>Mid-Term Test</strong>
+            <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">Mid-term examinations</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px;">
+            <strong>Lab Work</strong>
+            <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">Practical laboratory work</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

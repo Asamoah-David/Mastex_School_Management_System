@@ -4,11 +4,31 @@ from . import views
 app_name = "finance"
 
 urlpatterns = [
-    path("pay/<int:fee_id>/", views.pay_with_flutterwave, name="pay_with_flutterwave"),
-    path("flutterwave-callback/", views.flutterwave_callback, name="flutterwave_callback"),
-    path("flutterwave-webhook/", views.flutterwave_webhook, name="flutterwave_webhook"),
+    # Paystack payment routes (primary)
+    path("pay/<int:fee_id>/", views.pay_with_paystack, name="pay"),
+    path("pay/<int:fee_id>/custom/", views.pay_with_paystack_custom_amount, name="pay_custom"),
+    path("paystack-callback/<int:fee_id>/", views.paystack_callback, name="paystack_callback"),
+    path("paystack-webhook/", views.paystack_webhook, name="paystack_webhook"),
+    
+    # Parent portal
+    path("my-fees/", views.parent_fee_list, name="parent_fee_list"),
+    path("payment-success/", views.payment_success, name="payment_success"),
+    
+    # Fee structure management
     path("fee-structure/", views.fee_structure_list, name="fee_structure_list"),
     path("fee-structure/create/", views.fee_structure_create, name="fee_structure_create"),
-    # School-facing fee management for marking offline payments as paid
+    path("fee-structure/<int:pk>/edit/", views.fee_structure_edit, name="fee_structure_edit"),
+    path("fee-structure/<int:pk>/delete/", views.fee_structure_delete, name="fee_structure_delete"),
+    path("fee-structure/<int:pk>/generate/", views.generate_fees_from_structure, name="generate_fees"),
+    
+    # School-facing fee management
     path("fees/", views.fee_list, name="fee_list"),
+    
+    # Subscription (for schools paying YOU via Paystack)
+    path("subscription/", views.subscription_view, name="subscription"),
+    path("subscription/pay/", views.pay_subscription, name="pay_subscription"),
+    path("subscription/callback/", views.subscription_callback, name="subscription_callback"),
+    
+    # Subscription cron endpoint (for Railway/external cron services)
+    path("run-subscription-check/", views.run_subscription_check, name="run_subscription_check"),
 ]

@@ -1,9 +1,41 @@
 from django.urls import path
 from . import views
+from . import payment_views
+from . import export_views
 
 app_name = "operations"
 
 urlpatterns = [
+    # ==================== EXPORT VIEWS ====================
+    path("export/students/", export_views.export_students, name="export_students"),
+    path("export/staff/", export_views.export_staff, name="export_staff"),
+    path("export/attendance/", export_views.export_attendance, name="export_attendance"),
+    path("export/expenses/", export_views.export_expenses, name="export_expenses"),
+    path("export/fees/", export_views.export_fees, name="export_fees"),
+    path("export/library-books/", export_views.export_library_books, name="export_library_books"),
+    path("export/library-issues/", export_views.export_library_issues, name="export_library_issues"),
+    path("export/discipline/", export_views.export_discipline, name="export_discipline"),
+    path("export/inventory/", export_views.export_inventory, name="export_inventory"),
+    path("export/announcements/", export_views.export_announcements, name="export_announcements"),
+    path("export/admissions/", export_views.export_admissions, name="export_admissions"),
+    path("export/health-records/", export_views.export_health_records, name="export_health_records"),
+    path("export/budgets/", export_views.export_budgets, name="export_budgets"),
+    path("export/online-exams/", export_views.export_online_exams, name="export_online_exams"),
+    path("export/all/", export_views.export_all_data, name="export_all_data"),
+    
+    # Payment Dashboard
+    path("payments/", payment_views.payment_dashboard, name="payment_dashboard"),
+    path("payments/student/<int:student_id>/", payment_views.student_payment_history, name="student_payment_history"),
+    path("payments/record/", payment_views.record_payment, name="record_payment"),
+    path("payments/my/", payment_views.my_payments, name="my_payments"),
+    path("payments/receipt/<str:payment_type>/<int:payment_id>/", payment_views.generate_receipt, name="generate_receipt"),
+    
+    # Online Payment Integration (Paystack)
+    path("payments/initiate/", payment_views.initiate_online_payment, name="initiate_online_payment"),
+    path("payments/paystack/callback/", payment_views.paystack_callback, name="paystack_callback"),
+    path("payments/paystack/webhook/", payment_views.paystack_webhook, name="paystack_webhook"),
+    path("payments/send-reminder/", payment_views.send_payment_reminder, name="send_payment_reminder"),
+
     # Student Attendance
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("attendance/mark/", views.attendance_mark, name="attendance_mark"),
@@ -141,7 +173,11 @@ urlpatterns = [
     path("id-cards/export/pdf/", views.id_card_export_pdf, name="id_card_export_pdf"),
     
     # Staff ID Cards
-   
+    path("staff-id-cards/", views.staff_id_card_list, name="staff_id_card_list"),
+    path("staff-id-cards/create/", views.staff_id_card_create, name="staff_id_card_create"),
+    path("staff-id-cards/<int:pk>/edit/", views.staff_id_card_edit, name="staff_id_card_edit"),
+    path("staff-id-cards/<int:pk>/delete/", views.staff_id_card_delete, name="staff_id_card_delete"),
+    path("staff-id-cards/<int:pk>/print/", views.staff_id_card_print, name="staff_id_card_print"),
     
     # Sports
     path("sports/", views.sport_list, name="sport_list"),
@@ -209,6 +245,7 @@ urlpatterns = [
     path("online-exams/", views.online_exam_list, name="online_exam_list"),
     path("online-exams/create/", views.online_exam_create, name="online_exam_create"),
     path("online-exams/results/", views.online_exam_results, name="online_exam_results"),
+    path("online-exams/results/<int:exam_id>/export/", views.online_exam_export_results, name="online_exam_export_results"),
     path("online-exams/<int:pk>/", views.online_exam_detail, name="online_exam_detail"),
     path("online-exams/<int:pk>/edit/", views.online_exam_edit, name="online_exam_edit"),
     path("online-exams/<int:pk>/delete/", views.online_exam_delete, name="online_exam_delete"),

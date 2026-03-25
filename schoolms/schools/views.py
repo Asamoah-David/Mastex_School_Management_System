@@ -1,11 +1,7 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth.hashers import make_password
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
-from django.http import HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-import json
 
 from accounts.models import User
 from .models import School
@@ -147,7 +143,7 @@ def school_register(request):
 
 @login_required
 def school_settings(request):
-    """Update school profile (logo URL, academic year). School admin only."""
+    """Update school profile (logo URL, academic year, Paystack settings). School admin only."""
     from accounts.permissions import is_school_admin
     if not (request.user.is_superuser or is_school_admin(request.user)):
         return redirect("accounts:school_dashboard")
@@ -164,65 +160,16 @@ def school_settings(request):
         school.email = request.POST.get("email", "").strip() or school.email
         school.phone = request.POST.get("phone", "").strip() or school.phone
         school.address = request.POST.get("address", "").strip() or school.address
+        
+        # Paystack settings for receiving payments directly to school's account
+        school.paystack_subaccount_code = request.POST.get("paystack_subaccount_code", "").strip() or ""
+        school.paystack_bank_name = request.POST.get("paystack_bank_name", "").strip() or ""
+        school.paystack_account_number = request.POST.get("paystack_account_number", "").strip() or ""
+        school.paystack_account_name = request.POST.get("paystack_account_name", "").strip() or ""
+        
         school.save()
         messages.success(request, "School settings saved.")
         return redirect("schools:school_settings")
     return render(request, "schools/school_settings.html", {"school": school})
 
 
-@csrf_exempt
-def stripe_webhook(request):
-    """
-    Minimal Stripe webhook endpoint to toggle School.is_active automatically.
-
-    This does NOT use the Stripe Python SDK and performs only lightweight,
-    defensive parsing so it won't crash the site if Stripe sends an
-    unexpected payload.
-
-    Expected events:
-    - invoice.payment_succeeded  -> mark matching school as active
-    - customer.subscription.deleted / canceled subscription states -> mark inactive
-    """
-    try:
-        payload = request.body.decode("utf-8") if request.body else "{}"
-        event = json.loads(payload)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        # Malformed payload; return 400 but do not raise errors
-        return HttpResponse(status=400)
-
-    event_type = event.get("type", "")
-    data_object = event.get("data", {}).get("object", {}) or {}
-
-    # Helper: try to find a school by Stripe IDs
-    def _find_school(obj):
-        sub_id = obj.get("subscription") or obj.get("id")
-        customer_id = obj.get("customer")
-        school = None
-        if sub_id:
-            school = School.objects.filter(stripe_subscription_id=sub_id).first()
-        if not school and customer_id:
-            school = School.objects.filter(stripe_customer_id=customer_id).first()
-        return school
-
-    try:
-        # Mark school active when an invoice for its subscription is successfully paid
-        if event_type == "invoice.payment_succeeded":
-            school = _find_school(data_object)
-            if school:
-                school.is_active = True
-                school.save(update_fields=["is_active"])
-
-        # Deactivate school when subscription is canceled or ends
-        elif event_type in ("customer.subscription.deleted", "customer.subscription.updated"):
-            status = data_object.get("status")
-            if status in ("canceled", "unpaid", "incomplete_expired"):
-                school = _find_school(data_object)
-                if school:
-                    school.is_active = False
-                    school.save(update_fields=["is_active"])
-
-    except Exception:
-        # Never let webhook processing crash the app; log server-side via logger
-        logger.exception("Error processing Stripe webhook")
-
-    return HttpResponse(status=200)

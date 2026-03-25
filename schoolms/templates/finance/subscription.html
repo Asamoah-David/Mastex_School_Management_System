@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription - {{ school.name }}{% endblock %}
+{% block page_title %}Subscription Management{% endblock %}
+{% block page_subtitle %}{{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-grid" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+    
+    <!-- Current Subscription Status -->
+    <div class="content-card">
+        <h3>Current Subscription</h3>
+        
+        <div style="margin: 1.5rem 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <span style="color: #666;">Status:</span>
+                <span style="font-weight: bold; {% if school.subscription_status == 'active' %}color: green;{% elif school.subscription_status == 'expired' %}color: red;{% else %}color: orange;{% endif %}">
+                    {{ school.get_subscription_status_display|default:school.subscription_status|title }}
+                </span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <span style="color: #666;">Type:</span>
+                <span>{{ school.subscription_type|title|default:"Monthly" }}</span>
+            </div>
+            
+            {% if school.subscription_start_date %}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <span style="color: #666;">Start Date:</span>
+                <span>{{ school.subscription_start_date|date:"M d, Y" }}</span>
+            </div>
+            {% endif %}
+            
+            {% if school.subscription_end_date %}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <span style="color: #666;">End Date:</span>
+                <span>{{ school.subscription_end_date|date:"M d, Y" }}</span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <span style="color: #666;">Days Remaining:</span>
+                <span style="font-weight: bold; {% if school.days_until_expiry < 7 %}color: red;{% elif school.days_until_expiry < 14 %}color: orange;{% else %}color: green;{% endif %}">
+                    {{ school.days_until_expiry }} days
+                </span>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if school.subscription_status == 'active' %}
+            <div class="alert alert-success">
+                ✅ Your subscription is active and working properly.
+            </div>
+        {% elif school.subscription_status == 'expired' %}
+            <div class="alert alert-error">
+                ⚠️ Your subscription has expired. Please renew to continue using the platform.
+            </div>
+        {% else %}
+            <div class="alert alert-warning">
+                ⚠️ Your subscription is in {{ school.subscription_status }} status.
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Subscription Plans -->
+    <div class="content-card">
+        <h3>Subscription Plans</h3>
+        
+        <div style="margin: 1.5rem 0;">
+            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; background: #f9f9f9;">
+                <h4 style="margin: 0 0 1rem 0;">Monthly Plan</h4>
+                <div style="font-size: 2rem; font-weight: bold; color: #333; margin-bottom: 1rem;">
+                    GHS {{ school.subscription_amount|default:1500 }} <span style="font-size: 1rem; color: #666;">/ month</span>
+                </div>
+                <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
+                    <li>Full access to all features</li>
+                    <li>Unlimited students & staff</li>
+                    <li>Priority support</li>
+                    <li>Regular updates</li>
+                </ul>
+                
+                {% if paystack_available %}
+                    <a href="{% url 'finance:pay_subscription' %}" class="btn btn-primary" style="width: 100%; margin-top: 1rem; display: block; text-align: center;">
+                        {% if school.subscription_status == 'active' %}Renew Subscription{% else %}Subscribe Now{% endif %}
+                    </a>
+                {% else %}
+                    <div class="alert alert-warning" style="margin-top: 1rem;">
+                        Payment system not configured. Contact administrator.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <p style="color: #666; font-size: 0.9rem;">
+            <strong>Note:</strong> Payments are processed securely via Paystack. Your subscription will be active for 1 month after payment.
+        </p>
+    </div>
+</div>
+
+<div class="content-card" style="margin-top: 2rem;">
+    <h3>How Subscriptions Work</h3>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 1rem;">
+        <div style="text-align: center; padding: 1rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📋</div>
+            <h4>1. Pay</h4>
+            <p style="color: #666; font-size: 0.9rem;">Make payment via Paystack</p>
+        </div>
+        <div style="text-align: center; padding: 1rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">✨</div>
+            <h4>2. Access</h4>
+            <p style="color: #666; font-size: 0.9rem;">Full access to all platform features for 1 month</p>
+        </div>
+        <div style="text-align: center; padding: 1rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔄</div>
+            <h4>3. Renew</h4>
+            <p style="color: #666; font-size: 0.9rem;">Manually renew each month when needed</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

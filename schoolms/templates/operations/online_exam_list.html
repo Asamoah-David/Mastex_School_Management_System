@@ -8,15 +8,36 @@
 .status-draft { background: #6c757d; color: #fff; }
 .status-published { background: #28a745; color: #fff; }
 .status-closed { background: #dc3545; color: #fff; }
+.exam-group { margin-bottom: 2rem; }
+.exam-group-header { 
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.exam-group-content {
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-top: none;
+    border-radius: 0 0 0.5rem 0.5rem;
+    overflow: hidden;
+}
 </style>
 {% endblock %}
 {% block content %}
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>💻 Online Exams</h2>
-        {% if is_staff %}
-        <a href="{% url 'operations:online_exam_create' %}" class="btn btn-primary">➕ Create Exam</a>
-        {% endif %}
+        <div class="gap-2 d-flex">
+            {% if is_staff %}
+            <a href="{% url 'operations:export_online_exams' %}?format=csv" class="btn btn-success">📥 CSV</a>
+            <a href="{% url 'operations:export_online_exams' %}?format=excel" class="btn btn-success">📊 Excel</a>
+            <a href="{% url 'operations:online_exam_create' %}" class="btn btn-primary">➕ Create Exam</a>
+            {% endif %}
+        </div>
     </div>
     
     {# Filters for Class and Subject #}
@@ -50,44 +71,55 @@
     {% endif %}
     
     {% if exams %}
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Subject</th>
-                <th>Class</th>
-                <th>Duration</th>
-                <th>Total Marks</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for exam in exams %}
-        <tr>
-            <td>{{ exam.title }}</td>
-            <td>{{ exam.subject.name }}</td>
-            <td>{{ exam.class_level|default:"All Classes" }}</td>
-            <td>{{ exam.duration_minutes }} min</td>
-            <td>{{ exam.total_marks }}</td>
-            <td><span class="badge status-{{ exam.status }}">{{ exam.status|title }}</span></td>
-            <td>
-                {% if is_staff %}
-                <a href="{% url 'operations:online_exam_detail' exam.pk %}" class="btn btn-sm btn-info">👁️ View</a>
-                <a href="{% url 'operations:online_exam_edit' exam.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
-                <a href="{% url 'operations:online_exam_delete' exam.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
-                {% else %}
-                {% if exam.status == 'published' %}
-                <a href="{% url 'operations:online_exam_take' exam.pk %}" class="btn btn-sm btn-success">📝 Take Exam</a>
-                {% else %}
-                <span style="color: #6c757d;">Not Available</span>
-                {% endif %}
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    {# Group exams by class_level #}
+    {% regroup exams by class_level|default:"All Classes" as grouped_exams %}
+    
+    {% for group in grouped_exams %}
+    <div class="exam-group">
+        <div class="exam-group-header">
+            <span>📚 Class {{ group.grouper }}</span>
+            <span style="font-size: 0.85rem; opacity: 0.9;">{{ group.list|length }} exam{{ group.list|length|pluralize }}</span>
+        </div>
+        <div class="exam-group-content">
+            <table class="data-table" style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Subject</th>
+                        <th>Duration</th>
+                        <th>Total Marks</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for exam in group.list %}
+                <tr>
+                    <td>{{ exam.title }}</td>
+                    <td>{{ exam.subject.name }}</td>
+                    <td>{{ exam.duration_minutes }} min</td>
+                    <td>{{ exam.total_marks }}</td>
+                    <td><span class="badge status-{{ exam.status }}">{{ exam.status|title }}</span></td>
+                    <td>
+                        {% if is_staff %}
+                        <a href="{% url 'operations:online_exam_detail' exam.pk %}" class="btn btn-sm btn-info">👁️ View</a>
+                        <a href="{% url 'operations:online_exam_edit' exam.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                        <a href="{% url 'operations:online_exam_delete' exam.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+                        {% else %}
+                        {% if exam.status == 'published' %}
+                        <a href="{% url 'operations:online_exam_take' exam.pk %}" class="btn btn-sm btn-success">📝 Take Exam</a>
+                        {% else %}
+                        <span style="color: #6c757d;">Not Available</span>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
     {% else %}
     <p class="empty-state">📭 No exams found.</p>
     {% endif %}

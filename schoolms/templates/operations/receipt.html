@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card" id="receipt-card">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4>{{ school.name }}</h4>
+                    <p class="mb-0">{{ school.address }}</p>
+                    <p class="mb-0">Tel: {{ school.phone }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <h3>RECEIPT</h3>
+                        <p class="text-muted">Receipt #: {{ receipt_number }}</p>
+                    </div>
+                    
+                    <table class="table table-borderless">
+                        <tr>
+                            <td><strong>Date:</strong></td>
+                            <td>{{ date|date:"d M Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Student Name:</strong></td>
+                            <td>{{ student.user.get_full_name }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Payment Type:</strong></td>
+                            <td>{{ type }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Description:</strong></td>
+                            <td>{{ description }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Amount:</strong></td>
+                            <td><h4 class="text-success mb-0">GHS {{ amount|floatformat:2 }}</h4></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Amount in Words:</strong></td>
+                            <td class="text-uppercase">{{ amount|text_to_words }} Ghana Cedis Only</td>
+                        </tr>
+                    </table>
+                    
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Collected By:</strong><br>{{ collected_by }}</p>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <p><strong>Authorized Signature:</strong><br><br>_________________________</p>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="text-center text-muted">
+                        <small>
+                            This is an official receipt from {{ school.name }}<br>
+                            Thank you for your payment!
+                        </small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .btn, .navbar, .sidebar {
+        display: none !important;
+    }
+    body {
+        background: white !important;
+    }
+    #receipt-card {
+        border: 2px solid #000;
+        box-shadow: none;
+    }
+}
+</style>
+{% endblock %}

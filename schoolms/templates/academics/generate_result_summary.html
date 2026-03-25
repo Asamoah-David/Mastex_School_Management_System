@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Generate Result Summary{% endblock %}
+{% block page_title %}Generate Result Summary{% endblock %}
+{% block page_subtitle %}Calculate final scores, grades, and GPA{% endblock %}
+
+{% block content %}
+
+<div class="content-card">
+    <h3 style="margin-top: 0;">📊 Generate Result Summaries</h3>
+    
+    <p style="color: #6b7280; margin-bottom: 1.5rem;">
+        This will calculate and store the final scores for all students based on their CA and exam scores.
+    </p>
+    
+    {# Info Box #}
+    <div style="background: #EEF2FF; border: 1px solid #C7D2FE; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0; color: #4338CA;">How it works:</h4>
+        <ol style="margin: 0; padding-left: 1.25rem; color: #6b7280;">
+            <li style="margin-bottom: 0.25rem;">System collects all CA scores and calculates average (weighted at {{ policy.ca_weight }}%)</li>
+            <li style="margin-bottom: 0.25rem;">System retrieves the exam score (weighted at {{ policy.exam_weight }}%)</li>
+            <li style="margin-bottom: 0.25rem;">Final score = (CA × {{ policy.ca_weight }}%) + (Exam × {{ policy.exam_weight }}%)</li>
+            <li>Grade and GPA are assigned based on the final score</li>
+        </ol>
+    </div>
+    
+    {# Generate Form #}
+    <form method="post">
+        {% csrf_token %}
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Select Class</label>
+            <select name="class" required style="width: 100%; max-width: 400px; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <option value="">Select a class</option>
+                {% for c in classes %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Select Term</label>
+            <select name="term" required style="width: 100%; max-width: 400px; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <option value="">Select a term</option>
+                {% for t in terms %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+            <p style="margin: 0; color: #92400E; font-size: 0.875rem;">
+                ⚠️ <strong>Note:</strong> Running this will update existing result summaries. 
+                Make sure all CA and Exam scores have been uploaded first.
+            </p>
+        </div>
+        
+        <button type="submit" class="button" style="padding: 0.75rem 2rem;">
+            🚀 Generate Result Summaries
+        </button>
+    </form>
+</div>
+
+<div class="content-card">
+    <h3 style="margin-top: 0;">📋 Workflow Steps</h3>
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">1</div>
+            <div>
+                <strong>Configure Grading Policy</strong>
+                <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">
+                    Set the CA and Exam weights (default: 50/50)
+                </p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">2</div>
+            <div>
+                <strong>Upload CA Scores</strong>
+                <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">
+                    Add class exercises, assignments, projects, quizzes, etc.
+                </p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">3</div>
+            <div>
+                <strong>Upload Exam Scores</strong>
+                <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">
+                    Add the final exam results for each subject.
+                </p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: #dbeafe; border-radius: 8px; border: 1px solid #93c5fd;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #2563EB; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">4</div>
+            <div>
+                <strong>Generate Result Summary</strong>
+                <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">
+                    Calculate final scores, grades, and GPA for all students.
+                </p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">5</div>
+            <div>
+                <strong>View Enhanced Report Card</strong>
+                <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">
+                    Access report cards with CA, Exam, Final scores, Grade, GPA, and Position.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

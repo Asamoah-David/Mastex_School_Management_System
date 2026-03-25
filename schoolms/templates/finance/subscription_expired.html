@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription Expired - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 4rem auto; text-align: center; padding: 2rem;">
+    <div style="font-size: 4rem; margin-bottom: 1rem;">🚫</div>
+    
+    <h1 style="color: #dc3545; margin-bottom: 1rem;">Subscription Expired</h1>
+    
+    <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0;">
+        <p style="color: #721c24; margin: 0;">
+            Your subscription for <strong>{{ school.name }}</strong> has expired.
+            All access to the platform has been temporarily restricted.
+        </p>
+    </div>
+    
+    {% if school.subscription_end_date %}
+    <p style="color: #666;">
+        Your subscription ended on: <strong>{{ school.subscription_end_date|date:"F d, Y" }}</strong>
+    </p>
+    {% endif %}
+    
+    <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 2rem; margin: 2rem 0;">
+        <h3 style="margin-top: 0;">To regain access:</h3>
+        <ol style="text-align: left; color: #666;">
+            <li style="margin-bottom: 0.5rem;">Click the button below to go to the subscription page</li>
+            <li style="margin-bottom: 0.5rem;">Complete payment via Paystack (GHS {{ school.subscription_amount|default:1500 }}/month)</li>
+            <li style="margin-bottom: 0.5rem;">Your access will be restored immediately after payment</li>
+        </ol>
+        
+        <a href="{% url 'finance:subscription' %}" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1.1rem; margin-top: 1rem;">
+            Renew Subscription Now
+        </a>
+    </div>
+    
+    <p style="color: #999; font-size: 0.9rem;">
+        Need help? Contact support at <a href="mailto:support@mastex.com" style="color: #007bff;">support@mastex.com</a>
+    </p>
+</div>
+{% endblock %}

@@ -5,6 +5,8 @@
 {% block content %}
 <div class="button-row">
     <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Register new staff</a>
+    <a href="{% url 'operations:export_staff' %}?format=csv" class="btn btn-success">📥 CSV</a>
+    <a href="{% url 'operations:export_staff' %}?format=excel" class="btn btn-success">📊 Excel</a>
 </div>
 
 {% if staff_by_role %}

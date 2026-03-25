@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Student - {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
+{% block page_title %}Edit Student{% endblock %}
+{% block page_subtitle %}{{ student.user.get_full_name|default:student.user.username }} ({{ student.admission_number }}){% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Admission Number</label>
+            <input type="text" name="admission_number" required value="{{ student.admission_number }}" style="width:100%;padding:0.5rem;">
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Class</label>
+            <select name="class_name" style="width:100%;padding:0.5rem;">
+                <option value="">-- Select Class --</option>
+                {% for class in classes %}
+                <option value="{{ class.name }}" {% if student.class_name == class.name %}selected{% endif %}>{{ class.name }}</option>
+                {% endfor %}
+                <option value="{{ student.class_name }}" {% if student.class_name and student.class_name not in classes %}selected{% endif %}>{{ student.class_name }} (custom)</option>
+            </select>
+            <small style="color:#666;">Select from list or type custom class name</small>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Parent</label>
+            <select name="parent" style="width:100%;padding:0.5rem;">
+                <option value="">-- No Parent Linked --</option>
+                {% for parent in parents %}
+                <option value="{{ parent.pk }}" {% if student.parent_id == parent.pk %}selected{% endif %}>
+                    {{ parent.get_full_name|default:parent.username }} ({{ parent.email }})
+                </option>
+                {% endfor %}
+            </select>
+            <small style="color:#666;">Link a parent account to allow them to view their child's progress and fees</small>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Status</label>
+            <select name="status" style="width:100%;padding:0.5rem;">
+                <option value="active" {% if student.status == "active" %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if student.status == "inactive" %}selected{% endif %}>Inactive</option>
+                <option value="withdrawn" {% if student.status == "withdrawn" %}selected{% endif %}>Withdrawn</option>
+                <option value="graduated" {% if student.status == "graduated" %}selected{% endif %}>Graduated</option>
+            </select>
+        </div>
+        
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+            <a href="{% url 'students:student_detail' student.pk %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

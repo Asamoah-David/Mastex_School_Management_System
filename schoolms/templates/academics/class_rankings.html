@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Class Rankings{% endblock %}
+{% block page_title %}Class Rankings{% endblock %}
+{% block page_subtitle %}View student positions based on academic performance{% endblock %}
+
+{% block content %}
+
+<div class="content-card">
+    {# Filter Section #}
+    <form method="get" style="margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Class</label>
+                <select name="class" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">Select Class</option>
+                    {% for c in classes %}
+                    <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Term</label>
+                <select name="term" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">Select Term</option>
+                    {% for t in terms %}
+                    <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    
+    {# Rankings Table #}
+    {% if rankings %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Position</th>
+                    <th>Student</th>
+                    <th>Admission No</th>
+                    <th>Average Score</th>
+                    <th>Total Score</th>
+                    <th>Subjects</th>
+                    <th>GPA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rank in rankings %}
+                <tr style="{% if rank.position == 1 %}background: #FEF3C7;{% elif rank.position == 2 %}background: #F3F4F6;{% elif rank.position == 3 %}background: #FED7AA;{% endif %}">
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            {% if rank.position == 1 %}
+                            <span style="font-size: 1.5rem;">🥇</span>
+                            {% elif rank.position == 2 %}
+                            <span style="font-size: 1.5rem;">🥈</span>
+                            {% elif rank.position == 3 %}
+                            <span style="font-size: 1.5rem;">🥉</span>
+                            {% else %}
+                            <span style="font-size: 1rem; color: #6b7280;">{{ rank.position }}</span>
+                            {% endif %}
+                            <strong>{{ rank.position }}{% if rank.position == 1 %}st{% elif rank.position == 2 %}nd{% elif rank.position == 3 %}rd{% else %}th{% endif %}</strong>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #4F46E5, #4338CA); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.875rem; font-weight: bold;">
+                                {{ rank.student.user.get_full_name|slice:":1"|upper }}
+                            </div>
+                            <div>
+                                <div style="font-weight: 500;">{{ rank.student.user.get_full_name|default:rank.student.user.username }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ rank.student.admission_number }}</td>
+                    <td><strong>{{ rank.avg_score|floatformat:1 }}%</strong></td>
+                    <td>{{ rank.total_score|floatformat:1 }}</td>
+                    <td>{{ rank.subjects_count }}</td>
+                    <td>
+                        <span class="tag {% if rank.gpa >= 4.0 %}tag-success{% elif rank.gpa >= 3.0 %}tag-warning{% else %}tag-danger{% endif %}">
+                            {{ rank.gpa|floatformat:2 }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    {# Statistics #}
+    <div class="content-grid" style="margin-top: 1.5rem;">
+        <div class="metric">
+            <div class="metric-label">Class Average</div>
+            <div class="metric-value">
+                {% with rankings|length as count %}
+                {% with rankings|dictsort:"avg_score"|last as lowest %}
+                {% with rankings|dictsort:"avg_score"|first as highest %}
+                {{ highest.avg_score|add:lowest.avg_score|divisibleby:2|floatformat:1 }}%
+                {% endwith %}
+                {% endwith %}
+                {% endwith %}
+            </div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Total Students</div>
+            <div class="metric-value">{{ rankings|length }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Top Performer</div>
+            <div class="metric-value" style="font-size: 1rem;">
+                {{ rankings.0.student.user.get_full_name }}
+            </div>
+        </div>
+    </div>
+    
+    {% else %}
+    <div class="empty-state">
+        {% if selected_class and selected_term %}
+        No ranking data available. Please ensure results have been generated for this class and term.
+        {% else %}
+        Select a class and term to view rankings.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

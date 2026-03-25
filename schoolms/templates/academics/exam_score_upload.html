@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Upload Exam Scores{% endblock %}
+{% block page_title %}Upload Exam Scores{% endblock %}
+{% block page_subtitle %}Final Exam Score Entry{% endblock %}
+
+{% block content %}
+
+<div class="content-card">
+    {# Filter Section #}
+    <form method="get" style="margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Class</label>
+                <select name="class" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">Select Class</option>
+                    {% for c in classes %}
+                    <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Subject</label>
+                <select name="subject" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">Select Subject</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}" {% if selected_subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Term</label>
+                <select name="term" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">Select Term</option>
+                    {% for t in terms %}
+                    <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Exam Type</label>
+                <select name="exam_type" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <option value="">Select Type</option>
+                    {% for et in exam_types %}
+                    <option value="{{ et.id }}" {% if selected_exam_type == et.id|stringformat:"s" %}selected{% endif %}>{{ et.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    
+    {# Info Box #}
+    <div style="background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+        <p style="margin: 0; color: #92400E;">
+            💡 <strong>Note:</strong> Each student can only have one exam score per subject per term. 
+            Uploading a new score will update the existing score.
+        </p>
+    </div>
+    
+    {# Upload Form #}
+    {% if students %}
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="class" value="{{ selected_class }}">
+        <input type="hidden" name="subject" value="{{ selected_subject }}">
+        <input type="hidden" name="term" value="{{ selected_term }}">
+        <input type="hidden" name="exam_type" value="{{ selected_exam_type }}">
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Exam Date</label>
+            <input type="date" name="date" value="{{ today }}" style="padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+        </div>
+        
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Admission No</th>
+                        <th>Student Name</th>
+                        <th>Existing Score</th>
+                        <th>New Score (out of 100)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ student.admission_number }}</td>
+                        <td>{{ student.user.get_full_name|default:student.user.username }}</td>
+                        <td>
+                            {% with student.id as sid %}
+                            {% if existing_scores|get_item:sid %}
+                            <span class="tag" style="background: #d1fae5; color: #065f46;">{{ existing_scores|get_item:sid }}</span>
+                            {% else %}
+                            <span style="color: #9ca3af;">—</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            <input type="number" name="score_student_{{ student.id }}" 
+                                   value=""
+                                   min="0" max="100" step="0.1"
+                                   placeholder="Enter score"
+                                   style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; width: 120px;">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 1.5rem;">
+            <button type="submit" class="button">Save All Exam Scores</button>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state">
+        {% if selected_class and selected_subject and selected_term %}
+        No students found in the selected class.
+        {% else %}
+        Please select Class, Subject, and Term to upload exam scores.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

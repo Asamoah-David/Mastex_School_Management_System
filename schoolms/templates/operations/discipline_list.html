@@ -15,7 +15,11 @@
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>⚖️ Discipline Incidents</h2>
-        <a href="{% url 'operations:discipline_create' %}" class="btn btn-primary">➕ Record Incident</a>
+        <div class="gap-2 d-flex">
+            <a href="{% url 'operations:export_discipline' %}?format=csv" class="btn btn-success">📥 CSV</a>
+            <a href="{% url 'operations:export_discipline' %}?format=excel" class="btn btn-success">📊 Excel</a>
+            <a href="{% url 'operations:discipline_create' %}" class="btn btn-primary">➕ Record Incident</a>
+        </div>
     </div>
     
     {% if incidents %}

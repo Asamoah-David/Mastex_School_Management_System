@@ -11,6 +11,8 @@
 {% block content %}
 <div class="button-row">
     <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register new student</a>
+    <a href="{% url 'operations:export_students' %}?format=csv" class="btn btn-success">📥 CSV</a>
+    <a href="{% url 'operations:export_students' %}?format=excel" class="btn btn-success">📊 Excel</a>
 </div>
 
 {% if no_access %}

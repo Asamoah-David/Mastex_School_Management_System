@@ -398,7 +398,7 @@ After login, you see teaching-related features.
 5. Save
 
 ### Q: Can parents pay fees online?
-**A:** Payment portal is configured with Flutterwave. Parents can pay from the fees section.
+**A:** Payment portal is configured with Paystack. Parents can pay from the fees section.
 
 ### Q: How do I generate report cards?
 **A:** 

@@ -5,6 +5,8 @@
 {% block content %}
 <div class="button-row">
     <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">Mark attendance</a>
+    <a href="{% url 'operations:export_attendance' %}?format=csv{% if from_date %}&from={{ from_date|date:'Y-m-d' }}{% endif %}{% if to_date %}&to={{ to_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">📥 CSV</a>
+    <a href="{% url 'operations:export_attendance' %}?format=excel{% if from_date %}&from={{ from_date|date:'Y-m-d' }}{% endif %}{% if to_date %}&to={{ to_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">📊 Excel</a>
 </div>
 <div class="table-card">
     {% if attendances %}

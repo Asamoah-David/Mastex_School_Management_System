@@ -3,7 +3,13 @@
 {% block page_title %}Library Catalog{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>Library Books</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2>Library Books</h2>
+        <div class="gap-2 d-flex">
+            <a href="{% url 'operations:export_library_books' %}?format=csv" class="btn btn-success">📥 CSV</a>
+            <a href="{% url 'operations:export_library_books' %}?format=excel" class="btn btn-success">📊 Excel</a>
+        </div>
+    </div>
     {% if books %}
     <table>
         <thead><tr><th>Title</th><th>Author</th><th>ISBN</th><th>Available</th></tr></thead>

@@ -39,4 +39,18 @@ urlpatterns = [
     
     # Analytics
     path("analytics/", views.performance_analytics, name="performance_analytics"),
+    
+    # NEW: Comprehensive Grading System URLs
+    path("grading-policy/", views.grading_policy_view, name="grading_policy"),
+    path("grading-policy/update/", views.grading_policy_update, name="grading_policy_update"),
+    path("assessment-types/", views.assessment_type_list, name="assessment_type_list"),
+    path("assessment-types/create/", views.assessment_type_create, name="assessment_type_create"),
+    path("assessment-scores/", views.assessment_score_list, name="assessment_score_list"),
+    path("assessment-scores/upload/", views.assessment_score_upload, name="assessment_score_upload"),
+    path("exam-scores/", views.exam_score_list, name="exam_score_list"),
+    path("exam-scores/upload/", views.exam_score_upload, name="exam_score_upload"),
+    path("rankings/", views.class_rankings, name="class_rankings"),
+    path("result-summary/generate/", views.generate_result_summary, name="generate_result_summary"),
+    path("enhanced-report-card/<int:student_id>/", views.enhanced_report_card, name="enhanced_report_card"),
+    path("enhanced-report-card/<int:student_id>/pdf/", views.enhanced_report_card_pdf, name="enhanced_report_card_pdf"),
 ]

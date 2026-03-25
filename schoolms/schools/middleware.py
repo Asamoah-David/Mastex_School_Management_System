@@ -1,5 +1,6 @@
-from django.shortcuts import redirect
-from django.urls import reverse # Added import for reverse
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from .models import School
 
 
@@ -13,6 +14,12 @@ class SchoolMiddleware:
             "/", "/accounts/login/", "/accounts/logout/", "/accounts/dashboard/", "/accounts/school-dashboard/",
             "/login/", "/logout/", "/register/", "/admin/login/", "/portal/",
         ]
+        # Allow subscription and payment related paths for expired schools
+        subscription_paths = [
+            "/finance/subscription/", "/finance/pay-subscription/", "/finance/subscription-callback/",
+            "/finance/subscription-expired/", "/accounts/login/", "/accounts/logout/",
+        ]
+        
         if request.path in skip_paths:
             return self.get_response(request)
         if any(request.path.startswith(p) for p in ["/static/", "/media/", "/admin/jsi18n/", "/portal"]):
@@ -34,9 +41,9 @@ class SchoolMiddleware:
         # Block non-superadmins from accessing Django admin
         if request.path.startswith("/admin/"):
             if not request.user.is_authenticated:
-                return redirect(reverse("accounts:login")) # Using reverse()
+                return redirect(reverse("accounts:login"))
             if not request.user.is_superuser and request.user.role != "super_admin":
-                return redirect(reverse("accounts:school_dashboard")) # Using reverse()
+                return redirect(reverse("accounts:school_dashboard"))
         
         # Check if user's school is active (allow superusers/super_admins to always access)
         if request.user.is_authenticated:
@@ -47,5 +54,22 @@ class SchoolMiddleware:
                     from django.contrib.auth import logout
                     logout(request)
                     return redirect(f"{reverse('accounts:login')}?inactive=1")
+                
+                # Check subscription status
+                if user_school.subscription_status == 'expired':
+                    # Allow access to subscription-related pages only
+                    allowed = any(request.path.startswith(p) for p in subscription_paths)
+                    if not allowed:
+                        return render(request, 'finance/subscription_expired.html', {'school': user_school})
+                
+                # Check if subscription has expired based on end date (even if status is 'active')
+                elif user_school.subscription_status == 'active' and user_school.subscription_end_date:
+                    if user_school.subscription_end_date < timezone.now():
+                        # Update status to expired
+                        user_school.subscription_status = 'expired'
+                        user_school.save(update_fields=['subscription_status'])
+                        allowed = any(request.path.startswith(p) for p in subscription_paths)
+                        if not allowed:
+                            return render(request, 'finance/subscription_expired.html', {'school': user_school})
         
         return self.get_response(request)

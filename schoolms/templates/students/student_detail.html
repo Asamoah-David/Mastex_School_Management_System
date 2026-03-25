@@ -28,6 +28,7 @@
 </div>
 <div class="button-row mt-sm">
     <a href="{% url 'academics:report_card' student.id %}" class="btn btn-primary">View Report Card</a>
+    <a href="{% url 'students:student_edit' student.id %}" class="btn btn-warning">✏️ Edit Student</a>
     <a href="{% url 'students:student_list' %}" class="btn btn-secondary">Back to students</a>
     <a href="{% url 'accounts:reset_user_password' student.user.id %}?next={% url 'students:student_detail' student.id %}" class="btn btn-warning">Reset password</a>
     {% if student.user.is_active %}

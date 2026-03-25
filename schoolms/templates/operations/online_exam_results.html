@@ -55,13 +55,25 @@
         </form>
     </div>
     
-    {% if selected_exam %}
+{% if selected_exam %}
     <div class="info-box" style="margin-bottom: 1.5rem;">
-        <h3>{{ selected_exam.title }}</h3>
-        <p><strong>Subject:</strong> {{ selected_exam.subject.name }}</p>
-        <p><strong>Date:</strong> {{ selected_exam.start_time|date:"M d, Y H:i" }}</p>
-        <p><strong>Total Marks:</strong> {{ selected_exam.total_marks }}</p>
-        <p><strong>Passing Marks:</strong> {{ selected_exam.passing_marks }}</p>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3>{{ selected_exam.title }}</h3>
+                <p><strong>Subject:</strong> {{ selected_exam.subject.name }}</p>
+                <p><strong>Class:</strong> {{ selected_exam.class_level|default:"All Classes" }}</p>
+                <p><strong>Date:</strong> {{ selected_exam.start_time|date:"M d, Y H:i" }}</p>
+                <p><strong>Total Marks:</strong> {{ selected_exam.total_marks }}</p>
+                <p><strong>Passing Marks:</strong> {{ selected_exam.passing_marks }}</p>
+            </div>
+            <div>
+                {% if attempts %}
+                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}" class="btn btn-primary" style="margin-bottom: 0.5rem;">
+                    📥 Export Results (CSV)
+                </a>
+                {% endif %}
+            </div>
+        </div>
     </div>
     
     {% if attempts %}

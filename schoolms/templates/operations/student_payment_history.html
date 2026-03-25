@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-person-badge"></i> Payment History - {{ student.user.get_full_name }}</h2>
+        <div>
+            <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Student Summary -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-person"></i> Student Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Name:</strong> {{ student.user.get_full_name }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Class:</strong> {{ student.current_class }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Admission No:</strong> {{ student.admission_number }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Overall Total:</strong> <span class="text-success">GHS {{ overall_total|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-primary">School Fees</h5>
+                    <h4>GHS {{ school_fees_total|floatformat:2 }}</h4>
+                    <small>Paid: GHS {{ school_fees_paid|floatformat:2 }} | Outstanding: GHS {{ school_fees_outstanding|floatformat:2 }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-success">Canteen</h5>
+                    <h4>GHS {{ canteen_total|floatformat:2 }}</h4>
+                    <small>{{ canteen|length }} Transactions</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-warning">Bus</h5>
+                    <h4>GHS {{ bus_total|floatformat:2 }}</h4>
+                    <small>Total Bus Payments</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-info">Textbooks</h5>
+                    <h4>GHS {{ textbook_total|floatformat:2 }}</h4>
+                    <small>{{ textbooks|length }} Purchases</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs for different payment types -->
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#school_fees" type="button">School Fees</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#canteen" type="button">Canteen</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#bus" type="button">Bus</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#textbooks" type="button">Textbooks</button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- School Fees -->
+        <div class="tab-pane fade show active" id="school_fees">
+            <div class="card">
+                <div class="card-header">
+                    <h5>School Fees History</h5>
+                </div>
+                <div class="card-body">
+                    {% if school_fees %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Term</th>
+                                    <th>Total Amount</th>
+                                    <th>Paid</th>
+                                    <th>Balance</th>
+                                    <th>Payments</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for fee in school_fees %}
+                                <tr>
+                                    <td>{{ fee.term }}</td>
+                                    <td>GHS {{ fee.amount|floatformat:2 }}</td>
+                                    <td>
+                                        {% with paid=0 %}
+                                        {% for payment in fee.feeperpayment_set.all %}
+                                            {% if payment.status == 'completed' %}
+                                                {% with paid=paid|add:payment.amount %}{% endwith %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        GHS {{ paid|floatformat:2 }}
+                                        {% endwith %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-danger">GHS {{ fee.balance_due|floatformat:2|default:"0.00" }}</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#fee-{{ fee.id }}">
+                                            View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No school fees records.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Canteen -->
+        <div class="tab-pane fade" id="canteen">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Canteen Purchases</h5>
+                </div>
+                <div class="card-body">
+                    {% if canteen %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                    <th>Description</th>
+                                    <th>Recorded By</th>
+                                    <th>Receipt</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in canteen %}
+                                <tr>
+                                    <td>{{ payment.payment_date|date:"d M Y" }}</td>
+                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.description|default:"-" }}</td>
+                                    <td>{{ payment.recorded_by.get_full_name|default:"-" }}</td>
+                                    <td>
+                                        <a href="{% url 'operations:generate_receipt' 'canteen' payment.id %}" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-receipt"></i> Receipt
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No canteen purchases.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Bus -->
+        <div class="tab-pane fade" id="bus">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Bus Fee Payments</h5>
+                </div>
+                <div class="card-body">
+                    {% if bus %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Route</th>
+                                    <th>Term</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Date Paid</th>
+                                    <th>Receipt</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in bus %}
+                                <tr>
+                                    <td>{{ payment.route.name|default:"-" }}</td>
+                                    <td>{{ payment.term_period|default:"-" }}</td>
+                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>
+                                        {% if payment.paid %}
+                                        <span class="badge bg-success">Paid</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">Unpaid</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ payment.payment_date|date:"d M Y"|default:"-" }}</td>
+                                    <td>
+                                        {% if payment.paid %}
+                                        <a href="{% url 'operations:generate_receipt' 'bus' payment.id %}" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-receipt"></i> Receipt
+                                        </a>
+                                        {% else %}
+                                        <a href="{% url 'operations:record_payment' %}?student={{ student.id }}&type=bus" class="btn btn-sm btn-success">
+                                            <i class="bi bi-cash"></i> Pay Now
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No bus payments.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Textbooks -->
+        <div class="tab-pane fade" id="textbooks">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Textbook Purchases</h5>
+                </div>
+                <div class="card-body">
+                    {% if textbooks %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Textbook</th>
+                                    <th>Quantity</th>
+                                    <th>Amount</th>
+                                    <th>Receipt</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sale in textbooks %}
+                                <tr>
+                                    <td>{{ sale.sale_date|date:"d M Y" }}</td>
+                                    <td>{{ sale.textbook.title }}</td>
+                                    <td>{{ sale.quantity }}</td>
+                                    <td>GHS {{ sale.amount|floatformat:2 }}</td>
+                                    <td>
+                                        <a href="{% url 'operations:generate_receipt' 'textbook' sale.id %}" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-receipt"></i> Receipt
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No textbook purchases.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

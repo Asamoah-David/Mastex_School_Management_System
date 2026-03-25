@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Add Fee Type - {{ school.name }}{% endblock %}
-{% block page_title %}Add Fee Type{% endblock %}
+{% block title %}{% if structure %}Edit{% else %}Add{% endif %} Fee Type - {{ school.name }}{% endblock %}
+{% block page_title %}{% if structure %}Edit{% else %}Add{% endif %} Fee Type{% endblock %}
 {% block page_subtitle %}Define a fee structure entry{% endblock %}
 
 {% block content %}
@@ -9,22 +9,30 @@
         {% csrf_token %}
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Name (e.g. Tuition, Development Levy)</label>
-            <input type="text" name="name" required maxlength="100" style="width:100%;padding:0.5rem;">
+            <input type="text" name="name" required maxlength="100" style="width:100%;padding:0.5rem;" value="{{ structure.name|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Amount (GHS)</label>
-            <input type="number" name="amount" required min="0" step="0.01" style="padding:0.5rem;">
+            <input type="number" name="amount" required min="0" step="0.01" style="padding:0.5rem;" value="{{ structure.amount|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Class (leave empty for all)</label>
-            <input type="text" name="class_name" maxlength="100" placeholder="e.g. Form 1A" style="width:100%;padding:0.5rem;">
+            <input type="text" name="class_name" maxlength="100" placeholder="e.g. Form 1A" style="width:100%;padding:0.5rem;" value="{{ structure.class_name|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label>Term (optional)</label>
-            <input type="text" name="term" maxlength="50" placeholder="e.g. Term 1 2025" style="width:100%;padding:0.5rem;">
+            <input type="text" name="term" maxlength="50" placeholder="e.g. Term 1 2025" style="width:100%;padding:0.5rem;" value="{{ structure.term|default:'' }}">
         </div>
+        {% if structure %}
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>
+                <input type="checkbox" name="is_active" {% if structure.is_active %}checked{% endif %}>
+                Active (visible to students/parents)
+            </label>
+        </div>
+        {% endif %}
         <div class="button-row">
-            <button type="submit" class="btn btn-primary">Add</button>
+            <button type="submit" class="btn btn-primary">{% if structure %}Save Changes{% else %}Add{% endif %}</button>
             <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>

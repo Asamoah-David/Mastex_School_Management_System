@@ -2706,6 +2706,55 @@ def online_exam_allow_retake(request, attempt_id):
     })
 
 
+@login_required
+def online_exam_export_results(request, exam_id):
+    """Export exam results to CSV."""
+    from accounts.permissions import user_can_manage_school
+    import csv
+    from django.http import HttpResponse
+    
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    exam = get_object_or_404(OnlineExam, pk=exam_id, school=school)
+    attempts = ExamAttempt.objects.filter(exam=exam, is_completed=True).select_related(
+        'student', 'student__user'
+    ).order_by('student__user__last_name', 'student__user__first_name')
+    
+    # Create CSV response
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="exam_results_{exam.title.replace(" ", "_")}_{exam.start_time.strftime("%Y%m%d")}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow([
+        'Student Name',
+        'Admission Number',
+        'Class',
+        'Score',
+        'Total Marks',
+        'Percentage',
+        'Status',
+        'Submitted At'
+    ])
+    
+    for attempt in attempts:
+        percentage = (attempt.score / exam.total_marks * 100) if exam.total_marks > 0 else 0
+        status = 'Passed' if attempt.score >= exam.passing_marks else 'Failed'
+        writer.writerow([
+            attempt.student.user.get_full_name(),
+            attempt.student.admission_number or 'N/A',
+            attempt.student.class_name or 'N/A',
+            attempt.score or 0,
+            exam.total_marks,
+            f'{percentage:.1f}%',
+            status,
+            attempt.submitted_at.strftime('%Y-%m-%d %H:%M') if attempt.submitted_at else 'N/A'
+        ])
+    
+    return response
+
+
 # ==================== STAFF ID CARDS ====================
 
 def _get_staff_id_model():
@@ -4396,6 +4445,7 @@ def online_exam_edit(request, pk):
         passing = request.POST.get('passing_marks', 50)
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
+        show_results = request.POST.get('show_results') == 'on'
         
         if title and subject_id and start_time and end_time:
             subject = Subject.objects.filter(id=subject_id, school=school).first()
@@ -4413,6 +4463,7 @@ def online_exam_edit(request, pk):
                     exam.passing_marks = int(passing)
                     exam.start_time = start
                     exam.end_time = end
+                    exam.show_results_immediately = show_results
                     exam.save()
                     
                     from django.contrib import messages
@@ -4422,7 +4473,7 @@ def online_exam_edit(request, pk):
                     pass
     
     return render(request, 'operations/online_exam_form.html', {
-        'school': school, 'subjects': subjects, 'exam': exam
+        'school': school, 'subjects': subjects, 'exam': exam, 'school_classes': school_classes
     })
 
 

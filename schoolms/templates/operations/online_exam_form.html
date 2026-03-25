@@ -28,7 +28,8 @@
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label class="required">📝 Exam Title</label>
                 <input type="text" name="title" id="title" required 
-                       placeholder="e.g. Mathematics Mid-Term Exam">
+                       placeholder="e.g. Mathematics Mid-Term Exam"
+                       value="{{ exam.title|default:'' }}">
                 <small class="form-error" id="titleError"></small>
             </div>
             
@@ -38,7 +39,7 @@
                 <select name="subject" id="subject" required>
                     <option value="">Select Subject</option>
                     {% for subject in subjects %}
-                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                    <option value="{{ subject.id }}" {% if exam.subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
                     {% endfor %}
                 </select>
                 <small class="form-error" id="subjectError"></small>
@@ -50,7 +51,7 @@
                 <select name="class_level" id="class_level">
                     <option value="">All Classes</option>
                     {% for class in school_classes %}
-                    <option value="{{ class }}">{{ class }}</option>
+                    <option value="{{ class }}" {% if exam.class_level == class %}selected{% endif %}>{{ class }}</option>
                     {% endfor %}
                 </select>
                 <small class="form-text">Leave empty to allow all classes</small>
@@ -59,7 +60,7 @@
             <!-- Duration -->
             <div class="form-group">
                 <label class="required">⏱️ Duration (minutes)</label>
-                <input type="number" name="duration" id="duration" required min="5" max="180" value="30">
+                <input type="number" name="duration" id="duration" required min="5" max="180" value="{{ exam.duration_minutes|default:'30' }}">
                 <small class="form-text">5-180 minutes</small>
                 <small class="form-error" id="durationError"></small>
             </div>
@@ -67,21 +68,24 @@
             <!-- Total Score -->
             <div class="form-group">
                 <label class="required">🎯 Total Score</label>
-                <input type="number" name="total_score" id="total_score" required min="1" value="100">
+                <input type="number" name="total_score" id="total_score" required min="1" value="{{ exam.total_marks|default:'100' }}">
+                <small class="form-text">Sum of all question marks</small>
                 <small class="form-error" id="scoreError"></small>
             </div>
             
             <!-- Start Time -->
             <div class="form-group">
                 <label class="required">🗓️ Start Time</label>
-                <input type="datetime-local" name="start_time" id="start_time" required>
+                <input type="datetime-local" name="start_time" id="start_time" required
+                       value="{{ exam.start_time|date:'Y-m-d\TH:i'|default:'' }}">
                 <small class="form-error" id="startError"></small>
             </div>
             
             <!-- End Time -->
             <div class="form-group">
                 <label class="required">🕐 End Time</label>
-                <input type="datetime-local" name="end_time" id="end_time" required>
+                <input type="datetime-local" name="end_time" id="end_time" required
+                       value="{{ exam.end_time|date:'Y-m-d\TH:i'|default:'' }}">
                 <small class="form-error" id="endError"></small>
             </div>
             
@@ -89,13 +93,14 @@
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label>📋 Instructions</label>
                 <textarea name="instructions" id="instructions" rows="3" 
-                          placeholder="Enter exam instructions for students..."></textarea>
+                          placeholder="Enter exam instructions for students...">{{ exam.instructions|default:'' }}</textarea>
             </div>
             
             <!-- Show Results Setting -->
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label style="display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" name="show_results" id="show_results" checked style="width: 18px; height: 18px;">
+                    <input type="checkbox" name="show_results" id="show_results" checked style="width: 18px; height: 18px;"
+                           {% if exam.show_results_immediately %}checked{% endif %}>
                     <span>✅ Show Results Immediately After Submission</span>
                 </label>
                 <small class="form-text">If unchecked, students will not see their scores until you publish them</small>

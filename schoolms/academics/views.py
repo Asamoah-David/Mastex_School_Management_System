@@ -1629,3 +1629,770 @@ def quiz_delete(request, pk):
         return redirect("academics:quiz_list")
 
     return render(request, "accounts/confirm_delete.html", {"object": quiz, "type": "quiz"})
+
+
+# ==========================================
+# NEW VIEWS FOR COMPREHENSIVE GRADING SYSTEM
+# ==========================================
+
+@login_required
+def grading_policy_view(request):
+    """View and manage the school's grading policy."""
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    
+    from .models import GradingPolicy, GradePoint, AssessmentType
+    from .services import ensure_default_grading_setup
+    
+    # Ensure default setup exists
+    ensure_default_grading_setup(school)
+    
+    # Get current policy
+    policy = GradingPolicy.objects.filter(school=school, is_default=True).first()
+    if not policy:
+        policy = GradingPolicy.objects.create(
+            school=school,
+            name="Default Policy",
+            ca_weight=50.0,
+            exam_weight=50.0,
+            is_default=True
+        )
+    
+    # Get grade points
+    grade_points = GradePoint.objects.filter(school=school, scale='5.0').order_by('-min_score')
+    
+    # Get assessment types
+    assessment_types = AssessmentType.objects.filter(school=school, is_active=True).order_by('name')
+    
+    context = {
+        'school': school,
+        'policy': policy,
+        'grade_points': grade_points,
+        'assessment_types': assessment_types,
+    }
+    
+    return render(request, "academics/grading_policy.html", context)
+
+
+@login_required
+def grading_policy_update(request):
+    """Update the school's grading policy."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    
+    from .models import GradingPolicy
+    
+    if request.method == "POST":
+        ca_weight = request.POST.get("ca_weight", "50")
+        exam_weight = request.POST.get("exam_weight", "50")
+        
+        try:
+            ca = float(ca_weight)
+            exam = float(exam_weight)
+            
+            if ca + exam != 100:
+                messages.error(request, "CA weight and Exam weight must add up to 100%")
+                return redirect("academics:grading_policy")
+            
+            policy = GradingPolicy.objects.filter(school=school, is_default=True).first()
+            if policy:
+                policy.ca_weight = ca
+                policy.exam_weight = exam
+                policy.save()
+                messages.success(request, f"Grading policy updated: {ca}% CA + {exam}% Exam")
+            else:
+                GradingPolicy.objects.create(
+                    school=school,
+                    name="Default Policy",
+                    ca_weight=ca,
+                    exam_weight=exam,
+                    is_default=True
+                )
+                messages.success(request, f"Grading policy created: {ca}% CA + {exam}% Exam")
+                
+        except ValueError:
+            messages.error(request, "Invalid weight values")
+    
+    return redirect("academics:grading_policy")
+
+
+@login_required
+def assessment_type_list(request):
+    """List assessment types."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    
+    from .models import AssessmentType
+    
+    assessment_types = AssessmentType.objects.filter(school=school).order_by('name')
+    
+    return render(request, "academics/assessment_type_list.html", {
+        'school': school,
+        'assessment_types': assessment_types,
+    })
+
+
+@login_required
+def assessment_type_create(request):
+    """Create a new assessment type."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    
+    from .models import AssessmentType
+    
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
+        
+        if name:
+            AssessmentType.objects.create(
+                school=school,
+                name=name,
+                description=description
+            )
+            messages.success(request, f"Assessment type '{name}' created")
+    
+    return redirect("academics:assessment_type_list")
+
+
+@login_required
+def assessment_score_list(request):
+    """List assessment scores."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    from .models import AssessmentScore
+    
+    class_name = request.GET.get("class")
+    subject_id = request.GET.get("subject")
+    term_id = request.GET.get("term")
+    
+    scores = AssessmentScore.objects.filter(student__school=school).select_related(
+        'student', 'student__user', 'subject', 'assessment_type', 'term'
+    ).order_by('-date')
+    
+    if class_name:
+        scores = scores.filter(student__class_name=class_name)
+    if subject_id:
+        scores = scores.filter(subject_id=subject_id)
+    if term_id:
+        scores = scores.filter(term_id=term_id)
+    
+    classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    
+    return render(request, "academics/assessment_score_list.html", {
+        'school': school,
+        'scores': scores[:100],
+        'classes': classes,
+        'subjects': subjects,
+        'terms': terms,
+        'selected_class': class_name,
+        'selected_subject': subject_id,
+        'selected_term': term_id,
+    })
+
+
+@login_required
+def assessment_score_upload(request):
+    """Upload assessment scores in bulk."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    
+    from .models import AssessmentScore, AssessmentType
+    from datetime import datetime
+    
+    class_name = request.GET.get("class")
+    subject_id = request.GET.get("subject")
+    term_id = request.GET.get("term")
+    assessment_type_id = request.GET.get("assessment_type")
+    
+    classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    assessment_types = AssessmentType.objects.filter(school=school, is_active=True).order_by('name')
+    
+    students = []
+    existing_scores = {}
+    
+    if class_name and subject_id and term_id and assessment_type_id:
+        students = Student.objects.filter(school=school, class_name=class_name).select_related("user").order_by("admission_number")
+        scores = AssessmentScore.objects.filter(
+            student__school=school,
+            student__class_name=class_name,
+            subject_id=subject_id,
+            term_id=term_id,
+            assessment_type_id=assessment_type_id
+        )
+        existing_scores = {s.student_id: s.score for s in scores}
+    
+    if request.method == "POST":
+        subject_id = request.POST.get("subject")
+        term_id = request.POST.get("term")
+        assessment_type_id = request.POST.get("assessment_type")
+        assessment_date = request.POST.get("date", datetime.now().strftime("%Y-%m-%d"))
+        
+        if subject_id and term_id and assessment_type_id:
+            try:
+                subject = Subject.objects.get(id=subject_id, school=school)
+                term = Term.objects.get(id=term_id, school=school)
+                ass_type = AssessmentType.objects.get(id=assessment_type_id, school=school)
+                date = datetime.strptime(assessment_date, "%Y-%m-%d").date()
+                
+                saved_count = 0
+                for key, value in request.POST.items():
+                    if key.startswith("score_student_") and value.strip():
+                        student_id = key.replace("score_student_", "")
+                        try:
+                            score = float(value)
+                            if 0 <= score <= 100:
+                                student = Student.objects.get(id=student_id, school=school)
+                                AssessmentScore.objects.update_or_create(
+                                    student=student,
+                                    subject=subject,
+                                    term=term,
+                                    assessment_type=ass_type,
+                                    defaults={'score': score, 'date': date}
+                                )
+                                saved_count += 1
+                        except (Student.DoesNotExist, ValueError):
+                            continue
+                
+                if saved_count > 0:
+                    messages.success(request, f"Successfully saved {saved_count} assessment score(s)")
+                
+                return redirect(request.get_full_path())
+                
+            except Exception as e:
+                messages.error(request, f"Error: {str(e)}")
+    
+    return render(request, "academics/assessment_score_upload.html", {
+        'school': school,
+        'classes': classes,
+        'subjects': subjects,
+        'terms': terms,
+        'assessment_types': assessment_types,
+        'students': students,
+        'existing_scores': existing_scores,
+        'selected_class': class_name,
+        'selected_subject': subject_id,
+        'selected_term': term_id,
+        'selected_assessment_type': assessment_type_id,
+    })
+
+
+@login_required
+def exam_score_list(request):
+    """List exam scores."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    from .models import ExamScore
+    
+    class_name = request.GET.get("class")
+    subject_id = request.GET.get("subject")
+    term_id = request.GET.get("term")
+    
+    scores = ExamScore.objects.filter(student__school=school).select_related(
+        'student', 'student__user', 'subject', 'exam_type', 'term'
+    ).order_by('-date')
+    
+    if class_name:
+        scores = scores.filter(student__class_name=class_name)
+    if subject_id:
+        scores = scores.filter(subject_id=subject_id)
+    if term_id:
+        scores = scores.filter(term_id=term_id)
+    
+    classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    
+    return render(request, "academics/exam_score_list.html", {
+        'school': school,
+        'scores': scores[:100],
+        'classes': classes,
+        'subjects': subjects,
+        'terms': terms,
+        'selected_class': class_name,
+        'selected_subject': subject_id,
+        'selected_term': term_id,
+    })
+
+
+@login_required
+def exam_score_upload(request):
+    """Upload exam scores in bulk."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    
+    from .models import ExamScore, ExamType
+    from datetime import datetime
+    
+    class_name = request.GET.get("class")
+    subject_id = request.GET.get("subject")
+    term_id = request.GET.get("term")
+    exam_type_id = request.GET.get("exam_type")
+    
+    classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    exam_types = ExamType.objects.filter(school=school).order_by('name')
+    
+    students = []
+    existing_scores = {}
+    
+    if class_name and subject_id and term_id:
+        students = Student.objects.filter(school=school, class_name=class_name).select_related("user").order_by("admission_number")
+        scores = ExamScore.objects.filter(
+            student__school=school,
+            student__class_name=class_name,
+            subject_id=subject_id,
+            term_id=term_id
+        )
+        existing_scores = {s.student_id: s.score for s in scores}
+    
+    if request.method == "POST":
+        subject_id = request.POST.get("subject")
+        term_id = request.POST.get("term")
+        exam_type_id = request.POST.get("exam_type")
+        exam_date = request.POST.get("date", datetime.now().strftime("%Y-%m-%d"))
+        
+        if subject_id and term_id:
+            try:
+                subject = Subject.objects.get(id=subject_id, school=school)
+                term = Term.objects.get(id=term_id, school=school)
+                exam_type = ExamType.objects.get(id=exam_type_id, school=school) if exam_type_id else None
+                date = datetime.strptime(exam_date, "%Y-%m-%d").date()
+                
+                saved_count = 0
+                for key, value in request.POST.items():
+                    if key.startswith("score_student_") and value.strip():
+                        student_id = key.replace("score_student_", "")
+                        try:
+                            score = float(value)
+                            if 0 <= score <= 100:
+                                student = Student.objects.get(id=student_id, school=school)
+                                ExamScore.objects.update_or_create(
+                                    student=student,
+                                    subject=subject,
+                                    term=term,
+                                    defaults={
+                                        'score': score,
+                                        'exam_type': exam_type,
+                                        'date': date
+                                    }
+                                )
+                                saved_count += 1
+                        except (Student.DoesNotExist, ValueError):
+                            continue
+                
+                if saved_count > 0:
+                    messages.success(request, f"Successfully saved {saved_count} exam score(s)")
+                
+                return redirect(request.get_full_path())
+                
+            except Exception as e:
+                messages.error(request, f"Error: {str(e)}")
+    
+    return render(request, "academics/exam_score_upload.html", {
+        'school': school,
+        'classes': classes,
+        'subjects': subjects,
+        'terms': terms,
+        'exam_types': exam_types,
+        'students': students,
+        'existing_scores': existing_scores,
+        'selected_class': class_name,
+        'selected_subject': subject_id,
+        'selected_term': term_id,
+        'selected_exam_type': exam_type_id,
+    })
+
+
+@login_required
+def class_rankings(request):
+    """View class rankings."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    from .models import StudentResultSummary
+    from .services import GradingService
+    
+    class_name = request.GET.get("class")
+    term_id = request.GET.get("term")
+    
+    classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    
+    rankings = []
+    
+    if class_name and term_id:
+        term = Term.objects.filter(id=term_id, school=school).first()
+        if term:
+            # Get all students in class with results
+            students = Student.objects.filter(school=school, class_name=class_name)
+            
+            for student in students:
+                summaries = StudentResultSummary.objects.filter(student=student, term=term)
+                if summaries.exists():
+                    total_score = sum(s.final_score for s in summaries)
+                    subject_count = summaries.count()
+                    avg_score = total_score / subject_count if subject_count > 0 else 0
+                    gpa = GradingService.calculate_term_gpa(student, term)
+                    
+                    rankings.append({
+                        'student': student,
+                        'total_score': round(total_score, 2),
+                        'avg_score': round(avg_score, 2),
+                        'gpa': gpa,
+                        'subjects_count': subject_count,
+                    })
+            
+            # Sort by average score
+            rankings.sort(key=lambda x: x['avg_score'], reverse=True)
+            
+            # Assign positions
+            for i, r in enumerate(rankings, 1):
+                r['position'] = i
+    
+    return render(request, "academics/class_rankings.html", {
+        'school': school,
+        'classes': classes,
+        'terms': terms,
+        'rankings': rankings,
+        'selected_class': class_name,
+        'selected_term': term_id,
+    })
+
+
+@login_required
+def generate_result_summary(request):
+    """Generate result summaries for students."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    
+    from .models import StudentResultSummary
+    from .services import GradingService
+    
+    if request.method == "POST":
+        class_name = request.POST.get("class")
+        term_id = request.POST.get("term")
+        
+        if class_name and term_id:
+            term = Term.objects.filter(id=term_id, school=school).first()
+            if term:
+                students = Student.objects.filter(school=school, class_name=class_name)
+                subjects = Subject.objects.filter(school=school)
+                
+                generated_count = 0
+                for student in students:
+                    for subject in subjects:
+                        # Check if there are any scores for this student/subject/term
+                        has_assessments = AssessmentScore.objects.filter(
+                            student=student, subject=subject, term=term
+                        ).exists()
+                        has_exam = ExamScore.objects.filter(
+                            student=student, subject=subject, term=term
+                        ).exists()
+                        
+                        if has_assessments or has_exam:
+                            GradingService.update_student_result_summary(student, subject, term)
+                            generated_count += 1
+                
+                messages.success(request, f"Generated {generated_count} result summaries")
+            else:
+                messages.error(request, "Invalid term selected")
+        else:
+            messages.error(request, "Please select class and term")
+    
+    classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    
+    return render(request, "academics/generate_result_summary.html", {
+        'school': school,
+        'classes': classes,
+        'terms': terms,
+    })
+
+
+@login_required
+def enhanced_report_card(request, student_id):
+    """Enhanced report card with CA, Exam, Final scores, GPA, and Position."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    student = get_object_or_404(Student, id=student_id, school=school)
+    if not _can_view_student_record(request.user, student):
+        return redirect("home")
+    
+    from .models import StudentResultSummary, GradingPolicy, AssessmentScore, ExamScore
+    from .services import GradingService
+    
+    term_id = request.GET.get("term")
+    terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
+    
+    # Get grading policy
+    policy = GradingPolicy.get_active_policy(school)
+    
+    # Get results
+    results = []
+    if term_id:
+        summaries = StudentResultSummary.objects.filter(
+            student=student, term_id=term_id
+        ).select_related('subject', 'term').order_by('subject__name')
+        
+        term_obj = terms.filter(id=term_id).first()
+        
+        # Get detailed assessment info
+        for summary in summaries:
+            assessments = AssessmentScore.objects.filter(
+                student=student, subject=summary.subject, term_id=term_id
+            ).select_related('assessment_type')
+            
+            exam = ExamScore.objects.filter(
+                student=student, subject=summary.subject, term_id=term_id
+            ).first()
+            
+            results.append({
+                'summary': summary,
+                'assessments': list(assessments),
+                'exam': exam,
+            })
+        
+        # Calculate overall stats
+        term_gpa = GradingService.calculate_term_gpa(student, term_obj) if term_obj else 0
+        cumulative_gpa = GradingService.calculate_cumulative_gpa(student)
+        
+        # Get positions
+        term_position = None
+        cumulative_position = None
+        
+        if student.class_name and term_obj:
+            term_rankings = GradingService.calculate_class_rankings(
+                student.class_name, term_obj, school
+            )
+            term_position = term_rankings.get(student.id)
+            
+            cumulative_rankings = GradingService.calculate_cumulative_rankings(
+                student.class_name, school
+            )
+            cumulative_position = cumulative_rankings.get(student.id)
+    else:
+        # All terms
+        summaries = StudentResultSummary.objects.filter(
+            student=student
+        ).select_related('subject', 'term').order_by('term', 'subject__name')
+        
+        term_gpa = 0
+        cumulative_gpa = GradingService.calculate_cumulative_gpa(student)
+        term_position = None
+        
+        # Group by term
+        terms_data = {}
+        for summary in summaries:
+            term_name = summary.term.name if summary.term else "Unknown"
+            if term_name not in terms_data:
+                terms_data[term_name] = {
+                    'term': summary.term,
+                    'results': [],
+                    'gpa': 0,
+                }
+            terms_data[term_name]['results'].append({
+                'summary': summary,
+                'assessments': list(AssessmentScore.objects.filter(
+                    student=student, subject=summary.subject, term=summary.term
+                )),
+                'exam': ExamScore.objects.filter(
+                    student=student, subject=summary.subject, term=summary.term
+                ).first(),
+            })
+        
+        results = terms_data
+    
+    # Get attendance summary
+    from operations.models import StudentAttendance
+    attendance_qs = StudentAttendance.objects.filter(student=student)
+    if term_id:
+        term_obj = terms.filter(id=term_id).first()
+        if term_obj and term_obj.start_date and term_obj.end_date:
+            attendance_qs = attendance_qs.filter(date__gte=term_obj.start_date, date__lte=term_obj.end_date)
+    
+    total_days = attendance_qs.count()
+    present_days = attendance_qs.filter(status="present").count()
+    absent_days = attendance_qs.filter(status="absent").count()
+    late_days = attendance_qs.filter(status="late").count()
+    attendance_rate = round((present_days / total_days * 100), 1) if total_days > 0 else 0
+    
+    return render(request, "academics/enhanced_report_card.html", {
+        'student': student,
+        'results': results,
+        'terms': terms,
+        'selected_term': term_id,
+        'term_gpa': term_gpa,
+        'cumulative_gpa': cumulative_gpa,
+        'term_position': term_position,
+        'cumulative_position': cumulative_position,
+        'policy': policy,
+        'school': school,
+        'attendance_total': total_days,
+        'attendance_present': present_days,
+        'attendance_absent': absent_days,
+        'attendance_late': late_days,
+        'attendance_rate': attendance_rate,
+    })
+
+
+@login_required
+def enhanced_report_card_pdf(request, student_id):
+    """Generate PDF for enhanced report card."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    student = get_object_or_404(Student, id=student_id, school=school)
+    if not _can_view_student_record(request.user, student):
+        return redirect("home")
+    
+    from .models import StudentResultSummary, GradingPolicy
+    from .services import GradingService
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.units import mm
+    from django.utils import timezone as dj_timezone
+    from datetime import datetime
+    
+    term_id = request.GET.get("term")
+    term_label = "All Terms"
+    
+    summaries = StudentResultSummary.objects.filter(student=student)
+    if term_id:
+        summaries = summaries.filter(term_id=term_id)
+        term = Term.objects.filter(id=term_id, school=school).first()
+        term_label = term.name if term else "Unknown"
+    
+    summaries = list(summaries.select_related('subject', 'term').order_by('term', 'subject__name'))
+    
+    if not summaries:
+        messages.error(request, "No results found for this student")
+        return redirect("academics:enhanced_report_card", student_id=student_id)
+    
+    # Calculate stats
+    total_scores = [s.final_score for s in summaries]
+    avg_score = sum(total_scores) / len(total_scores) if total_scores else 0
+    gpa = GradingService.calculate_term_gpa(student, term_id) if term_id else GradingService.calculate_cumulative_gpa(student)
+    
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
+    
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Header
+    story.append(Paragraph(f"<b>{school.name}</b><br/>Enhanced Report Card", styles["Title"]))
+    story.append(Paragraph(f"<font size=9>{getattr(school, 'address', '') or ''}</font>", styles["Normal"]))
+    story.append(Spacer(1, 10))
+    
+    # Student info
+    meta = [
+        ["Student:", student.user.get_full_name() or student.user.username, "Class:", student.class_name or "—"],
+        ["Adm No:", student.admission_number, "Term:", term_label],
+        ["Average Score:", f"{avg_score:.1f}%", "GPA:", f"{gpa:.2f}"],
+    ]
+    meta_table = Table(meta, colWidths=[30*mm, 60*mm, 25*mm, 60*mm])
+    meta_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor("#F3F4F6")),
+        ('BACKGROUND', (2, 0), (2, -1), colors.HexColor("#F3F4F6")),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 15))
+    
+    # Results table
+    rows = [["Subject", "CA (50%)", "Exam (50%)", "Final", "Grade", "Point"]]
+    for s in summaries:
+        rows.append([
+            s.subject.name,
+            f"{s.ca_score:.1f}",
+            f"{s.exam_score:.1f}",
+            f"{s.final_score:.1f}",
+            s.grade,
+            f"{s.grade_point:.1f}"
+        ])
+    
+    results_table = Table(rows, colWidths=[50*mm, 25*mm, 25*mm, 25*mm, 20*mm, 20*mm])
+    results_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#4F46E5")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9FAFB")]),
+    ]))
+    story.append(results_table)
+    story.append(Spacer(1, 15))
+    
+    # Remarks section
+    story.append(Paragraph("<b>Remarks</b>", styles["Heading3"]))
+    remarks = Table([
+        ["Class Teacher:", "________________________________________"],
+        ["Headteacher:", "________________________________________"],
+    ], colWidths=[35*mm, 140*mm])
+    remarks.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+    ]))
+    story.append(remarks)
+    
+    # Footer
+    story.append(Spacer(1, 20))
+    footer_text = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Mastex SchoolOS"
+    story.append(Paragraph(f"<font size=8 color='gray'>{footer_text}</font>", styles["Normal"]))
+    
+    doc.build(story)
+    
+    filename = f"enhanced_report_card_{student.admission_number}_{term_label.replace(' ', '_')}.pdf"
+    response = HttpResponse(buf.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-cash"></i> Record Payment</h2>
+        <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="payment_type" class="form-label">Payment Type</label>
+                        <select name="payment_type" id="payment_type" class="form-select" required onchange="toggleFields()">
+                            <option value="">Select Payment Type</option>
+                            <option value="canteen">Canteen</option>
+                            <option value="bus">Bus Fee</option>
+                            <option value="textbook">Textbook</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label for="student" class="form-label">Student</label>
+                        <select name="student" id="student" class="form-select" required>
+                            <option value="">Select Student</option>
+                            {% for student in students %}
+                            <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Canteen Fields -->
+                <div id="canteen-fields" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="amount" class="form-label">Amount (GHS)</label>
+                            <input type="number" step="0.01" name="amount" id="amount" class="form-control" placeholder="0.00">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <input type="text" name="description" id="description" class="form-control" placeholder="e.g., Lunch, Snack">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bus Fields -->
+                <div id="bus-fields" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="amount" class="form-label">Amount (GHS)</label>
+                            <input type="number" step="0.01" name="amount" id="bus-amount" class="form-control" placeholder="0.00">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="term" class="form-label">Term</label>
+                            <input type="text" name="term" id="term" class="form-control" placeholder="e.g., Term 1 2025">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Textbook Fields -->
+                <div id="textbook-fields" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="textbook" class="form-label">Textbook</label>
+                            <select name="textbook" id="textbook" class="form-select">
+                                <option value="">Select Textbook</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="quantity" class="form-label">Quantity</label>
+                            <input type="number" name="quantity" id="quantity" class="form-control" value="1" min="1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Record Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleFields() {
+    var type = document.getElementById('payment_type').value;
+    
+    document.getElementById('canteen-fields').style.display = 'none';
+    document.getElementById('bus-fields').style.display = 'none';
+    document.getElementById('textbook-fields').style.display = 'none';
+    
+    if (type === 'canteen') {
+        document.getElementById('canteen-fields').style.display = 'block';
+    } else if (type === 'bus') {
+        document.getElementById('bus-fields').style.display = 'block';
+    } else if (type === 'textbook') {
+        document.getElementById('textbook-fields').style.display = 'block';
+    }
+}
+</script>
+{% endblock %}
