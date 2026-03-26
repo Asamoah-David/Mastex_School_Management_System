@@ -559,6 +559,12 @@ def student_edit(request, pk):
         # Update student fields
         student.admission_number = request.POST.get("admission_number", "").strip()
         student.class_name = request.POST.get("class_name", "").strip()
+        
+        # Update user gender
+        gender = request.POST.get("gender", "").strip()
+        if gender in ["male", "female"]:
+            student.user.gender = gender
+            student.user.save()
         student.status = request.POST.get("status", "active")
         
         # Update parent link
@@ -620,6 +626,7 @@ def student_register(request):
                     except ValueError:
                         messages.error(request, "Invalid enrolled date format.")
                         date_enrolled = None
+                gender = request.POST.get("gender", "").strip()
                 user = User.objects.create(
                     username=username,
                     email=email or f"{username}@school.local",
@@ -629,6 +636,7 @@ def student_register(request):
                     role="student",
                     school=school,
                     phone=phone,
+                    gender=gender if gender in ["male", "female"] else "",
                 )
                 Student.objects.create(
                     school=school,

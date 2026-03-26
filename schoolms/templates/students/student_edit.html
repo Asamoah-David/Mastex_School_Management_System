@@ -10,6 +10,15 @@
         {% csrf_token %}
         
         <div class="form-group" style="margin-bottom:1rem;">
+            <label>Gender</label>
+            <select name="gender" style="width:100%;padding:0.5rem;">
+                <option value="">-- Select Gender --</option>
+                <option value="male" {% if student.user.gender == "male" %}selected{% endif %}>Male</option>
+                <option value="female" {% if student.user.gender == "female" %}selected{% endif %}>Female</option>
+            </select>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1rem;">
             <label>Admission Number</label>
             <input type="text" name="admission_number" required value="{{ student.admission_number }}" style="width:100%;padding:0.5rem;">
         </div>
