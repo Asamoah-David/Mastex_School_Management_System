@@ -1,47 +1,92 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}My Portal · Mastex SchoolOS{% endblock %}
 {% block page_title %}My Portal{% endblock %}
 {% block page_subtitle %}Welcome, {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
 
 {% block content %}
 
+<!-- Welcome & Quick Actions -->
+<div class="content-card" style="margin-bottom: 1.2rem;">
+    <h3 class="section-title">⚡ Quick Actions</h3>
+    <div class="quick-actions">
+        <a href="{% url 'academics:enhanced_report_card' student.id %}" class="quick-action-btn">
+            <span class="quick-action-icon">📄</span>
+            <span class="quick-action-label">Report Card</span>
+        </a>
+        <a href="{% url 'operations:homework_for_student' %}" class="quick-action-btn">
+            <span class="quick-action-icon">📝</span>
+            <span class="quick-action-label">Homework</span>
+        </a>
+        <a href="{% url 'students:fees_list' %}" class="quick-action-btn">
+            <span class="quick-action-icon">💰</span>
+            <span class="quick-action-label">My Fees</span>
+        </a>
+        <a href="{% url 'operations:online_exam_list' %}" class="quick-action-btn">
+            <span class="quick-action-icon">💻</span>
+            <span class="quick-action-label">Exams</span>
+        </a>
+        <a href="{% url 'academics:timetable_my' %}" class="quick-action-btn">
+            <span class="quick-action-icon">⏰</span>
+            <span class="quick-action-label">Timetable</span>
+        </a>
+        <a href="{% url 'academics:quiz_list' %}" class="quick-action-btn">
+            <span class="quick-action-icon">🧠</span>
+            <span class="quick-action-label">Quizzes</span>
+        </a>
+    </div>
+</div>
 
 {% if announcements %}
 <div class="content-card" style="margin-bottom:1rem;">
-    <h3 class="section-title">Announcements</h3>
+    <h3 class="section-title">📢 Announcements</h3>
     {% for a in announcements %}
-    <div style="margin-bottom:0.75rem;padding:0.6rem;background:rgba(15,23,42,0.9);border-radius:0.5rem;">
-        <strong>{{ a.title }}</strong> <span class="text-muted" style="font-size:0.8rem;">{{ a.created_at|date:"M d, Y" }}</span>
-        <p style="margin:0.35rem 0 0 0;font-size:0.9rem;">{{ a.content|truncatewords:40 }}</p>
+    <div style="margin-bottom:0.75rem; padding:0.8rem; background:rgba(15,23,42,0.9); border-radius:0.6rem; border: 1px solid rgba(34, 197, 94, 0.3); transition: transform 0.2s ease;">
+        <strong style="color: #e5e7eb;">{{ a.title }}</strong> <span class="text-muted" style="font-size:0.8rem;">{{ a.created_at|date:"M d, Y" }}</span>
+        <p style="margin:0.35rem 0 0 0; font-size:0.9rem; color: #9ca3af;">{{ a.content|truncatewords:40 }}</p>
     </div>
     {% endfor %}
 </div>
 {% endif %}
 
 {% if student %}
+<!-- Student Info Cards -->
 <div class="content-grid">
     <section class="metric">
+        <span class="metric-icon">🎓</span>
         <div class="metric-label">Admission Number</div>
         <div class="metric-value">{{ student.admission_number }}</div>
     </section>
     <section class="metric">
+        <span class="metric-icon">📚</span>
         <div class="metric-label">Class</div>
         <div class="metric-value">{{ student.class_name|default:"—" }}</div>
     </section>
     <section class="metric">
+        <span class="metric-icon">🏫</span>
         <div class="metric-label">School</div>
         <div class="metric-value">{{ student.school.name }}</div>
     </section>
 </div>
 
 {% if recent_attendance %}
-<h3 class="section-title">Recent Attendance</h3>
+<h3 class="section-title">✅ Recent Attendance</h3>
 <div class="content-card">
-    <table style="font-size:0.85rem;">
-        <thead><tr><th>Date</th><th>Status</th></tr></thead>
+    <table style="font-size:0.85rem; width: 100%;">
+        <thead>
+            <tr>
+                <th style="text-align: left; padding: 0.6rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); color: #9ca3af;">Date</th>
+                <th style="text-align: left; padding: 0.6rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); color: #9ca3af;">Status</th>
+            </tr>
+        </thead>
         <tbody>
             {% for a in recent_attendance %}
-            <tr><td>{{ a.date|date:"M d, Y" }}</td><td><span class="tag">{{ a.get_status_display }}</span></td></tr>
+            <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.15);">
+                <td style="padding: 0.6rem;">{{ a.date|date:"M d, Y" }}</td>
+                <td style="padding: 0.6rem;">
+                    <span class="tag" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4);">{{ a.get_status_display }}</span>
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
@@ -49,23 +94,35 @@
 {% endif %}
 
 <!-- Academic Performance -->
-<h3 class="section-title">Academic Performance</h3>
+<h3 class="section-title">📊 Academic Performance</h3>
 
 {% if stats.average %}
 <div class="content-grid">
     <section class="metric">
+        <span class="metric-icon">📈</span>
         <div class="metric-label">Average Score</div>
-        <div class="metric-value">{{ stats.average }}%</div>
+        <div class="metric-value" data-count="{{ stats.average|floatformat:0 }}">{{ stats.average }}%</div>
     </section>
     <section class="metric">
+        <span class="metric-icon">🏆</span>
         <div class="metric-label">Position in Class</div>
         <div class="metric-value">{{ stats.position|default:"—" }}</div>
     </section>
     <section class="metric">
+        <span class="metric-icon">📖</span>
         <div class="metric-label">Subjects</div>
-        <div class="metric-value">{{ stats.total_subjects }}</div>
+        <div class="metric-value" data-count="{{ stats.total_subjects }}">{{ stats.total_subjects }}</div>
     </section>
 </div>
+
+<!-- Student Performance Chart -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 class="section-title">📊 My Performance</h3>
+    <div style="position: relative; height: 200px;">
+        <canvas id="studentPerformanceChart"></canvas>
+    </div>
+</div>
+
 <div class="button-row">
     <a href="{% url 'academics:enhanced_report_card' student.id %}" class="btn btn-primary">📄 View Enhanced Report Card</a>
 </div>
@@ -125,52 +182,68 @@
     </table>
 </div>
 {% else %}
-<div class="empty-state">No results yet. Results will appear here after teachers upload them.</div>
+<div class="content-card">
+    <div class="empty-state">
+        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-title">No Results Yet</div>
+        <div class="empty-state-desc">Results will appear here after teachers upload them.</div>
+    </div>
+</div>
 {% endif %}
 
 <!-- Achievements & Activities -->
 {% if achievements or activities %}
-<h3 class="section-title">Beyond the Classroom</h3>
+<h3 class="section-title">🌟 Beyond the Classroom</h3>
 
+<div class="two-col-grid">
 {% if achievements %}
-<div class="content-card mt-1">
-    <h4>Achievements & Awards</h4>
-    <ul class="list-compact">
-        {% for a in achievements %}
-        <li>
-            <strong>{{ a.title }}</strong>
-            <span class="text-muted">({{ a.get_achievement_type_display }}, {{ a.date_achieved }})</span>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
+    <div class="content-card">
+        <h4 style="font-size: 0.95rem; color: #e5e7eb; margin-bottom: 0.75rem;">🏅 Achievements & Awards</h4>
+        <ul class="activity-list">
+            {% for a in achievements %}
+            <li class="activity-item">
+                <div class="activity-icon" style="background: rgba(251, 191, 36, 0.2);">🏅</div>
+                <div class="activity-content">
+                    <div class="activity-text"><strong>{{ a.title }}</strong></div>
+                    <div class="activity-time">{{ a.get_achievement_type_display }} · {{ a.date_achieved }}</div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
 {% endif %}
 
 {% if activities %}
-<div class="content-card mt-1">
-    <h4>Activities & Clubs</h4>
-    <ul class="list-compact">
-        {% for act in activities %}
-        <li>
-            <strong>{{ act.activity_name }}</strong>
-            <span class="text-muted">({{ act.get_activity_type_display }}{% if act.position %}, {{ act.position }}{% endif %})</span>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
+    <div class="content-card">
+        <h4 style="font-size: 0.95rem; color: #e5e7eb; margin-bottom: 0.75rem;">⚽ Activities & Clubs</h4>
+        <ul class="activity-list">
+            {% for act in activities %}
+            <li class="activity-item">
+                <div class="activity-icon" style="background: rgba(59, 130, 246, 0.2);">🎯</div>
+                <div class="activity-content">
+                    <div class="activity-text"><strong>{{ act.activity_name }}</strong></div>
+                    <div class="activity-time">{{ act.get_activity_type_display }}{% if act.position %} · {{ act.position }}{% endif %}</div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
 {% endif %}
+</div>
 {% endif %}
 
 <!-- Discipline & Behavior -->
 {% if discipline_records %}
-<h3 class="section-title">Behavior & Discipline</h3>
-<div class="content-card mt-1">
-    <ul class="list-compact">
+<h3 class="section-title">⚖️ Behavior & Discipline</h3>
+<div class="content-card">
+    <ul class="activity-list">
         {% for rec in discipline_records %}
-        <li>
-            <strong>{{ rec.get_incident_type_display }}</strong>
-            <span class="text-muted">({{ rec.incident_date }})</span>
-            – {{ rec.title }}
+        <li class="activity-item">
+            <div class="activity-icon" style="background: rgba(248, 113, 113, 0.2);">⚠️</div>
+            <div class="activity-content">
+                <div class="activity-text"><strong>{{ rec.get_incident_type_display }}</strong> – {{ rec.title }}</div>
+                <div class="activity-time">{{ rec.incident_date }}</div>
+            </div>
         </li>
         {% endfor %}
     </ul>
@@ -187,16 +260,89 @@ function filterResults(value, type) {
     }
     window.location.href = url;
 }
+
+// Animated counters and Student Performance Chart
+document.addEventListener('DOMContentLoaded', function() {
+    const counters = document.querySelectorAll('.metric-value[data-count]');
+    counters.forEach(counter => {
+        const target = parseInt(counter.getAttribute('data-count')) || 0;
+        if (target > 0) {
+            counter.classList.add('animated');
+            let current = 0;
+            const increment = target / 30;
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    counter.textContent = target + '%';
+                    clearInterval(timer);
+                } else {
+                    counter.textContent = Math.floor(current);
+                }
+            }, 30);
+        }
+    });
+    
+    // Student Performance Chart
+    const studentChartCtx = document.getElementById('studentPerformanceChart');
+    if (studentChartCtx) {
+        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
+        
+        const score = {{ stats.average|default:0 }};
+        const position = {{ stats.position|default:0 }};
+        
+        new Chart(studentChartCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['My Score', 'Remaining'],
+                datasets: [{
+                    data: [score, Math.max(0, 100 - score)],
+                    backgroundColor: [
+                        'rgba(34, 197, 94, 0.85)',
+                        'rgba(148, 163, 184, 0.3)'
+                    ],
+                    borderColor: ['#22c55e', '#9ca3af'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { padding: 15, usePointStyle: true }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Overall Average: ' + score + '%',
+                        color: '#22c55e',
+                        font: { size: 14, weight: 'bold' }
+                    }
+                }
+            }
+        });
+    }
+});
 </script>
 
 {% else %}
-<div class="empty-state">No student record linked to your account. Please contact your school.</div>
+<div class="content-card">
+    <div class="empty-state">
+        <div class="empty-state-icon">👤</div>
+        <div class="empty-state-title">No Student Record</div>
+        <div class="empty-state-desc">No student record linked to your account. Please contact your school.</div>
+    </div>
+</div>
 {% endif %}
 
 <style>
 .section-title {
     margin-top: 1.5rem;
-    color: #22c55e;
+    margin-bottom: 1rem;
+    color: #e5e7eb;
+    font-weight: 600;
 }
 .filter-row {
     margin: 1rem 0;
@@ -214,24 +360,16 @@ function filterResults(value, type) {
     color: #9ca3af;
 }
 .filter-item select {
-    padding: 0.3rem;
-    background: #1e293b;
+    padding: 0.4rem 0.6rem;
+    background: #0f172a;
     color: #fff;
-    border: 1px solid #475569;
-    border-radius: 0.3rem;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    border-radius: 0.4rem;
 }
 .tag-success {
     background: rgba(34,197,94,0.2);
     color: #22c55e;
-    border-color: #22c55e;
-}
-.list-compact {
-    margin: 0.5rem 0 0 0;
-    padding-left: 1.2rem;
-    font-size: 0.9rem;
-}
-.list-compact li + li {
-    margin-top: 0.15rem;
+    border: 1px solid #22c55e;
 }
 .text-muted {
     color: #9ca3af;

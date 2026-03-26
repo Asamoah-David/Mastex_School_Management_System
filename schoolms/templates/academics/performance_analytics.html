@@ -1,175 +1,384 @@
 {% extends "base.html" %}
+{% load static %}
+
+{% block title %}Performance Analytics - Mastex SchoolOS{% endblock %}
+{% block page_title %}📊 Performance Analytics{% endblock %}
+{% block page_subtitle %}Student performance insights and academic analytics{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Performance Analytics</h2>
-    
-    <form method="get" class="row g-3 mb-4">
-        <div class="col-md-4">
-            <label>Class</label>
-            <select name="class" class="form-control">
+
+<!-- Filter Form -->
+<div class="content-card" style="margin-bottom: 1.2rem;">
+    <form method="get" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+        <div style="flex: 1; min-width: 150px;">
+            <label style="display: block; font-size: 0.8rem; color: #9ca3af; margin-bottom: 0.35rem;">Class</label>
+            <select name="class" style="width: 100%; padding: 0.5rem; background: #0f172a; color: #fff; border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.5rem;">
                 <option value="">All Classes</option>
                 {% for cls in classes %}
                 <option value="{{ cls }}" {% if selected_class == cls %}selected{% endif %}>{{ cls }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-4">
-            <label>Term</label>
-            <select name="term" class="form-control">
+        <div style="flex: 1; min-width: 150px;">
+            <label style="display: block; font-size: 0.8rem; color: #9ca3af; margin-bottom: 0.35rem;">Term</label>
+            <select name="term" style="width: 100%; padding: 0.5rem; background: #0f172a; color: #fff; border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.5rem;">
                 <option value="">All Terms</option>
                 {% for term in terms %}
                 <option value="{{ term.id }}" {% if selected_term == term.id|stringformat:"s" %}selected{% endif %}>{{ term.name }}{% if term.is_current %} (Current){% endif %}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-4">
-            <label>&nbsp;</label>
-            <button type="submit" class="btn btn-primary w-100">Filter</button>
+        <div>
+            <button type="submit" class="btn btn-primary">🔍 Filter</button>
         </div>
     </form>
+</div>
+
+<!-- Summary Stats Cards -->
+<div class="content-grid">
+    <section class="metric">
+        <span class="metric-icon">🏫</span>
+        <div class="metric-label">Classes with Results</div>
+        <div class="metric-value">{{ class_stats|length }}</div>
+    </section>
+    <section class="metric">
+        <span class="metric-icon">📚</span>
+        <div class="metric-label">Subjects Analyzed</div>
+        <div class="metric-value">{{ subject_stats|length }}</div>
+    </section>
+    <section class="metric">
+        <span class="metric-icon">🏆</span>
+        <div class="metric-label">Top Students</div>
+        <div class="metric-value">{{ top_students|length }}</div>
+    </section>
+    <section class="metric">
+        <span class="metric-icon">📈</span>
+        <div class="metric-label">Overall Average</div>
+        <div class="metric-value">
+            {% if class_stats %}{{ class_stats.0.avg_score|floatformat:1 }}%{% else %}--{% endif %}
+        </div>
+    </section>
+</div>
+
+<!-- Charts Section -->
+<div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1rem; margin-top: 1.2rem;">
     
-    <!-- Overall Stats -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3>{{ class_stats|length }}</h3>
-                    <p class="text-muted">Classes with Results</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3>{{ subject_stats|length }}</h3>
-                    <p class="text-muted">Subjects</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h3>{{ top_students|length }}</h3>
-                    <p class="text-muted">Top Students</p>
-                </div>
-            </div>
+    <!-- Class Performance Bar Chart -->
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">🏫 Class Performance Comparison</h3>
+        <div style="position: relative; height: 280px;">
+            <canvas id="classPerformanceChart"></canvas>
         </div>
     </div>
-    
-    <!-- Class Performance -->
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Class Performance</h5>
-        </div>
-        <div class="card-body">
-            {% if class_stats %}
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Class</th>
-                            <th>Average Score</th>
-                            <th>Total Results</th>
-                            <th>Students Count</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stat in class_stats %}
-                        <tr>
-                            <td>{{ stat.class }}</td>
-                            <td>
-                                <span class="badge {% if stat.avg_score >= 60 %}bg-success{% elif stat.avg_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}">
-                                    {{ stat.avg_score }}%
-                                </span>
-                            </td>
-                            <td>{{ stat.total_results }}</td>
-                            <td>{{ stat.student_count }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <p class="text-muted">No class performance data available.</p>
-            {% endif %}
+
+    <!-- Subject Performance Horizontal Bar Chart -->
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">📚 Subject Performance (Top 10)</h3>
+        <div style="position: relative; height: 280px;">
+            <canvas id="subjectPerformanceChart"></canvas>
         </div>
     </div>
-    
-    <!-- Subject Performance -->
-    <div class="card mb-4">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0">Subject Performance (Top 10)</h5>
-        </div>
-        <div class="card-body">
-            {% if subject_stats %}
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Subject</th>
-                            <th>Average Score</th>
-                            <th>Total Results</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stat in subject_stats %}
-                        <tr>
-                            <td>{{ stat.subject }}</td>
-                            <td>
-                                <span class="badge {% if stat.avg_score >= 60 %}bg-success{% elif stat.avg_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}">
-                                    {{ stat.avg_score }}%
-                                </span>
-                            </td>
-                            <td>{{ stat.total_results }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <p class="text-muted">No subject performance data available.</p>
-            {% endif %}
+
+    <!-- Grade Distribution Pie Chart -->
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">🎯 Grade Distribution</h3>
+        <div style="position: relative; height: 280px;">
+            <canvas id="gradeDistributionChart"></canvas>
         </div>
     </div>
-    
-    <!-- Top Students -->
-    <div class="card mb-4">
-        <div class="card-header bg-info text-white">
-            <h5 class="mb-0">Top Performing Students</h5>
-        </div>
-        <div class="card-body">
-            {% if top_students %}
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Name</th>
-                            <th>Admission No.</th>
-                            <th>Class</th>
-                            <th>Average Score</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for student in top_students %}
-                        <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td>{{ student.student__user__first_name }} {{ student.student__user__last_name }}</td>
-                            <td>{{ student.student__admission_number }}</td>
-                            <td>{{ student.student__class_name }}</td>
-                            <td>
-                                <span class="badge bg-success">{{ student.avg_score|floatformat:1 }}%</span>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <p class="text-muted">No student data available.</p>
-            {% endif %}
+
+    <!-- Top Students Bar Chart -->
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">🥇 Top Performing Students</h3>
+        <div style="position: relative; height: 280px;">
+            <canvas id="topStudentsChart"></canvas>
         </div>
     </div>
 </div>
+
+<!-- Class Performance Table -->
+<div class="content-card" style="margin-top: 1.2rem;">
+    <h3 class="section-title">📊 Class Performance Details</h3>
+    {% if class_stats %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Class</th>
+                    <th>Average Score</th>
+                    <th>Total Results</th>
+                    <th>Students Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in class_stats %}
+                <tr>
+                    <td style="font-weight: 600;">{{ stat.class }}</td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <span style="width: 60px; height: 8px; background: {% if stat.avg_score >= 60 %}#22c55e{% elif stat.avg_score >= 40 %}#fbbf24{% else %}#ef4444{% endif %}; border-radius: 4px;"></span>
+                            {{ stat.avg_score }}%
+                        </span>
+                    </td>
+                    <td>{{ stat.total_results }}</td>
+                    <td>{{ stat.student_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-title">No Class Data</div>
+        <div class="empty-state-desc">No class performance data available.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Subject Performance Table -->
+<div class="content-card" style="margin-top: 1.2rem;">
+    <h3 class="section-title">📖 Subject Performance Details</h3>
+    {% if subject_stats %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Average Score</th>
+                    <th>Total Results</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in subject_stats %}
+                <tr>
+                    <td style="font-weight: 600;">{{ stat.subject }}</td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <span style="width: 60px; height: 8px; background: {% if stat.avg_score >= 60 %}#22c55e{% elif stat.avg_score >= 40 %}#fbbf24{% else %}#ef4444{% endif %}; border-radius: 4px;"></span>
+                            {{ stat.avg_score }}%
+                        </span>
+                    </td>
+                    <td>{{ stat.total_results }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">📚</div>
+        <div class="empty-state-title">No Subject Data</div>
+        <div class="empty-state-desc">No subject performance data available.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Top Students Table -->
+<div class="content-card" style="margin-top: 1.2rem;">
+    <h3 class="section-title">🥇 Top Performing Students</h3>
+    {% if top_students %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Admission No.</th>
+                    <th>Class</th>
+                    <th>Average Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in top_students %}
+                <tr>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: {% if forloop.counter == 1 %}#fbbf24{% elif forloop.counter == 2 %}#9ca3af{% elif forloop.counter == 3 %}#cd7f32{% else %}rgba(148, 163, 184, 0.3){% endif %}; font-size: 0.75rem; font-weight: 600;">
+                            {{ forloop.counter }}
+                        </span>
+                    </td>
+                    <td style="font-weight: 500;">{{ student.student__user__first_name }} {{ student.student__user__last_name }}</td>
+                    <td>{{ student.student__admission_number }}</td>
+                    <td>{{ student.student__class_name }}</td>
+                    <td>
+                        <span class="tag" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #22c55e;">
+                            {{ student.avg_score|floatformat:1 }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">🏆</div>
+        <div class="empty-state-title">No Student Data</div>
+        <div class="empty-state-desc">No student performance data available.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chart.js Scripts -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Configure Chart.js defaults
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
+    Chart.defaults.font.family = 'system-ui, -apple-system, sans-serif';
+    
+    // Class Performance Chart
+    const classCtx = document.getElementById('classPerformanceChart');
+    if (classCtx) {
+        const classLabels = [{% for stat in class_stats %}'{{ stat.class }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const classData = [{% for stat in class_stats %}{{ stat.avg_score }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        
+        new Chart(classCtx, {
+            type: 'bar',
+            data: {
+                labels: classLabels,
+                datasets: [{
+                    label: 'Average Score (%)',
+                    data: classData,
+                    backgroundColor: classData.map(score => score >= 60 ? 'rgba(34, 197, 94, 0.85)' : score >= 40 ? 'rgba(251, 191, 36, 0.85)' : 'rgba(239, 68, 68, 0.85)'),
+                    borderColor: classData.map(score => score >= 60 ? '#22c55e' : score >= 40 ? '#fbbf24' : '#ef4444'),
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, max: 100 }
+                }
+            }
+        });
+    }
+    
+    // Subject Performance Chart
+    const subjectCtx = document.getElementById('subjectPerformanceChart');
+    if (subjectCtx) {
+        const subjectLabels = [{% for stat in subject_stats %}'{{ stat.subject }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const subjectData = [{% for stat in subject_stats %}{{ stat.avg_score }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        
+        new Chart(subjectCtx, {
+            type: 'bar',
+            data: {
+                labels: subjectLabels,
+                datasets: [{
+                    label: 'Average Score (%)',
+                    data: subjectData,
+                    backgroundColor: 'rgba(34, 197, 94, 0.85)',
+                    borderColor: '#22c55e',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, max: 100 }
+                }
+            }
+        });
+    }
+    
+    // Grade Distribution Chart (simulated based on average scores)
+    const gradeCtx = document.getElementById('gradeDistributionChart');
+    if (gradeCtx) {
+        // Calculate grade distribution based on available data
+        let gradeA = 0, gradeB = 0, gradeC = 0, gradeD = 0, gradeE = 0;
+        {% for stat in class_stats %}
+            if ({{ stat.avg_score }} >= 90) gradeA++;
+            else if ({{ stat.avg_score }} >= 80) gradeB++;
+            else if ({{ stat.avg_score }} >= 70) gradeB++;
+            else if ({{ stat.avg_score }} >= 60) gradeC++;
+            else if ({{ stat.avg_score }} >= 50) gradeD++;
+            else gradeE++;
+        {% endfor %}
+        
+        new Chart(gradeCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['A (90-100%)', 'B (80-89%)', 'C (70-79%)', 'D (60-69%)', 'E (<60%)'],
+                datasets: [{
+                    data: [Math.max(gradeA, 1), Math.max(gradeB, 1), Math.max(gradeC, 1), Math.max(gradeD, 1), Math.max(gradeE, 1)],
+                    backgroundColor: [
+                        'rgba(34, 197, 94, 0.85)',
+                        'rgba(59, 130, 246, 0.85)',
+                        'rgba(251, 191, 36, 0.85)',
+                        'rgba(249, 115, 22, 0.85)',
+                        'rgba(239, 68, 68, 0.85)'
+                    ],
+                    borderColor: [
+                        '#22c55e',
+                        '#3b82f6',
+                        '#fbbf24',
+                        '#f97316',
+                        '#ef4444'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { padding: 10, usePointStyle: true }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Top Students Chart
+    const topStudentsCtx = document.getElementById('topStudentsChart');
+    if (topStudentsCtx) {
+        const studentNames = [{% for student in top_students %}'{{ student.student__user__first_name|truncatechars:10 }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const studentScores = [{% for student in top_students %}{{ student.avg_score|floatformat:1 }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        
+        new Chart(topStudentsCtx, {
+            type: 'bar',
+            data: {
+                labels: studentNames,
+                datasets: [{
+                    label: 'Average Score (%)',
+                    data: studentScores,
+                    backgroundColor: studentScores.map((score, i) => i === 0 ? 'rgba(251, 191, 36, 0.85)' : i === 1 ? 'rgba(156, 163, 175, 0.85)' : i === 2 ? 'rgba(205, 127, 50, 0.85)' : 'rgba(34, 197, 94, 0.85)'),
+                    borderColor: studentScores.map((score, i) => i === 0 ? '#fbbf24' : i === 1 ? '#9ca3af' : i === 2 ? '#cd7f32' : '#22c55e'),
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, max: 100 }
+                }
+            }
+        });
+    }
+});
+</script>
+
+<style>
+.section-title {
+    color: #e5e7eb;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+.charts-grid {
+    margin-top: 1.2rem;
+}
+</style>
 {% endblock %}

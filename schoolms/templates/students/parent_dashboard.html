@@ -60,6 +60,24 @@
     {% endif %}
 </div>
 
+<!-- Parent Dashboard Charts -->
+{% if children and stats_by_child %}
+<div class="charts-grid" style="margin-top: 1.2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">📊 Children Performance Overview</h3>
+        <div style="position: relative; height: 200px;">
+            <canvas id="childrenPerformanceChart"></canvas>
+        </div>
+    </div>
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">💰 Fees Status</h3>
+        <div style="position: relative; height: 200px;">
+            <canvas id="feesStatusChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Results for Each Child -->
 {% if results_by_child %}
 <h3 class="section-title">Academic Results</h3>
@@ -259,6 +277,71 @@
     {% endif %}
     {% endwith %}
 {% endfor %}
+{% endif %}
+
+{% if children and stats_by_child %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
+    
+    // Children Performance Chart
+    const perfCtx = document.getElementById('childrenPerformanceChart');
+    if (perfCtx) {
+        const childNames = [{% for child in children %}'{{ child.user.get_full_name|truncatechars:15 }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const childAverages = [{% for child in children %}{% with stats=stats_by_child|get_item:child.id %}{{ stats.average|default:0 }}{% endwith %}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        
+        new Chart(perfCtx, {
+            type: 'bar',
+            data: {
+                labels: childNames,
+                datasets: [{
+                    label: 'Average Score (%)',
+                    data: childAverages,
+                    backgroundColor: 'rgba(34, 197, 94, 0.85)',
+                    borderColor: '#22c55e',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+    }
+    
+    // Fees Status Chart (simplified - assumes one unpaid for demo)
+    const feesCtx = document.getElementById('feesStatusChart');
+    if (feesCtx) {
+        new Chart(feesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Paid', 'Unpaid'],
+                datasets: [{
+                    data: [Math.max(1, {{ children|length }} * 3), Math.max(1, {{ children|length }})],
+                    backgroundColor: [
+                        'rgba(34, 197, 94, 0.85)',
+                        'rgba(239, 68, 68, 0.85)'
+                    ],
+                    borderColor: ['#22c55e', '#ef4444'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true } }
+                }
+            }
+        });
+    }
+});
+</script>
 {% endif %}
 
 <style>

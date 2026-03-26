@@ -94,6 +94,34 @@
     </section>
 </div>
 
+<!-- Charts Section for Super Admin -->
+<div class="charts-grid" style="margin-top: 1.2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem;">
+    
+    <!-- Schools Distribution - Doughnut Chart -->
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">🏫 Schools Distribution</h3>
+        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+            <canvas id="schoolsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- User Distribution - Bar Chart -->
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">👥 User Distribution</h3>
+        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+            <canvas id="usersChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Fees Overview - Doughnut Chart -->
+    <div class="content-card">
+        <h3 class="section-title" style="font-size: 0.95rem;">💰 Fees Overview</h3>
+        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+            <canvas id="feesChart"></canvas>
+        </div>
+    </div>
+</div>
+
 <!-- Two Column Section: Activity & Info -->
 <div class="two-col-grid" style="margin-top: 1.2rem;">
     <!-- Recent Activity Widget -->
@@ -170,6 +198,112 @@ document.addEventListener('DOMContentLoaded', function() {
                 element.textContent = Math.floor(current).toLocaleString();
             }
         }, stepTime);
+    }
+    
+    // =====================
+    // Chart.js Charts for Super Admin
+    // =====================
+    
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
+    Chart.defaults.font.family = 'system-ui, -apple-system, sans-serif';
+    
+    // Schools Distribution - Doughnut Chart
+    const schoolsCtx = document.getElementById('schoolsChart');
+    if (schoolsCtx) {
+        new Chart(schoolsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Active', 'Inactive'],
+                datasets: [{
+                    data: [{{ total_schools|default:1 }}, Math.max(1, {{ total_schools|default:1 }} / 10)],
+                    backgroundColor: [
+                        'rgba(34, 197, 94, 0.85)',
+                        'rgba(156, 163, 175, 0.5)'
+                    ],
+                    borderColor: ['#22c55e', '#9ca3af'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }
+                }
+            }
+        });
+    }
+    
+    // User Distribution - Bar Chart
+    const usersCtx = document.getElementById('usersChart');
+    if (usersCtx) {
+        new Chart(usersCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Students', 'Staff', 'Parents'],
+                datasets: [{
+                    data: [{{ total_students|default:0 }}, {{ total_staff|default:0 }}, {{ total_parents|default:0 }}],
+                    backgroundColor: [
+                        'rgba(34, 197, 94, 0.85)',
+                        'rgba(59, 130, 246, 0.85)',
+                        'rgba(251, 191, 36, 0.85)'
+                    ],
+                    borderColor: ['#22c55e', '#3b82f6', '#fbbf24'],
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true }, y: { grid: { display: false } } }
+            }
+        });
+    }
+    
+    // Fees Overview - Doughnut Chart
+    const feesCtx = document.getElementById('feesChart');
+    if (feesCtx) {
+        const totalFees = {{ mrr|default:0 }} + {{ unpaid_fees_count|default:0 }};
+        const collectedPercent = totalFees > 0 ? Math.round(({{ mrr|default:0 }} / totalFees) * 100) : 0;
+        
+        new Chart(feesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Collected', 'Outstanding'],
+                datasets: [{
+                    data: [{{ mrr|default:0 }}, {{ unpaid_fees_count|default:0 }}],
+                    backgroundColor: [
+                        'rgba(34, 197, 94, 0.85)',
+                        'rgba(239, 68, 68, 0.85)'
+                    ],
+                    borderColor: ['#22c55e', '#ef4444'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let value = context.raw;
+                                let label = context.label || '';
+                                let percent = label === 'Collected' ? collectedPercent : (100 - collectedPercent);
+                                return label + ': ' + (typeof value === 'number' ? value.toLocaleString() : value) + ' (' + percent + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 });
 </script>

@@ -81,3 +81,122 @@ def school_required(view_func):
         return redirect('home')
     
     return wrapper
+
+
+def finance_required(view_func):
+    """Decorator that requires user to have finance permissions."""
+    from .permissions import can_manage_finance
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if can_manage_finance(request.user):
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def library_required(view_func):
+    """Decorator that requires user to have library permissions."""
+    from .permissions import can_manage_library
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if can_manage_library(request.user):
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def health_required(view_func):
+    """Decorator that requires user to have health/medical permissions."""
+    from .permissions import can_manage_health
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if can_manage_health(request.user):
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def admissions_required(view_func):
+    """Decorator that requires user to have admissions permissions."""
+    from .permissions import can_manage_admissions
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if can_manage_admissions(request.user):
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def hostel_required(view_func):
+    """Decorator that requires user to have hostel permissions."""
+    from .permissions import can_manage_hostel
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if can_manage_hostel(request.user):
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def academic_required(view_func):
+    """Decorator that requires user to have academic content creation permissions."""
+    from .permissions import can_create_academic_content
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if can_create_academic_content(request.user):
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def results_upload_required(view_func):
+    """Decorator that requires user to have result upload permissions."""
+    from .permissions import can_upload_results
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if can_upload_results(request.user):
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You do not have permission to upload results.')
+        return redirect('home')
+    
+    return wrapper

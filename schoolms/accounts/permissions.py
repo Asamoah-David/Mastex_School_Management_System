@@ -258,3 +258,108 @@ def user_can_manage_school(user):
         "teacher", "accountant", "librarian",
         "admission_officer", "school_nurse", "admin_assistant", "staff"
     ) and bool(getattr(user, "school_id", None))
+
+
+def can_manage_hostel(user):
+    """Can manage hostel - Admin Assistant, Headteacher, Deputy"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if is_deputy_head(user):
+        return True
+    if getattr(user, "role", None) in ("admin_assistant",):
+        return True
+    return False
+
+
+def can_manage_transport(user):
+    """Can manage transport/bus - Admin Assistant, Headteacher"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if is_deputy_head(user):
+        return True
+    if getattr(user, "role", None) in ("admin_assistant",):
+        return True
+    return False
+
+
+def can_manage_sports(user):
+    """Can manage sports activities - PE Teacher, Headteacher"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if is_deputy_head(user):
+        return True
+    if is_hod(user):
+        return True
+    # Teachers can manage sports if assigned
+    if is_teacher(user):
+        return True
+    return False
+
+
+def can_manage_clubs(user):
+    """Can manage clubs and activities - Teachers, Headteacher"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if is_deputy_head(user):
+        return True
+    if is_hod(user):
+        return True
+    if is_teacher(user):
+        return True
+    return False
+
+
+def can_manage_exam_halls(user):
+    """Can manage exam halls and seating plans - Admin, Deputy, HOD"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if is_deputy_head(user):
+        return True
+    if is_hod(user):
+        return True
+    return False
+
+
+def can_manage_id_cards(user):
+    """Can manage ID cards - Admin Assistant, Admission Officer, Headteacher"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if is_deputy_head(user):
+        return True
+    if getattr(user, "role", None) in ("admin_assistant", "admission_officer"):
+        return True
+    return False
+
+
+def can_view_all_departments(user):
+    """Can view all department data - School Admin, Deputy Head"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if is_deputy_head(user):
+        return True
+    return False
+
+
+def can_approve_admissions(user):
+    """Can approve admission applications - School Admin, Admission Officer"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    if getattr(user, "role", None) in ("admission_officer",):
+        return True
+    return False
