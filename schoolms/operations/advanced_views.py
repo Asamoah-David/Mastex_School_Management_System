@@ -200,10 +200,11 @@ def create_preorder(request):
         
         # Create pre-order (for now, just create payment record)
         # In production, you'd have a PreOrder model
+        item_list = ', '.join([f"{i['quantity']}x {i['item'].name}" for i in order_items])
         payment = CanteenPayment.objects.create(
             student=student,
             amount=total_amount,
-            description=f"Pre-order for {order_date}: {', '.join([f'{i['quantity']}x {i['item'].name}' for i in order_items])}",
+            description=f"Pre-order for {order_date}: {item_list}",
             payment_method='prepaid'
         )
         
