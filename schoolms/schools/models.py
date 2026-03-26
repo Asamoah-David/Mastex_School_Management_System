@@ -11,11 +11,6 @@ class School(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     
-    # Stripe subscription fields
-    stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
-    stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
-    flutterwave_tx_ref = models.CharField(max_length=255, blank=True, null=True)
-    
     # Subscription status
     SUBSCRIPTION_STATUS_CHOICES = [
         ('trial', 'Trial'),
@@ -69,12 +64,49 @@ class SchoolFeature(models.Model):
     """
 
     FEATURE_CHOICES = (
+        # Existing features
         ("hostel", "Hostel"),
         ("library", "Library"),
         ("inventory", "Inventory"),
         ("messaging", "Messaging"),
         ("ai_assistant", "AI Assistant"),
         ("finance_admin", "Finance (admin tools)"),
+        # Academics
+        ("exams", "Exams & Assessments"),
+        ("homework", "Homework"),
+        ("quiz", "Online Quizzes"),
+        ("results", "Results & Report Cards"),
+        ("timetable", "Timetable"),
+        ("performance_analytics", "Performance Analytics"),
+        # Admissions & Students
+        ("admission", "Admissions"),
+        ("student_enrollment", "Student Enrollment"),
+        # Operations
+        ("attendance", "Student Attendance"),
+        ("teacher_attendance", "Teacher Attendance"),
+        ("bus_transport", "Bus Transport"),
+        ("canteen", "Canteen"),
+        ("textbooks", "Textbooks"),
+        ("certificates", "Certificates"),
+        ("id_cards", "ID Cards"),
+        ("health_records", "Health Records"),
+        ("discipline", "Discipline & Behavior"),
+        ("school_events", "School Events"),
+        ("sports", "Sports"),
+        ("clubs", "Clubs & Activities"),
+        ("pt_meetings", "Parent-Teacher Meetings"),
+        ("alumni", "Alumni"),
+        ("documents", "Documents"),
+        ("announcements", "Announcements"),
+        ("online_exams", "Online Exams"),
+        # Finance
+        ("fee_management", "Fee Management"),
+        ("online_payments", "Online Payments"),
+        ("expenses", "Expenses"),
+        ("budgets", "Budgets"),
+        # HR
+        ("staff_management", "Staff Management"),
+        ("leave_management", "Leave Management"),
     )
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="features")

@@ -28,8 +28,6 @@ class Fee(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2)  # Total fee amount
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # Amount paid so far
     paid = models.BooleanField(default=False)  # Legacy field - kept for compatibility
-    stripe_payment_id = models.CharField(max_length=255, blank=True, null=True)
-    flutterwave_tx_ref = models.CharField(max_length=255, blank=True, null=True)
     paystack_payment_id = models.CharField(max_length=255, blank=True, null=True)
     paystack_reference = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

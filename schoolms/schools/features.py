@@ -8,12 +8,49 @@ from .models import SchoolFeature
 
 
 DEFAULT_FEATURE_KEYS: tuple[str, ...] = (
+    # Existing features
     "hostel",
     "library",
     "inventory",
     "messaging",
     "ai_assistant",
     "finance_admin",
+    # Academics
+    "exams",
+    "homework",
+    "quiz",
+    "results",
+    "timetable",
+    "performance_analytics",
+    # Admissions & Students
+    "admission",
+    "student_enrollment",
+    # Operations
+    "attendance",
+    "teacher_attendance",
+    "bus_transport",
+    "canteen",
+    "textbooks",
+    "certificates",
+    "id_cards",
+    "health_records",
+    "discipline",
+    "school_events",
+    "sports",
+    "clubs",
+    "pt_meetings",
+    "alumni",
+    "documents",
+    "announcements",
+    "online_exams",
+    # Finance
+    "fee_management",
+    "online_payments",
+    "expenses",
+    "budgets",
+    # HR
+    "staff_management",
+    "leave_management",
 )
 
 
