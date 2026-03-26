@@ -173,13 +173,18 @@ def send_message(request):
                     else:
                         failed_count += 1
         
-        if sent_count > 0:
+        if sent_count > 0 or failed_count > 0:
             msg_type = "SMS" if message_type == "sms" else "Email"
-            messages.success(request, f"{msg_type} sent successfully to {sent_count} recipient(s).")
+            if sent_count > 0:
+                messages.success(request, f"{msg_type} sent successfully to {sent_count} recipient(s).")
             if failed_count > 0:
-                messages.warning(request, f"{failed_count} message(s) failed to send.")
+                # Show error details
+                error_summary = f"{failed_count} message(s) failed to send."
+                if errors:
+                    error_summary += f" First error: {errors[0]}"
+                messages.error(request, error_summary)
         else:
-            messages.error(request, "No messages could be sent. Please check recipients have valid phone numbers or email addresses.")
+            messages.error(request, "No recipients found. Please ensure parents/students have valid phone numbers and emails.")
         
         return redirect("messaging:send_message")
     
