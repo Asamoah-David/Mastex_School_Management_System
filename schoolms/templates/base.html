@@ -607,7 +607,7 @@
                                 <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Messaging</span></div></a></li>
                                 {% endif %}
                                 {% feature_enabled 'ai_assistant' as feat_ai %}{% if feat_ai %}
-                                <li><a href="{% url 'ai_assistant:chat' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
+                                <li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
                                 {% endif %}
                             </ul>
                         </div>
