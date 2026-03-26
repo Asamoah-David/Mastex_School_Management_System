@@ -197,3 +197,17 @@ def message_history(request):
         return redirect("home")
     
     return render(request, "messaging/message_history.html", {"school": school})
+
+
+@login_required
+def chat_view(request):
+    """Parent-Teacher chat interface (placeholder - uses timetable_generator functions)."""
+    from academics.timetable_generator import chat_page
+    return chat_page(request)
+
+
+@login_required
+def get_messages(request, contact_id):
+    """Get messages with a contact."""
+    from academics.timetable_generator import get_messages as _get_messages
+    return _get_messages(request, contact_id)

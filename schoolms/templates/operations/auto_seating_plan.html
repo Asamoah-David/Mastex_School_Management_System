@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Auto Seating Plan - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>📋 Exam Seating Plan Generator</h2>
+            <p class="page-subtitle">Automatically generate exam seating arrangements</p>
+        </div>
+    </div>
+    
+    <div class="form-grid-2" style="margin-top: 1.5rem;">
+        <div class="content-card">
+            <h3 style="margin-top: 0;">⚙️ Generate Seating Plan</h3>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label>Exam Name</label>
+                    <input type="text" name="exam_name" class="form-control" placeholder="e.g., Mid-Term Exam 2024" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Select Class</label>
+                    <select name="class_name" class="form-control" required>
+                        <option value="">-- Select Class --</option>
+                        {% for class in classes %}
+                        <option value="{{ class }}">{{ class }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Number of Rows</label>
+                    <input type="number" name="rows" class="form-control" value="10" min="1" max="20">
+                </div>
+                
+                <div class="form-group">
+                    <label>Seats per Row</label>
+                    <input type="number" name="seats_per_row" class="form-control" value="6" min="2" max="10">
+                </div>
+                
+                <div class="info-box" style="margin: 1rem 0;">
+                    <strong>ℹ️ Tips:</strong>
+                    <ul style="margin: 0.5rem 0 0 1.25rem;">
+                        <li>Students are randomly assigned seats</li>
+                        <li>Empty seats are marked with "-"</li>
+                        <li>Download or print the seating plan</li>
+                    </ul>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    🎯 Generate Seating Plan
+                </button>
+            </form>
+        </div>
+        
+        <div class="content-card">
+            <h3 style="margin-top: 0;">📐 Seating Layout</h3>
+            
+            <div style="text-align: center; padding: 2rem; background: #f9fafb; border-radius: 8px;">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">🎓</div>
+                <p style="color: #6b7280; margin: 0;">
+                    Enter exam details and click "Generate"<br>
+                    to create a seating plan
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -2,6 +2,8 @@ from django.urls import path
 from . import views
 from . import payment_views
 from . import export_views
+from . import qr_views
+from . import advanced_views
 
 app_name = "operations"
 
@@ -41,6 +43,14 @@ urlpatterns = [
     path("attendance/mark/", views.attendance_mark, name="attendance_mark"),
     path("attendance/edit/<int:pk>/", views.attendance_edit, name="attendance_edit"),
     path("attendance/delete/<int:pk>/", views.attendance_delete, name="attendance_delete"),
+    
+    # QR Code Attendance System
+    path("attendance/qr-scanner/", qr_views.qr_attendance_scanner, name="qr_attendance_scanner"),
+    path("attendance/qr-class/<str:class_name>/", qr_views.qr_attendance_class, name="qr_attendance_class"),
+    path("attendance/qr-mark/", qr_views.qr_mark_attendance, name="qr_mark_attendance"),
+    path("attendance/qr-summary/", qr_views.attendance_qr_summary, name="attendance_qr_summary"),
+    path("attendance/qr-codes/<str:class_name>/", qr_views.bulk_qr_codes, name="bulk_qr_codes"),
+    path("attendance/student-qr/<int:student_id>/", qr_views.student_qr_preview, name="student_qr_preview"),
     
     # Teacher Attendance
     path("teacher-attendance/", views.teacher_attendance_list, name="teacher_attendance_list"),
@@ -262,4 +272,24 @@ urlpatterns = [
     path("pt-meetings/<int:pk>/edit/", views.pt_meeting_edit, name="pt_meeting_edit"),
     path("pt-meetings/<int:pk>/delete/", views.pt_meeting_delete, name="pt_meeting_delete"),
     path("pt-meetings/<int:pk>/book/", views.pt_meeting_book, name="pt_meeting_book"),
+    
+    # NEW: Advanced Operations Features
+    # Auto Timetable Generator
+    path("auto-timetable/", advanced_views.auto_timetable_page, name="auto_timetable_page"),
+    path("auto-timetable/generate/", advanced_views.generate_timetable, name="generate_timetable"),
+    
+    # Auto Seating Plan
+    path("auto-seating-plan/", advanced_views.auto_seating_plan_page, name="auto_seating_plan_page"),
+    path("auto-seating-plan/generate/", advanced_views.generate_seating_plan, name="generate_seating_plan"),
+    
+    # Behavior Tracker
+    path("behavior-tracker/", advanced_views.behavior_tracker_page, name="behavior_tracker_page"),
+    path("behavior-tracker/record/", advanced_views.record_behavior, name="record_behavior"),
+    path("behavior-tracker/student/<int:student_id>/", advanced_views.student_behavior_history, name="student_behavior_history"),
+    
+    # Financial Reports
+    path("financial-reports/", advanced_views.financial_reports_page, name="financial_reports_page"),
+    path("financial-reports/budget-vs-actual/", advanced_views.budget_vs_actual, name="budget_vs_actual"),
+    path("financial-reports/income-statement/", advanced_views.income_statement, name="income_statement"),
+    path("financial-reports/expense-breakdown/", advanced_views.expense_breakdown, name="expense_breakdown"),
 ]

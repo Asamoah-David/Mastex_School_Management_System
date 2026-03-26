@@ -269,6 +269,103 @@
         .profile-dropdown a.menu-item:hover { background: rgba(148, 163, 184, 0.12); }
         .profile-dropdown .menu-item-title { font-weight: 600; font-size: 0.82rem; }
         .profile-dropdown .menu-item-sub { color: var(--text-soft); font-size: 0.75rem; margin-top: 0.1rem; }
+        
+        /* Notification Bell */
+        .notification-bell {
+            position: relative;
+            cursor: pointer;
+            padding: 0.4rem;
+            border-radius: 50%;
+            transition: background 0.2s ease;
+        }
+        .notification-bell:hover {
+            background: rgba(148, 163, 184, 0.15);
+        }
+        .bell-icon {
+            font-size: 1.2rem;
+        }
+        .notification-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--danger);
+            color: white;
+            font-size: 0.65rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 999px;
+            min-width: 18px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .notification-dropdown {
+            position: absolute;
+            right: 60px;
+            top: calc(100% + 8px);
+            width: 320px;
+            max-height: 400px;
+            background: rgba(2, 6, 23, 0.98);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 0.9rem;
+            box-shadow: var(--shadow-soft);
+            display: none;
+            z-index: 100;
+            overflow: hidden;
+        }
+        .notification-dropdown.open {
+            display: block;
+        }
+        .notification-dropdown-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+        }
+        .notification-dropdown-header a {
+            font-size: 0.8rem;
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .notification-dropdown-content {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        .notification-dropdown-item {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .notification-dropdown-item:hover {
+            background: rgba(148, 163, 184, 0.1);
+        }
+        .notification-dropdown-item.unread {
+            background: rgba(34, 197, 94, 0.08);
+            border-left: 3px solid var(--accent);
+        }
+        .notification-dropdown-item-title {
+            font-weight: 500;
+            font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+        .notification-dropdown-item-message {
+            font-size: 0.75rem;
+            color: var(--text-soft);
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .notification-dropdown-item-time {
+            font-size: 0.7rem;
+            color: var(--text-soft);
+        }
+        .notification-empty {
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-soft);
+        }
     </style>
 </head>
 <body>
@@ -291,6 +388,22 @@
                 <div class="nav-actions">
                     <button type="button" id="sidebarToggle" class="nav-toggle" aria-label="Toggle navigation">☰</button>
                     {% if user.is_authenticated %}
+                    <!-- Notification Bell -->
+                    <div class="notification-bell" id="notificationBell" onclick="toggleNotificationDropdown()">
+                        <span class="bell-icon">🔔</span>
+                        {% if unread_notification_count > 0 %}
+                        <span class="notification-badge">{{ unread_notification_count }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-dropdown-header">
+                            <span>Notifications</span>
+                            <a href="{% url 'notifications:list' %}">View All</a>
+                        </div>
+                        <div class="notification-dropdown-content" id="notificationList">
+                            <!-- AJAX loaded notifications -->
+                        </div>
+                    </div>
                     <div class="profile-menu" id="profileMenu">
                         <button type="button" class="profile-trigger" id="profileTrigger" aria-haspopup="true" aria-expanded="false">
                             <span class="profile-avatar">{{ user.first_name|default:user.username|truncatechars:1|upper }}</span>

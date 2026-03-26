@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading" style="margin-bottom: 1.5rem;">
+        <div>
+            <div class="page-title">Notifications</div>
+            <div class="page-subtitle">Stay updated with your latest activities</div>
+        </div>
+        <button class="btn btn-secondary" onclick="markAllAsRead()">Mark All as Read</button>
+    </div>
+    
+    {% if notifications %}
+    <div class="notifications-list">
+        {% for notification in notifications %}
+        <div class="notification-item {% if not notification.is_read %}unread{% endif %}" 
+             data-id="{{ notification.id }}"
+             onclick="handleNotificationClick('{{ notification.link }}', {{ notification.id }})">
+            <div class="notification-icon notification-type-{{ notification.notification_type }}">
+                {% if notification.notification_type == 'payment' %}💰
+                {% elif notification.notification_type == 'attendance' %}✅
+                {% elif notification.notification_type == 'result' %}📊
+                {% elif notification.notification_type == 'message' %}💬
+                {% elif notification.notification_type == 'success' %}✓
+                {% elif notification.notification_type == 'warning' %}⚠
+                {% elif notification.notification_type == 'error' %}✕
+                {% else %}ℹ{% endif %}
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">{{ notification.title }}</div>
+                <div class="notification-message">{{ notification.message }}</div>
+                <div class="notification-time">{{ notification.created_at|date:"M d, Y H:i" }}</div>
+            </div>
+            <button class="notification-delete" onclick="event.stopPropagation(); deleteNotification({{ notification.id }})">×</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="text-align: center; padding: 2rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">🔔</div>
+        <div>No notifications yet</div>
+        <div class="page-subtitle">You're all caught up!</div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.notifications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.notification-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.notification-item:hover {
+    background: rgba(15, 23, 42, 1);
+    border-color: rgba(148, 163, 184, 0.4);
+}
+
+.notification-item.unread {
+    border-left: 3px solid var(--accent);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.notification-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.notification-type-info { background: rgba(59, 130, 246, 0.2); }
+.notification-type-success { background: rgba(34, 197, 94, 0.2); }
+.notification-type-warning { background: rgba(245, 158, 11, 0.2); }
+.notification-type-error { background: rgba(239, 68, 68, 0.2); }
+.notification-type-payment { background: rgba(34, 197, 94, 0.2); }
+.notification-type-attendance { background: rgba(59, 130, 246, 0.2); }
+.notification-type-result { background: rgba(139, 92, 246, 0.2); }
+.notification-type-message { background: rgba(236, 72, 153, 0.2); }
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.notification-message {
+    font-size: 0.85rem;
+    color: var(--text-soft);
+    margin-bottom: 0.25rem;
+}
+
+.notification-time {
+    font-size: 0.75rem;
+    color: var(--text-soft);
+}
+
+.notification-delete {
+    background: none;
+    border: none;
+    color: var(--text-soft);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.notification-delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+}
+</style>
+
+<script>
+function handleNotificationClick(link, id) {
+    markAsRead(id);
+    if (link) {
+        window.location.href = link;
+    }
+}
+
+function markAsRead(id) {
+    fetch(`/notifications/${id}/read/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    }).then(response => response.json()).then(data => {
+        if (data.success) {
+            document.querySelector(`[data-id="${id}"]`).classList.remove('unread');
+            updateNotificationCount();
+        }
+    });
+}
+
+function markAllAsRead() {
+    fetch('/notifications/read-all/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    }).then(response => response.json()).then(data => {
+        if (data.success) {
+            document.querySelectorAll('.notification-item').forEach(item => item.classList.remove('unread'));
+            updateNotificationCount();
+        }
+    });
+}
+
+function deleteNotification(id) {
+    fetch(`/notifications/${id}/delete/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    }).then(response => response.json()).then(data => {
+        if (data.success) {
+            document.querySelector(`[data-id="${id}"]`).remove();
+        }
+    });
+}
+</script>
+{% endblock %}

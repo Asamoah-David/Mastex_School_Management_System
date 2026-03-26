@@ -13,3 +13,5 @@ google-generativeai
 groq
 paystack
 openpyxl
+qrcode
+Pillow

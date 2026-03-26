@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Auto Timetable Generator - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>📅 Auto Timetable Generator</h2>
+            <p class="page-subtitle">Automatically generate class schedules</p>
+        </div>
+    </div>
+    
+    <div class="form-grid-2" style="margin-top: 1.5rem;">
+        <div class="content-card">
+            <h3 style="margin-top: 0;">⚙️ Generate Timetable</h3>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="classSelect">Select Class</label>
+                    <select name="class_name" id="classSelect" class="form-control" required>
+                        <option value="">-- Select Class --</option>
+                        {% for class in classes %}
+                        <option value="{{ class }}">{{ class }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="info-box" style="margin: 1rem 0;">
+                    <strong>ℹ️ How it works:</strong>
+                    <ul style="margin: 0.5rem 0 0 1.25rem;">
+                        <li>Select a class to generate timetable</li>
+                        <li>The system will create a balanced schedule</li>
+                        <li>Core subjects get more periods</li>
+                        <li>Breaks are automatically included</li>
+                    </ul>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    🚀 Generate Timetable
+                </button>
+            </form>
+        </div>
+        
+        <div class="content-card">
+            <h3 style="margin-top: 0;">📋 School Hours</h3>
+            
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>7:00 - 8:00</td></tr>
+                        <tr><td>2</td><td>8:00 - 9:00</td></tr>
+                        <tr><td>3</td><td>9:00 - 10:00</td></tr>
+                        <tr><td colspan="2" style="background: #fef3c7; text-align: center;">☕ BREAK 10:00 - 10:30</td></tr>
+                        <tr><td>4</td><td>10:30 - 11:30</td></tr>
+                        <tr><td>5</td><td>11:30 - 12:30</td></tr>
+                        <tr><td colspan="2" style="background: #fef3c7; text-align: center;">🍽️ LUNCH 12:30 - 1:30</td></tr>
+                        <tr><td>6</td><td>1:30 - 2:30</td></tr>
+                        <tr><td>7</td><td>2:30 - 3:30</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

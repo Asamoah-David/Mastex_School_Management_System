@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Reports - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>📈 Financial Reports</h2>
+            <p class="page-subtitle">Budget and expense analysis for {{ current_year }}</p>
+        </div>
+        <select id="yearSelect" class="form-control" style="width: auto;">
+            <option value="{{ current_year }}" selected>{{ current_year }}</option>
+            <option value="{{ current_year|add:'-1' }}">{{ current_year|add:"-1" }}</option>
+        </select>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="stats-grid" style="margin-top: 1.5rem;">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="totalBudget">${{ total_budget|default:"0" }}</div>
+                <div class="stat-label">Total Budget</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                    <polyline points="17 6 23 6 23 12"></polyline>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="totalExpenses">${{ total_expenses|default:"0" }}</div>
+                <div class="stat-label">Total Expenses</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(34, 197, 94, 0.2); color: #22c55e;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="budgetRemaining" style="color: #22c55e;">${{ budget_remaining|default:"0" }}</div>
+                <div class="stat-label">Remaining Budget</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts -->
+    <div class="content-grid-2" style="margin-top: 1.5rem;">
+        <div class="content-card">
+            <h3 style="margin-top: 0;">📊 Expenses by Category</h3>
+            <div id="categoryChart">
+                {% if expenses_by_category %}
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    {% for cat in expenses_by_category %}
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <strong>{{ cat.category__name|default:"Uncategorized" }}</strong>
+                            <span>${{ cat.total|default:"0" }}</span>
+                        </div>
+                        <div style="height: 12px; background: rgba(148,163,184,0.2); border-radius: 999px; overflow: hidden;">
+                            <div style="height: 100%; width: {% widthratio cat.total total_expenses 100 %}%; background: #3b82f6; border-radius: 999px;"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="text-align: center; color: var(--text-soft); padding: 2rem;">No expense data available</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="content-card">
+            <h3 style="margin-top: 0;">📈 Monthly Expenses</h3>
+            <div id="monthlyChart">
+                <div style="display: flex; justify-content: space-around; align-items: flex-end; height: 200px; padding: 1rem;">
+                    {% for month in monthly_expenses %}
+                    <div style="text-align: center;">
+                        <div style="height: {{ month.total|default:'0' }}px; width: 30px; background: #3b82f6; border-radius: 4px 4px 0 0;"></div>
+                        <div style="font-size: 0.7rem; margin-top: 0.5rem;">{{ month.month|month_name|slice:":3" }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Budget Overview -->
+    <div class="content-card" style="margin-top: 1.5rem;">
+        <h3 style="margin-top: 0;">💰 Budget Overview</h3>
+        
+        <div style="margin-top: 1rem;">
+            {% with budget_used=total_expenses|before:total_budget %}
+            <div style="margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>Budget Used</span>
+                    <span>{{ total_expenses|default:0 }} / {{ total_budget|default:0 }}</span>
+                </div>
+                <div style="height: 24px; background: rgba(148,163,184,0.2); border-radius: 999px; overflow: hidden;">
+                    <div style="height: 100%; width: {% widthratio total_expenses total_budget 100 %}%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 999px;"></div>
+                </div>
+            </div>
+            {% endwith %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('yearSelect').addEventListener('change', function() {
+    const year = this.value;
+    loadFinancialData(year);
+});
+
+function loadFinancialData(year) {
+    fetch(`/operations/financial/data/?year=${year}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalBudget').textContent = '$' + data.total_budget;
+            document.getElementById('totalExpenses').textContent = '$' + data.total_expenses;
+            document.getElementById('budgetRemaining').textContent = '$' + data.budget_remaining;
+            
+            // Update color based on remaining budget
+            const remaining = data.budget_remaining;
+            document.getElementById('budgetRemaining').style.color = remaining >= 0 ? '#22c55e' : '#ef4444';
+        })
+        .catch(error => console.error('Error loading financial data:', error));
+}
+</script>
+{% endblock %}

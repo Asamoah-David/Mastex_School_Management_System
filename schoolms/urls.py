@@ -37,6 +37,7 @@ urlpatterns = [
     path("messaging/", include("messaging.urls")),
     path("operations/", include("operations.urls")),
     path("ai/", include("ai_assistant.urls")),
+    path("notifications/", include("notifications.urls")),
 ]
 
 # Serve media files in development

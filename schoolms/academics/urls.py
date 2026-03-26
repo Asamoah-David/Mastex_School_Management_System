@@ -1,5 +1,9 @@
 from django.urls import path
 from . import views
+from . import analytics_views
+from . import advanced_analytics
+from . import pdf_report
+from . import timetable_generator
 
 app_name = "academics"
 
@@ -53,4 +57,37 @@ urlpatterns = [
     path("result-summary/generate/", views.generate_result_summary, name="generate_result_summary"),
     path("enhanced-report-card/<int:student_id>/", views.enhanced_report_card, name="enhanced_report_card"),
     path("enhanced-report-card/<int:student_id>/pdf/", views.enhanced_report_card_pdf, name="enhanced_report_card_pdf"),
+    
+    # NEW: Advanced Features URLs
+    # Analytics & Performance
+    path("analytics/dashboard/", analytics_views.performance_dashboard, name="performance_dashboard"),
+    path("analytics/class/<str:class_name>/", analytics_views.get_class_performance, name="class_performance_data"),
+    
+    # Predictive Analytics
+    path("predictive/", advanced_analytics.predictive_analytics, name="predictive_analytics"),
+    path("predict/<int:student_id>/", advanced_analytics.predict_student_performance, name="predict_student_performance"),
+    
+    # Trend Analysis
+    path("trend-analysis/", advanced_analytics.trend_analysis, name="trend_analysis"),
+    path("trend-data/", advanced_analytics.get_trend_data, name="get_trend_data"),
+    
+    # Online Classes
+    path("online-classes/", advanced_analytics.online_classes_page, name="online_classes"),
+    path("online-classes/create/", advanced_analytics.create_meeting, name="create_meeting"),
+    path("online-classes/join/<int:meeting_id>/", advanced_analytics.join_meeting, name="join_meeting"),
+    
+    # Course Management (LMS)
+    path("courses/", timetable_generator.course_list, name="course_list"),
+    path("courses/<int:subject_id>/", timetable_generator.course_detail, name="course_detail"),
+    path("courses/<int:subject_id>/add-lesson/", timetable_generator.add_lesson, name="add_lesson"),
+    
+    # PDF Report Cards
+    path("report-cards/bulk/", pdf_report.generate_bulk_report_cards, name="generate_report_card"),
+    path("report-cards/download/<int:student_id>/", pdf_report.generate_report_card_pdf, name="download_report_card"),
+    
+    # Auto Timetable
+    path("auto-timetable/", timetable_generator.auto_timetable_generator, name="auto_timetable"),
+    
+    # Course List View
+    path("course-list/", timetable_generator.course_list, name="course_list_view"),
 ]

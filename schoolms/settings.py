@@ -48,11 +48,12 @@ INSTALLED_APPS = [
     "fees",
     "finance",
     "messaging",
-    "payments",
+    # "payments",  # Empty app - disabled to avoid issues
     "schools",
     "services",
     "students",
     "operations",
+    "notifications",
     "templatetags.apps.TemplatetagsConfig",
 ]
 
@@ -81,6 +82,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "notifications.context_processors.notification_context",
             ],
             "libraries": {
                 "custom_filters": "templatetags.custom_filters",
@@ -252,9 +254,10 @@ LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-# Override with DATABASE_URL (Render and other hosts set this; migrations run automatically in docker-entrypoint.sh)
-import dj_database_url
-
-database_url = os.getenv("DATABASE_URL")
-if database_url and database_url.strip():
-    DATABASES["default"] = dj_database_url.config(default=database_url, conn_max_age=600)
+# Only override with DATABASE_URL in production (when DEBUG=False)
+# This allows local development to use SQLite without needing to unset DATABASE_URL
+if not DEBUG:
+    import dj_database_url
+    database_url = os.getenv("DATABASE_URL")
+    if database_url and database_url.strip():
+        DATABASES["default"] = dj_database_url.config(default=database_url, conn_max_age=600)

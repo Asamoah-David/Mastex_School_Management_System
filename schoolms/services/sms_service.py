@@ -21,3 +21,9 @@ class SMSService:
             # log or raise as appropriate
             raise RuntimeError(f"MNotify error: {resp.text}")
         return resp.json()
+
+
+# Convenience function for backward compatibility
+def send_sms(to, message):
+    """Send SMS to a recipient."""
+    return SMSService.send_sms(to, message)

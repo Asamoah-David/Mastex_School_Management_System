@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Courses - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>🎓 Course Management</h2>
+            <p class="page-subtitle">Manage subjects as courses with lessons</p>
+        </div>
+        <button class="btn btn-primary">➕ Add Course</button>
+    </div>
+    
+    <div class="course-grid" style="margin-top: 1.5rem;">
+        {% if subjects %}
+            {% for subject in subjects %}
+            <div class="content-card course-card" style="cursor: pointer;" onclick="window.location.href='{% url 'academics:course_detail' subject.id %}'">
+                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                    <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #4F46E5, #7C3AED); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                        📚
+                    </div>
+                    <div>
+                        <h3 style="margin: 0;">{{ subject.name }}</h3>
+                        {% if subject.is_core %}
+                        <span class="badge badge-primary">Core</span>
+                        {% else %}
+                        <span class="badge badge-secondary">Elective</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if subject.description %}
+                <p style="color: #6b7280; margin-bottom: 1rem;">{{ subject.description|truncatewords:20 }}</p>
+                {% else %}
+                <p style="color: #6b7280; margin-bottom: 1rem;">No description available</p>
+                {% endif %}
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e5e7eb; padding-top: 1rem;">
+                    <span style="color: #6b7280; font-size: 0.85rem;">
+                        {% if subject.class_levels %}
+                            {{ subject.class_levels|join:", " }}
+                        {% else %}
+                            All Classes
+                        {% endif %}
+                    </span>
+                    <span style="color: #4F46E5; font-weight: 600;">View Course →</span>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="content-card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📚</div>
+            <h3>No Courses Yet</h3>
+            <p style="color: #6b7280;">Start by adding subjects to create courses for your students.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.course-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.course-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.course-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

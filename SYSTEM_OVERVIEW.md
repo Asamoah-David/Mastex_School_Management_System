@@ -123,6 +123,21 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 - **Admission** – Student admission application and approval
 - **Alumni** – Track alumni events and alumni records
 
+### 9. QR Code Attendance System (NEW!)
+- **QR Code Scanner** – Scan student ID cards to mark attendance quickly
+  - Scanner Page: `/operations/attendance/qr-scanner/`
+  - Summary Page: `/operations/attendance/qr-summary/`
+  - Bulk QR Generation: `/operations/attendance/qr-codes/<class_name>/`
+- **How it works:**
+  1. Generate QR codes for all students in a class
+  2. Print and attach QR codes to student ID cards
+  3. Teachers scan QR codes during attendance
+  4. Attendance is marked automatically!
+- **Benefits:**
+  - ⚡ Fast - Mark attendance in seconds
+  - ✅ Accurate - No manual entry errors
+  - 📊 Real-time stats - Live attendance dashboard
+
 ---
 
 ## UI/UX Improvements

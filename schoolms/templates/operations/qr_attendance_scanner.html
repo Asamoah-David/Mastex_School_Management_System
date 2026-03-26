@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}QR Attendance Scanner - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>📱 QR Attendance Scanner</h2>
+            <p class="page-subtitle">Scan student ID cards to mark attendance</p>
+        </div>
+        <div class="button-row">
+            <a href="{% url 'operations:attendance_list' %}" class="btn btn-secondary">← Back to List</a>
+            <a href="{% url 'operations:attendance_qr_summary' %}" class="btn btn-secondary">📊 Today's Summary</a>
+        </div>
+    </div>
+    
+    <div class="form-grid-2" style="margin-top: 1.5rem;">
+        <!-- Scanner Section -->
+        <div>
+            <div class="content-card" style="padding: 1.5rem;">
+                <h3 style="margin-top: 0;">🔍 Scanner</h3>
+                
+                <div class="form-group">
+                    <label for="classSelect">Select Class</label>
+                    <select id="classSelect" class="form-control">
+                        <option value="">-- Select Class --</option>
+                        {% for class in classes %}
+                        <option value="{{ class }}">{{ class }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="attendanceDate">Attendance Date</label>
+                    <input type="date" id="attendanceDate" class="form-control" value="{{ today }}">
+                </div>
+                
+                <div class="form-group">
+                    <label>Attendance Status</label>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="attendanceStatus" value="present" checked>
+                            <span style="background: #22c55e; color: white; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem;">✅ Present</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="attendanceStatus" value="late">
+                            <span style="background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem;">⏰ Late</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="attendanceStatus" value="absent">
+                            <span style="background: #ef4444; color: white; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem;">❌ Absent</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Manual QR Input (for testing)</label>
+                    <input type="text" id="manualQR" class="form-control" placeholder="Or enter QR data manually: MASEXTICKET:1:ADM001">
+                </div>
+                
+                <div class="button-row">
+                    <button type="button" id="scanBtn" class="btn btn-primary" style="flex: 1;">
+                        📷 Mark Attendance
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Instructions -->
+            <div class="info-box" style="margin-top: 1rem;">
+                <strong>How to use:</strong>
+                <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+                    <li>Select the class</li>
+                    <li>Choose attendance status (Present/Late/Absent)</li>
+                    <li>Click "Mark Attendance" button</li>
+                    <li>A camera dialog will open for scanning</li>
+                    <li>Point camera at student's ID card QR code</li>
+                    <li>Attendance is marked automatically!</li>
+                </ol>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div>
+            <div class="content-card" style="padding: 1.5rem;">
+                <h3 style="margin-top: 0;">📋 Recent Scans</h3>
+                
+                <div id="resultsArea">
+                    <p style="color: var(--text-soft); text-align: center; padding: 2rem;">
+                        No scans yet. Start scanning to see results here.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Stats -->
+            <div class="content-grid" style="margin-top: 1rem;">
+                <div class="metric">
+                    <div class="metric-label">Today's Total</div>
+                    <div class="metric-value" id="statTotal">0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Present</div>
+                    <div class="metric-value" style="color: #22c55e;" id="statPresent">0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Late</div>
+                    <div class="metric-value" style="color: #f59e0b;" id="statLate">0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Absent</div>
+                    <div class="metric-value" style="color: #ef4444;" id="statAbsent">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// QR Scanner functionality using device camera
+document.addEventListener('DOMContentLoaded', function() {
+    const scanBtn = document.getElementById('scanBtn');
+    const manualQR = document.getElementById('manualQR');
+    const resultsArea = document.getElementById('resultsArea');
+    
+    let stats = { total: 0, present: 0, late: 0, absent: 0 };
+    
+    // Set today's date as default
+    document.getElementById('attendanceDate').valueAsDate = new Date();
+    
+    scanBtn.addEventListener('click', function() {
+        const qrData = manualQR.value.trim();
+        if (!qrData) {
+            alert('Please enter QR code data or use camera scanner');
+            return;
+        }
+        
+        markAttendance(qrData);
+    });
+    
+    function markAttendance(qrData) {
+        const className = document.getElementById('classSelect').value;
+        const date = document.getElementById('attendanceDate').value;
+        const status = document.querySelector('input[name="attendanceStatus"]:checked').value;
+        
+        if (!className) {
+            alert('Please select a class first');
+            return;
+        }
+        
+        fetch('{% url "operations:qr_mark_attendance" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                qr_data: qrData,
+                status: status,
+                date: date
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addResult(data, status);
+                updateStats(status);
+                showNotification('success', data.message);
+                manualQR.value = '';
+            } else {
+                showNotification('error', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('error', 'Failed to mark attendance');
+        });
+    }
+    
+    function addResult(data, status) {
+        const resultHTML = `
+            <div class="result-item" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem; border-bottom: 1px solid rgba(148,163,184,0.2);">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600;">${data.student.name}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-soft);">
+                        ${data.student.admission_number} • ${data.student.class_name}
+                    </div>
+                </div>
+                <span class="tag tag-${status === 'present' ? 'paid' : status === 'late' ? 'warning' : 'unpaid'}" style="background: ${status === 'present' ? 'rgba(34,197,94,0.2)' : status === 'late' ? 'rgba(251,191,36,0.2)' : 'rgba(248,113,113,0.2)'}; color: ${status === 'present' ? '#22c55e' : status === 'late' ? '#f59e0b' : '#ef4444'};">
+                    ${status.charAt(0).toUpperCase() + status.slice(1)}
+                </span>
+            </div>
+        `;
+        
+        if (resultsArea.querySelector('p')) {
+            resultsArea.innerHTML = '';
+        }
+        resultsArea.insertAdjacentHTML('afterbegin', resultHTML);
+    }
+    
+    function updateStats(status) {
+        stats.total++;
+        if (status === 'present') stats.present++;
+        else if (status === 'late') stats.late++;
+        else if (status === 'absent') stats.absent++;
+        
+        document.getElementById('statTotal').textContent = stats.total;
+        document.getElementById('statPresent').textContent = stats.present;
+        document.getElementById('statLate').textContent = stats.late;
+        document.getElementById('statAbsent').textContent = stats.absent;
+    }
+    
+    function showNotification(type, message) {
+        const notification = document.createElement('div');
+        notification.className = `message-box ${type === 'success' ? 'success' : 'error'}`;
+        notification.textContent = message;
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 1000; animation: slideIn 0.3s ease;';
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
+
+<style>
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.tag-warning {
+    background: rgba(251, 191, 36, 0.2) !important;
+    color: #f59e0b !important;
+}
+</style>
+{% endblock %}

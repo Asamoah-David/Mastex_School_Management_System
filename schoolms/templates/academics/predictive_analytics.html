@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Predictive Analytics - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>🔮 Predictive Analytics</h2>
+            <p class="page-subtitle">AI-powered student performance predictions</p>
+        </div>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="stats-grid" style="margin-top: 1.5rem;">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ total_at_risk|default:"0" }}</div>
+                <div class="stat-label">Students At Risk</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(251, 191, 36, 0.2); color: #f59e0b;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ risk_students|length|default:"0" }}</div>
+                <div class="stat-label">Need Attention</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- At-Risk Students -->
+    <div class="content-card" style="margin-top: 1.5rem;">
+        <h3 style="margin-top: 0;">⚠️ Students At Risk</h3>
+        
+        {% if risk_students %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Risk Level</th>
+                        <th>Risk Score</th>
+                        <th>Attendance</th>
+                        <th>Avg Score</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in risk_students %}
+                    <tr>
+                        <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+                        <td>
+                            <span class="badge badge-{% if item.risk_level == 'High' %}unpaid{% else %}pending{% endif %}">
+                                {{ item.risk_level }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="width: 100px; height: 8px; background: #e5e7eb; border-radius: 999px;">
+                                <div style="height: 100%; width: {{ item.risk_score }}%; background: {% if item.risk_level == 'High' %}#ef4444{% else %}#f59e0b{% endif %}; border-radius: 999px;"></div>
+                            </div>
+                            {{ item.risk_score|floatformat:0 }}%
+                        </td>
+                        <td>{{ item.attendance_rate|floatformat:0 }}%</td>
+                        <td>{{ item.avg_score|floatformat:0 }}%</td>
+                        <td>
+                            <button onclick="predictPerformance({{ item.student.id }})" class="btn btn-sm btn-primary">
+                                🔮 Predict
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="text-align: center; padding: 2rem; color: var(--text-soft);">
+            🎉 Great news! No students at risk detected.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Prediction Modal -->
+<div id="predictionModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 500px; width: 90%;">
+        <h3 style="margin-top: 0;">🔮 Performance Prediction</h3>
+        <div id="predictionContent">
+            <p>Loading prediction...</p>
+        </div>
+        <button onclick="closePredictionModal()" class="btn btn-secondary" style="width: 100%; margin-top: 1rem;">Close</button>
+    </div>
+</div>
+
+<script>
+function predictPerformance(studentId) {
+    fetch(`/academics/predict/${studentId}/`)
+        .then(response => response.json())
+        .then(data => {
+            const content = document.getElementById('predictionContent');
+            content.innerHTML = `
+                <div style="text-align: center; padding: 1rem;">
+                    <h4>${data.student}</h4>
+                    <div style="font-size: 3rem; margin: 1rem 0;">${data.predicted_score}%</div>
+                    <p>Predicted Score for Next Term</p>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div style="padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+                        <strong>Current Average</strong>
+                        <div style="font-size: 1.5rem; color: #4F46E5;">${data.current_avg}%</div>
+                    </div>
+                    <div style="padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+                        <strong>Trend</strong>
+                        <div style="font-size: 1.5rem; color: ${data.trend === 'Improving' ? '#22c55e' : data.trend === 'Declining' ? '#ef4444' : '#f59e0b'};">
+                            ${data.trend}
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                    <strong>💡 Recommendation:</strong>
+                    <p style="margin: 0.5rem 0 0 0;">${data.recommendation}</p>
+                </div>
+                <div style="margin-top: 1rem; text-align: center; color: #6b7280;">
+                    Confidence: ${data.confidence}%
+                </div>
+            `;
+            document.getElementById('predictionModal').style.display = 'flex';
+        });
+}
+
+function closePredictionModal() {
+    document.getElementById('predictionModal').style.display = 'none';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Student QR Codes - {{ class_name }} - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>🎫 Student QR Codes</h2>
+            <p class="page-subtitle">Class: {{ class_name }} - {{ total_students }} students</p>
+        </div>
+        <div class="button-row">
+            <button onclick="window.print()" class="btn btn-primary">🖨️ Print All</button>
+            <a href="{% url 'operations:qr_attendance_scanner' %}" class="btn btn-secondary">← Back to Scanner</a>
+        </div>
+    </div>
+    
+    <div class="info-box" style="margin-top: 1rem;">
+        <strong>📌 How to use:</strong>
+        <ul style="margin: 0.5rem 0 0 1.25rem;">
+            <li>Print these QR codes and attach them to student ID cards</li>
+            <li>Students can present their ID card QR code for quick attendance scanning</li>
+            <li>Each QR code contains the student's unique ID and admission number</li>
+        </ul>
+    </div>
+    
+    <div class="qr-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+        {% for qr in qr_codes %}
+        <div class="qr-card" style="background: white; border-radius: 12px; padding: 1rem; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); page-break-inside: avoid;">
+            <img src="{{ qr.qr_code }}" alt="QR Code" style="width: 140px; height: 140px; margin: 0 auto;">
+            <h4 style="margin: 0.75rem 0 0.25rem; font-size: 0.95rem; color: #1e293b;">{{ qr.name }}</h4>
+            <p style="margin: 0; font-size: 0.8rem; color: #64748b;">
+                {{ qr.admission_number }}
+            </p>
+        </div>
+        {% empty %}
+        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--text-soft);">
+            <p>No students found in this class.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+@media print {
+    body { background: white !important; }
+    .sidebar, .top-bar, .page-heading .button-row, .info-box { display: none !important; }
+    .content-card { box-shadow: none !important; border: none !important; padding: 0 !important; }
+    .qr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    .qr-card { box-shadow: none !important; border: 1px solid #e2e8f0; padding: 0.5rem; }
+    .qr-card img { width: 100px !important; height: 100px !important; }
+    .qr-card h4 { font-size: 0.75rem !important; }
+    .qr-card p { font-size: 0.65rem !important; }
+}
+</style>
+{% endblock %}
