@@ -46,7 +46,7 @@
                         <td>{{ stats.position|default:"—" }}</td>
                         <td>
                             <a class="btn btn-secondary btn-sm" href="{% url 'students:parent_child_detail' child.id %}">Open</a>
-                            <a class="btn btn-primary btn-sm" href="{% url 'academics:report_card' child.id %}">Report card</a>
+                            <a class="btn btn-primary btn-sm" href="{% url 'academics:report_card' child.id %}">Report card</a>  <a class="btn btn-success btn-sm" href="{% url 'academics:enhanced_report_card' child.id %}">Enhanced</a>
                         </td>
                     </tr>
                     {% endwith %}

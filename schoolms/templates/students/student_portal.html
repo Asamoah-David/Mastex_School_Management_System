@@ -66,6 +66,9 @@
         <div class="metric-value">{{ stats.total_subjects }}</div>
     </section>
 </div>
+<div class="button-row">
+    <a href="{% url 'academics:enhanced_report_card' student.id %}" class="btn btn-primary">📄 View Enhanced Report Card</a>
+</div>
 {% endif %}
 
 <!-- Results by Term/Exam -->

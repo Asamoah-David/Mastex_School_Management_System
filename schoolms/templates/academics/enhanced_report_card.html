@@ -75,17 +75,25 @@
     </div>
     {% endif %}
     
-    {# Term Filter #}
-    <form method="get" style="margin-bottom:1rem;">
+    {# Term Filter with Actions #}
+    <form method="get" style="margin-bottom:1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <select name="term" title="Select term" onchange="this.form.submit()" style="padding:0.5rem;">
             <option value="">All terms</option>
             {% for t in terms %}
             <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
             {% endfor %}
         </select>
-        <a href="{% url 'academics:enhanced_report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}" class="button button-secondary" style="margin-left:0.5rem;">
+        <a href="{% url 'academics:enhanced_report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}" class="btn btn-secondary">
             📄 Download PDF
         </a>
+        <button type="button" onclick="window.print()" class="btn btn-secondary">
+            🖨️ Print
+        </button>
+        {% if not results %}
+        <a href="{% url 'academics:assessment_score_upload' %}" class="btn btn-primary">
+            ➕ Upload Scores
+        </a>
+        {% endif %}
     </form>
     
     {# Results Table #}
@@ -153,14 +161,20 @@
     {% endif %}
     
     {% else %}
-    <div class="empty-state">No results for selected term. Please upload scores first.</div>
+    <div class="empty-state">
+        No results for selected term. Please upload scores first.
+        <br><br>
+        <a href="{% url 'academics:assessment_score_upload' %}" class="btn btn-primary">➕ Upload CA Scores</a>
+        <a href="{% url 'academics:exam_score_upload' %}" class="btn btn-secondary" style="margin-left: 0.5rem;">📝 Upload Exam Scores</a>
+    </div>
     {% endif %}
 </div>
 
 <style>
 @media print {
-    .sidebar, .top-bar, .button-row, form, a.button { display: none !important; }
+    .sidebar, .top-bar, .button-row, form, a.btn, footer { display: none !important; }
     .main-content { margin-left: 0 !important; }
+    .content-card { box-shadow: none; border: none; }
 }
 </style>
 {% endblock %}
