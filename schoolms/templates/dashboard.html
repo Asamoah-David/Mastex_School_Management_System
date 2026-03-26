@@ -1,90 +1,176 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Super Admin Dashboard · Mastex SchoolOS{% endblock %}
 {% block page_title %}Super Admin Dashboard{% endblock %}
 {% block page_subtitle %}Manage all schools on the platform.{% endblock %}
 
 {% block content %}
+<!-- Quick Actions -->
+<div class="content-card" style="margin-bottom: 1.2rem;">
+    <h3 class="section-title">⚡ Quick Actions</h3>
+    <div class="quick-actions">
+        <a href="{% url 'school_register' %}" class="quick-action-btn">
+            <span class="quick-action-icon">🏫</span>
+            <span class="quick-action-label">Add School</span>
+        </a>
+        <a href="/admin/schools/school/" class="quick-action-btn">
+            <span class="quick-action-icon">📋</span>
+            <span class="quick-action-label">Manage Schools</span>
+        </a>
+        <a href="{% url 'operations:activity_log_list' %}" class="quick-action-btn">
+            <span class="quick-action-icon">📊</span>
+            <span class="quick-action-label">Activity Log</span>
+        </a>
+        <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
+            <span class="quick-action-icon">📢</span>
+            <span class="quick-action-label">Broadcast</span>
+        </a>
+        <a href="/admin/accounts/user/" class="quick-action-btn">
+            <span class="quick-action-icon">👥</span>
+            <span class="quick-action-label">All Users</span>
+        </a>
+        <a href="/admin/" class="quick-action-btn">
+            <span class="quick-action-icon">⚙️</span>
+            <span class="quick-action-label">Django Admin</span>
+        </a>
+    </div>
+</div>
+
+<!-- Metrics Grid with Hover Effects -->
 <div class="content-grid">
     <section class="metric">
+        <span class="metric-icon">🏫</span>
         <div class="metric-label">Active schools</div>
-        <div class="metric-value">{{ total_schools|default:"0" }}</div>
+        <div class="metric-value" data-count="{{ total_schools|default:'0' }}">{{ total_schools|default:"0" }}</div>
         <div class="metric-caption">
             Institutions currently running on Mastex SchoolOS.
         </div>
     </section>
 
     <section class="metric">
+        <span class="metric-icon">🎓</span>
         <div class="metric-label">Total students</div>
-        <div class="metric-value">{{ total_students|default:"0" }}</div>
+        <div class="metric-value" data-count="{{ total_students|default:'0' }}">{{ total_students|default:"0" }}</div>
         <div class="metric-caption">
             Learners managed across all schools.
         </div>
     </section>
 
     <section class="metric">
+        <span class="metric-icon">👨‍🏫</span>
         <div class="metric-label">Total staff</div>
-        <div class="metric-value">{{ total_staff|default:"0" }}</div>
+        <div class="metric-value" data-count="{{ total_staff|default:'0' }}">{{ total_staff|default:"0" }}</div>
         <div class="metric-caption">
             Teachers and administrators across all schools.
         </div>
     </section>
 
     <section class="metric">
+        <span class="metric-icon">👨‍👩‍👧</span>
         <div class="metric-label">Total parents</div>
-        <div class="metric-value">{{ total_parents|default:"0" }}</div>
+        <div class="metric-value" data-count="{{ total_parents|default:'0' }}">{{ total_parents|default:"0" }}</div>
         <div class="metric-caption">
             Parents registered on the platform.
         </div>
     </section>
 
     <section class="metric">
+        <span class="metric-icon">💰</span>
         <div class="metric-label">Fees collected</div>
-        <div class="metric-value">{{ mrr|default:"0" }} GHS</div>
+        <div class="metric-value" data-count="{{ mrr|default:'0' }}">{{ mrr|default:"0" }} GHS</div>
         <div class="metric-caption">
             Total fees paid via Paystack/MNotify.
         </div>
     </section>
 
     <section class="metric">
+        <span class="metric-icon">⚠️</span>
         <div class="metric-label">Unpaid fees</div>
-        <div class="metric-value">{{ unpaid_fees_count|default:"0" }}</div>
+        <div class="metric-value" data-count="{{ unpaid_fees_count|default:'0' }}">{{ unpaid_fees_count|default:"0" }}</div>
         <div class="metric-caption">
             Outstanding fee items to collect.
         </div>
     </section>
 </div>
 
-<div class="button-row mt-sm">
-    <a href="{% url 'school_register' %}" class="btn btn-primary">Add New School</a>
-    <a href="/admin/schools/school/" class="btn btn-secondary">Manage Schools</a>
-    <a href="/admin/accounts/user/" class="btn btn-secondary">Manage Users</a>
-</div>
-
-<div class="content-card" style="margin-top: 1.2rem;">
-    <h3 class="section-title">Platform Control Center</h3>
-    <div class="content-grid">
-        <div>
-            <p style="font-size:0.9rem; color:#9ca3af; margin-top:0;">
-                As super admin you oversee every school, user, and transaction on Mastex SchoolOS.
-                Use these shortcuts to quickly inspect activity and keep schools healthy.
-            </p>
-            <ul style="font-size:0.9rem; color:#e5e7eb; padding-left:1.2rem; margin-top:0.6rem;">
-                <li>Review <strong>recent activity logs</strong> to see what school admins and staff are doing.</li>
-                <li>Drill into <strong>school records</strong> to adjust plans, deactivate schools, or update details.</li>
-                <li>Inspect <strong>users and roles</strong> from Django admin when you need low-level control.</li>
-            </ul>
+<!-- Two Column Section: Activity & Info -->
+<div class="two-col-grid" style="margin-top: 1.2rem;">
+    <!-- Recent Activity Widget -->
+    <div class="content-card">
+        <h3 class="section-title">📜 Recent Activity</h3>
+        {% if recent_activities %}
+        <ul class="activity-list">
+            {% for activity in recent_activities|slice:":5" %}
+            <li class="activity-item">
+                <div class="activity-icon {{ activity.icon_class|default:'school' }}">
+                    {{ activity.icon|default:"📋" }}
+                </div>
+                <div class="activity-content">
+                    <div class="activity-text">{{ activity.description }}</div>
+                    <div class="activity-time">{{ activity.timestamp|timesince }} ago</div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-title">No Recent Activity</div>
+            <div class="empty-state-desc">Activity will appear here as schools use the platform.</div>
         </div>
-        <div>
-            <div class="button-row">
-                <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary">View Activity Log</a>
-                <a href="/admin/" class="btn btn-secondary">Open Django Admin</a>
-                <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary">Broadcast Message</a>
-            </div>
-            <p style="font-size:0.8rem; color:#6b7280; margin-top:0.9rem;">
-                Tip: use the Activity Log to audit changes (logins, student updates, fee changes) across all schools.
-            </p>
+        {% endif %}
+    </div>
+
+    <!-- Platform Control Center -->
+    <div class="content-card">
+        <h3 class="section-title">🎛️ Platform Control Center</h3>
+        <p style="font-size:0.9rem; color:#9ca3af; margin-top:0;">
+            As super admin you oversee every school, user, and transaction on Mastex SchoolOS.
+            Use these shortcuts to quickly inspect activity and keep schools healthy.
+        </p>
+        <ul style="font-size:0.9rem; color:#e5e7eb; padding-left:1.2rem; margin-top:0.6rem;">
+            <li>Review <strong>recent activity logs</strong> to see what school admins and staff are doing.</li>
+            <li>Drill into <strong>school records</strong> to adjust plans, deactivate schools, or update details.</li>
+            <li>Inspect <strong>users and roles</strong> from Django admin when you need low-level control.</li>
+        </ul>
+        <div class="button-row" style="margin-top: 1rem;">
+            <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary btn-sm">View Activity Log</a>
+            <a href="/admin/" class="btn btn-secondary btn-sm">Django Admin</a>
+            <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary btn-sm">Broadcast Message</a>
         </div>
     </div>
 </div>
+
+<script>
+// Animated Counter Effect
+document.addEventListener('DOMContentLoaded', function() {
+    const counters = document.querySelectorAll('.metric-value[data-count]');
+    
+    counters.forEach(counter => {
+        const target = parseInt(counter.getAttribute('data-count')) || 0;
+        if (target > 0) {
+            counter.classList.add('animated');
+            animateCounter(counter, target);
+        }
+    });
+    
+    function animateCounter(element, target) {
+        let current = 0;
+        const increment = target / 50;
+        const duration = 1000;
+        const stepTime = duration / 50;
+        
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+                element.textContent = target.toLocaleString();
+                clearInterval(timer);
+            } else {
+                element.textContent = Math.floor(current).toLocaleString();
+            }
+        }, stepTime);
+    }
+});
+</script>
 {% endblock %}
