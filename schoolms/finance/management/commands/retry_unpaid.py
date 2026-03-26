@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from finance.views import retry_failed_payments, notify_admin_unpaid_fees
 
 class Command(BaseCommand):
-    help = "Retry failed Flutterwave payments and notify admins of unpaid fees"
+    help = "Retry failed payments and notify admins of unpaid fees"
 
     def handle(self, *args, **kwargs):
         retried_count = retry_failed_payments()
