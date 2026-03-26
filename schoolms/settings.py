@@ -149,8 +149,11 @@ PAYSTACK_PLATFORM_FEE_PERCENT = float(env("PAYSTACK_PLATFORM_FEE_PERCENT", "0"))
 # Cron job secret key (for securing subscription check endpoint)
 CRON_SECRET_KEY = env("CRON_SECRET_KEY", "")
 
-# Google Gemini (AI Assistant)
+# Google Gemini (AI Assistant) - DEPRECATED, use Groq instead
 GEMINI_API_KEY = env("GEMINI_API_KEY", "")
+
+# Groq AI (AI Assistant) - Recommended free tier
+GROQ_API_KEY = env("GROQ_API_KEY", "")
 
 # Global admin phone for critical SMS alerts (optional)
 ADMIN_PHONE = env("ADMIN_PHONE", "")
