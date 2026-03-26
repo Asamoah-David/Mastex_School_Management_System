@@ -239,10 +239,13 @@ def school_dashboard(request):
     # Get upcoming calendar events
     upcoming_events = AcademicCalendar.objects.filter(school=school, start_date__gte=today)[:5]
     
-    # Fee statistics
+    # Fee statistics - Calculate actual amounts paid and outstanding
     total_fees = Fee.objects.filter(school=school).aggregate(total=Sum("amount"))["total"] or 0
-    paid_fees = Fee.objects.filter(school=school, paid=True).aggregate(total=Sum("amount"))["total"] or 0
-    unpaid_fees = Fee.objects.filter(school=school, paid=False).count()
+    # Sum amount_paid for fees that have been partially or fully paid
+    paid_fees = Fee.objects.filter(school=school).aggregate(total=Sum("amount_paid"))["total"] or 0
+    # Calculate actual outstanding (total amount - amount paid)
+    all_fees = Fee.objects.filter(school=school)
+    unpaid_fees = sum(max(0, float(f.amount) - float(f.amount_paid)) for f in all_fees)
     
     # Subscription expiry warning
     show_expiry_warning = False
