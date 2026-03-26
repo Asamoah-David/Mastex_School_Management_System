@@ -2219,6 +2219,7 @@ def enhanced_report_card(request, student_id):
         term_gpa = 0
         cumulative_gpa = GradingService.calculate_cumulative_gpa(student)
         term_position = None
+        cumulative_position = None
         
         # Group by term
         terms_data = {}

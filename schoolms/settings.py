@@ -102,14 +102,15 @@ if DEBUG:
         }
     }
 else:
+    # Production fallback - use environment variables (recommended: use DATABASE_URL instead)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "schoolms",
-            "USER": "postgres",
-            "PASSWORD": "postgres",
-            "HOST": "db",
-            "PORT": "5432",
+            "NAME": env("POSTGRES_DB", "schoolms"),
+            "USER": env("POSTGRES_USER", "postgres"),
+            "PASSWORD": env("POSTGRES_PASSWORD", ""),
+            "HOST": env("POSTGRES_HOST", "db"),
+            "PORT": env("POSTGRES_PORT", "5432"),
         }
     }
 
@@ -199,6 +200,9 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year - enables HTTP Strict Transport Security
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # Also protect all subdomains
+    SECURE_HSTS_PRELOAD = True  # Allow submission to browser preload lists
 else:
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False

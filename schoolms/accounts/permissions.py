@@ -17,11 +17,11 @@ from functools import wraps
 
 def is_school_admin(user):
     """Headteacher/School Admin - Full management access"""
-    if getattr(user, "role", None) in ("admin", "school_admin"):
+    if getattr(user, "role", None) == "school_admin":
         return True
     # Check secondary roles
     if hasattr(user, 'secondary_roles'):
-        return user.secondary_roles.filter(role__in=("admin", "school_admin")).exists()
+        return user.secondary_roles.filter(role__in=("school_admin",)).exists()
     return False
 
 
@@ -254,7 +254,7 @@ def user_can_manage_school(user):
     if is_super_admin(user):
         return True
     return getattr(user, "role", None) in (
-        "admin", "school_admin", "deputy_head", "hod",
+        "school_admin", "deputy_head", "hod",
         "teacher", "accountant", "librarian",
         "admission_officer", "school_nurse", "admin_assistant", "staff"
     ) and bool(getattr(user, "school_id", None))

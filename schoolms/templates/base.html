@@ -270,8 +270,14 @@
         .profile-dropdown .menu-item-title { font-weight: 600; font-size: 0.82rem; }
         .profile-dropdown .menu-item-sub { color: var(--text-soft); font-size: 0.75rem; margin-top: 0.1rem; }
     </style>
-<style>    .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(2, 6, 23, 0.85); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; gap: 1rem; }    .loading-overlay.active { display: flex; }    .spinner { width: 50px; height: 50px; border: 4px solid rgba(34, 197, 94, 0.2); border-top-color: #22c55e; border-radius: 50%; animation: spin 1s linear infinite; }    @keyframes spin { to { transform: rotate(360deg); } }    .loading-text { color: #e5e7eb; font-size: 0.9rem; }</style>    <div class="loading-overlay" id="loadingOverlay">        <div class="spinner"></div>        <div class="loading-text">Processing...</div>    </div></head>
+</head>
 <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Processing...</div>
+    </div>
+    
     <div class="app-shell">
         <header>
             <div class="nav">
@@ -383,12 +389,13 @@
                             <ul class="nav-list">
                                 <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">👥</span><div class="nav-item-label"><span class="nav-item-title">Student Attendance</span></div></a></li>
                                 <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span></div></a></li>
+                                <li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span></div></a></li>
                             </ul>
                         </div>
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)">
-                            <span>💰 Finance</span>
+                            <span>Finance</span>
                             <span class="toggle-icon">▾</span>
                         </div>
                         <div class="nav-section-items">
@@ -804,7 +811,19 @@
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)">
-                            <span>💻 Online Exams</span>
+                            <span>Attendance</span>
+                            <span class="toggle-icon">▾</span>
+                        </div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:my_absence_requests' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Request Absence</span></div></a></li>
+                                <li><a href="{% url 'students:my_absence_requests' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">My Requests</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)">
+                            <span>Online Exams</span>
                             <span class="toggle-icon">▾</span>
                         </div>
                         <div class="nav-section-items">
@@ -867,18 +886,20 @@
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)">
-                            <span>✅ Attendance</span>
+                            <span>Attendance</span>
                             <span class="toggle-icon">▾</span>
                         </div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Attendance</span></div></a></li>
+                                <li><a href="{% url 'students:parent_absence_request_create' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Request Absence</span></div></a></li>
+                                <li><a href="{% url 'students:parent_absence_requests' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">My Requests</span></div></a></li>
                             </ul>
                         </div>
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)">
-                            <span>💳 Fees</span>
+                            <span>Fees</span>
                             <span class="toggle-icon">▾</span>
                         </div>
                         <div class="nav-section-items">
@@ -1025,6 +1046,114 @@
         document.addEventListener("click", closeMenu);
         document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenu(); });
     })();
-    </script>
-<script>document.addEventListener("DOMContentLoaded",function(){var e=document.getElementById("loadingOverlay");if(e){document.querySelectorAll("form").forEach(function(t){t.addEventListener("submit",function(){e.classList.add("active")})}})});</script></body>
+</script>
+<script>
+// =====================
+// LOADING OVERLAY HANDLER - Universal loading state for all user actions
+// =====================
+(function() {
+    var overlay = document.getElementById('loadingOverlay');
+    if (!overlay) return;
+    
+    var loadingTimeout = null;
+    
+    // Show loading overlay
+    function showLoading() {
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+        overlay.classList.add('active');
+    }
+    
+    // Hide loading overlay
+    function hideLoading() {
+        overlay.classList.remove('active');
+        if (loadingTimeout) {
+            clearTimeout(loadingTimeout);
+            loadingTimeout = null;
+        }
+    }
+    
+    // Auto-hide after 30 seconds as fallback (in case events fail)
+    function startAutoHide() {
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+        loadingTimeout = setTimeout(hideLoading, 30000);
+    }
+    
+    // Handle form submissions
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            showLoading();
+            startAutoHide();
+        });
+    });
+    
+    // Handle button clicks (with filtering to avoid showing on trivial clicks)
+    document.querySelectorAll('button, .btn, input[type="submit"], a.btn').forEach(function(element) {
+        element.addEventListener('click', function(e) {
+            var tagName = this.tagName.toLowerCase();
+            
+            // Skip sidebar toggle and profile menu buttons
+            if (this.id === 'sidebarToggle' || 
+                this.id === 'profileTrigger' ||
+                this.closest('#profileDropdown')) {
+                return;
+            }
+            
+            // Skip navigation items in sidebar
+            if (this.classList.contains('nav-item')) {
+                showLoading();
+                startAutoHide();
+                return;
+            }
+            
+            // For buttons and submit inputs, show loading
+            if (tagName === 'button' || tagName === 'input' || this.classList.contains('btn')) {
+                showLoading();
+                startAutoHide();
+            }
+        });
+    });
+    
+    // Handle navigation link clicks
+    document.querySelectorAll('a').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            var href = this.getAttribute('href');
+            // Skip if no href, javascript:, or anchor links
+            if (!href || href === '#' || href.startsWith('javascript:') || href.startsWith('#')) {
+                return;
+            }
+            // External links - skip loading overlay
+            if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//')) {
+                return;
+            }
+            showLoading();
+            startAutoHide();
+        });
+    });
+    
+    // Hide loading on page visibility change (when navigating away)
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            hideLoading();
+        }
+    });
+    
+    // Hide loading on beforeunload (as backup)
+    window.addEventListener('beforeunload', function() {
+        hideLoading();
+    });
+    
+    // Hide loading on pagehide (more reliable than unload)
+    window.addEventListener('pagehide', function() {
+        hideLoading();
+    });
+    
+    // Hide loading when new page finishes loading
+    window.addEventListener('load', function() {
+        hideLoading();
+    });
+    
+    // Initial hide (in case of back navigation)
+    hideLoading();
+})();
+</script></body>
 </html>

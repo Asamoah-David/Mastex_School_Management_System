@@ -7,13 +7,13 @@ from django.contrib import messages
 
 
 def admin_required(view_func):
-    """Decorator that requires user to be an admin."""
+    """Decorator that requires user to be a school admin."""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
         
-        if request.user.role == 'admin' or request.user.is_superuser:
+        if request.user.role == 'school_admin' or request.user.is_superuser:
             return view_func(request, *args, **kwargs)
         
         messages.error(request, 'You do not have permission to access this page.')
@@ -25,7 +25,7 @@ def admin_required(view_func):
 def role_required(*allowed_roles):
     """
     Decorator that requires user to have one of the specified roles.
-    Usage: @role_required('admin', 'teacher')
+    Usage: @role_required('school_admin', 'teacher')
     """
     def decorator(view_func):
         @wraps(view_func)
@@ -55,7 +55,7 @@ def teacher_required(view_func):
         if not request.user.is_authenticated:
             return redirect('login')
         
-        if request.user.role in ['admin', 'teacher'] or request.user.is_superuser:
+        if request.user.role in ['school_admin', 'teacher'] or request.user.is_superuser:
             return view_func(request, *args, **kwargs)
         
         messages.error(request, 'You do not have permission to access this page.')

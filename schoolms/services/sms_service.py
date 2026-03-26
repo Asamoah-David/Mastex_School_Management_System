@@ -16,7 +16,7 @@ class SMSService:
             "message": message,
             "is_schedule": False,
         }
-        resp = requests.post(url, json=data, headers=headers)
+        resp = requests.post(url, json=data, headers=headers, timeout=30)
         if resp.status_code != 200:
             # log or raise as appropriate
             raise RuntimeError(f"MNotify error: {resp.text}")

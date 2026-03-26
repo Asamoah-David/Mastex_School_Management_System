@@ -340,7 +340,7 @@ def staff_list(request):
     school = getattr(user, "school", None)
     try:
         # Include all staff roles
-        all_staff_roles = ("admin", "school_admin", "deputy_head", "hod", "teacher", 
+        all_staff_roles = ("school_admin", "deputy_head", "hod", "teacher", 
                           "accountant", "librarian", "admission_officer", "school_nurse", 
                           "admin_assistant", "staff")
         if school and not getattr(user, "is_super_admin", False):
@@ -528,7 +528,7 @@ def staff_delete(request, pk):
     if not school:
         return redirect("home")
     
-    staff = get_object_or_404(User, pk=pk, school=school, role__in=("admin", "teacher"))
+    staff = get_object_or_404(User, pk=pk, school=school, role__in=("school_admin", "teacher"))
     
     if request.method == "POST":
         staff.is_active = False
@@ -557,7 +557,7 @@ def staff_reactivate(request, pk):
     if not school:
         return redirect("home")
 
-    staff = get_object_or_404(User, pk=pk, school=school, role__in=("admin", "teacher"))
+    staff = get_object_or_404(User, pk=pk, school=school, role__in=("school_admin", "teacher"))
 
     if request.method == "POST":
         staff.is_active = True
