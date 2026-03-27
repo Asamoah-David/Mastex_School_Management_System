@@ -2248,8 +2248,402 @@ When reporting an issue, include:
 
 ---
 
-**Document Version:** 3.0  
-**Last Updated:** March 24, 2026  
+---
+
+# 13. New Features (March 2026+)
+
+This section covers the new features added in recent updates.
+
+## 13.1 AI Assistant (Chatbot)
+
+Mastex SchoolOS now includes an **AI Assistant** that helps school administrators with queries and tasks.
+
+### Accessing the AI Assistant
+
+**Step 1:** Log in as School Admin or Super Admin
+
+**Step 2:** Look for the 🤖 AI Assistant icon in the sidebar
+
+**Step 3:** Click to open the chat interface
+
+### What Can the AI Assistant Help With?
+
+- 📊 Explaining analytics and reports
+- 📋 Guiding through complex tasks
+- 💡 Suggesting best practices
+- ❓ Answering system questions
+- 🔧 Troubleshooting issues
+
+> 💡 **Tip:** Be specific in your questions for better responses!
+
+---
+
+## 13.2 QR Code Attendance
+
+A modern way to take attendance using QR codes.
+
+### Generating QR Codes for Students
+
+**Step 1:** Go to **Operations** → **QR Attendance**
+
+**Step 2:** Click **Bulk Generate QR Codes**
+
+**Step 3:** Select a class
+
+**Step 4:** The system generates unique QR codes for all students
+
+**Step 5:** Download and print for distribution
+
+### Scanning Attendance
+
+**Step 1:** Go to **Operations** → **QR Scanner**
+
+**Step 2:** Grant camera permission
+
+**Step 3:** Scan student QR codes
+
+**Step 4:** Attendance is marked automatically
+
+> 💰 **BENEFITS**
+> 
+> - ⚡ Fast attendance taking (seconds per student)
+> - 📱 Works on any smartphone
+> - 🔒 Secure and unique per student
+> - 📊 Automatic attendance reports
+
+---
+
+## 13.3 Performance Analytics
+
+Visual analytics dashboard for academic performance.
+
+### Accessing Performance Analytics
+
+**Step 1:** Go to **Academics** → **Performance Analytics**
+
+**Step 2:** View interactive charts showing:
+- Subject-wise performance
+- Class comparisons
+- Term-over-term trends
+- Top performers
+
+### Features
+
+- 📈 Interactive charts (bar, line, pie)
+- 🎯 Identify struggling students
+- 📊 Export reports to PDF
+- 🔍 Filter by class, term, subject
+
+---
+
+## 13.4 Predictive Analytics
+
+AI-powered predictions for student performance.
+
+### How It Works
+
+The system analyzes historical data to predict:
+- Students at risk of failing
+- Expected exam scores
+- Performance trends
+
+### Accessing Predictions
+
+**Step 1:** Go to **Academics** → **Predictive Analytics**
+
+**Step 2:** Select class and term
+
+**Step 3:** View predictions and risk indicators
+
+> 💡 **Use Case:** Early intervention for at-risk students!
+
+---
+
+## 13.5 Auto Timetable Generation
+
+AI-powered automatic timetable creation.
+
+### Generating a Timetable
+
+**Step 1:** Go to **Academics** → **Auto Timetable**
+
+**Step 2:** Click **Generate Timetable**
+
+**Step 3:** The system automatically creates:
+- Class schedules
+- Teacher allocations
+- Room assignments
+- Avoids conflicts
+
+**Step 4:** Review and make manual adjustments if needed
+
+**Step 5:** Save and publish
+
+> 💰 **BENEFITS**
+> 
+> - ⏰ Saves hours of manual work
+> - 🎯 Optimizes resource allocation
+> - 🔄 Auto-resolves conflicts
+> - 📊 Professional output
+
+---
+
+## 13.6 Auto Seating Plan
+
+Automatically assign seats for exams.
+
+### Creating a Seating Plan
+
+**Step 1:** Go to **Operations** → **Auto Seating Plan**
+
+**Step 2:** Select:
+- Exam
+- Class
+- Number of students per row
+
+**Step 3:** Click **Generate Seating Plan**
+
+**Step 4:** View the auto-generated layout
+
+**Step 5:** Print or export for invigilators
+
+---
+
+## 13.7 In-App Notifications
+
+Real-time notifications within the system.
+
+### Notification Bell
+
+- 🔔 Look for the bell icon in the header
+- Red badge shows unread count
+- Click to view notification dropdown
+- Click "View All" for full list
+
+### Types of Notifications
+
+- 📢 Announcements
+- 📝 Homework submissions
+- 💰 Fee payment alerts
+- 📊 Report generation complete
+- ✅ Approval requests
+
+---
+
+## 13.8 Grading System
+
+Configure your school's grading rules.
+
+### Grade Boundaries
+
+**Step 1:** Go to **Academics** → **Grade Boundaries**
+
+**Step 2:** Add grading rules:
+```
+Example:
+- A: 90-100
+- B: 80-89
+- C: 70-79
+- D: 60-69
+- F: Below 60
+```
+
+**Step 3:** Save the boundaries
+
+### Grade Points
+
+**Step 1:** Go to **Academics** → **Grade Points**
+
+**Step 2:** Assign point values to grades:
+```
+Example:
+- A = 4.0
+- B = 3.0
+- C = 2.0
+- D = 1.0
+```
+
+### Assessment Types
+
+**Step 1:** Go to **Academics** → **Assessment Types**
+
+**Step 2:** Create types like:
+- Class Test
+- Assignment
+- Mid-Term Exam
+- Final Exam
+
+**Step 3:** Use these when recording scores
+
+> 💰 **BENEFITS**
+> 
+> - 📊 Consistent grading across school
+> - 📈 GPA calculation automatic
+> - 🎯 Customizable to your standards
+
+---
+
+## 13.9 Bulk Score Upload
+
+Upload exam and assessment scores via CSV.
+
+### Uploading Scores
+
+**Step 1:** Go to **Academics** → **Exam Score Upload**
+
+**Step 2:** Select:
+- Exam/Assessment
+- Subject
+- Class
+
+**Step 3:** Click **Upload CSV**
+
+**Step 4:** Select your CSV file
+
+**Step 5:** Map columns to fields
+
+**Step 6:** Click **Upload**
+
+### CSV Format
+
+```csv
+admission_number,score
+STU001,85
+STU002,72
+STU003,90
+```
+
+> 💡 **Tip:** Ensure admission numbers match exactly!
+
+---
+
+## 13.10 Class Rankings
+
+Automatically rank students by performance.
+
+### Viewing Rankings
+
+**Step 1:** Go to **Academics** → **Class Rankings**
+
+**Step 2:** Select:
+- Class
+- Term
+- Academic Year
+
+**Step 3:** View ranked list showing:
+- Position
+- Student Name
+- Total Score
+- GPA
+- Subject-wise breakdown
+
+### Features
+
+- 🏆 Automatic position calculation
+- 📊 Include/exclude exams
+- 📤 Export rankings to Excel
+
+---
+
+## 13.11 Financial Reports
+
+Detailed financial analytics for schools.
+
+### Accessing Reports
+
+**Step 1:** Go to **Operations** → **Financial Reports**
+
+**Step 2:** View reports on:
+- Revenue vs Expenses
+- Fee collection rate
+- Budget utilization
+- Payment trends
+
+### Features
+
+- 📊 Interactive charts
+- 📅 Filter by date range
+- 📤 Export to PDF/Excel
+- 🎯 Compare periods
+
+---
+
+## 13.12 Behavior Tracker
+
+Enhanced discipline tracking.
+
+### Features
+
+- 📊 Visual behavior trends
+- ⭐ Point history
+- 📈 Improvement tracking
+- 📋 Generate behavior reports
+
+### Access
+
+Go to **Operations** → **Behavior Tracker**
+
+---
+
+# 14. Security & Data
+
+## 14.1 Row Level Security (RLS)
+
+Mastex SchoolOS uses PostgreSQL Row Level Security for database protection.
+
+### What is RLS?
+
+RLS ensures that users can only access data belonging to their school. Even if someone gains database access, they cannot see other schools' data.
+
+### How It Works
+
+- Every table has RLS enabled
+- Policies restrict data by `school_id`
+- The Django application manages authentication
+- All queries are automatically filtered
+
+> 🔒 Your data is protected at the database level!
+
+---
+
+## 14.2 Data Backups
+
+- Automatic daily backups
+- Point-in-time recovery available
+- Encrypted storage
+
+---
+
+# 15. Frequently Asked Questions (New)
+
+### Q: How do I enable the AI Assistant?
+
+A: The AI Assistant appears automatically for School Admins and Super Admins. Look for the 🤖 icon in the sidebar.
+
+### Q: Can I use QR attendance alongside regular attendance?
+
+A: Yes! Both methods work independently. QR attendance is optional and can be used for specific events or daily attendance.
+
+### Q: How accurate are predictive analytics?
+
+A: Predictions are based on historical data patterns. They provide estimates and should be used alongside teacher judgment.
+
+### Q: Can I customize the grading system?
+
+A: Yes! You can define your own grade boundaries, point values, and assessment types in the Academics section.
+
+### Q: How do I bulk upload student scores?
+
+A: Use the Bulk Score Upload feature with a CSV file. Make sure admission numbers match exactly.
+
+### Q: Is the data secure?
+
+A: Yes! RLS is enabled on all database tables, and data is encrypted at rest and in transit.
+
+---
+
+**Document Version:** 4.0  
+**Last Updated:** March 26, 2026  
 **© 2026 Mastex SchoolOS. All rights reserved.**
 
 ---
