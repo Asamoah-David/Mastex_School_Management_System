@@ -1251,11 +1251,12 @@
             if (href.indexOf('http://') === 0 || href.indexOf('https://') === 0 || href.indexOf('//') === 0) return false;
             return true;
         }
-        if (el.classList && (
-            el.classList.contains('btn') || el.classList.contains('btn-primary') ||
-            el.classList.contains('btn-secondary') || el.classList.contains('btn-danger') ||
-            el.classList.contains('btn-sm') || el.classList.contains('btn-lg') ||
-            el.classList.contains('button') || el.classList.contains('action-btn'))) return true;
+        if (el.classList) {
+            var classes = ['btn', 'btn-primary', 'btn-secondary', 'btn-danger', 'btn-sm', 'btn-lg', 'button', 'action-btn', 'nav-item', 'menu-item'];
+            for (var c = 0; c < classes.length; c++) {
+                if (el.classList.contains(classes[c])) return true;
+            }
+        }
         if (el.dataset.submit === 'true' || el.dataset.action === 'submit') return true;
         return false;
     }
