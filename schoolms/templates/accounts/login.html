@@ -21,5 +21,10 @@
     by your school or platform administrator. If you have forgotten your
     login details, please contact your school administration to reset them.
 </p>
-{% endblock %}
 
+<!-- Forgot Password Link -->
+<div class="forgot-password-link" style="margin-top: 1rem; text-align: center;">
+    <a href="{% url 'accounts:password_reset' %}" style="color: #22c55e; text-decoration: none; font-size: 0.9rem;">
+        Forgot your password?
+    </a>
+</div>
