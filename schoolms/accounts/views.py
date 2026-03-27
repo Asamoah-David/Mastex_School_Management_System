@@ -73,6 +73,19 @@ def login_view(request):
             messages.error(request, "Please enter both username and password.")
             return render(request, "accounts/login.html")
         
+        # First check if user exists (to check for lockout before authenticating)
+        try:
+            user_obj = User.objects.get(username=username)
+            # Check if user is locked out
+            if user_obj.is_locked_out():
+                remaining = user_obj.get_lockout_remaining_seconds()
+                minutes = remaining // 60
+                seconds = remaining % 60
+                messages.error(request, f"Account temporarily locked. Please try again in {minutes} minute(s) {seconds} second(s).")
+                return render(request, "accounts/login.html")
+        except User.DoesNotExist:
+            pass  # User doesn't exist, will handle below
+        
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
@@ -83,6 +96,10 @@ def login_view(request):
                     messages.error(request, "Your school's account is currently inactive. Please contact the administrator.")
                     return render(request, "accounts/login.html")
             
+            # Reset failed login counter on successful login
+            if hasattr(user, 'reset_failed_logins'):
+                user.reset_failed_logins()
+            
             login(request, user)
             role = getattr(user, "role", None)
             if role in ["parent", "student"]:
@@ -92,7 +109,20 @@ def login_view(request):
             if user.is_superuser or role == "super_admin":
                 return redirect("accounts:dashboard")
             return redirect("accounts:dashboard")
+        
+        # Login failed - track attempts
         messages.error(request, "Invalid username or password.")
+        
+        # Try to find user and increment failed attempts
+        try:
+            user_obj = User.objects.get(username=username)
+            if hasattr(user_obj, 'increment_failed_login'):
+                user_obj.increment_failed_login()
+                remaining_attempts = 5 - user_obj.failed_login_attempts
+                if remaining_attempts > 0 and remaining_attempts <= 3:
+                    messages.warning(request, f"Invalid login. {remaining_attempts} attempt(s) remaining before account lockout.")
+        except User.DoesNotExist:
+            pass  # No user found, nothing to track
     
     return render(request, "accounts/login.html")
 

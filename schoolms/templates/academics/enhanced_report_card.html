@@ -83,12 +83,14 @@
             <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
             {% endfor %}
         </select>
-        <a href="{% url 'academics:enhanced_report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}" class="btn btn-secondary">
+        <a href="{% url 'academics:enhanced_report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}" class="btn btn-secondary" download>
             📄 Download PDF
         </a>
+        {% if request.user.role == 'school_admin' or request.user.is_superuser %}
         <button type="button" onclick="window.print()" class="btn btn-secondary">
             🖨️ Print
         </button>
+        {% endif %}
         {% if not results %}
         <a href="{% url 'academics:assessment_score_upload' %}" class="btn btn-primary">
             ➕ Upload Scores
