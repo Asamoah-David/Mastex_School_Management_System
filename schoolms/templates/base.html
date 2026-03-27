@@ -1261,17 +1261,34 @@
         return false;
     }
     
-    // Universal click handler using event delegation on document
+    // Universal click handler - show loading on ANY click that might navigate
     document.addEventListener('click', function(e) {
         var target = e.target;
+        // Get the closest button or link
         var button = target.closest('button');
         var link = target.closest('a');
         var actionElement = button || link;
+        
         if (!actionElement) return;
-        if (shouldSkip(actionElement)) return;
-        if (isActionElement(actionElement)) {
+        
+        // Skip only the UI toggles
+        var skipIds = ['sidebarToggle', 'profileTrigger', 'notificationBell'];
+        if (actionElement.id && skipIds.indexOf(actionElement.id) > -1) return;
+        if (actionElement.closest('#profileDropdown') || actionElement.closest('#notificationDropdown')) return;
+        
+        // Show loading for ANY button or link with href
+        var tagName = actionElement.tagName.toLowerCase();
+        if (tagName === 'button' && actionElement.type !== 'reset') {
             showLoading();
             startAutoHide();
+            return;
+        }
+        if (tagName === 'a') {
+            var href = actionElement.getAttribute('href');
+            if (href && href !== '#' && href.charAt(0) !== '#' && href.indexOf('javascript:') !== 0) {
+                showLoading();
+                startAutoHide();
+            }
         }
     }, true);
     
