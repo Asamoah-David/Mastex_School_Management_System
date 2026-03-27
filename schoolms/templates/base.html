@@ -369,6 +369,45 @@
             text-align: center;
             color: var(--text-soft);
         }
+        
+        /* ===== LOADING OVERLAY ===== */
+        .loading-overlay {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: rgba(2, 6, 23, 0.98) !important;
+            display: none !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 999999 !important;
+        }
+        
+        .loading-overlay.active {
+            display: flex !important;
+        }
+        
+        .loading-overlay .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(34, 197, 94, 0.2);
+            border-top-color: #22c55e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .loading-overlay .loading-text {
+            margin-top: 1.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #e5e7eb;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -1162,114 +1201,96 @@
         document.addEventListener("click", closeMenu);
         document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenu(); });
     })();
-</script>
+    </script>
 <script>
 // =====================
-// LOADING OVERLAY HANDLER - Universal loading state for all user actions
+// UNIVERSAL LOADING OVERLAY - Event delegation for ALL actions
 // =====================
 (function() {
     var overlay = document.getElementById('loadingOverlay');
-    if (!overlay) return;
+    if (!overlay) { return; }
     
     var loadingTimeout = null;
     
-    // Show loading overlay
     function showLoading() {
         if (loadingTimeout) clearTimeout(loadingTimeout);
         overlay.classList.add('active');
     }
     
-    // Hide loading overlay
     function hideLoading() {
         overlay.classList.remove('active');
-        if (loadingTimeout) {
-            clearTimeout(loadingTimeout);
-            loadingTimeout = null;
-        }
+        if (loadingTimeout) { clearTimeout(loadingTimeout); loadingTimeout = null; }
     }
     
-    // Auto-hide after 30 seconds as fallback (in case events fail)
     function startAutoHide() {
         if (loadingTimeout) clearTimeout(loadingTimeout);
         loadingTimeout = setTimeout(hideLoading, 30000);
     }
     
-    // Handle form submissions
-    document.querySelectorAll('form').forEach(function(form) {
-        form.addEventListener('submit', function(e) {
-            showLoading();
-            startAutoHide();
-        });
-    });
-    
-    // Handle button clicks (with filtering to avoid showing on trivial clicks)
-    document.querySelectorAll('button, .btn, input[type="submit"], a.btn').forEach(function(element) {
-        element.addEventListener('click', function(e) {
-            var tagName = this.tagName.toLowerCase();
-            
-            // Skip sidebar toggle and profile menu buttons
-            if (this.id === 'sidebarToggle' || 
-                this.id === 'profileTrigger' ||
-                this.closest('#profileDropdown')) {
-                return;
-            }
-            
-            // Skip navigation items in sidebar
-            if (this.classList.contains('nav-item')) {
-                showLoading();
-                startAutoHide();
-                return;
-            }
-            
-            // For buttons and submit inputs, show loading
-            if (tagName === 'button' || tagName === 'input' || this.classList.contains('btn')) {
-                showLoading();
-                startAutoHide();
-            }
-        });
-    });
-    
-    // Handle navigation link clicks
-    document.querySelectorAll('a').forEach(function(link) {
-        link.addEventListener('click', function(e) {
-            var href = this.getAttribute('href');
-            // Skip if no href, javascript:, or anchor links
-            if (!href || href === '#' || href.startsWith('javascript:') || href.startsWith('#')) {
-                return;
-            }
-            // External links - skip loading overlay
-            if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//')) {
-                return;
-            }
-            showLoading();
-            startAutoHide();
-        });
-    });
-    
-    // Hide loading on page visibility change (when navigating away)
-    document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'hidden') {
-            hideLoading();
+    // Skip elements that are UI controls (not actions)
+    function shouldSkip(el) {
+        var skipIds = ['sidebarToggle', 'profileTrigger', 'notificationBell'];
+        var skipClasses = ['nav-section-header', 'toggle-icon'];
+        if (el.id && skipIds.indexOf(el.id) > -1) return true;
+        for (var i = 0; i < skipClasses.length; i++) {
+            if (el.classList && el.classList.contains(skipClasses[i])) return true;
         }
+        if (el.closest('#profileDropdown') || el.closest('#notificationDropdown') || el.closest('.dropdown-menu')) return true;
+        return false;
+    }
+    
+    // Check if element is an action element
+    function isActionElement(el) {
+        var tagName = el.tagName.toLowerCase();
+        if (tagName === 'button' && el.type !== 'reset') return true;
+        if (tagName === 'input' && (el.type === 'submit' || el.type === 'image')) return true;
+        if (tagName === 'a') {
+            var href = el.getAttribute('href');
+            if (!href) return false;
+            if (href === '#' || href.indexOf('javascript:') === 0 || href.charAt(0) === '#') return false;
+            if (href.indexOf('http://') === 0 || href.indexOf('https://') === 0 || href.indexOf('//') === 0) return false;
+            return true;
+        }
+        if (el.classList && (
+            el.classList.contains('btn') || el.classList.contains('btn-primary') ||
+            el.classList.contains('btn-secondary') || el.classList.contains('btn-danger') ||
+            el.classList.contains('btn-sm') || el.classList.contains('btn-lg') ||
+            el.classList.contains('button') || el.classList.contains('action-btn'))) return true;
+        if (el.dataset.submit === 'true' || el.dataset.action === 'submit') return true;
+        return false;
+    }
+    
+    // Universal click handler using event delegation on document
+    document.addEventListener('click', function(e) {
+        var target = e.target;
+        var button = target.closest('button');
+        var link = target.closest('a');
+        var actionElement = button || link;
+        if (!actionElement) return;
+        if (shouldSkip(actionElement)) return;
+        if (isActionElement(actionElement)) {
+            showLoading();
+            startAutoHide();
+        }
+    }, true);
+    
+    // Universal form submit handler
+    document.addEventListener('submit', function(e) {
+        showLoading();
+        startAutoHide();
     });
     
-    // Hide loading on beforeunload (as backup)
-    window.addEventListener('beforeunload', function() {
-        hideLoading();
+    // Hide on navigation events
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') hideLoading();
     });
+    window.addEventListener('beforeunload', hideLoading);
+    window.addEventListener('pagehide', hideLoading);
+    window.addEventListener('load', hideLoading);
     
-    // Hide loading on pagehide (more reliable than unload)
-    window.addEventListener('pagehide', function() {
-        hideLoading();
-    });
-    
-    // Hide loading when new page finishes loading
-    window.addEventListener('load', function() {
-        hideLoading();
-    });
-    
-    // Initial hide (in case of back navigation)
     hideLoading();
+    window.showLoadingOverlay = showLoading;
+    window.hideLoadingOverlay = hideLoading;
 })();
 </script></body>
 </html>
