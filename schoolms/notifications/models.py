@@ -32,8 +32,11 @@ class Notification(models.Model):
         return f"{self.user.username}: {self.title}"
     
     @classmethod
-    def create_notification(cls, user, title, message, notification_type='info', link=None):
+    def create_notification(cls, user, title, message, notification_type='info', link=None, include_school=True):
         """Helper method to create a notification"""
+        # Prepend school name to title if user has a school
+        if include_school and hasattr(user, 'school') and user.school:
+            title = f"[{user.school.name}] {title}"
         return cls.objects.create(
             user=user,
             title=title,

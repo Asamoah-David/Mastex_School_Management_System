@@ -4,7 +4,10 @@ from django.conf import settings
 
 class SMSService:
     @staticmethod
-    def send_sms(to, message):
+    def send_sms(to, message, school_name=None):
+        # Prepend school name to message if provided
+        if school_name:
+            message = f"[{school_name}] {message}"
         # Validate API key is configured
         api_key = settings.MNOTIFY_API_KEY
         if not api_key or api_key == "":
