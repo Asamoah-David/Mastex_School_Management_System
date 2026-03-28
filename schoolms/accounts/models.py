@@ -45,6 +45,8 @@ class User(AbstractUser):
     secondary_roles = models.ManyToManyField('self', blank=True, symmetrical=False, related_name='primary_role_of')
     # Profile photo
     profile_photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
+    # Gender
+    gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female')], blank=True, null=True)
     
     @property
     def is_super_admin(self):
