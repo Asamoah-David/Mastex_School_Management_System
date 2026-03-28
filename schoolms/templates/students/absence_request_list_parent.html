@@ -22,12 +22,12 @@
         <tbody>
         {% for req in requests %}
             <tr>
-                <td>{{ req.student.user.get_full_name|default:req.student.user.username }}</td>
+                <td>{% if req.student.user %}{{ req.student.user.get_full_name|default:req.student.user.username|default:"—" }}{% else %}—{% endif %}</td>
                 <td>{{ req.date }}</td>
                 <td>{{ req.reason|truncatechars:80 }}</td>
                 <td>{{ req.get_status_display }}</td>
-                <td>{{ req.decided_by.get_full_name|default:req.decided_by.username|default:"—" }}</td>
-                <td>{{ req.decided_at|date:"Y-m-d H:i" }}</td>
+                <td>{% if req.decided_by %}{{ req.decided_by.get_full_name|default:req.decided_by.username|default:"—" }}{% else %}—{% endif %}</td>
+                <td>{% if req.decided_at %}{{ req.decided_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
             </tr>
         {% empty %}
             <tr>
