@@ -79,7 +79,7 @@ function sendMessage() {
     document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
     
     // Send to server
-    fetch('/ai-assistant/chatbot/respond/', {
+    fetch('/ai/chatbot/respond/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
