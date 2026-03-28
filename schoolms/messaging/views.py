@@ -58,15 +58,23 @@ def _send_email(to_email, subject, message):
 @login_required
 def send_message(request):
     """Send SMS or Email to parents or students with recipient preview."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f"[DEBUG] send_message called by user: {request.user}")
+    
     if not _user_can_manage_school(request):
+        logger.error(f"[DEBUG] User {request.user} not authorized")
         return redirect("home")
     
     school = getattr(request.user, "school", None)
+    logger.error(f"[DEBUG] School: {school}")
     if not school:
         return redirect("home")
     
+    logger.error(f"[DEBUG] Counting parents...")
     # Get recipient counts for preview
     parents_count = User.objects.filter(school=school, role="parent").count()
+    logger.error(f"[DEBUG] Parents count: {parents_count}")
     parents_with_phone = User.objects.filter(school=school, role="parent").exclude(phone__isnull=True).exclude(phone="").count()
     parents_with_email = User.objects.filter(school=school, role="parent").exclude(email__isnull=True).exclude(email="").count()
     
