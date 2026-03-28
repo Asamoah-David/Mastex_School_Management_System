@@ -45,7 +45,7 @@ class SecurePasswordResetForm(PasswordResetForm):
         
         return valid_users
     
-    def save(self, domain=None, use_https=False, token_generator=None, request=None, **kwargs):
+    def save(self, domain_override=None, use_https=False, token_generator=None, request=None, **kwargs):
         """
         Override to send emails only to valid users.
         Shows the same success message for all inputs to prevent email probing.
@@ -64,7 +64,7 @@ class SecurePasswordResetForm(PasswordResetForm):
             user.set_password_reset_token()
         
         # Use Django's built-in email sending
-        super().save(domain=domain, use_https=use_https, 
+        super().save(domain_override=domain_override, use_https=use_https, 
                      token_generator=token_generator, request=request, **kwargs)
 
 
