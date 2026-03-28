@@ -13,7 +13,8 @@ class SendGridEmailBackend(BaseEmailBackend):
 
     def send_messages(self, messages):
         """Send all messages using SendGrid API."""
-        sendgrid_key = getattr(settings, 'SENDGRID_API_KEY', None)
+        # Use EMAIL_HOST_PASSWORD which is already set in Railway
+        sendgrid_key = getattr(settings, 'EMAIL_HOST_PASSWORD', None)
         
         # Fall back to SMTP if no SendGrid API key
         if not sendgrid_key or sendgrid_key == "":
