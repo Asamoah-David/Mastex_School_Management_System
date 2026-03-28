@@ -248,6 +248,9 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "noreply@schoolms.com")
 
+# SendGrid API (for email via REST API)
+SENDGRID_API_KEY = env("SENDGRID_API_KEY", "")
+
 # Auth redirects
 LOGIN_URL = "/accounts/login/"
 # Use the smart home route after login to avoid role dashboard loops.
