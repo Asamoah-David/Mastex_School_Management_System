@@ -525,6 +525,40 @@ def parent_detail(request, pk):
 
 
 @login_required
+def parent_edit(request, pk):
+    """Edit an existing parent."""
+    if not _user_is_school_admin(request):
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    parent = get_object_or_404(User, pk=pk, school=school, role="parent")
+    
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        email = request.POST.get("email", "").strip()
+        phone = request.POST.get("phone", "").strip() or None
+        parent_type = request.POST.get("parent_type", "").strip() or None
+        
+        # Check for email conflicts (excluding self)
+        if email and User.objects.exclude(pk=parent.pk).filter(email=email).exists():
+            messages.error(request, "That email is already in use.")
+        else:
+            parent.first_name = first_name
+            parent.last_name = last_name
+            parent.email = email
+            parent.phone = phone
+            parent.parent_type = parent_type
+            parent.save()
+            messages.success(request, "Parent updated successfully.")
+            return redirect("accounts:parent_detail", pk=parent.pk)
+    
+    return render(request, "accounts/parent_edit.html", {"parent": parent})
+
+
+@login_required
 def user_management(request):
     """User management dashboard for school admins."""
     if not _user_is_school_admin(request):

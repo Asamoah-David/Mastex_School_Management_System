@@ -5,7 +5,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from accounts.models import User
 from accounts.permissions import user_can_manage_school
-from students.models import Student
+from students.models import Student, SchoolClass
 from .utils import send_sms
 
 
@@ -74,34 +74,89 @@ def send_message(request):
     students_with_phone = Student.objects.filter(school=school).exclude(user__phone__isnull=True).exclude(user__phone="").count()
     students_with_email = Student.objects.filter(school=school).exclude(user__email__isnull=True).exclude(user__email="").count()
     
+    # Teacher counts
+    teachers_count = User.objects.filter(school=school, role="teacher").count()
+    teachers_with_phone = User.objects.filter(school=school, role="teacher").exclude(phone__isnull=True).exclude(phone="").count()
+    teachers_with_email = User.objects.filter(school=school, role="teacher").exclude(email__isnull=True).exclude(email="").count()
+    
+    # Get classes for filtering
+    classes = SchoolClass.objects.filter(school=school).order_by('name')
+    selected_class = request.GET.get("class")
+    
     # Preview recipients based on selection
     recipient_preview = None
     selected_type = request.GET.get("type", "parents")
     
+    # Apply class filter if selected
+    class_filter = None
+    if selected_class:
+        try:
+            class_filter = SchoolClass.objects.get(school=school, pk=selected_class)
+        except SchoolClass.DoesNotExist:
+            pass
+    
     if selected_type == "parents":
-        recipients = User.objects.filter(school=school, role="parent").select_related("school")
-        recipient_preview = {
-            "type": "Parents",
-            "total": parents_count,
-            "sms_count": parents_with_phone,
-            "email_count": parents_with_email,
-            "recipients": list(recipients.values("id", "first_name", "last_name", "phone", "email"))[:20]
-        }
+        # Filter parents by class if selected (parents whose children are in that class)
+        if class_filter:
+            parent_ids = Student.objects.filter(school=school, class_name=class_filter.name).values_list('parent_id', flat=True).distinct()
+            recipients = User.objects.filter(pk__in=parent_ids)
+            class_parents_count = recipients.count()
+            class_parents_phone = recipients.exclude(phone__isnull=True).exclude(phone="").count()
+            class_parents_email = recipients.exclude(email__isnull=True).exclude(email="").count()
+            recipient_preview = {
+                "type": f"Parents - {class_filter.name}",
+                "total": class_parents_count,
+                "sms_count": class_parents_phone,
+                "email_count": class_parents_email,
+                "recipients": list(recipients.values("id", "first_name", "last_name", "phone", "email"))[:20]
+            }
+        else:
+            recipients = User.objects.filter(school=school, role="parent").select_related("school")
+            recipient_preview = {
+                "type": "All Parents",
+                "total": parents_count,
+                "sms_count": parents_with_phone,
+                "email_count": parents_with_email,
+                "recipients": list(recipients.values("id", "first_name", "last_name", "phone", "email"))[:20]
+            }
     elif selected_type == "students":
-        recipients = Student.objects.filter(school=school).select_related("user")
+        # Filter students by class
+        if class_filter:
+            students = Student.objects.filter(school=school, class_name=class_filter.name).select_related("user")
+            class_students_count = students.count()
+            class_students_phone = students.exclude(user__phone__isnull=True).exclude(user__phone="").count()
+            class_students_email = students.exclude(user__email__isnull=True).exclude(user__email="").count()
+            recipient_preview = {
+                "type": f"Students - {class_filter.name}",
+                "total": class_students_count,
+                "sms_count": class_students_phone,
+                "email_count": class_students_email,
+                "recipients": [{"id": s.id, "name": s.user.get_full_name() or s.user.username, "phone": s.user.phone, "email": s.user.email} for s in students[:20]]
+            }
+        else:
+            recipients = Student.objects.filter(school=school).select_related("user")
+            recipient_preview = {
+                "type": "All Students",
+                "total": students_count,
+                "sms_count": students_with_phone,
+                "email_count": students_with_email,
+                "recipients": [{"id": s.id, "name": s.user.get_full_name() or s.user.username, "phone": s.user.phone, "email": s.user.email} for s in recipients[:20]]
+            }
+    elif selected_type == "teachers":
+        recipients = User.objects.filter(school=school, role="teacher").select_related("school")
         recipient_preview = {
-            "type": "Students",
-            "total": students_count,
-            "sms_count": students_with_phone,
-            "email_count": students_with_email,
-            "recipients": [{"id": s.id, "name": s.user.get_full_name() or s.user.username, "phone": s.user.phone, "email": s.user.email} for s in recipients[:20]]
+            "type": "All Teachers",
+            "total": teachers_count,
+            "sms_count": teachers_with_phone,
+            "email_count": teachers_with_email,
+            "recipients": list(recipients.values("id", "first_name", "last_name", "phone", "email"))[:20]
         }
     else:  # all
         recipient_preview = {
-            "type": "All (Parents & Students)",
-            "total": parents_count + students_count,
-            "sms_count": parents_with_phone + students_with_phone,
-            "email_count": parents_with_email + students_with_email,
+            "type": "All (Parents, Students & Teachers)",
+            "total": parents_count + students_count + teachers_count,
+            "sms_count": parents_with_phone + students_with_phone + teachers_with_phone,
+            "email_count": parents_with_email + students_with_email + teachers_with_email,
             "recipients": []
         }
     
@@ -113,6 +168,12 @@ def send_message(request):
         "students_count": students_count,
         "students_with_phone": students_with_phone,
         "students_with_email": students_with_email,
+        "teachers_count": teachers_count,
+        "teachers_with_phone": teachers_with_phone,
+        "teachers_with_email": teachers_with_email,
+        "classes": classes,
+        "selected_class": selected_class,
+        "class_filter": class_filter,
         "recipient_preview": recipient_preview,
         "selected_type": selected_type,
     }
@@ -122,6 +183,15 @@ def send_message(request):
         message_type = request.POST.get("message_type", "sms")
         subject = request.POST.get("subject", "Message from School")
         message = request.POST.get("message", "").strip()
+        send_class = request.POST.get("send_class")  # Get selected class from form
+        
+        # Get class filter for sending
+        send_class_filter = None
+        if send_class:
+            try:
+                send_class_filter = SchoolClass.objects.get(school=school, pk=send_class)
+            except SchoolClass.DoesNotExist:
+                pass
         
         if not message:
             messages.error(request, "Please enter a message.")
@@ -132,7 +202,12 @@ def send_message(request):
         errors = []
         
         if recipient_type == "parents":
-            parents = User.objects.filter(school=school, role="parent")
+            # Filter by class if selected
+            if send_class_filter:
+                parent_ids = Student.objects.filter(school=school, class_name=send_class_filter.name).values_list('parent_id', flat=True).distinct()
+                parents = User.objects.filter(pk__in=parent_ids)
+            else:
+                parents = User.objects.filter(school=school, role="parent")
             for parent in parents:
                 if message_type == "sms" and parent.phone:
                     try:
@@ -150,7 +225,11 @@ def send_message(request):
                         errors.append(f"Email failed for {parent.username}: {error}")
                         
         elif recipient_type == "students":
-            students = Student.objects.filter(school=school).select_related("user")
+            # Filter by class if selected
+            if send_class_filter:
+                students = Student.objects.filter(school=school, class_name=send_class_filter.name).select_related("user")
+            else:
+                students = Student.objects.filter(school=school).select_related("user")
             for student in students:
                 if message_type == "sms" and student.user.phone:
                     try:
@@ -166,6 +245,24 @@ def send_message(request):
                     else:
                         failed_count += 1
                         errors.append(f"Email failed for {student.user.username}: {error}")
+                        
+        elif recipient_type == "teachers":
+            teachers = User.objects.filter(school=school, role="teacher")
+            for teacher in teachers:
+                if message_type == "sms" and teacher.phone:
+                    try:
+                        send_sms(teacher.phone, message)
+                        sent_count += 1
+                    except Exception as e:
+                        failed_count += 1
+                        errors.append(f"SMS failed for {teacher.username}: {str(e)}")
+                elif message_type == "email" and teacher.email:
+                    success, error = _send_email(teacher.email, subject, message)
+                    if success:
+                        sent_count += 1
+                    else:
+                        failed_count += 1
+                        errors.append(f"Email failed for {teacher.username}: {error}")
                         
         elif recipient_type == "all":
             # Send to parents
@@ -198,6 +295,21 @@ def send_message(request):
                         sent_count += 1
                     else:
                         failed_count += 1
+            # Send to teachers
+            teachers = User.objects.filter(school=school, role="teacher")
+            for teacher in teachers:
+                if message_type == "sms" and teacher.phone:
+                    try:
+                        send_sms(teacher.phone, message)
+                        sent_count += 1
+                    except Exception as e:
+                        failed_count += 1
+                elif message_type == "email" and teacher.email:
+                    success, error = _send_email(teacher.email, subject, message)
+                    if success:
+                        sent_count += 1
+                    else:
+                        failed_count += 1
         
         if sent_count > 0 or failed_count > 0:
             msg_type = "SMS" if message_type == "sms" else "Email"
@@ -210,7 +322,7 @@ def send_message(request):
                     error_summary += f" First error: {errors[0]}"
                 messages.error(request, error_summary)
         else:
-            messages.error(request, "No recipients found. Please ensure parents/students have valid phone numbers and emails.")
+            messages.error(request, "No recipients found. Please ensure parents/students/teachers have valid phone numbers and emails.")
         
         return redirect("messaging:send_message")
     

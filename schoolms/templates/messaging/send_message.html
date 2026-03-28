@@ -11,15 +11,33 @@
         <div class="content-card">
             <h4 style="margin-bottom: 15px;">Recipient Summary</h4>
             
+            <!-- Class Filter -->
+            {% if classes %}
+            <div class="form-group mb-3">
+                <label for="class_filter"><strong>Filter by Class:</strong></label>
+                <select id="class_filter" onchange="filterByClass(this.value)" class="form-control">
+                    <option value="">All Classes</option>
+                    {% for class in classes %}
+                    <option value="{{ class.pk }}" {% if selected_class == class.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ class.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
             <div class="recipient-tabs">
-                <a href="?type=parents" class="tab-btn {% if selected_type == 'parents' %}active{% endif %}">
-                    Parents <span class="badge">{{ parents_count }}</span>
+                <a href="?type=parents{% if selected_class %}&class={{ selected_class }}{% endif %}" class="tab-btn {% if selected_type == 'parents' %}active{% endif %}">
+                    Parents <span class="badge">{% if class_filter %}{{ recipient_preview.total }}{% else %}{{ parents_count }}{% endif %}</span>
                 </a>
-                <a href="?type=students" class="tab-btn {% if selected_type == 'students' %}active{% endif %}">
-                    Students <span class="badge">{{ students_count }}</span>
+                <a href="?type=students{% if selected_class %}&class={{ selected_class }}{% endif %}" class="tab-btn {% if selected_type == 'students' %}active{% endif %}">
+                    Students <span class="badge">{% if class_filter %}{{ recipient_preview.total }}{% else %}{{ students_count }}{% endif %}</span>
+                </a>
+                <a href="?type=teachers" class="tab-btn {% if selected_type == 'teachers' %}active{% endif %}">
+                    Teachers <span class="badge">{{ teachers_count }}</span>
                 </a>
                 <a href="?type=all" class="tab-btn {% if selected_type == 'all' %}active{% endif %}">
-                    All <span class="badge">{{ parents_count|add:students_count }}</span>
+                    All <span class="badge">{{ parents_count|add:students_count|add:teachers_count }}</span>
                 </a>
             </div>
             
@@ -84,10 +102,26 @@
                         <select id="id_recipient_type" name="recipient_type" required>
                             <option value="parents">All Parents</option>
                             <option value="students">All Students</option>
-                            <option value="all">All Parents and Students</option>
+                            <option value="teachers">All Teachers</option>
+                            <option value="all">All (Parents, Students & Teachers)</option>
                         </select>
                     </div>
                 </div>
+                
+                {% if classes %}
+                <div class="form-row">
+                    <div class="form-group col-md-12">
+                        <label for="id_send_class">Filter by Class (Optional)</label>
+                        <select id="id_send_class" name="send_class">
+                            <option value="">All Classes</option>
+                            {% for class in classes %}
+                            <option value="{{ class.pk }}">{{ class.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">Leave empty to send to all recipients of the selected type</small>
+                    </div>
+                </div>
+                {% endif %}
                 
                 <div class="form-group email-field" style="display: none;">
                     <label for="id_subject">📋 Email Subject</label>
@@ -187,6 +221,16 @@
 </style>
 
 <script>
+function filterByClass(classId) {
+    const currentUrl = new URL(window.location.href);
+    if (classId) {
+        currentUrl.searchParams.set('class', classId);
+    } else {
+        currentUrl.searchParams.delete('class');
+    }
+    window.location.href = currentUrl.toString();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const messageType = document.getElementById('id_message_type');
     const emailFields = document.querySelectorAll('.email-field');

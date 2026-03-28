@@ -16,6 +16,7 @@ from .views import (
     parent_list,
     parent_register,
     parent_detail,
+    parent_edit,
     parent_delete,
     parent_reactivate,
     user_management,
@@ -73,6 +74,7 @@ urlpatterns = [
     path("parents/", parent_list, name="parent_list"),
     path("parents/register/", parent_register, name="parent_register"),
     path("parents/<int:pk>/", parent_detail, name="parent_detail"),
+    path("parents/<int:pk>/edit/", parent_edit, name="parent_edit"),
     path("parents/<int:pk>/delete/", parent_delete, name="parent_delete"),
     path("parents/<int:pk>/reactivate/", parent_reactivate, name="parent_reactivate"),
     # Admin-led password reset and credential changes

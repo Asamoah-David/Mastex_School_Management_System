@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Parent · Mastex SchoolOS{% endblock %}
+{% block page_title %}Edit Parent{% endblock %}
+{% block page_subtitle %}Update details for {{ parent.get_full_name|default:parent.username }}{% endblock %}
+
+{% block content %}
+<form method="post">
+    {% csrf_token %}
+    <div class="content-card">
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label for="id_first_name">First Name</label>
+                <input id="id_first_name" name="first_name" type="text" value="{{ parent.first_name|default:'' }}" required />
+            </div>
+            <div class="form-group">
+                <label for="id_last_name">Last Name</label>
+                <input id="id_last_name" name="last_name" type="text" value="{{ parent.last_name|default:'' }}" required />
+            </div>
+        </div>
+        
+        <div class="form-group mt-1">
+            <label for="id_parent_type">Parent Type</label>
+            <select id="id_parent_type" name="parent_type">
+                <option value="">Select parent type</option>
+                <option value="father" {% if parent.parent_type == 'father' %}selected{% endif %}>Father</option>
+                <option value="mother" {% if parent.parent_type == 'mother' %}selected{% endif %}>Mother</option>
+                <option value="guardian" {% if parent.parent_type == 'guardian' %}selected{% endif %}>Guardian</option>
+                <option value="other" {% if parent.parent_type == 'other' %}selected{% endif %}>Other</option>
+            </select>
+        </div>
+        
+        <div class="form-group mt-1">
+            <label for="id_email">Email</label>
+            <input id="id_email" name="email" type="email" value="{{ parent.email|default:'' }}" />
+        </div>
+        
+        <div class="form-group mt-1">
+            <label for="id_phone">Phone</label>
+            <input id="id_phone" name="phone" type="text" value="{{ parent.phone|default:'' }}" />
+        </div>
+    </div>
+    
+    <div class="button-row mt-sm">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{% url 'accounts:parent_detail' parent.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

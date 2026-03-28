@@ -40,7 +40,7 @@
                         {% endif %}
                     {% endwith %}
                 </td>
-                <td>
+                <td class="actions-cell">
                     <a href="{% url 'accounts:parent_edit' parent.pk %}" class="btn btn-warning btn-sm">Edit</a>
                     <a href="{% url 'accounts:parent_detail' parent.pk %}" class="btn btn-secondary btn-sm">View</a>
                     <a href="{% url 'accounts:parent_delete' parent.pk %}" class="btn btn-danger btn-sm">Delete</a>
@@ -64,6 +64,19 @@
 .btn-danger {
     background: linear-gradient(135deg, #f97373, #dc2626) !important;
     color: #ffffff !important;
+}
+/* Fix for action buttons being cut off */
+.actions-cell {
+    white-space: nowrap;
+    min-width: 150px;
+    overflow: visible !important;
+}
+.actions-cell .btn {
+    margin-right: 4px;
+}
+table th:last-child, table td:last-child {
+    width: auto;
+    min-width: 160px;
 }
 </style>
 {% endblock %}
