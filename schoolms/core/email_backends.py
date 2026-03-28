@@ -77,8 +77,11 @@ class SendGridEmailBackend(BaseEmailBackend):
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "X-SMTPAPI": '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
+            "X-SMTPAPI": '{"filters": {"clicktrack": {"settings": {"enable": 0}}, "openclick": {"settings": {"open_cookie_name": "oa", "click_cookie_name": "ck"}}}}'
         }
+        
+        # Add reply-to for better deliverability
+        data["reply_to"] = {"email": from_email}
         
         logger.info(f"SendGrid request: {data}")
         
