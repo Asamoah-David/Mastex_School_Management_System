@@ -31,6 +31,7 @@ urlpatterns = [
     path("api/token/", TokenObtainPairView.as_view()),
     path("api/token/refresh/", TokenRefreshView.as_view()),
     path("accounts/", include("accounts.urls")),
+    path("", include("django.contrib.auth.urls")),  # Password reset URLs
     path("students/", include("students.urls")),
     path("academics/", include("academics.urls")),
     path("finance/", include("finance.urls")),
