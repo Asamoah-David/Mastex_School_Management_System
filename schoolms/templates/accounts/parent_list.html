@@ -41,6 +41,7 @@
                     {% endwith %}
                 </td>
                 <td>
+                    <a href="{% url 'accounts:parent_edit' parent.pk %}" class="btn btn-warning btn-sm">Edit</a>
                     <a href="{% url 'accounts:parent_detail' parent.pk %}" class="btn btn-secondary btn-sm">View</a>
                     <a href="{% url 'accounts:parent_delete' parent.pk %}" class="btn btn-danger btn-sm">Delete</a>
                 </td>
