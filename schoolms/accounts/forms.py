@@ -63,9 +63,9 @@ class SecurePasswordResetForm(PasswordResetForm):
         for user in users:
             user.set_password_reset_token()
         
-        # Use Django's built-in email sending
+        # Use Django's built-in email sending (remove **kwargs to fix TypeError)
         super().save(domain_override=domain_override, use_https=use_https, 
-                     token_generator=token_generator, request=request, **kwargs)
+                     token_generator=token_generator, request=request)
 
 
 class PasswordResetConfirmForm(forms.Form):
