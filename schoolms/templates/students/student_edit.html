@@ -10,6 +10,12 @@
         {% csrf_token %}
         
         <div class="form-group" style="margin-bottom:1rem;">
+            <label>Phone Number</label>
+            <input type="text" name="phone" value="{{ student.user.phone|default:'' }}" placeholder="+233123456789" style="width:100%;padding:0.5rem;">
+            <small style="color:#666;">Enter phone number in international format (e.g., +233123456789)</small>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1rem;">
             <label>Gender</label>
             <select name="gender" style="width:100%;padding:0.5rem;">
                 <option value="">-- Select Gender --</option>

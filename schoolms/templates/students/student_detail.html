@@ -14,12 +14,28 @@
         <div class="metric-value">{{ student.class_name|default:"—" }}</div>
     </section>
     <section class="metric">
+        <div class="metric-label">Gender</div>
+        <div class="metric-value">{{ student.user.gender|default:"—"|title }}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Phone Number</div>
+        <div class="metric-value">{{ student.user.phone|default:"—" }}</div>
+    </section>
+    <section class="metric">
         <div class="metric-label">Email</div>
         <div class="metric-value">{{ student.user.email|default:"—" }}</div>
     </section>
     <section class="metric">
         <div class="metric-label">Parent</div>
         <div class="metric-value">{% if student.parent %}{{ student.parent.get_full_name|default:student.parent.username }}{% else %}—{% endif %}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Parent Phone</div>
+        <div class="metric-value">{% if student.parent.phone %}{{ student.parent.phone }}{% else %}—{% endif %}</div>
+    </section>
+    <section class="metric">
+        <div class="metric-label">Parent Email</div>
+        <div class="metric-value">{% if student.parent.email %}{{ student.parent.email }}{% else %}—{% endif %}</div>
     </section>
     <section class="metric">
         <div class="metric-label">Registered on</div>

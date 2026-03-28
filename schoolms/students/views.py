@@ -560,6 +560,11 @@ def student_edit(request, pk):
         student.admission_number = request.POST.get("admission_number", "").strip()
         student.class_name = request.POST.get("class_name", "").strip()
         
+        # Update user phone number
+        phone = request.POST.get("phone", "").strip()
+        student.user.phone = phone if phone else ""
+        student.user.save()
+        
         # Update user gender
         gender = request.POST.get("gender", "").strip()
         if gender in ["male", "female"]:
