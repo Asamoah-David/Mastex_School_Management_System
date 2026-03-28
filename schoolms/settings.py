@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     # custom apps
+    "core",
     "accounts",
     "academics",
     "ai_assistant",
@@ -239,8 +240,8 @@ LOGGING = {
     },
 }
 
-# Email configuration
-EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+# Email configuration - uses SendGrid REST API if SENDGRID_API_KEY is set
+EMAIL_BACKEND = env("EMAIL_BACKEND", "core.email_backends.SendGridEmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(env("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", "True") == "True"

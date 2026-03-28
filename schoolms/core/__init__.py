@@ -1,1 +1,1 @@
-# Core utilities
+# Core app for Mastex SchoolOS
