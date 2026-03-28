@@ -15,7 +15,21 @@ def _user_can_manage_school(request):
 
 
 def _send_email(to_email, subject, message):
-    """Send email with error handling."""
+    """Send email with error handling and clear error messages."""
+    # Check if email is configured
+    email_user = getattr(settings, 'EMAIL_HOST_USER', None)
+    email_password = getattr(settings, 'EMAIL_HOST_PASSWORD', None)
+    
+    if not email_user or email_user == "":
+        return False, "Email not configured. Please set EMAIL_HOST_USER in environment variables."
+    
+    if not email_password or email_password == "":
+        return False, "Email password not configured. Please set EMAIL_HOST_PASSWORD in environment variables. Note: For Gmail, use an App Password, not your regular password."
+    
+    # Validate recipient email
+    if not to_email or '@' not in str(to_email):
+        return False, f"Invalid recipient email: {to_email}"
+    
     try:
         send_mail(
             subject,
@@ -26,7 +40,19 @@ def _send_email(to_email, subject, message):
         )
         return True, None
     except Exception as e:
-        return False, str(e)
+        error_msg = str(e)
+        
+        # Provide more helpful error messages for common issues
+        if "SMTP" in error_msg and "authentication" in error_msg.lower():
+            return False, "Email authentication failed. Check your EMAIL_HOST_USER and EMAIL_HOST_PASSWORD. For Gmail, you need an App Password (16 characters)."
+        elif "SMTP" in error_msg and "connection" in error_msg.lower():
+            return False, "Cannot connect to email server. Check your network and email server settings."
+        elif "SMTP" in error_msg and "timeout" in error_msg.lower():
+            return False, "Email server connection timed out. Please try again later."
+        elif "Invalid Gmail" in error_msg or "Username and Password not accepted" in error_msg:
+            return False, "Gmail authentication failed. Use an App Password, not your regular Gmail password. Go to Google Account > Security > App Passwords to generate one."
+        
+        return False, error_msg
 
 
 @login_required
