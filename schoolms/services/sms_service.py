@@ -7,6 +7,8 @@ class SMSService:
     def send_sms(to, message):
         # Validate API key is configured
         api_key = settings.MNOTIFY_API_KEY
+        print(f"[DEBUG] MNOTIFY_API_KEY = '{api_key}'")  # Debug log
+        print(f"[DEBUG] MNOTIFY_SENDER_ID = '{settings.MNOTIFY_SENDER_ID}'")  # Debug log
         if not api_key or api_key == "":
             raise RuntimeError("MNotify API key not configured. Please set MNOTIFY_API_KEY in environment variables.")
         
