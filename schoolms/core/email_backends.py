@@ -60,10 +60,10 @@ class SendGridEmailBackend(BaseEmailBackend):
         else:
             content_type = "text/plain"
         
-        # Build personalizations
+        # Build personalizations - each needs 'to' field with email addresses
         personalizations = []
         for to_email in to_emails:
-            personalizations.append({"email": to_email})
+            personalizations.append({"to": [{"email": to_email}]})
         
         data = {
             "personalizations": personalizations,
