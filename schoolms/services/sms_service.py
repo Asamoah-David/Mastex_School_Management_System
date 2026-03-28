@@ -7,8 +7,6 @@ class SMSService:
     def send_sms(to, message):
         # Validate API key is configured
         api_key = settings.MNOTIFY_API_KEY
-        print(f"[DEBUG] MNOTIFY_API_KEY = '{api_key}'")  # Debug log
-        print(f"[DEBUG] MNOTIFY_SENDER_ID = '{settings.MNOTIFY_SENDER_ID}'")  # Debug log
         if not api_key or api_key == "":
             raise RuntimeError("MNotify API key not configured. Please set MNOTIFY_API_KEY in environment variables.")
         
@@ -30,53 +28,37 @@ class SMSService:
         
         url = "https://api.mnotify.com/api/sms/quick"
         
-        # Try with Bearer prefix first, if that fails try without
-        headers_list = [
-            {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            {"Authorization": api_key, "Content-Type": "application/json"},
-        ]
+        # MNotify expects key in JSON body, not Authorization header
+        headers = {"Content-Type": "application/json"}
         
         data = {
+            "key": api_key,
             "recipient": [phone],
             "sender": sender_id,
             "message": message,
-            "is_schedule": False,
         }
         
-        last_error = None
-        for headers in headers_list:
-            try:
-                resp = requests.post(url, json=data, headers=headers, timeout=30)
-                
-                # MNotify returns 200 on success, but also check for 'code' in response
-                if resp.status_code == 200:
-                    result = resp.json()
-                    # Check if API indicates success (code 0 or success=True)
-                    if result.get('code') == 0 or result.get('success') == True or result.get('status') == 'success':
-                        return result
-                    # API returned 200 but with error
-                    last_error = result.get('message', result.get('error', resp.text))
-                    continue
-                elif resp.status_code == 401:
-                    last_error = "MNotify API authentication failed. Check your API key is correct."
-                elif resp.status_code == 403:
-                    last_error = "MNotify API access forbidden. Your API key may have expired or been deactivated."
-                elif resp.status_code == 429:
-                    last_error = "MNotify API rate limit exceeded. Please try again later."
+        try:
+            resp = requests.post(url, json=data, headers=headers, timeout=30)
+            
+            if resp.status_code == 200:
+                result = resp.json()
+                if result.get('status') == 'success' or result.get('code') == '2000':
+                    return result
                 else:
-                    last_error = resp.text
-            except requests.exceptions.Timeout:
-                last_error = "Connection to MNotify timed out. Please check your network."
-            except requests.exceptions.ConnectionError as e:
-                last_error = f"Network error connecting to MNotify: {str(e)}. Check if outbound connections are allowed."
-            except Exception as e:
-                last_error = f"Unexpected error: {str(e)}"
-                continue
-        
-        raise RuntimeError(f"MNotify SMS failed: {last_error}")
+                    raise RuntimeError(f"MNotify SMS failed: {result.get('message', resp.text)}")
+            elif resp.status_code == 401:
+                raise RuntimeError("MNotify API authentication failed. Check your API key is correct.")
+            elif resp.status_code == 403:
+                raise RuntimeError("MNotify API access forbidden. Your API key may have expired.")
+            else:
+                raise RuntimeError(f"MNotify SMS failed: {resp.text}")
+        except requests.exceptions.Timeout:
+            raise RuntimeError("Connection to MNotify timed out. Please check your network.")
+        except requests.exceptions.ConnectionError as e:
+            raise RuntimeError(f"Network error: {str(e)}")
 
 
 # Convenience function for backward compatibility
 def send_sms(to, message):
     """Send SMS to a recipient."""
-    return SMSService.send_sms(to, message)
