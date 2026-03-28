@@ -23,9 +23,14 @@ def chatbot_respond(request):
     """Handle chatbot AJAX responses."""
     if request.method == "POST":
         try:
-            import json
-            data = json.loads(request.body)
-            user_message = data.get("message", "").strip()
+            # Try to parse as JSON first (AJAX)
+            try:
+                import json
+                data = json.loads(request.body)
+                user_message = data.get("message", "").strip()
+            except:
+                # Fall back to form data
+                user_message = request.POST.get("message", "").strip()
             
             if not user_message:
                 return JsonResponse({"error": "Please enter a message"}, status=400)
@@ -34,7 +39,9 @@ def chatbot_respond(request):
             response = ask_ai(user_message)
             return JsonResponse({"response": response})
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            import traceback
+            error_detail = f"{str(e)}\n{traceback.format_exc()}"
+            return JsonResponse({"error": f"Server error: {str(e)}"}, status=500)
     
     return JsonResponse({"error": "Invalid method"}, status=400)
 
