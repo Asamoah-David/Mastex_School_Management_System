@@ -111,7 +111,7 @@
             <td>{{ attempt.student.class_name|default:"N/A" }}</td>
             <td>{{ attempt.score|default:"0" }} / {{ selected_exam.total_marks }}</td>
             <td>
-                {% widthvar attempt.score as percentage %}
+                {% widthratio attempt.score selected_exam.total_marks 100 as percentage %}
                 {{ percentage|floatformat:1 }}%
             </td>
             <td>

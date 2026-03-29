@@ -90,8 +90,8 @@
                         <td>{{ student.user.get_full_name|default:student.user.username }}</td>
                         <td>
                             {% with student.id as sid %}
-                            {% if existing_scores|get_item:sid %}
-                            <span class="tag" style="background: #d1fae5; color: #065f46;">{{ existing_scores|get_item:sid }}</span>
+                            {% if existing_scores|get:sid %}
+                            <span class="tag" style="background: #d1fae5; color: #065f46;">{{ existing_scores|get:sid }}</span>
                             {% else %}
                             <span style="color: #9ca3af;">—</span>
                             {% endif %}

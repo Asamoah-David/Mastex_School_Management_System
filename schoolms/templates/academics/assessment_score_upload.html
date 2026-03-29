@@ -81,7 +81,7 @@
                         <td>{{ student.user.get_full_name|default:student.user.username }}</td>
                         <td>
                             <input type="number" name="score_student_{{ student.id }}" 
-                                   value="{{ existing_scores|get_item:student.id|default:'' }}"
+                                   value="{{ existing_scores|get:student.id|default:'' }}"
                                    min="0" max="100" step="0.1"
                                    placeholder="Enter score"
                                    style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; width: 120px;">
