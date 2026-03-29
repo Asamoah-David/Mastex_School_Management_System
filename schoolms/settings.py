@@ -124,8 +124,16 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Media files (uploads)
+# NOTE: In production (Railway), use a persistent mount or cloud storage
+# Railway ephemeral storage loses uploaded files on redeploy
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+
+# Check if a persistent volume is mounted at /var/data/media
+_persistent_media = Path("/var/data/media")
+if _persistent_media.exists():
+    MEDIA_ROOT = _persistent_media
+else:
+    MEDIA_ROOT = BASE_DIR / "media"
 
 # Use BigAutoField by default for primary keys to avoid warnings
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
