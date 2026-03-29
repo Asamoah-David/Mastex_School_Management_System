@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}My Profile · Mastex SchoolOS{% endblock %}
 {% block page_title %}My Profile{% endblock %}
 {% block page_subtitle %}View your account information.{% endblock %}
@@ -8,7 +8,7 @@
     <!-- Profile Photo -->
     <section class="metric" style="text-align: center; grid-column: 1 / -1;">
         {% if user.profile_photo %}
-        <img src="{{ user.profile_photo.url }}" alt="Profile Photo" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0;">
+        <img src="{{ user.profile_photo|get_photo_url }}" alt="Profile Photo" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0;">
         {% else %}
         <div style="width: 120px; height: 120px; border-radius: 50%; background: #f1f5f9; display: inline-flex; align-items: center; justify-content: center; border: 3px dashed #cbd5e1;">
             <span style="color: #94a3b8; font-size: 2rem;">{{ user.first_name|default:user.username|truncatechars:1|upper }}</span>

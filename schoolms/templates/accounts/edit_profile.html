@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Edit Profile · Mastex SchoolOS{% endblock %}
 {% block page_title %}Edit Profile{% endblock %}
 {% block page_subtitle %}Update your personal details.{% endblock %}
@@ -12,7 +12,7 @@
             <label>Profile Photo</label>
             <div style="margin-top: 0.5rem;">
                 {% if user.profile_photo %}
-                <img src="{{ user.profile_photo.url }}" alt="Current Photo" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0;">
+                <img src="{{ user.profile_photo|get_photo_url }}" alt="Current Photo" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0;">
                 {% else %}
                 <div style="width: 120px; height: 120px; border-radius: 50%; background: #f1f5f9; display: inline-flex; align-items: center; justify-content: center; border: 3px dashed #cbd5e1;">
                     <span style="color: #94a3b8;">No Photo</span>
