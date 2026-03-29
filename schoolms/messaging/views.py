@@ -365,8 +365,9 @@ def get_messages(request, contact_id):
 
 @login_required
 def superuser_send_message(request):
-    """Superuser can send SMS to all schools or a specific school."""
-    from django.conf import settings
+    """Superuser can send SMS or Email to school admins across all schools or a specific school."""
+    import logging
+    logger = logging.getLogger(__name__)
     
     # Only superusers can access this
     if not request.user.is_superuser:
@@ -416,43 +417,51 @@ def superuser_send_message(request):
                     "selected_school_id": selected_school_id
                 })
         
-        # Send to all recipients in each school
+        # Send to school admins only in each school
         for target in schools_to_send:
-            # Get parents
-            parents = User.objects.filter(school=target, role="parent")
-            for parent in parents:
-                if message_type == "sms" and parent.phone:
-                    try:
-                        send_sms(parent.phone, message, school_name="Mastex SchoolOS")
-                        sent_count += 1
-                    except Exception as e:
-                        failed_count += 1
+            # Get school admins (role=school_admin or admin)
+            school_admins = User.objects.filter(school=target, role__in=("school_admin", "admin"))
             
-            # Get students with phones
-            students = Student.objects.filter(school=target).select_related("user")
-            for student in students:
-                if message_type == "sms" and student.user.phone:
-                    try:
-                        send_sms(student.user.phone, message, school_name="Mastex SchoolOS")
-                        sent_count += 1
-                    except Exception as e:
-                        failed_count += 1
+            # If no school_admin role, try is_school_admin attribute or any admin users
+            if not school_admins.exists():
+                school_admins = User.objects.filter(school=target, role="admin")
             
-            # Get teachers
-            teachers = User.objects.filter(school=target, role="teacher")
-            for teacher in teachers:
-                if message_type == "sms" and teacher.phone:
+            logger.error(f"[DEBUG] Sending to {school_admins.count()} admins in {target.name}")
+            
+            for admin in school_admins:
+                if message_type == "sms" and admin.phone:
                     try:
-                        send_sms(teacher.phone, message, school_name="Mastex SchoolOS")
+                        send_sms(admin.phone, message, school_name=target.name)
                         sent_count += 1
+                        logger.error(f"[DEBUG] SMS sent to {admin.username} ({admin.phone})")
                     except Exception as e:
                         failed_count += 1
+                        error_msg = f"SMS failed for {admin.username}: {str(e)}"
+                        errors.append(error_msg)
+                        logger.error(f"[DEBUG] {error_msg}")
+                        
+                elif message_type == "email" and admin.email:
+                    success, error = _send_email(admin.email, subject, message)
+                    if success:
+                        sent_count += 1
+                        logger.error(f"[DEBUG] Email sent to {admin.username} ({admin.email})")
+                    else:
+                        failed_count += 1
+                        error_msg = f"Email failed for {admin.username}: {error}"
+                        errors.append(error_msg)
+                        logger.error(f"[DEBUG] {error_msg}")
         
         msg_type = "SMS" if message_type == "sms" else "Email"
+        
         if sent_count > 0:
-            messages.success(request, f"{msg_type} sent to {sent_count} recipients across {len(schools_to_send)} school(s).")
+            messages.success(request, f"{msg_type} sent to {sent_count} admin(s) across {len(schools_to_send)} school(s).")
+        
         if failed_count > 0:
-            messages.warning(request, f"{failed_count} message(s) failed.")
+            error_details = " | ".join(errors[:3])  # Show first 3 errors
+            messages.error(request, f"{failed_count} message(s) failed. Errors: {error_details}")
+        
+        if sent_count == 0 and failed_count == 0:
+            messages.warning(request, "No school admins found with valid phone/email addresses.")
         
         return redirect("messaging:superuser_send_message")
     

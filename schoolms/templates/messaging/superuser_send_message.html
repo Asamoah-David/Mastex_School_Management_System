@@ -7,8 +7,8 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h4>Send Message to All Schools</h4>
-                    <p class="text-muted">Send SMS to parents, students, and teachers across all registered schools</p>
+                    <h4>Send Message to School Admins</h4>
+                    <p class="text-muted">Send SMS or Email to school administrators across all registered schools</p>
                 </div>
                 <div class="card-body">
                     <form method="POST">
@@ -30,6 +30,11 @@
                                 <option value="sms">SMS</option>
                                 <option value="email">Email</option>
                             </select>
+                        </div>
+                        
+                        <div class="mb-3" id="subject-field" style="display:none;">
+                            <label class="form-label">Subject (for Email)</label>
+                            <input type="text" name="subject" class="form-control" placeholder="Enter email subject">
                         </div>
                         
                         <div class="mb-3">
@@ -77,4 +82,19 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const messageTypeSelect = document.querySelector('select[name="message_type"]');
+    const subjectField = document.getElementById('subject-field');
+    
+    messageTypeSelect.addEventListener('change', function() {
+        if (this.value === 'email') {
+            subjectField.style.display = 'block';
+        } else {
+            subjectField.style.display = 'none';
+        }
+    });
+});
+</script>
 {% endblock %}
