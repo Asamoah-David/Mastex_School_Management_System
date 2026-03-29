@@ -1,10 +1,11 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.conf import settings
 from accounts.models import User
 from accounts.permissions import user_can_manage_school
 from students.models import Student, SchoolClass
+from schools.models import School
 from .utils import send_sms
 
 
@@ -360,3 +361,104 @@ def get_messages(request, contact_id):
     """Get messages with a contact."""
     from academics.timetable_generator import get_messages as _get_messages
     return _get_messages(request, contact_id)
+
+
+@login_required
+def superuser_send_message(request):
+    """Superuser can send SMS to all schools or a specific school."""
+    from django.conf import settings
+    
+    # Only superusers can access this
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    # Get all schools for selection
+    all_schools = School.objects.all().order_by('name')
+    
+    # Get selected school from form
+    selected_school_id = request.GET.get("school")
+    target_school = None
+    if selected_school_id:
+        try:
+            target_school = School.objects.get(id=selected_school_id)
+        except School.DoesNotExist:
+            pass
+    
+    # If no school selected, show all schools option
+    if request.method == "POST":
+        recipient_type = request.POST.get("recipient_type")  # "all_schools" or specific school ID
+        message_type = request.POST.get("message_type", "sms")
+        subject = request.POST.get("subject", "Message from Mastex SchoolOS")
+        message = request.POST.get("message", "").strip()
+        
+        if not message:
+            messages.error(request, "Please enter a message.")
+            return render(request, "messaging/superuser_send_message.html", {
+                "all_schools": all_schools,
+                "selected_school_id": selected_school_id
+            })
+        
+        sent_count = 0
+        failed_count = 0
+        errors = []
+        
+        # Get schools to send to
+        if recipient_type == "all_schools":
+            schools_to_send = all_schools
+        else:
+            # Specific school
+            try:
+                schools_to_send = [School.objects.get(id=recipient_type)]
+            except School.DoesNotExist:
+                messages.error(request, "Invalid school selected.")
+                return render(request, "messaging/superuser_send_message.html", {
+                    "all_schools": all_schools,
+                    "selected_school_id": selected_school_id
+                })
+        
+        # Send to all recipients in each school
+        for target in schools_to_send:
+            # Get parents
+            parents = User.objects.filter(school=target, role="parent")
+            for parent in parents:
+                if message_type == "sms" and parent.phone:
+                    try:
+                        send_sms(parent.phone, message, school_name="Mastex SchoolOS")
+                        sent_count += 1
+                    except Exception as e:
+                        failed_count += 1
+            
+            # Get students with phones
+            students = Student.objects.filter(school=target).select_related("user")
+            for student in students:
+                if message_type == "sms" and student.user.phone:
+                    try:
+                        send_sms(student.user.phone, message, school_name="Mastex SchoolOS")
+                        sent_count += 1
+                    except Exception as e:
+                        failed_count += 1
+            
+            # Get teachers
+            teachers = User.objects.filter(school=target, role="teacher")
+            for teacher in teachers:
+                if message_type == "sms" and teacher.phone:
+                    try:
+                        send_sms(teacher.phone, message, school_name="Mastex SchoolOS")
+                        sent_count += 1
+                    except Exception as e:
+                        failed_count += 1
+        
+        msg_type = "SMS" if message_type == "sms" else "Email"
+        if sent_count > 0:
+            messages.success(request, f"{msg_type} sent to {sent_count} recipients across {len(schools_to_send)} school(s).")
+        if failed_count > 0:
+            messages.warning(request, f"{failed_count} message(s) failed.")
+        
+        return redirect("messaging:superuser_send_message")
+    
+    context = {
+        "all_schools": all_schools,
+        "selected_school_id": selected_school_id,
+        "target_school": target_school
+    }
+    return render(request, "messaging/superuser_send_message.html", context)

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Send Message to All Schools</h4>
+                    <p class="text-muted">Send SMS to parents, students, and teachers across all registered schools</p>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Recipient Type</label>
+                            <select name="recipient_type" class="form-select" required>
+                                <option value="all_schools">All Schools</option>
+                                {% for school in all_schools %}
+                                <option value="{{ school.id }}">{{ school.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Message Type</label>
+                            <select name="message_type" class="form-select">
+                                <option value="sms">SMS</option>
+                                <option value="email">Email</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Message</label>
+                            <textarea name="message" class="form-control" rows="5" placeholder="Enter your message..." required></textarea>
+                            <small class="text-muted">SMS will show as [Mastex SchoolOS] Your message</small>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Send Message</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Registered Schools</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>School Name</th>
+                                <th>Parents</th>
+                                <th>Students</th>
+                                <th>Teachers</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for school in all_schools %}
+                            <tr>
+                                <td>{{ school.name }}</td>
+                                <td>{{ school.user_set.role_parent.count }}</td>
+                                <td>{{ school.student_set.count }}</td>
+                                <td>{{ school.user_set.role_teacher.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

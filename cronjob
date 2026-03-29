@@ -1,2 +1,8 @@
-# Run retry_unpaid management command every day at 2am
-0 2 * * * root cd /app && /usr/local/bin/python manage.py retry_unpaid >> /var/log/cron.log 2>&1
+# Mastex SchoolOS - Cron Jobs for Automated Tasks
+# These jobs run on the Docker container via Render's cron scheduler
+
+# Run retry_unpaid management command every day at 2am (process unpaid fees)
+0 2 * * * cd /app && python manage.py retry_unpaid >> /var/log/cron.log 2>&1
+
+# Run check_subscriptions every day at 6am (check expired subscriptions and notify)
+0 6 * * * cd /app && python manage.py check_subscriptions >> /var/log/cron.log 2>&1

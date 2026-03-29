@@ -8,5 +8,23 @@
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "command": "sh -c 'python manage.py migrate --noinput && gunicorn schoolms.wsgi:application --bind :$PORT --workers 2'"
+  },
+  "jobs": {
+    "retry_unpaid": {
+      "build": false,
+      "schedule": "0 2 * * *",
+      "command": "python manage.py retry_unpaid",
+      "timetable": {
+        "timezone": "UTC"
+      }
+    },
+    "check_subscriptions": {
+      "build": false,
+      "schedule": "0 6 * * *",
+      "command": "python manage.py check_subscriptions",
+      "timetable": {
+        "timezone": "UTC"
+      }
+    }
   }
 }
