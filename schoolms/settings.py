@@ -173,6 +173,12 @@ PAYSTACK_PLATFORM_FEE_PERCENT = float(env("PAYSTACK_PLATFORM_FEE_PERCENT", "0"))
 # Cron job secret key (for securing subscription check endpoint)
 CRON_SECRET_KEY = env("CRON_SECRET_KEY", "")
 
+# Supabase Storage (for media files like photos)
+# Get these from Supabase Dashboard → Settings → API
+SUPABASE_URL = env("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", "")
+SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", "media")
+
 # Google Gemini (AI Assistant) - DEPRECATED, use Groq instead
 GEMINI_API_KEY = env("GEMINI_API_KEY", "")
 

@@ -16,6 +16,14 @@ from students.models import Student
 from finance.models import Fee
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
 
+# Supabase Storage for media files
+try:
+    from core.supabase_storage import supabase_storage
+    SUPABASE_STORAGE_AVAILABLE = True
+except ImportError:
+    supabase_storage = None
+    SUPABASE_STORAGE_AVAILABLE = False
+
 
 def logout_view(request):
     """Log out and clear messages, then redirect to login page."""
@@ -159,14 +167,32 @@ def edit_profile(request):
         else:
             # Handle photo removal
             if remove_photo and user.profile_photo:
-                user.profile_photo.delete(save=True)
+                old_url = str(user.profile_photo)
+                user.profile_photo = None
+                # Try to delete from Supabase if it's a Supabase URL
+                if SUPABASE_STORAGE_AVAILABLE and old_url.startswith('http'):
+                    supabase_storage.delete_file(old_url)
             
             # Handle new photo upload
             if profile_photo:
                 # Delete old photo if exists
-                if user.profile_photo:
-                    user.profile_photo.delete(save=False)
-                user.profile_photo = profile_photo
+                if user.profile_photo and str(user.profile_photo).startswith('http'):
+                    if SUPABASE_STORAGE_AVAILABLE:
+                        supabase_storage.delete_file(str(user.profile_photo))
+                
+                # Upload to Supabase Storage
+                if SUPABASE_STORAGE_AVAILABLE:
+                    from django.conf import settings
+                    folder = f"profiles/{user.school_id}" if hasattr(user, 'school_id') and user.school_id else "profiles/default"
+                    uploaded_url = supabase_storage.upload_file(profile_photo, folder=folder)
+                    if uploaded_url:
+                        user.profile_photo = uploaded_url
+                        messages.info(request, "Photo uploaded to cloud storage.")
+                    else:
+                        messages.warning(request, "Cloud upload failed, saving locally.")
+                        user.profile_photo = profile_photo
+                else:
+                    user.profile_photo = profile_photo
             
             user.first_name = first_name
             user.last_name = last_name
