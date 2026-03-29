@@ -2,6 +2,7 @@
 -- Supabase RLS Security Migration
 -- Enables Row Level Security on all tables for Mastex SchoolOS
 -- Created: 2026-03-25
+-- Updated: 2026-03-28 (Removed outdated M2M table references - secondary_roles is now TextField)
 -- ============================================================
 
 -- ============================================================
@@ -23,10 +24,11 @@ ALTER TABLE academics_quizquestion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics_timetable ENABLE ROW LEVEL SECURITY;
 
 -- accounts tables
+-- NOTE: secondary_roles is now a TextField on accounts_user (not a separate table)
 ALTER TABLE accounts_user ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accounts_user_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accounts_user_assigned_subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE accounts_user_secondary_roles ENABLE ROW LEVEL SECURITY;
+-- Removed: accounts_user_secondary_roles (now TextField, not M2M)
 ALTER TABLE accounts_user_user_permissions ENABLE ROW LEVEL SECURITY;
 
 -- auth tables (Django auth)
@@ -131,10 +133,11 @@ CREATE POLICY "service_bypass_academics_quizquestion" ON academics_quizquestion 
 CREATE POLICY "service_bypass_academics_timetable" ON academics_timetable FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- accounts policies
+-- NOTE: secondary_roles is now a TextField on accounts_user (not a separate table)
 CREATE POLICY "service_bypass_accounts_user" ON accounts_user FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "service_bypass_accounts_user_groups" ON accounts_user_groups FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "service_bypass_accounts_user_assigned_subjects" ON accounts_user_assigned_subjects FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_bypass_accounts_user_secondary_roles" ON accounts_user_secondary_roles FOR ALL TO service_role USING (true) WITH CHECK (true);
+-- Removed: accounts_user_secondary_roles policy (now TextField, not M2M)
 CREATE POLICY "service_bypass_accounts_user_user_permissions" ON accounts_user_user_permissions FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- auth policies
