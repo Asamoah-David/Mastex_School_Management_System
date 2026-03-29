@@ -26,7 +26,7 @@
         <tr>
             <td>
                 {% if card.staff.profile_photo %}
-                <img src="{{ card.staff.profile_photo.url }}" alt="{{ card.staff.get_full_name }}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 0.5rem;">
+                <img src="{{ card.staff.profile_photo }}" alt="{{ card.staff.get_full_name }}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 0.5rem;">
                 {% else %}
                 <span style="width: 30px; height: 30px; border-radius: 50%; background: #10b981; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-right: 0.5rem;">
                     {{ card.staff.get_full_name|slice:":1" }}

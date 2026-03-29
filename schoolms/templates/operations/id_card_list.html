@@ -37,7 +37,7 @@
         <tr>
             <td>
                 {% if card.student.user.profile_photo %}
-                <img src="{{ card.student.user.profile_photo.url }}" alt="{{ card.student.user.get_full_name }}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 0.5rem;">
+                <img src="{{ card.student.user.profile_photo }}" alt="{{ card.student.user.get_full_name }}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 0.5rem;">
                 {% else %}
                 <span style="width: 30px; height: 30px; border-radius: 50%; background: #3b82f6; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-right: 0.5rem;">
                     {{ card.student.user.get_full_name|slice:":1" }}

@@ -28,7 +28,7 @@
                     {% if id_card.photo %}
                     <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #d1fae5; border-radius: 8px;">
                     {% elif id_card.staff.profile_photo %}
-                    <img src="{{ id_card.staff.profile_photo.url }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #d1fae5; border-radius: 8px;">
+                    <img src="{{ id_card.staff.profile_photo }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #d1fae5; border-radius: 8px;">
                     {% else %}
                     <div style="width: 100px; height: 120px; background: #ecfdf5; display: flex; align-items: center; justify-content: center; border: 2px dashed #a7f3d0; border-radius: 8px;">
                         <span style="color: #6ee7b7; font-size: 12px;">No Photo</span>
