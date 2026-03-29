@@ -68,56 +68,76 @@
     <form method="POST" action="{% url 'accounts:staff_manage_secondary_roles' staff.id %}">
         {% csrf_token %}
         <div class="secondary-roles-grid">
-            <label class="role-checkbox">
+            <label class="role-checkbox {% if staff.role == 'teacher' %}disabled{% endif %}">
                 <input type="checkbox" name="secondary_roles" value="teacher" 
-                    {% if staff.secondary_roles.all|length > 0 and "teacher" in staff.secondary_roles.all|join:",role:" %}checked{% endif %}>
+                    {% if 'teacher' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'teacher' %}disabled{% endif %}>
                 <span class="role-label">👨‍🏫 Teacher</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="deputy_head">
+            <label class="role-checkbox {% if staff.role == 'deputy_head' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="deputy_head"
+                    {% if 'deputy_head' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'deputy_head' %}disabled{% endif %}>
                 <span class="role-label">👨‍💼 Deputy Headteacher</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="hod">
+            <label class="role-checkbox {% if staff.role == 'hod' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="hod"
+                    {% if 'hod' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'hod' %}disabled{% endif %}>
                 <span class="role-label">📚 Head of Department</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="accountant">
+            <label class="role-checkbox {% if staff.role == 'accountant' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="accountant"
+                    {% if 'accountant' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'accountant' %}disabled{% endif %}>
                 <span class="role-label">💰 Accountant/Bursar</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="librarian">
+            <label class="role-checkbox {% if staff.role == 'librarian' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="librarian"
+                    {% if 'librarian' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'librarian' %}disabled{% endif %}>
                 <span class="role-label">📖 Librarian</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="admission_officer">
+            <label class="role-checkbox {% if staff.role == 'admission_officer' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="admission_officer"
+                    {% if 'admission_officer' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'admission_officer' %}disabled{% endif %}>
                 <span class="role-label">📋 Admission Officer</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="school_nurse">
+            <label class="role-checkbox {% if staff.role == 'school_nurse' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="school_nurse"
+                    {% if 'school_nurse' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'school_nurse' %}disabled{% endif %}>
                 <span class="role-label">🏥 School Nurse</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="admin_assistant">
+            <label class="role-checkbox {% if staff.role == 'admin_assistant' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="admin_assistant"
+                    {% if 'admin_assistant' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'admin_assistant' %}disabled{% endif %}>
                 <span class="role-label">📊 Admin Assistant</span>
             </label>
-            <label class="role-checkbox">
-                <input type="checkbox" name="secondary_roles" value="staff">
+            <label class="role-checkbox {% if staff.role == 'staff' %}disabled{% endif %}">
+                <input type="checkbox" name="secondary_roles" value="staff"
+                    {% if 'staff' in staff.get_secondary_roles_list %}checked{% endif %}
+                    {% if staff.role == 'staff' %}disabled{% endif %}>
                 <span class="role-label">👤 Staff</span>
             </label>
         </div>
+        <p style="color: #6b7280; font-size: 0.75rem; margin-top: 0.5rem;">
+            * Primary role (shown above) is automatically assigned and cannot be duplicated as secondary.
+        </p>
         <div style="margin-top: 1rem;">
             <button type="submit" class="btn btn-primary">Save Secondary Roles</button>
         </div>
     </form>
     
-    {% if staff.secondary_roles.exists %}
+    {% if staff.get_secondary_roles_list %}
     <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 0.5rem;">
         <h4 style="color: #a78bfa; margin: 0 0 0.5rem; font-size: 0.9rem;">Current Secondary Roles:</h4>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            {% for role in staff.secondary_roles.all %}
+            {% for role_display in staff.secondary_roles_display %}
             <span style="background: rgba(139, 92, 246, 0.3); padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; color: #c4b5fd;">
-                {{ role.get_role_display }}
+                {{ role_display }}
             </span>
             {% endfor %}
         </div>
@@ -142,15 +162,22 @@
     cursor: pointer;
     transition: all 0.2s;
 }
-.role-checkbox:hover {
+.role-checkbox:hover:not(.disabled) {
     border-color: rgba(139, 92, 246, 0.5);
     background: rgba(139, 92, 246, 0.1);
+}
+.role-checkbox.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 .role-checkbox input[type="checkbox"] {
     width: 18px;
     height: 18px;
     accent-color: #8b5cf6;
     cursor: pointer;
+}
+.role-checkbox.disabled input[type="checkbox"] {
+    cursor: not-allowed;
 }
 .role-label {
     color: #e5e7eb;

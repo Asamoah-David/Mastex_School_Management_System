@@ -42,7 +42,8 @@ class User(AbstractUser):
     # Teachers can be assigned to specific subjects
     assigned_subjects = models.ManyToManyField('academics.Subject', blank=True, related_name='assigned_teachers')
     # Secondary roles - allows users to have multiple roles (e.g., teacher + librarian)
-    secondary_roles = models.ManyToManyField('self', blank=True, symmetrical=False, related_name='primary_role_of')
+    # Stores role strings as comma-separated values for simplicity
+    secondary_roles = models.TextField(blank=True, default='', help_text="Comma-separated list of secondary role values")
     # Profile photo
     profile_photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
     # Gender
@@ -148,3 +149,48 @@ class User(AbstractUser):
         uid = urlsafe_base64_encode(force_bytes(self.pk))
         token = default_token_generator.make_token(self)
         return {'uid': uid, 'token': token}
+    
+    # Secondary roles helper methods
+    @property
+    def get_secondary_roles_list(self):
+        """Get secondary roles as a list of role strings"""
+        if not self.secondary_roles:
+            return []
+        return [r.strip() for r in self.secondary_roles.split(',') if r.strip()]
+    
+    @property
+    def secondary_roles_display(self):
+        """Get human-readable list of secondary roles"""
+        if not self.secondary_roles:
+            return []
+        roles = []
+        for r in self.get_secondary_roles_list:
+            for choice in ROLE_CHOICES:
+                if choice[0] == r:
+                    roles.append(choice[1])
+                    break
+        return roles
+    
+    def has_role(self, role_value):
+        """Check if user has a specific role (primary or secondary)"""
+        if self.role == role_value:
+            return True
+        return role_value in self.get_secondary_roles_list
+    
+    def set_secondary_roles(self, roles_list):
+        """Set secondary roles from a list of role values"""
+        self.secondary_roles = ','.join(roles_list)
+    
+    def add_secondary_role(self, role_value):
+        """Add a secondary role"""
+        roles = self.get_secondary_roles_list
+        if role_value not in roles and role_value != self.role:
+            roles.append(role_value)
+            self.secondary_roles = ','.join(roles)
+    
+    def remove_secondary_role(self, role_value):
+        """Remove a secondary role"""
+        roles = self.get_secondary_roles_list
+        if role_value in roles:
+            roles.remove(role_value)
+            self.secondary_roles = ','.join(roles)

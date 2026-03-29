@@ -740,27 +740,25 @@ def staff_manage_secondary_roles(request, pk):
         # Get selected secondary roles from form
         selected_roles = request.POST.getlist("secondary_roles")
         
-        # Clear existing secondary roles
-        staff.secondary_roles.clear()
-        
-        # Add selected secondary roles (only users that exist in the system)
+        # Validate and store roles as comma-separated string
         valid_roles = (
             "teacher", "deputy_head", "hod", "accountant", "librarian",
             "admission_officer", "school_nurse", "admin_assistant", "staff"
         )
         
-        for role_value in selected_roles:
-            if role_value in valid_roles:
-                # Find users with this role in the same school
-                role_users = User.objects.filter(school=school, role=role_value)
-                for role_user in role_users:
-                    staff.secondary_roles.add(role_user)
+        # Filter to only valid roles and exclude primary role
+        filtered_roles = [r for r in selected_roles if r in valid_roles and r != staff.role]
         
+        # Store as comma-separated string
+        staff.secondary_roles = ','.join(filtered_roles)
+        staff.save(update_fields=['secondary_roles'])
+        
+        count = len(filtered_roles)
         messages.success(
             request,
-            f"Secondary roles updated for '{staff.username}'. They now have access to features of: "
-            f"{staff.get_role_display()}" + 
-            (f" + {len(staff.secondary_roles.all())} secondary role(s)" if staff.secondary_roles.exists() else ""),
+            f"Secondary roles updated for '{staff.username}'. "
+            f"They now have access to features of: {staff.get_role_display()}" +
+            (f" + {count} additional role(s)" if count > 0 else " (no additional roles)"),
         )
 
     return redirect("accounts:staff_detail", pk=pk)
