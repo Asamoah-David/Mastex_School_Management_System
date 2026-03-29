@@ -713,6 +713,60 @@ def staff_change_role(request, pk):
 
 
 @login_required
+def staff_manage_secondary_roles(request, pk):
+    """
+    Allow school admins to manage secondary roles for staff members.
+    Users can have multiple secondary roles in addition to their primary role.
+    """
+    if not _user_is_school_admin(request):
+        messages.error(request, "Only school administrators can manage secondary roles.")
+        return redirect("accounts:school_dashboard")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    # Get the staff member (include all non-parent/student roles)
+    staff = get_object_or_404(
+        User, 
+        pk=pk, 
+        school=school, 
+        role__in=("admin", "school_admin", "deputy_head", "hod", "teacher", 
+                  "accountant", "librarian", "admission_officer", "school_nurse", 
+                  "admin_assistant", "staff")
+    )
+
+    if request.method == "POST":
+        # Get selected secondary roles from form
+        selected_roles = request.POST.getlist("secondary_roles")
+        
+        # Clear existing secondary roles
+        staff.secondary_roles.clear()
+        
+        # Add selected secondary roles (only users that exist in the system)
+        valid_roles = (
+            "teacher", "deputy_head", "hod", "accountant", "librarian",
+            "admission_officer", "school_nurse", "admin_assistant", "staff"
+        )
+        
+        for role_value in selected_roles:
+            if role_value in valid_roles:
+                # Find users with this role in the same school
+                role_users = User.objects.filter(school=school, role=role_value)
+                for role_user in role_users:
+                    staff.secondary_roles.add(role_user)
+        
+        messages.success(
+            request,
+            f"Secondary roles updated for '{staff.username}'. They now have access to features of: "
+            f"{staff.get_role_display()}" + 
+            (f" + {len(staff.secondary_roles.all())} secondary role(s)" if staff.secondary_roles.exists() else ""),
+        )
+
+    return redirect("accounts:staff_detail", pk=pk)
+
+
+@login_required
 def parent_delete(request, pk):
     """
     Deactivate a parent instead of deleting them.
