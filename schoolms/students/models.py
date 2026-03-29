@@ -33,6 +33,8 @@ class Student(models.Model):
         ("graduated", "Graduated / Alumni"),
         ("withdrawn", "Withdrawn / Transferred"),
         ("dismissed", "Dismissed / Expelled"),
+        ("suspended", "Suspended"),
+        ("deceased", "Deceased"),
     )
 
     school = models.ForeignKey(School, on_delete=models.CASCADE)
@@ -59,6 +61,15 @@ class Student(models.Model):
         null=True,
         blank=True,
         help_text="Date the student left, graduated, or was dismissed.",
+    )
+    exit_reason = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Reason for exit: graduated, left, transferred, suspended, expelled, deceased",
+    )
+    exit_notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about the exit",
     )
 
     # Health Information

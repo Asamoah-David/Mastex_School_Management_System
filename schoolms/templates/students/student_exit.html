@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Student Exit · Mastex SchoolOS{% endblock %}
+{% block page_title %}Record Student Exit{% endblock %}
+{% block page_subtitle %}{{ student.user.get_full_name|default:student.user.username }} - {{ student.admission_number }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 650px;">
+    <div style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <h3 style="margin: 0 0 0.5rem 0; color: #22c55e;">📋 Student Information</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.9rem;">
+            <div>
+                <span style="color: #6b7280;">Name:</span>
+                <strong>{{ student.user.get_full_name|default:student.user.username }}</strong>
+            </div>
+            <div>
+                <span style="color: #6b7280;">Admission No:</span>
+                <strong>{{ student.admission_number }}</strong>
+            </div>
+            <div>
+                <span style="color: #6b7280;">Class:</span>
+                <strong>{{ student.class_name }}</strong>
+            </div>
+            <div>
+                <span style="color: #6b7280;">Current Status:</span>
+                <span class="badge badge-{% if student.status == 'active' %}success{% elif student.status == 'graduated' %}info{% else %}warning{% endif %}">
+                    {{ student.get_status_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" class="form">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="id_exit_reason">
+                <strong>🚨 Exit Reason *</strong>
+            </label>
+            <select id="id_exit_reason" name="exit_reason" class="form-control" required>
+                <option value="">-- Select exit reason --</option>
+                <option value="graduated">🎓 Graduated - Student completed studies</option>
+                <option value="left">📤 Left School - Student withdrew/left voluntarily</option>
+                <option value="transferred">🔄 Transferred - Student moved to another school</option>
+                <option value="suspended">⏸️ Suspended - Temporary removal from school</option>
+                <option value="expelled">🚫 Expelled - Permanent removal for disciplinary reasons</option>
+                <option value="deceased">💀 Deceased - Student has passed away</option>
+            </select>
+            <p class="form-help">Select the primary reason for this student's exit.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="id_exit_notes">
+                <strong>📝 Additional Notes (Optional)</strong>
+            </label>
+            <textarea id="id_exit_notes" name="exit_notes" class="form-control" rows="3" 
+                placeholder="Enter any additional details about the exit (e.g., destination school for transfers, disciplinary details for expulsion)..."></textarea>
+            <p class="form-help">Provide context that will be useful for records and future reference.</p>
+        </div>
+
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="deactivate_parent" id="id_deactivate_parent">
+                <span>Also deactivate linked parent account (if no other active children)</span>
+            </label>
+            <p class="form-help" style="margin-top: 0.5rem;">
+                {% if student.parent %}
+                    Parent: {{ student.parent.get_full_name|default:student.parent.username }}
+                {% else %}
+                    No parent linked to this student.
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Status Preview -->
+        <div id="status-preview" class="alert" style="display: none; margin: 1rem 0;">
+            <strong id="preview-title"></strong>
+            <p id="preview-message" style="margin: 0.5rem 0 0;"></p>
+        </div>
+
+        <div class="alert alert-warning" style="margin: 1rem 0;">
+            <strong>⚠️ Important Information:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; font-size: 0.9rem;">
+                <li id="preview-login">Student login will be disabled</li>
+                <li id="preview-records">All records will be preserved for historical reference</li>
+                <li>Exit date will be set to today</li>
+                <li>This action can be partially reversed using "Reactivate" option</li>
+            </ul>
+        </div>
+        
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Record Student Exit</button>
+            <a href="{% url cancel_url student.pk %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const exitReasonSelect = document.getElementById('id_exit_reason');
+    const statusPreview = document.getElementById('status-preview');
+    const previewTitle = document.getElementById('preview-title');
+    const previewMessage = document.getElementById('preview-message');
+    const previewLogin = document.getElementById('preview-login');
+    
+    const reasonConfig = {
+        'graduated': {
+            color: 'info',
+            title: '🎓 Graduated',
+            message: 'Student will be marked as "Graduated/Alumni". Login will be disabled. Records preserved.',
+            login: 'Login will be disabled (student becomes alumni)'
+        },
+        'left': {
+            color: 'warning',
+            title: '📤 Left School',
+            message: 'Student will be marked as "Withdrawn". Login will be disabled. Records preserved.',
+            login: 'Login will be disabled'
+        },
+        'transferred': {
+            color: 'info',
+            title: '🔄 Transferred',
+            message: 'Student will be marked as "Withdrawn - Transferred". Login will be disabled. Records preserved.',
+            login: 'Login will be disabled'
+        },
+        'suspended': {
+            color: 'warning',
+            title: '⏸️ Suspended',
+            message: 'Student will be marked as "Suspended". Login will be DISABLED. Suspension can be lifted by reactivating.',
+            login: 'Login will be disabled during suspension'
+        },
+        'expelled': {
+            color: 'error',
+            title: '🚫 Expelled',
+            message: 'Student will be marked as "Dismissed/Expelled". Login will be disabled. This is a permanent status.',
+            login: 'Login will be permanently disabled'
+        },
+        'deceased': {
+            color: 'error',
+            title: '💀 Deceased',
+            message: 'Student will be marked as "Deceased". Login will be disabled. Special flag for records.',
+            login: 'Login will be disabled'
+        }
+    };
+
+    exitReasonSelect.addEventListener('change', function() {
+        const selected = this.value;
+        
+        if (selected && reasonConfig[selected]) {
+            const config = reasonConfig[selected];
+            statusPreview.style.display = 'block';
+            statusPreview.className = 'alert alert-' + config.color;
+            previewTitle.textContent = config.title;
+            previewMessage.textContent = config.message;
+            previewLogin.textContent = config.login;
+        } else {
+            statusPreview.style.display = 'none';
+        }
+    });
+});
+</script>
+
+<style>
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-success { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+.badge-warning { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+.badge-info { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.badge-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+</style>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Graduate Class · Mastex SchoolOS{% endblock %}
+{% block page_title %}Graduate Entire Class{% endblock %}
+{% block page_subtitle %}Quickly graduate all students in a class with one click{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 500px;">
+    <form method="post" class="form">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="id_class_name">Select Class to Graduate</label>
+            <select id="id_class_name" name="class_name" class="form-control" required>
+                <option value="">-- Select a class --</option>
+                {% for class in classes %}
+                <option value="{{ class }}">{{ class }}</option>
+                {% endfor %}
+            </select>
+            <p class="form-help">Only active students in this class will be graduated.</p>
+        </div>
+        
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="deactivate_parents" id="id_deactivate_parents">
+                <span>Deactivate parent accounts (if they have no other active children)</span>
+            </label>
+        </div>
+        
+        <div class="alert alert-warning" style="margin: 1rem 0;">
+            <strong>⚠️ This will graduate all students in the selected class!</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem;">
+                <li>Set all active students to "Graduated" status</li>
+                <li>Set today's date as the exit date</li>
+                <li>Deactivate all student accounts (they won't be able to log in)</li>
+                <li>Optionally deactivate parent accounts</li>
+            </ul>
+        </div>
+        
+        <div class="alert alert-info" style="margin: 1rem 0;">
+            <strong>Tip:</strong> This is useful at the end of an academic year when an entire 
+            class completes their studies and moves on.
+        </div>
+        
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Graduate Class</button>
+            <a href="{% url 'students:student_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

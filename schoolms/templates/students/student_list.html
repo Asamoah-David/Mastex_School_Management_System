@@ -11,8 +11,33 @@
 {% block content %}
 <div class="button-row">
     <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register new student</a>
-    <a href="{% url 'operations:export_students' %}?format=csv" class="btn btn-success">📥 CSV</a>
-    <a href="{% url 'operations:export_students' %}?format=excel" class="btn btn-success">📊 Excel</a>
+    <a href="{% url 'students:bulk_student_status' %}" class="btn btn-warning">📊 Bulk Status</a>
+    <a href="{% url 'students:graduate_class' %}" class="btn btn-success">🎓 Graduate Class</a>
+    <a href="{% url 'operations:export_students' %}?format=csv" class="btn btn-info">📥 CSV</a>
+    <a href="{% url 'operations:export_students' %}?format=excel" class="btn btn-info">📊 Excel</a>
+</div>
+
+<!-- Quick Class Actions -->
+<div class="card" style="margin-top: 0.5rem; padding: 1rem;">
+    <h4 style="margin: 0 0 0.75rem 0; color: #9ca3af;">🎯 Quick Class Actions</h4>
+    <div class="button-row" style="flex-wrap: wrap; gap: 0.5rem;">
+        <a href="{% url 'students:bulk_student_status' %}?status=graduated" class="btn btn-success btn-sm">
+            🎓 Graduate Class
+        </a>
+        <a href="{% url 'students:bulk_student_status' %}?status=withdrawn" class="btn btn-warning btn-sm">
+            📤 Withdraw Class
+        </a>
+        <a href="{% url 'students:bulk_student_status' %}?status=dismissed" class="btn btn-danger btn-sm">
+            🚫 Dismiss/Expel Class
+        </a>
+        <a href="{% url 'students:promote_students' %}" class="btn btn-primary btn-sm">
+            📈 Promote Students
+        </a>
+    </div>
+    <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #6b7280;">
+        Click any button above to bulk update ALL students in a class. 
+        Use "Bulk Status" for more options including reactivating students.
+    </p>
 </div>
 
 {% if no_access %}

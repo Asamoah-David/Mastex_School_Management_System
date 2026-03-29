@@ -1,6 +1,6 @@
 """
 QR Code Scanner Views for Attendance
-Teachers can scan student ID cards to mark attendance
+Teachers can scan student and staff ID cards to mark attendance
 """
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -12,9 +12,10 @@ from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 
 from students.models import Student
-from operations.models import StudentAttendance
+from operations.models import StudentAttendance, TeacherAttendance
+from accounts.models import User
 from schools.models import School
-from core.qr_utils import validate_qr_data, generate_student_qr_base64
+from core.qr_utils import validate_qr_data, validate_staff_qr_data, generate_student_qr_base64, generate_staff_qr_base64
 
 
 @login_required
@@ -77,15 +78,18 @@ def qr_attendance_class(request, class_name):
 def qr_mark_attendance(request):
     """
     Mark attendance via QR code scan.
+    Supports both student and staff QR codes.
     Called via AJAX from the scanner page.
     """
     import json
+    from django.utils.dateparse import parse_date
     
     try:
         data = json.loads(request.body)
         qr_data = data.get('qr_data', '')
         attendance_status = data.get('status', 'present')
         attendance_date = data.get('date', timezone.now().date().isoformat())
+        attendance_type = data.get('type', 'student')  # 'student' or 'staff'
         
         school = getattr(request.user, 'school', None)
         if request.user.is_superuser:
@@ -96,64 +100,117 @@ def qr_mark_attendance(request):
         if not school:
             return JsonResponse({'success': False, 'error': 'No school found'}, status=400)
         
-        # Validate QR code
-        parsed = validate_qr_data(qr_data)
-        if not parsed['valid']:
-            return JsonResponse({
-                'success': False, 
-                'error': f"Invalid QR code: {parsed.get('error', 'Unknown error')}"
-            }, status=400)
-        
-        # Find student
-        try:
-            student = Student.objects.select_related('user', 'school').get(
-                id=parsed['student_id'],
-                school=school
-            )
-        except Student.DoesNotExist:
-            return JsonResponse({
-                'success': False, 
-                'error': 'Student not found in this school'
-            }, status=404)
-        
-        # Check if already marked
-        from datetime import datetime
-        from django.utils.dateparse import parse_date
-        
         attendance_date_obj = parse_date(attendance_date)
         
-        existing = StudentAttendance.objects.filter(
-            student=student,
-            date=attendance_date_obj
-        ).first()
+        # Check if it's a staff QR code first
+        if qr_data.startswith('MASEXTICKET:STAFF:'):
+            # Handle staff attendance
+            parsed = validate_staff_qr_data(qr_data)
+            if not parsed['valid']:
+                return JsonResponse({
+                    'success': False, 
+                    'error': f"Invalid staff QR code: {parsed.get('error', 'Unknown error')}"
+                }, status=400)
+            
+            # Find staff member
+            try:
+                staff = User.objects.get(
+                    id=parsed['staff_id'],
+                    school=school
+                )
+            except User.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Staff member not found in this school'
+                }, status=404)
+            
+            # Check if already marked
+            existing = TeacherAttendance.objects.filter(
+                teacher=staff,
+                date=attendance_date_obj
+            ).first()
+            
+            if existing:
+                existing.status = attendance_status
+                existing.marked_by = request.user
+                existing.save()
+                action = 'updated'
+            else:
+                TeacherAttendance.objects.create(
+                    teacher=staff,
+                    date=attendance_date_obj,
+                    status=attendance_status,
+                    marked_by=request.user,
+                    school=school
+                )
+                action = 'created'
+            
+            return JsonResponse({
+                'success': True,
+                'action': action,
+                'type': 'staff',
+                'staff': {
+                    'name': staff.get_full_name() or staff.username,
+                    'username': staff.username,
+                    'role': staff.get_role_display() or staff.role,
+                },
+                'status': attendance_status,
+                'message': f"Staff attendance marked as {attendance_status}!"
+            })
         
-        if existing:
-            # Update existing record
-            existing.status = attendance_status
-            existing.marked_by = request.user
-            existing.save()
-            action = 'updated'
         else:
-            # Create new record
-            StudentAttendance.objects.create(
+            # Handle student attendance (original logic)
+            parsed = validate_qr_data(qr_data)
+            if not parsed['valid']:
+                return JsonResponse({
+                    'success': False, 
+                    'error': f"Invalid QR code: {parsed.get('error', 'Unknown error')}"
+                }, status=400)
+            
+            # Find student
+            try:
+                student = Student.objects.select_related('user', 'school').get(
+                    id=parsed['student_id'],
+                    school=school
+                )
+            except Student.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Student not found in this school'
+                }, status=404)
+            
+            # Check if already marked
+            existing = StudentAttendance.objects.filter(
                 student=student,
-                date=attendance_date_obj,
-                status=attendance_status,
-                marked_by=request.user
-            )
-            action = 'created'
-        
-        return JsonResponse({
-            'success': True,
-            'action': action,
-            'student': {
-                'name': student.user.get_full_name() or student.user.username,
-                'admission_number': student.admission_number,
-                'class_name': student.class_name,
-            },
-            'status': attendance_status,
-            'message': f"Attendance marked as {attendance_status}!"
-        })
+                date=attendance_date_obj
+            ).first()
+            
+            if existing:
+                existing.status = attendance_status
+                existing.marked_by = request.user
+                existing.save()
+                action = 'updated'
+            else:
+                StudentAttendance.objects.create(
+                    student=student,
+                    date=attendance_date_obj,
+                    status=attendance_status,
+                    marked_by=request.user
+                )
+                action = 'created'
+            
+            return JsonResponse({
+                'success': True,
+                'action': action,
+                'type': 'student',
+                'student': {
+                    'name': student.user.get_full_name() or student.user.username,
+                    'admission_number': student.admission_number,
+                    'class_name': student.class_name,
+                },
+                'status': attendance_status,
+                'message': f"Attendance marked as {attendance_status}!"
+            })
         
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)

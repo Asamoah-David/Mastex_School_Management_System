@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Bulk Student Status · Mastex SchoolOS{% endblock %}
+{% block page_title %}Bulk Student Status Update{% endblock %}
+{% block page_subtitle %}Update status for an entire class at once{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px;">
+    <form method="post" class="form">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="id_class_name">Select Class</label>
+            <select id="id_class_name" name="class_name" class="form-control" required>
+                <option value="">-- Select a class --</option>
+                {% for class in classes %}
+                <option value="{{ class }}">{{ class }}</option>
+                {% endfor %}
+            </select>
+            <p class="form-help">This will affect all ACTIVE students in the selected class.</p>
+        </div>
+        
+        <div class="form-group">
+            <label for="id_status">New Status</label>
+            <select id="id_status" name="status" class="form-control" required>
+                <option value="">-- Select status --</option>
+                <option value="graduated" {% if preselected_status == 'graduated' %}selected{% endif %}>🎓 Graduated / Alumni</option>
+                <option value="withdrawn" {% if preselected_status == 'withdrawn' %}selected{% endif %}>📤 Withdrawn / Transferred</option>
+                <option value="dismissed" {% if preselected_status == 'dismissed' %}selected{% endif %}>🚫 Dismissed / Expelled</option>
+                <option value="active" {% if preselected_status == 'active' %}selected{% endif %}>✅ Reactivate (Set to Active)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="deactivate_parent" id="id_deactivate_parent">
+                <span>Also deactivate linked parent accounts (if they have no other active children)</span>
+            </label>
+            <p class="form-help" style="margin-top: 0.5rem;">
+                When enabled, parent accounts will be automatically deactivated if all their children 
+                are being graduated, withdrawn, or dismissed.
+            </p>
+        </div>
+        
+        <div class="alert alert-warning" style="margin: 1rem 0;">
+            <strong>Warning:</strong> This action will:
+            <ul style="margin: 0.5rem 0 0 1.5rem;">
+                <li>Update the status of ALL active students in the selected class</li>
+                <li>Set the exit date to today for all affected students</li>
+                <li>Deactivate all affected student user accounts (they won't be able to log in)</li>
+                <li>Optionally deactivate linked parent accounts</li>
+            </ul>
+            <p style="margin-top: 0.5rem;">This action CAN be reversed using the "Reactivate" option.</p>
+        </div>
+        
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Update Student Status</button>
+            <a href="{% url 'students:student_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

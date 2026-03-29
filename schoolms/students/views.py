@@ -663,10 +663,8 @@ def student_register(request):
 @login_required
 def student_delete(request, pk):
     """
-    Deactivate a student instead of hard-deleting.
-
-    - Marks the linked user as inactive so they cannot log in.
-    - Updates the student's status and exit_date so history is preserved.
+    Archive/Deactivate a student instead of hard-deleting.
+    This shows the exit form with reason selection.
     """
     if not _user_can_manage_school(request):
         return redirect("home")
@@ -676,31 +674,87 @@ def student_delete(request, pk):
     
     student = get_object_or_404(Student, pk=pk, school=school)
     
+    return render(request, "students/student_exit.html", {
+        "student": student,
+        "cancel_url": "students:student_detail"
+    })
+
+
+@login_required
+def student_exit(request, pk):
+    """
+    Process student exit with specific reason - allows graduating, withdrawing,
+    suspending, or dismissing an individual student.
+    """
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    student = get_object_or_404(Student, pk=pk, school=school)
+    
     if request.method == "POST":
-        user = student.user
-
-        # Mark student as no longer active in the school
-        if student.status == "active":
-            student.status = "withdrawn"
-        if not student.exit_date:
-            student.exit_date = timezone.now().date()
+        exit_reason = request.POST.get("exit_reason", "").strip()
+        exit_notes = request.POST.get("exit_notes", "").strip()
+        deactivate_parent = request.POST.get("deactivate_parent") == "on"
+        
+        # Map exit reason to status
+        status_map = {
+            "graduated": "graduated",
+            "left": "withdrawn",
+            "transferred": "withdrawn",
+            "suspended": "suspended",
+            "expelled": "dismissed",
+            "deceased": "deceased",
+        }
+        
+        new_status = status_map.get(exit_reason, "withdrawn")
+        
+        if exit_reason not in status_map:
+            messages.error(request, "Please select a valid exit reason.")
+            return redirect("students:student_exit", pk=pk)
+        
+        # Update student status
+        student.status = new_status
+        student.exit_date = timezone.now().date()
+        student.exit_reason = exit_reason
+        if exit_notes:
+            student.exit_notes = exit_notes
         student.save()
-
-        # Deactivate login without deleting history
-        user.is_active = False
-        user.save(update_fields=["is_active"])
-
+        
+        # Deactivate student user account (except for suspended)
+        if new_status != "suspended" and student.user:
+            student.user.is_active = False
+            student.user.save(update_fields=["is_active"])
+        
+        # Optionally deactivate linked parent
+        if deactivate_parent and student.parent:
+            parent = student.parent
+            other_active = Student.objects.filter(
+                parent=parent, 
+                status="active",
+                school=school
+            ).exclude(pk=student.pk).exists()
+            
+            if not other_active:
+                parent.is_active = False
+                parent.save(update_fields=["is_active"])
+        
+        status_display = dict(Student.STATUS_CHOICES).get(new_status, new_status)
         messages.success(
             request,
-            f"Student '{user.get_full_name() or user.username}' has been deactivated and archived. "
-            "They can no longer log into the system, but their records are kept.",
+            f"Student '{student.user.get_full_name() or student.user.username}' has been marked as {status_display}. "
+            f"Exit reason: {exit_reason}. Records preserved.",
         )
+        
+        log_activity(request.user, "STUDENT_EXIT", f"Student {student.id} exited: {exit_reason}")
         return redirect("students:student_detail", pk=student.pk)
     
-    return render(request, "students/confirm_delete.html", {
-        "object": student,
-        "type": "student (deactivation)",
-        "cancel_url": "students:student_list"
+    return render(request, "students/student_exit.html", {
+        "student": student,
+        "cancel_url": "students:student_detail"
     })
 
 
@@ -1014,4 +1068,167 @@ def absence_request_decide(request, pk, decision):
 
     messages.success(request, f"Absence request has been {absence_request.status}.")
     return redirect("students:absence_requests_review")
-from core.utils import log_activity 
+
+
+@login_required
+def bulk_student_status(request):
+    """
+    Bulk update student status by class - allows graduating, withdrawing, 
+    or dismissing an entire class at once.
+    
+    Supports ?status= query parameter to pre-select a status (e.g., ?status=graduated).
+    """
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    # Check for pre-selected status via query param
+    preselected_status = request.GET.get("status", "")
+    if preselected_status and preselected_status not in ["graduated", "withdrawn", "dismissed", "active"]:
+        preselected_status = ""
+    
+    if request.method == "POST":
+        class_name = request.POST.get("class_name", "").strip()
+        new_status = request.POST.get("status", "").strip()
+        deactivate_parent = request.POST.get("deactivate_parent") == "on"
+        
+        if not class_name or new_status not in ["graduated", "withdrawn", "dismissed", "active"]:
+            messages.error(request, "Please select a valid class and status.")
+            return redirect("students:bulk_student_status")
+        
+        # Get all active students in this class
+        students = Student.objects.filter(school=school, class_name=class_name, status="active")
+        
+        if not students.exists():
+            messages.warning(request, f"No active students found in class {class_name}.")
+            return redirect("students:student_list")
+        
+        updated_count = 0
+        parents_deactivated = 0
+        
+        for student in students:
+            # Update student status
+            student.status = new_status
+            student.exit_date = timezone.now().date()
+            student.save()
+            
+            # Deactivate student user account
+            if student.user:
+                student.user.is_active = False
+                student.user.save(update_fields=["is_active"])
+            
+            # Optionally deactivate linked parent
+            if deactivate_parent and student.parent:
+                parent = student.parent
+                # Check if this parent has other active students
+                other_active = Student.objects.filter(
+                    parent=parent, 
+                    status="active",
+                    school=school
+                ).exclude(pk=student.pk).exists()
+                
+                if not other_active:
+                    parent.is_active = False
+                    parent.save(update_fields=["is_active"])
+                    parents_deactivated += 1
+            
+            updated_count += 1
+        
+        status_display = dict(Student.STATUS_CHOICES).get(new_status, new_status)
+        msg = f"Successfully updated {updated_count} students in {class_name} to '{status_display}'."
+        if deactivate_parent and parents_deactivated > 0:
+            msg += f" Also deactivated {parents_deactivated} parent account(s)."
+        
+        messages.success(request, msg)
+        log_activity(request.user, "BULK_STUDENT_STATUS", f"Updated {updated_count} students to {new_status}")
+        return redirect("students:student_list")
+    
+    # Get all classes for this school (only those with students)
+    classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
+    classes = [c for c in classes if c]
+    
+    return render(request, "students/bulk_status.html", {
+        "school": school,
+        "classes": classes,
+        "preselected_status": preselected_status,
+    })
+
+
+@login_required
+def graduate_class(request):
+    """
+    One-click graduation for an entire class - sets status to 'graduated',
+    sets exit date, and optionally deactivates parents.
+    """
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    if request.method == "POST":
+        class_name = request.POST.get("class_name", "").strip()
+        deactivate_parents = request.POST.get("deactivate_parents") == "on"
+        
+        if not class_name:
+            messages.error(request, "Please select a class.")
+            return redirect("students:graduate_class")
+        
+        students = Student.objects.filter(school=school, class_name=class_name, status="active")
+        
+        if not students.exists():
+            messages.warning(request, f"No active students found in class {class_name}.")
+            return redirect("students:student_list")
+        
+        # Update all students to graduated
+        students.update(status="graduated", exit_date=timezone.now().date())
+        
+        # Get updated students for parent deactivation
+        students = Student.objects.filter(school=school, class_name=class_name)
+        
+        parents_deactivated = 0
+        if deactivate_parents:
+            for student in students:
+                if student.parent:
+                    parent = student.parent
+                    other_active = Student.objects.filter(
+                        parent=parent,
+                        status="active",
+                        school=school
+                    ).exclude(pk=student.pk).exists()
+                    
+                    if not other_active:
+                        parent.is_active = False
+                        parent.save(update_fields=["is_active"])
+                        parents_deactivated += 1
+        
+        # Deactivate all student user accounts
+        for student in students:
+            if student.user:
+                student.user.is_active = False
+                student.user.save(update_fields=["is_active"])
+        
+        count = students.count()
+        msg = f"Successfully graduated {count} students from class {class_name}."
+        if deactivate_parents and parents_deactivated > 0:
+            msg += f" Also deactivated {parents_deactivated} parent account(s)."
+        
+        messages.success(request, msg)
+        log_activity(request.user, "GRADUATE_CLASS", f"Graduated {count} students from {class_name}")
+        return redirect("students:student_list")
+    
+    # Get classes for the form
+    classes = Student.objects.filter(school=school, status="active").values_list('class_name', flat=True).distinct()
+    classes = [c for c in classes if c]
+    
+    return render(request, "students/graduate_class.html", {
+        "school": school,
+        "classes": classes,
+    })
+
+
+from core.utils import log_activity

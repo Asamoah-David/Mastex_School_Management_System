@@ -130,6 +130,14 @@
         </a>
         {% endif %}
 
+        <a href="{% url 'students:graduate_class' %}" class="quick-action-btn">
+            <span class="quick-action-icon">🎓</span>
+            <span class="quick-action-label">Graduate Class</span>
+        </a>
+        <a href="{% url 'students:bulk_student_status' %}" class="quick-action-btn">
+            <span class="quick-action-icon">📊</span>
+            <span class="quick-action-label">Bulk Status</span>
+        </a>
         <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
             <span class="quick-action-icon">📈</span>
             <span class="quick-action-label">Promote</span>

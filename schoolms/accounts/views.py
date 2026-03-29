@@ -149,15 +149,30 @@ def edit_profile(request):
         last_name = (request.POST.get("last_name") or "").strip()
         email = (request.POST.get("email") or "").strip()
         phone = (request.POST.get("phone") or "").strip()
+        remove_photo = request.POST.get("remove_profile_photo") == "1"
+        
+        # Handle profile photo upload
+        profile_photo = request.FILES.get("profile_photo")
 
         if email and User.objects.exclude(pk=user.pk).filter(email=email).exists():
             messages.error(request, "That email is already in use.")
         else:
+            # Handle photo removal
+            if remove_photo and user.profile_photo:
+                user.profile_photo.delete(save=True)
+            
+            # Handle new photo upload
+            if profile_photo:
+                # Delete old photo if exists
+                if user.profile_photo:
+                    user.profile_photo.delete(save=False)
+                user.profile_photo = profile_photo
+            
             user.first_name = first_name
             user.last_name = last_name
             user.email = email
             user.phone = phone or None
-            user.save(update_fields=["first_name", "last_name", "email", "phone"])
+            user.save(update_fields=["first_name", "last_name", "email", "phone", "profile_photo"])
             messages.success(request, "Profile updated.")
             return redirect("accounts:profile")
 

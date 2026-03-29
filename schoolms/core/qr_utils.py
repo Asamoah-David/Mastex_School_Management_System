@@ -121,3 +121,57 @@ def generate_student_qr_base64(student):
     """
     data = generate_student_qr_data(student)
     return generate_qr_code_base64(data)
+
+
+def generate_staff_qr_data(user):
+    """
+    Generate QR code data string for staff/teachers.
+    Contains user ID and staff ID for quick lookup.
+    """
+    return f"MASEXTICKET:STAFF:{user.id}:{user.username}"
+
+
+def generate_staff_qr_base64(user):
+    """
+    Generate QR code for a staff member and return as base64.
+    
+    Args:
+        user: User model instance (staff/teacher)
+    
+    Returns:
+        Base64 encoded PNG image string
+    """
+    data = generate_staff_qr_data(user)
+    return generate_qr_code_base64(data)
+
+
+def validate_staff_qr_data(data):
+    """
+    Validate and parse staff QR code data.
+    
+    Args:
+        data: QR code string data
+    
+    Returns:
+        Dict with validation result and staff info
+    """
+    if not data:
+        return {'valid': False, 'error': 'Empty data'}
+    
+    if not data.startswith('MASEXTICKET:STAFF:'):
+        return {'valid': False, 'error': 'Invalid QR code format'}
+    
+    try:
+        parts = data.split(':')
+        if len(parts) != 4:
+            return {'valid': False, 'error': 'Invalid QR code structure'}
+        
+        _, _, staff_id, username = parts
+        
+        return {
+            'valid': True,
+            'staff_id': int(staff_id),
+            'username': username
+        }
+    except (ValueError, IndexError) as e:
+        return {'valid': False, 'error': str(e)}

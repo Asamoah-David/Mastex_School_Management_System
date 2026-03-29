@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load qr_utils %}
 
 {% block title %}Print Staff ID Card - {{ id_card.staff.get_full_name }}{% endblock %}
 
@@ -7,7 +8,12 @@
 <div class="content-card" style="display: flex; flex-direction: column; align-items: center; padding: 2rem;">
     <h2 style="margin-bottom: 1.5rem;">🪪 Staff ID Card Preview</h2>
     
-    <div class="id-card" style="border: 3px solid #059669; border-radius: 16px; padding: 0; width: 400px; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden;">
+    <div class="id-card" style="border: 3px solid #059669; border-radius: 16px; padding: 0; width: 400px; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden; position: relative;">
+        <!-- QR Code Section -->
+        <div style="position: absolute; top: 10px; right: 10px; text-align: center;">
+            <img src="data:image/png;base64,{% generate_staff_qr_base64 id_card.staff %}" alt="QR Code" style="width: 70px; height: 70px;">
+            <p style="margin: 2px 0 0; font-size: 8px; color: #64748b; font-weight: 600;">FOR ATTENDANCE</p>
+        </div>
         <!-- Header with School Name -->
         <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; padding: 15px 20px; text-align: center;">
             <h3 style="margin: 0; font-size: 18px; font-weight: 700;">{{ school.name|default:"SCHOOL NAME" }}</h3>
@@ -19,7 +25,9 @@
             <!-- Photo and Basic Info Row -->
             <div style="display: flex; gap: 15px; margin-bottom: 15px;">
                 <div style="flex-shrink: 0;">
-                    {% if id_card.staff.profile_photo %}
+                    {% if id_card.photo %}
+                    <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #d1fae5; border-radius: 8px;">
+                    {% elif id_card.staff.profile_photo %}
                     <img src="{{ id_card.staff.profile_photo.url }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #d1fae5; border-radius: 8px;">
                     {% else %}
                     <div style="width: 100px; height: 120px; background: #ecfdf5; display: flex; align-items: center; justify-content: center; border: 2px dashed #a7f3d0; border-radius: 8px;">
