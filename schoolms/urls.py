@@ -41,6 +41,8 @@ urlpatterns = [
     path("notifications/", include("notifications.urls")),
 ]
 
-# Serve media files in all environments (production and development)
-# This ensures uploaded files (profile photos, ID cards, etc.) are accessible
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve media files in development only
+# In production, media files are served via Django if local, or via external URLs (Supabase)
+# We only serve actual file paths, not URLs starting with http
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
