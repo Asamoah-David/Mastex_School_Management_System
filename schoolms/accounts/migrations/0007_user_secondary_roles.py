@@ -1,4 +1,4 @@
-# Generated manually for secondary roles M2M field
+# Updated migration for secondary roles as TextField
 
 from django.db import migrations, models
 
@@ -13,11 +13,26 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='user',
             name='secondary_roles',
-            field=models.ManyToManyField(
+            field=models.TextField(
                 blank=True,
-                related_name='primary_role_of',
-                symmetrical=False,
-                to='accounts.user'
+                default='',
+                help_text='Comma-separated list of secondary role values'
             ),
+        ),
+        # Also add login rate limiting fields at the same step
+        migrations.AddField(
+            model_name='user',
+            name='failed_login_attempts',
+            field=models.PositiveIntegerField(default=0),
+        ),
+        migrations.AddField(
+            model_name='user',
+            name='last_failed_login',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name='user',
+            name='lockout_until',
+            field=models.DateTimeField(blank=True, null=True),
         ),
     ]
