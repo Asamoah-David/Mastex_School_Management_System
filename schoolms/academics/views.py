@@ -329,7 +329,7 @@ def results_management(request):
     if school:
         recent_results = Result.objects.filter(
             student__school=school
-        ).select_related('student', 'student__user', 'subject').order_by('-created_at')[:10]
+        ).select_related('student', 'student__user', 'subject').order_by('-id')[:10]
     
     context = {
         'school': school,
@@ -1392,12 +1392,12 @@ def quiz_list(request):
     
     if can_manage:
         # Staff: see all quizzes
-        quizzes = Quiz.objects.filter(school=school).select_related('subject', 'created_by').order_by('-created_at')
+        quizzes = Quiz.objects.filter(school=school).select_related('subject', 'created_by').order_by('-id')
     elif role == "student":
         # Students: see quizzes for their class
         student = Student.objects.filter(user=request.user, school=school).first()
         if student and student.class_name:
-            quizzes = Quiz.objects.filter(school=school, class_name=student.class_name, is_active=True).order_by('-created_at')
+            quizzes = Quiz.objects.filter(school=school, class_name=student.class_name, is_active=True).order_by('-id')
         else:
             quizzes = Quiz.objects.none()
     else:
