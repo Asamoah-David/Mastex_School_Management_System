@@ -41,6 +41,6 @@ urlpatterns = [
     path("notifications/", include("notifications.urls")),
 ]
 
-# Serve media files in development
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve media files in all environments (production and development)
+# This ensures uploaded files (profile photos, ID cards, etc.) are accessible
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
