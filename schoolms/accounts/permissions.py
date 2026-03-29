@@ -19,9 +19,9 @@ def is_school_admin(user):
     """Headteacher/School Admin - Full management access"""
     if getattr(user, "role", None) == "school_admin":
         return True
-    # Check secondary roles
-    if hasattr(user, 'secondary_roles'):
-        return user.secondary_roles.filter(role__in=("school_admin",)).exists()
+    # Check secondary roles (for users with school_admin as a secondary role)
+    if hasattr(user, 'has_role'):
+        return user.has_role("school_admin")
     return False
 
 
@@ -197,6 +197,9 @@ def can_manage_finance(user):
         return True
     if getattr(user, "role", None) in ("accountant",):
         return True
+    # Check secondary roles
+    if hasattr(user, 'has_role') and user.has_role("accountant"):
+        return True
     return False
 
 
@@ -207,6 +210,9 @@ def can_manage_library(user):
     if is_super_admin(user) or is_school_admin(user):
         return True
     if getattr(user, "role", None) in ("librarian",):
+        return True
+    # Check secondary roles
+    if hasattr(user, 'has_role') and user.has_role("librarian"):
         return True
     return False
 
@@ -219,6 +225,9 @@ def can_manage_admissions(user):
         return True
     if getattr(user, "role", None) in ("admission_officer",):
         return True
+    # Check secondary roles
+    if hasattr(user, 'has_role') and user.has_role("admission_officer"):
+        return True
     return False
 
 
@@ -230,6 +239,9 @@ def can_manage_health(user):
         return True
     if getattr(user, "role", None) in ("school_nurse",):
         return True
+    # Check secondary roles
+    if hasattr(user, 'has_role') and user.has_role("school_nurse"):
+        return True
     return False
 
 
@@ -240,6 +252,9 @@ def can_manage_inventory(user):
     if is_super_admin(user) or is_school_admin(user):
         return True
     if getattr(user, "role", None) in ("admin_assistant",):
+        return True
+    # Check secondary roles
+    if hasattr(user, 'has_role') and user.has_role("admin_assistant"):
         return True
     return False
 
