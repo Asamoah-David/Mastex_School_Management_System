@@ -317,6 +317,27 @@ def _ensure_core_academics_for_school(school):
 
 
 @login_required
+def results_management(request):
+    """Results Management Hub - consolidated results entry page."""
+    school = _get_school(request)
+    
+    # Get recent results for activity display
+    from academics.models import Result
+    from django.contrib.auth import get_user_model
+    
+    recent_results = []
+    if school:
+        recent_results = Result.objects.filter(
+            student__school=school
+        ).select_related('student', 'student__user', 'subject').order_by('-created_at')[:10]
+    
+    context = {
+        'school': school,
+        'recent_results': recent_results,
+    }
+    return render(request, 'academics/results_management.html', context)
+
+@login_required
 def result_upload(request):
     """Upload student results - for teachers and school admins.
 

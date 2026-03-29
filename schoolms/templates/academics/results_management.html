@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Results Management - {{ school.name }}{% endblock %}
+{% block page_title %}📝 Results Management{% endblock %}
+{% block page_subtitle %}Enter, manage and export student exam results{% endblock %}
+
+{% block content %}
+<div class="content-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    
+    {# CA Score Upload #}
+    <div class="metric-card" style="background: linear-gradient(135deg, #22c55e, #16a34a); padding: 1.5rem; border-radius: 1rem; color: white;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📝</div>
+        <h3 style="margin: 0 0 0.5rem 0;">CA Scores</h3>
+        <p style="margin: 0 0 1rem 0; opacity: 0.9; font-size: 0.9rem;">Upload continuous assessment scores for assignments, classwork, and quizzes.</p>
+        <a href="{% url 'academics:assessment_score_upload' %}" class="btn" style="background: white; color: #16a34a; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600;">
+            Upload CA Scores →
+        </a>
+    </div>
+    
+    {# Exam Score Upload #}
+    <div class="metric-card" style="background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 1.5rem; border-radius: 1rem; color: white;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📋</div>
+        <h3 style="margin: 0 0 0.5rem 0;">Exam Scores</h3>
+        <p style="margin: 0 0 1rem 0; opacity: 0.9; font-size: 0.9rem;">Upload midterm and final exam scores for all subjects.</p>
+        <a href="{% url 'academics:exam_score_upload' %}" class="btn" style="background: white; color: #2563eb; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600;">
+            Upload Exam Scores →
+        </a>
+    </div>
+    
+    {# Online Exam Results #}
+    <div class="metric-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 1.5rem; border-radius: 1rem; color: white;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">💻</div>
+        <h3 style="margin: 0 0 0.5rem 0;">Online Exams</h3>
+        <p style="margin: 0 0 1rem 0; opacity: 0.9; font-size: 0.9rem;">View and export results from online/automated exams.</p>
+        <a href="{% url 'operations:online_exam_results' %}" class="btn" style="background: white; color: #7c3aed; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600;">
+            View Online Results →
+        </a>
+    </div>
+    
+    {# Results Upload #}
+    <div class="metric-card" style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 1.5rem; border-radius: 1rem; color: white;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📤</div>
+        <h3 style="margin: 0 0 0.5rem 0;">Bulk Upload</h3>
+        <p style="margin: 0 0 1rem 0; opacity: 0.9; font-size: 0.9rem;">Upload results via CSV or Excel file for multiple students.</p>
+        <a href="{% url 'academics:result_upload' %}" class="btn" style="background: white; color: #d97706; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600;">
+            Upload Results CSV →
+        </a>
+    </div>
+    
+</div>
+
+<div class="content-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    
+    {# View Results #}
+    <div class="metric-card" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); padding: 1.5rem; border-radius: 1rem;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+        <h3 style="margin: 0 0 0.5rem 0; color: #e5e7eb;">All Results</h3>
+        <p style="margin: 0 0 1rem 0; color: #9ca3af; font-size: 0.9rem;">View and manage all student results by class and term.</p>
+        <a href="{% url 'academics:result_list' %}" class="btn btn-secondary">View All Results →</a>
+    </div>
+    
+    {# Report Card #}
+    <div class="metric-card" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); padding: 1.5rem; border-radius: 1rem;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎓</div>
+        <h3 style="margin: 0 0 0.5rem 0; color: #e5e7eb;">Report Cards</h3>
+        <p style="margin: 0 0 1rem 0; color: #9ca3af; font-size: 0.9rem;">Generate and view student report cards with grades.</p>
+        <a href="{% url 'academics:enhanced_report_card' student_id=0 %}" class="btn btn-secondary">Generate Report Card →</a>
+    </div>
+    
+    {# Class Rankings #}
+    <div class="metric-card" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); padding: 1.5rem; border-radius: 1rem;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏆</div>
+        <h3 style="margin: 0 0 0.5rem 0; color: #e5e7eb;">Class Rankings</h3>
+        <p style="margin: 0 0 1rem 0; color: #9ca3af; font-size: 0.9rem;">View student rankings and position by class and term.</p>
+        <a href="{% url 'academics:class_rankings' %}" class="btn btn-secondary">View Rankings →</a>
+    </div>
+    
+    {# Grading Policy #}
+    <div class="metric-card" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); padding: 1.5rem; border-radius: 1rem;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📐</div>
+        <h3 style="margin: 0 0 0.5rem 0; color: #e5e7eb;">Grading Policy</h3>
+        <p style="margin: 0 0 1rem 0; color: #9ca3af; font-size: 0.9rem;">Configure grading scales and grade boundaries.</p>
+        <a href="{% url 'academics:grading_policy' %}" class="btn btn-secondary">Manage Grading →</a>
+    </div>
+    
+</div>
+
+{# Quick Stats #}
+{% if recent_results %}
+<div class="content-card" style="margin-top: 2rem;">
+    <h3 style="margin: 0 0 1rem 0;">📈 Recent Activity</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Subject</th>
+                <th>Score</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in recent_results %}
+            <tr>
+                <td>{{ result.student.user.get_full_name|default:result.student.user.username }}</td>
+                <td>{{ result.subject.name }}</td>
+                <td>{{ result.score }}</td>
+                <td>{{ result.created_at|date:"M d, Y" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}

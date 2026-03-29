@@ -66,11 +66,17 @@
                 <p><strong>Total Marks:</strong> {{ selected_exam.total_marks }}</p>
                 <p><strong>Passing Marks:</strong> {{ selected_exam.passing_marks }}</p>
             </div>
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                 {% if attempts %}
-                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}" class="btn btn-primary" style="margin-bottom: 0.5rem;">
-                    📥 Export Results (CSV)
+                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}" class="btn btn-primary">
+                    📥 Export CSV
                 </a>
+                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}?format=excel" class="btn btn-success">
+                    📊 Export Excel
+                </a>
+                <button onclick="window.print()" class="btn btn-secondary">
+                    🖨️ Print Results
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -125,13 +131,35 @@
         </tbody>
     </table>
     
+    {# Class Statistics Summary #}
     <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem;">
-        <p style="margin: 0;"><strong>Summary:</strong></p>
-        <p style="margin: 0.5rem 0 0 0;">
-            Total Students: {{ attempts.count }} | 
-            Passed: {{ passed_count }} | 
-            Failed: {{ failed_count }}
-        </p>
+        <h4 style="margin: 0 0 1rem 0; color: #22c55e;">📊 Class Statistics</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+            <div style="background: rgba(34, 197, 94, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #22c55e;">{{ attempts.count }}</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Total Students</div>
+            </div>
+            <div style="background: rgba(16, 185, 129, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #10b981;">{{ passed_count }}</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Passed</div>
+            </div>
+            <div style="background: rgba(239, 68, 68, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #ef4444;">{{ failed_count }}</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Failed</div>
+            </div>
+            <div style="background: rgba(59, 130, 246, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #3b82f6;">{{ pass_rate|floatformat:1 }}%</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Pass Rate</div>
+            </div>
+            <div style="background: rgba(234, 179, 8, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #eab308;">{{ avg_score|floatformat:1 }}%</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Avg Score</div>
+            </div>
+            <div style="background: rgba(168, 85, 247, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #a855f7;">{{ highest_score }}</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Highest Score</div>
+            </div>
+        </div>
     </div>
     {% else %}
     <div class="empty-state">

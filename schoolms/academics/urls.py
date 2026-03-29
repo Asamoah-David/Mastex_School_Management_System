@@ -8,6 +8,9 @@ from . import timetable_generator
 app_name = "academics"
 
 urlpatterns = [
+    # Results Management Hub
+    path("results/manage/", views.results_management, name="results_management"),
+    
     path("results/upload/", views.result_upload, name="result_upload"),
     path("results/", views.result_list, name="result_list"),
     path("results/<int:pk>/edit/", views.result_edit, name="result_edit"),
