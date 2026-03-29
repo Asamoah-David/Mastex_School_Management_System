@@ -217,7 +217,7 @@ def send_message(request):
             for parent in parents:
                 if message_type == "sms" and parent.phone:
                     try:
-                        send_sms(parent.phone, message)
+                        send_sms(parent.phone, message, school_name=school.name)
                         sent_count += 1
                     except Exception as e:
                         failed_count += 1
@@ -239,7 +239,7 @@ def send_message(request):
             for student in students:
                 if message_type == "sms" and student.user.phone:
                     try:
-                        send_sms(student.user.phone, message)
+                        send_sms(student.user.phone, message, school_name=school.name)
                         sent_count += 1
                     except Exception as e:
                         failed_count += 1
@@ -257,7 +257,7 @@ def send_message(request):
             for teacher in teachers:
                 if message_type == "sms" and teacher.phone:
                     try:
-                        send_sms(teacher.phone, message)
+                        send_sms(teacher.phone, message, school_name=school.name)
                         sent_count += 1
                     except Exception as e:
                         failed_count += 1

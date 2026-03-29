@@ -156,7 +156,7 @@ def send_bulk_sms(request):
             phone = recipient.get('phone', '')
             if phone:
                 try:
-                    result = send_sms(phone, message)
+                    result = send_sms(phone, message, school_name=school.name)
                     if result.get('success'):
                         success_count += 1
                     else:
