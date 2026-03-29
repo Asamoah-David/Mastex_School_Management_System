@@ -218,7 +218,7 @@ def send_message(request):
             for parent in parents:
                 if message_type == "sms" and parent.phone:
                     try:
-                        send_sms(parent.phone, message, school_name=school.name)
+                        send_sms(parent.phone, message)
                         sent_count += 1
                     except Exception as e:
                         failed_count += 1
@@ -240,7 +240,7 @@ def send_message(request):
             for student in students:
                 if message_type == "sms" and student.user.phone:
                     try:
-                        send_sms(student.user.phone, message, school_name=school.name)
+                        send_sms(student.user.phone, message)
                         sent_count += 1
                     except Exception as e:
                         failed_count += 1
@@ -258,7 +258,7 @@ def send_message(request):
             for teacher in teachers:
                 if message_type == "sms" and teacher.phone:
                     try:
-                        send_sms(teacher.phone, message, school_name=school.name)
+                        send_sms(teacher.phone, message)
                         sent_count += 1
                     except Exception as e:
                         failed_count += 1
@@ -431,7 +431,7 @@ def superuser_send_message(request):
             for admin in school_admins:
                 if message_type == "sms" and admin.phone:
                     try:
-                        send_sms(admin.phone, message, school_name=target.name)
+                        send_sms(admin.phone, message)
                         sent_count += 1
                         logger.error(f"[DEBUG] SMS sent to {admin.username} ({admin.phone})")
                     except Exception as e:
