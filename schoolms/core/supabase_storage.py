@@ -14,7 +14,7 @@ class SupabaseStorage:
     
     def __init__(self):
         self.url = getattr(settings, 'SUPABASE_URL', None)
-        self anon_key = getattr(settings, 'SUPABASE_ANON_KEY', None)
+        self.anon_key = getattr(settings, 'SUPABASE_ANON_KEY', None)
         self.bucket = getattr(settings, 'SUPABASE_STORAGE_BUCKET', 'media')
         
     def _get_headers(self):
