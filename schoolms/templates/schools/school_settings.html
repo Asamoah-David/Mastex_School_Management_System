@@ -95,14 +95,26 @@
         </form>
         
         <div style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
-            <h4 style="margin: 0 0 0.5rem 0;">How to get Paystack Subaccount Code:</h4>
+            <h4 style="margin: 0 0 0.5rem 0;">📋 How to get Paystack Subaccount Code:</h4>
             <ol style="margin: 0; padding-left: 1.2rem; color: #666; font-size: 0.85rem;">
                 <li>Sign up at <a href="https://paystack.com" target="_blank">paystack.com</a></li>
-                <li>Complete your merchant KYC verification</li>
+                <li>Complete your merchant KYC verification (required for live payments)</li>
                 <li>Go to Settings → Transfer Receipts</li>
                 <li>Add your bank account details</li>
                 <li>Copy the Subaccount Code (starts with ACCT_)</li>
             </ol>
+        </div>
+        
+        <!-- IMPORTANT: Live Mode Warning -->
+        <div style="margin-top: 1rem; padding: 1rem; background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px;">
+            <h4 style="margin: 0 0 0.5rem 0; color: #dc2626;">⚠️ Important - Activate Live Mode!</h4>
+            <ul style="margin: 0; padding-left: 1.2rem; color: #7f1d1d; font-size: 0.85rem;">
+                <li><strong>Your Paystack account must be in Live Mode</strong> to receive real payments</li>
+                <li>Go to Paystack Dashboard → Settings → API Keys & Webhooks</li>
+                <li>Make sure you're viewing <strong>"Live"</strong> mode (not Test)</li>
+                <li>Your subaccount must show as <strong>"Active"</strong> (not "Pending" or "Test")</li>
+                <li>Without Live Mode, parents can only make test payments - no real money will be received</li>
+            </ul>
         </div>
     </div>
 </div>

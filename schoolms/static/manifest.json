@@ -1,6 +1,6 @@
 {
-  "name": "Mastex SchoolOS",
-  "short_name": "SchoolOS",
+  "name": "MastexEDU",
+  "short_name": "MastexEDU",
   "description": "Modern school management platform",
   "start_url": "/",
   "display": "standalone",
