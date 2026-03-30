@@ -26,8 +26,8 @@ SECRET_KEY = env("SECRET_KEY", "unsafe-local-secret")
 # Force DEBUG=True for local development unless DATABASE_URL is set (production)
 DEBUG = not bool(os.getenv("DATABASE_URL"))
 
-# Always allow localhost and Render; merge with any explicit env values
-_required = {"localhost", "127.0.0.1", ".onrender.com"}
+# Always allow localhost, Render, and Railway; merge with any explicit env values
+_required = {"localhost", "127.0.0.1", ".onrender.com", ".railway.app", ".up.railway.app"}
 _env_hosts = env("ALLOWED_HOSTS", "")
 _extra = {h.strip() for h in _env_hosts.split(",") if h.strip()}
 ALLOWED_HOSTS = sorted(_required | _extra)
