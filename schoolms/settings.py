@@ -27,7 +27,13 @@ SECRET_KEY = env("SECRET_KEY", "unsafe-local-secret")
 DEBUG = not bool(os.getenv("DATABASE_URL"))
 
 # Always allow localhost, Render, and Railway; merge with any explicit env values
-_required = {"localhost", "127.0.0.1", ".onrender.com", ".railway.app", ".up.railway.app"}
+_required = {
+    "localhost", "127.0.0.1", 
+    ".onrender.com", 
+    ".railway.app", ".up.railway.app",
+    "mastexschoolmanagementsystem-staging.up.railway.app",  # Railway staging
+    "mastexschoolmanagementsystem.up.railway.app",  # Railway production
+}
 _env_hosts = env("ALLOWED_HOSTS", "")
 _extra = {h.strip() for h in _env_hosts.split(",") if h.strip()}
 ALLOWED_HOSTS = sorted(_required | _extra)
@@ -46,10 +52,10 @@ INSTALLED_APPS = [
     "accounts",
     "academics",
     "ai_assistant",
+    "audit",  # Audit logging app
     "fees",
     "finance",
     "messaging",
-    # "payments",  # Empty app - disabled to avoid issues
     "schools",
     "services",
     "students",
@@ -123,6 +129,17 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# WhiteNoise configuration for serving compressed static files
+# Helps with "Range Not Satisfiable" errors by properly serving compressed content
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 # Media files (uploads)
 # NOTE: In production (Railway), use a persistent mount for uploaded files
 # Railway ephemeral storage loses uploaded files on redeploy
@@ -154,6 +171,14 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Mastex SchoolOS API",
+    "DESCRIPTION": "School Management System API for Mastex SchoolOS",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 SIMPLE_JWT = {
@@ -248,28 +273,80 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+        "file": {
+            "level": "WARNING",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "app.log",
+            "formatter": "verbose",
         },
     },
     "root": {
-        "handlers": ["console"],
-        "level": "ERROR",
+        "handlers": ["console", "file"],
+        "level": "WARNING",
     },
     "loggers": {
-        "schools": {
+        "django": {
             "handlers": ["console"],
-            "level": "DEBUG",
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "schools": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
             "propagate": False,
         },
         "core": {
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "accounts": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "academics": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "finance": {
+            "handlers": ["console", "file"],
             "level": "INFO",
             "propagate": False,
         },
     },
 }
+
+# Sentry Error Tracking (for production monitoring)
+# Get DSN from: https://sentry.io/organizations/[your-org]/settings/[your-project]/keys/
+SENTRY_DSN = env("SENTRY_DSN", "")
+
+if SENTRY_DSN and not DEBUG:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=0.1,  # Capture 10% of transactions for performance monitoring
+        send_default_pii=False,  # Don't include user IPs or sensitive data
+    )
 
 # Email configuration - uses SendGrid REST API if SENDGRID_API_KEY is set
 EMAIL_BACKEND = env("EMAIL_BACKEND", "core.email_backends.SendGridEmailBackend")

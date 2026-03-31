@@ -15,3 +15,5 @@ paystack
 openpyxl
 qrcode
 Pillow
+sentry-sdk
+drf-spectacular

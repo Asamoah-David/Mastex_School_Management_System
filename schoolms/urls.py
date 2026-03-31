@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.conf.urls import handler404, handler500
 from django.shortcuts import render
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from students.views import portal
 from schools.views import school_register
 from accounts.views import home
@@ -30,6 +31,10 @@ urlpatterns = [
     path("portal/", portal, name="portal"),
     path("api/token/", TokenObtainPairView.as_view()),
     path("api/token/refresh/", TokenRefreshView.as_view()),
+    # API Documentation (DRF Spectacular)
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     path("accounts/", include("accounts.urls")),
     path("", include("django.contrib.auth.urls")),  # Password reset URLs
     path("students/", include("students.urls")),

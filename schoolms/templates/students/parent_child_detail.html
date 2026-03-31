@@ -121,7 +121,7 @@
                 <td>{{ req.date }}</td>
                 <td>{{ req.reason|truncatechars:80 }}</td>
                 <td>{{ req.get_status_display }}</td>
-                <td>{{ req.decided_by.get_full_name|default:req.decided_by.username|default:"—" }}</td>
+                <td>{% if req.decided_by %}{{ req.decided_by.get_full_name|default:req.decided_by.username }}{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
