@@ -55,6 +55,9 @@
             
             <hr>
             <div class="d-flex gap-2">
+                <a href="{% url 'operations:certificate_pdf' certificate.pk %}" class="btn btn-primary" target="_blank">
+                    <i class="fas fa-download"></i> Download PDF
+                </a>
                 {% if can_manage %}
                 <a href="{% url 'operations:certificate_delete' certificate.pk %}" class="btn btn-danger">
                     <i class="fas fa-trash"></i> Delete Certificate

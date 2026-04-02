@@ -7,13 +7,6 @@ from .models import AuditLog
 logger = logging.getLogger(__name__)
 
 
-def get_user_from_request():
-    """Get current user from Django's thread-local storage."""
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
-    return getattr(User, '_cached_user', None)
-
-
 class AuditSignalHandler:
     """Handler for automatic model auditing."""
     
@@ -71,58 +64,20 @@ class AuditSignalHandler:
             logger.error(f"Failed to log audit action: {e}")
 
 
-# Connect to all model saves/deletes for automatic auditing
-def audit_signal_receiver(sender, instance, created, **kwargs):
-    """Signal receiver for model save events."""
-    if not AuditSignalHandler.should_audit(instance):
-        return
-    
-    try:
-        # Get user from current request context if available
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        user = None
-        try:
-            from django.contrib.auth.middleware import get_user
-            from threading import local
-            _thread_locals = local()
-            user = getattr(_thread_locals, 'user', None)
-        except:
-            pass
-        
-        if created:
-            AuditSignalHandler.log_action('create', instance, user=user)
-        else:
-            # Get changes from pre_save signal
-            changes = AuditSignalHandler._original_values.pop(id(instance), {})
-            if changes:
-                AuditSignalHandler.log_action('update', instance, user=user, changes=changes)
-    except Exception as e:
-        logger.error(f"Audit save signal error: {e}")
-
-
-def audit_delete_signal_receiver(sender, instance, **kwargs):
-    """Signal receiver for model delete events."""
-    if not AuditSignalHandler.should_audit(instance):
-        return
-    
+def get_current_user():
+    """Get current user from request context."""
     try:
         from django.contrib.auth import get_user_model
-        User = get_user_model()
-        user = None
-        try:
-            from threading import local
-            _thread_locals = local()
-            user = getattr(_thread_locals, 'user', None)
-        except:
-            pass
-        
-        AuditSignalHandler.log_action('delete', instance, user=user)
-    except Exception as e:
-        logger.error(f"Audit delete signal error: {e}")
+        from threading import local
+        _thread_locals = local()
+        return getattr(_thread_locals, 'user', None)
+    except:
+        return None
 
 
-def audit_pre_save_signal_receiver(sender, instance, **kwargs):
+# CONNECT SIGNALS - These decorators actually connect the functions to Django signals
+@receiver(pre_save)
+def audit_pre_save(sender, instance, **kwargs):
     """Signal receiver to capture original values before save."""
     if not AuditSignalHandler.should_audit(instance):
         return
@@ -148,3 +103,36 @@ def audit_pre_save_signal_receiver(sender, instance, **kwargs):
             pass
         except Exception as e:
             logger.error(f"Audit pre_save signal error: {e}")
+
+
+@receiver(post_save)
+def audit_post_save(sender, instance, created, **kwargs):
+    """Signal receiver for model save events."""
+    if not AuditSignalHandler.should_audit(sender):
+        return
+    
+    try:
+        user = get_current_user()
+        
+        if created:
+            AuditSignalHandler.log_action('create', instance, user=user)
+        else:
+            # Get changes from pre_save signal
+            changes = AuditSignalHandler._original_values.pop(id(instance), {})
+            if changes:
+                AuditSignalHandler.log_action('update', instance, user=user, changes=changes)
+    except Exception as e:
+        logger.error(f"Audit save signal error: {e}")
+
+
+@receiver(post_delete)
+def audit_post_delete(sender, instance, **kwargs):
+    """Signal receiver for model delete events."""
+    if not AuditSignalHandler.should_audit(instance):
+        return
+    
+    try:
+        user = get_current_user()
+        AuditSignalHandler.log_action('delete', instance, user=user)
+    except Exception as e:
+        logger.error(f"Audit delete signal error: {e}")

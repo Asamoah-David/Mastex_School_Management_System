@@ -6,14 +6,19 @@
     <h2>Staff Leave</h2>
     {% if leaves %}
     <table>
-        <thead><tr><th>Staff</th><th>From</th><th>To</th><th>Status</th></tr></thead>
+        <thead><tr><th>Staff</th><th>From</th><th>To</th><th>Reason</th><th>Status</th></tr></thead>
         <tbody>
         {% for leave in leaves %}
         <tr>
             <td>{{ leave.staff.get_full_name }}</td>
             <td>{{ leave.start_date|date }}</td>
             <td>{{ leave.end_date|date }}</td>
-            <td>{{ leave.status|title }}</td>
+            <td>{{ leave.reason|default:"-" }}</td>
+            <td>
+                <span class="badge badge-{% if leave.status == 'approved' %}success{% elif leave.status == 'rejected' %}danger{% else %}warning{% endif %}">
+                    {{ leave.status|title }}
+                </span>
+            </td>
         </tr>
         {% endfor %}
         </tbody>

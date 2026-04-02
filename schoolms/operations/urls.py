@@ -127,6 +127,7 @@ urlpatterns = [
     path("certificates/", views.certificate_list, name="certificate_list"),
     path("certificates/create/", views.certificate_create, name="certificate_create"),
     path("certificates/<int:pk>/", views.certificate_view, name="certificate_view"),
+    path("certificates/<int:pk>/pdf/", views.certificate_pdf, name="certificate_pdf"),
     path("certificates/<int:pk>/delete/", views.certificate_delete, name="certificate_delete"),
     
     # Expense Tracking
@@ -179,6 +180,7 @@ urlpatterns = [
     path("id-cards/<int:pk>/edit/", views.id_card_edit, name="id_card_edit"),
     path("id-cards/<int:pk>/delete/", views.id_card_delete, name="id_card_delete"),
     path("id-cards/<int:pk>/print/", views.id_card_print, name="id_card_print"),
+    path("id-cards/<int:pk>/pdf/", views.id_card_pdf, name="id_card_pdf"),
     path("id-cards/export/zip/", views.id_card_export_zip, name="id_card_export_zip"),
     path("id-cards/export/pdf/", views.id_card_export_pdf, name="id_card_export_pdf"),
     
@@ -188,6 +190,7 @@ urlpatterns = [
     path("staff-id-cards/<int:pk>/edit/", views.staff_id_card_edit, name="staff_id_card_edit"),
     path("staff-id-cards/<int:pk>/delete/", views.staff_id_card_delete, name="staff_id_card_delete"),
     path("staff-id-cards/<int:pk>/print/", views.staff_id_card_print, name="staff_id_card_print"),
+    path("staff-id-cards/<int:pk>/pdf/", views.staff_id_card_pdf, name="staff_id_card_pdf"),
     
     # Sports
     path("sports/", views.sport_list, name="sport_list"),

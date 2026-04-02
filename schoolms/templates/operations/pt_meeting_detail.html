@@ -19,6 +19,10 @@
         <p><strong>Location:</strong> {{ meeting.location }}</p>
         <p><strong>Description:</strong> {{ meeting.description|default:"—" }}</p>
         <p><strong>Booked Slots:</strong> {{ bookings|length }} / {{ meeting.max_slots }}</p>
+        <p><strong>Available Slots:</strong> {{ meeting.max_slots|add:"-"|add:bookings|length }}</p>
+        {% if meeting.max_slots|add:"-"|add:bookings|length == 0 %}
+        <p class="text-danger">⚠️ All slots are fully booked!</p>
+        {% endif %}
     </div>
     
     <h4 style="margin-top: 1.5rem; color: #22c55e;">Bookings</h4>

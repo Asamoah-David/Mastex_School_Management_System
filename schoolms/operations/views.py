@@ -1617,6 +1617,135 @@ def certificate_view(request, pk):
 
 
 @login_required
+def certificate_pdf(request, pk):
+    """Generate PDF certificate for download."""
+    from accounts.permissions import user_can_manage_school
+    from django.http import HttpResponse
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas
+    from io import BytesIO
+    from reportlab.lib.utils import ImageReader
+    
+    school = _get_school(request)
+    
+    certificate = get_object_or_404(Certificate, pk=pk)
+    
+    # Check permission
+    if school and certificate.school != school:
+        return redirect('home')
+    
+    can_view = user_can_manage_school(request.user) or request.user.is_superuser
+    can_view = can_view or (certificate.student and certificate.student.user == request.user)
+    
+    if not can_view:
+        return redirect('home')
+    
+    # Create PDF
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    
+    # Background
+    c.setFillColor(colors.white)
+    c.rect(0, 0, width, height, fill=1)
+    
+    # Border
+    c.setStrokeColor(colors.gold)
+    c.setLineWidth(3)
+    c.rect(20, 20, width - 40, height - 40)
+    
+    # Inner border
+    c.setStrokeColor(colors.darkblue)
+    c.setLineWidth(1)
+    c.rect(30, 30, width - 60, height - 60)
+    
+    # School name header
+    c.setFillColor(colors.darkblue)
+    c.setFont("Helvetica-Bold", 24)
+    school_name = certificate.school.name if certificate.school else "School Management System"
+    c.drawCentredString(width/2, height - 80, school_name)
+    
+    # Certificate title
+    c.setFillColor(colors.gold)
+    c.setFont("Helvetica-Bold", 28)
+    cert_type = certificate.get_certificate_type_display() if hasattr(certificate, 'get_certificate_type_display') else "Certificate"
+    c.drawCentredString(width/2, height - 130, cert_type.upper())
+    
+    # Decorative line
+    c.setStrokeColor(colors.gold)
+    c.setLineWidth(2)
+    c.line(width/2 - 150, height - 145, width/2 + 150, height - 145)
+    
+    # "This is to certify that"
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica", 14)
+    c.drawCentredString(width/2, height - 180, "This is to certify that")
+    
+    # Student name
+    c.setFillColor(colors.darkblue)
+    c.setFont("Helvetica-Bold", 26)
+    student_name = certificate.student.user.get_full_name() if certificate.student and certificate.student.user else "Student"
+    c.drawCentredString(width/2, height - 220, student_name.upper())
+    
+    # Admission number
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica", 12)
+    if certificate.student and certificate.student.admission_number:
+        c.drawCentredString(width/2, height - 245, f"Admission Number: {certificate.student.admission_number}")
+    
+    # Description
+    c.setFont("Helvetica", 12)
+    desc = certificate.description or f"has been awarded this {cert_type}"
+    c.drawCentredString(width/2, height - 280, desc)
+    
+    # Certificate title again
+    c.setFillColor(colors.darkblue)
+    c.setFont("Helvetica-Bold", 18)
+    c.drawCentredString(width/2, height - 310, certificate.title or cert_type)
+    
+    # Academic details
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica", 11)
+    details = []
+    if certificate.academic_year:
+        details.append(f"Academic Year: {certificate.academic_year}")
+    if certificate.term:
+        details.append(f"Term: {certificate.term}")
+    if details:
+        c.drawCentredString(width/2, height - 340, " | ".join(details))
+    
+    # Issued date
+    c.setFont("Helvetica", 11)
+    issued_date = certificate.issued_date.strftime("%B %d, %Y") if certificate.issued_date else ""
+    c.drawCentredString(width/2, height - 365, f"Date Issued: {issued_date}")
+    
+    # Signature area
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(1)
+    c.line(width/2 - 120, 100, width/2 - 20, 100)
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(width/2 - 70, 85, "Principal/Headmaster")
+    
+    c.line(width/2 + 20, 100, width/2 + 120, 100)
+    c.drawCentredString(width/2 + 70, 85, "School Seal")
+    
+    # Certificate ID
+    c.setFillColor(colors.gray)
+    c.setFont("Helvetica", 8)
+    c.drawCentredString(width/2, 40, f"Certificate ID: CERT-{certificate.pk:06d}")
+    
+    c.save()
+    
+    # Return PDF response
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="certificate_{certificate.student.admission_number or certificate.pk}.pdf"'
+    return response
+
+
+@login_required
 def certificate_delete(request, pk):
     """Delete a certificate."""
     from accounts.permissions import user_can_manage_school
@@ -2910,6 +3039,183 @@ def staff_id_card_print(request, pk):
         })
     except:
         return redirect('operations:staff_id_card_list')
+
+
+@login_required
+def id_card_pdf(request, pk):
+    """Generate PDF ID card for student."""
+    from accounts.permissions import user_can_manage_school
+    from django.http import HttpResponse
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib import colors
+    from reportlab.pdfgen import canvas
+    from io import BytesIO
+    
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
+    student = id_card.student
+    
+    # Create PDF
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    
+    # Card dimensions (standard ID card ratio 3.375" x 2.125")
+    card_width = 243  # 3.375 inch in points
+    card_height = 153  # 2.125 inch in points
+    card_x = (width - card_width) / 2
+    card_y = (height - card_height) / 2
+    
+    # Card background
+    c.setFillColor(colors.white)
+    c.rect(card_x, card_y, card_width, card_height, fill=1)
+    
+    # Card border
+    c.setStrokeColor(colors.darkblue)
+    c.setLineWidth(2)
+    c.rect(card_x, card_y, card_width, card_height)
+    
+    # Inner border
+    c.setStrokeColor(colors.gold)
+    c.setLineWidth(1)
+    c.rect(card_x + 5, card_y + 5, card_width - 10, card_height - 10)
+    
+    # School name
+    c.setFillColor(colors.darkblue)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width/2, card_y + card_height - 25, school.name)
+    
+    # "STUDENT ID CARD" text
+    c.setFillColor(colors.gold)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawCentredString(width/2, card_y + card_height - 45, "STUDENT ID CARD")
+    
+    # Student name
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 16)
+    student_name = student.user.get_full_name() if student and student.user else "Student"
+    c.drawCentredString(width/2, card_y + card_height - 75, student_name.upper())
+    
+    # Class
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(width/2, card_y + card_height - 95, f"Class: {student.class_name or 'N/A'}")
+    
+    # Admission number
+    c.drawCentredString(width/2, card_y + card_height - 110, f"Adm No: {student.admission_number or 'N/A'}")
+    
+    # Card number
+    c.setFont("Helvetica", 9)
+    c.drawCentredString(width/2, card_y + card_height - 128, f"Card No: {id_card.card_number}")
+    
+    # Issue and Expiry dates
+    issue_date = id_card.issue_date.strftime("%d/%m/%Y") if id_card.issue_date else "N/A"
+    expiry_date = id_card.expiry_date.strftime("%d/%m/%Y") if id_card.expiry_date else "N/A"
+    c.drawCentredString(width/2, card_y + 15, f"Valid: {issue_date} - {expiry_date}")
+    
+    # Footer
+    c.setFillColor(colors.gray)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(width/2, card_y + 5, "This card is property of the school. Report if found.")
+    
+    c.save()
+    
+    # Return PDF response
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="student_id_card_{student.admission_number or id_card.pk}.pdf"'
+    return response
+
+
+@login_required
+def staff_id_card_pdf(request, pk):
+    """Generate PDF ID card for staff."""
+    from accounts.permissions import user_can_manage_school
+    from django.http import HttpResponse
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib import colors
+    from reportlab.pdfgen import canvas
+    from io import BytesIO
+    
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    
+    try:
+        from .models import StaffIDCard
+        id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
+        staff = id_card.staff
+    except:
+        return redirect('operations:staff_id_card_list')
+    
+    # Create PDF
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    
+    # Card dimensions (standard ID card ratio 3.375" x 2.125")
+    card_width = 243  # 3.375 inch in points
+    card_height = 153  # 2.125 inch in points
+    card_x = (width - card_width) / 2
+    card_y = (height - card_height) / 2
+    
+    # Card background
+    c.setFillColor(colors.white)
+    c.rect(card_x, card_y, card_width, card_height, fill=1)
+    
+    # Card border
+    c.setStrokeColor(colors.darkblue)
+    c.setLineWidth(2)
+    c.rect(card_x, card_y, card_width, card_height)
+    
+    # Inner border
+    c.setStrokeColor(colors.gold)
+    c.setLineWidth(1)
+    c.rect(card_x + 5, card_y + 5, card_width - 10, card_height - 10)
+    
+    # School name
+    c.setFillColor(colors.darkblue)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width/2, card_y + card_height - 25, school.name)
+    
+    # "STAFF ID CARD" text
+    c.setFillColor(colors.gold)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawCentredString(width/2, card_y + card_height - 45, "STAFF ID CARD")
+    
+    # Staff name
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 16)
+    staff_name = staff.get_full_name() if staff else "Staff"
+    c.drawCentredString(width/2, card_y + card_height - 75, staff_name.upper())
+    
+    # Position
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(width/2, card_y + card_height - 95, f"Position: {id_card.position or staff.role.title()}")
+    
+    # Staff ID
+    c.drawCentredString(width/2, card_y + card_height - 110, f"Staff ID: {id_card.card_number}")
+    
+    # Issue and Expiry dates
+    c.setFont("Helvetica", 9)
+    issue_date = id_card.issue_date.strftime("%d/%m/%Y") if id_card.issue_date else "N/A"
+    expiry_date = id_card.expiry_date.strftime("%d/%m/%Y") if id_card.expiry_date else "N/A"
+    c.drawCentredString(width/2, card_y + 15, f"Valid: {issue_date} - {expiry_date}")
+    
+    # Footer
+    c.setFillColor(colors.gray)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(width/2, card_y + 5, "This card is property of the school. Report if found.")
+    
+    c.save()
+    
+    # Return PDF response
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="staff_id_card_{id_card.card_number}.pdf"'
+    return response
 
 
 # ==================== SPORTS & CLUBS ====================

@@ -94,6 +94,7 @@ TEMPLATES = [
             "libraries": {
                 "custom_filters": "templatetags.custom_filters",
                 "feature_flags": "schoolms.templatetags.feature_flags",
+                "qr_utils": "templatetags.qr_utils",
             },
         },
     },

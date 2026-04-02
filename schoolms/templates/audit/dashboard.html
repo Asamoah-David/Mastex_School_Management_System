@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Activity Logs{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-history"></i> Activity Logs
+                    {% if not can_view_all %}
+                        <small class="text-muted">({{ request.user.school.name }})</small>
+                    {% endif %}
+                </h2>
+                <div>
+                    <a href="{% url 'audit:dashboard' %}?export=csv{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="btn btn-success btn-sm">
+                        <i class="fas fa-download"></i> Export CSV
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Filters Sidebar -->
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-filter"></i> Filters</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" action="{% url 'audit:dashboard' %}">
+                        <!-- Search -->
+                        <div class="mb-3">
+                            <label class="form-label">Search</label>
+                            <input type="text" name="q" class="form-control" 
+                                   placeholder="Search object, user..." 
+                                   value="{{ filters.q }}">
+                        </div>
+
+                        <!-- Action Type -->
+                        <div class="mb-3">
+                            <label class="form-label">Action</label>
+                            <select name="action" class="form-select">
+                                <option value="">All Actions</option>
+                                {% for action in action_choices %}
+                                    <option value="{{ action }}" 
+                                            {% if filters.action == action %}selected{% endif %}>
+                                        {{ action|title }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Model Name -->
+                        <div class="mb-3">
+                            <label class="form-label">Model</label>
+                            <input type="text" name="model" class="form-control" 
+                                   placeholder="e.g. Student" 
+                                   value="{{ filters.model }}">
+                        </div>
+
+                        <!-- User -->
+                        <div class="mb-3">
+                            <label class="form-label">User</label>
+                            <input type="text" name="user" class="form-control" 
+                                   placeholder="Username" 
+                                   value="{{ filters.user }}">
+                        </div>
+
+                        <!-- Date Range -->
+                        <div class="mb-3">
+                            <label class="form-label">Date From</label>
+                            <input type="date" name="date_from" class="form-control" 
+                                   value="{{ filters.date_from }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Date To</label>
+                            <input type="date" name="date_to" class="form-control" 
+                                   value="{{ filters.date_to }}">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> Apply Filters
+                        </button>
+                        <a href="{% url 'audit:dashboard' %}" 
+                           class="btn btn-outline-secondary w-100 mt-2">
+                            <i class="fas fa-times"></i> Clear
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="col-md-9">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    {% if page_obj %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>User</th>
+                                        <th>Action</th>
+                                        <th>Model</th>
+                                        <th>Object</th>
+                                        {% if can_view_all %}
+                                            <th>School</th>
+                                        {% endif %}
+                                        <th>IP Address</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for log in page_obj %}
+                                        <tr>
+                                            <td>
+                                                <small>{{ log.timestamp|date:"M d, Y H:i" }}</small>
+                                            </td>
+                                            <td>
+                                                {% if log.user %}
+                                                    <span class="badge bg-secondary">
+                                                        {{ log.user.username }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted">System</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge 
+                                                    {% if log.action == 'create' %}bg-success
+                                                    {% elif log.action == 'update' %}bg-warning
+                                                    {% elif log.action == 'delete' %}bg-danger
+                                                    {% elif log.action == 'login' %}bg-info
+                                                    {% elif log.action == 'logout' %}bg-secondary
+                                                    {% else %}bg-primary{% endif %}">
+                                                    {{ log.action|title }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <code>{{ log.model_name }}</code>
+                                            </td>
+                                            <td>
+                                                {% if log.object_repr %}
+                                                    <small>{{ log.object_repr|truncatechars:30 }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            {% if can_view_all %}
+                                                <td>
+                                                    {% if log.school %}
+                                                        <small>{{ log.school.name }}</small>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                            {% endif %}
+                                            <td>
+                                                {% if log.ip_address %}
+                                                    <small class="text-muted">{{ log.ip_address }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#logModal{{ log.pk }}">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Modal for Log Details -->
+                                        <div class="modal fade" id="logModal{{ log.pk }}" tabindex="-1">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Activity Details</h5>
+                                                        <button type="button" class="btn-close" 
+                                                                data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <table class="table table-sm">
+                                                            <tr>
+                                                                <th>Timestamp:</th>
+                                                                <td>{{ log.timestamp }}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>User:</th>
+                                                                <td>{{ log.user.username|default:"System" }}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>Action:</th>
+                                                                <td>{{ log.action|title }}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>Model:</th>
+                                                                <td>{{ log.model_name }}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>Object ID:</th>
+                                                                <td>{{ log.object_id|default:"-" }}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>Object:</th>
+                                                                <td>{{ log.object_repr|default:"-" }}</td>
+                                                            </tr>
+                                                            {% if can_view_all %}
+                                                                <tr>
+                                                                    <th>School:</th>
+                                                                    <td>{{ log.school.name|default:"-" }}</td>
+                                                                </tr>
+                                                            {% endif %}
+                                                            <tr>
+                                                                <th>IP Address:</th>
+                                                                <td>{{ log.ip_address|default:"-" }}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>User Agent:</th>
+                                                                <td><small>{{ log.user_agent|default:"-" }}</small></td>
+                                                            </tr>
+                                                            {% if log.changes %}
+                                                                <tr>
+                                                                    <th>Changes:</th>
+                                                                    <td>
+                                                                        <pre class="mb-0"><small>{{ log.changes|pprint }}</small></pre>
+                                                                    </td>
+                                                                </tr>
+                                                            {% endif %}
+                                                        </table>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" 
+                                                                data-bs-dismiss="modal">Close</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        {% if page_obj.has_other_pages %}
+                            <nav>
+                                <ul class="pagination justify-content-center">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" 
+                                               href="?page=1{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                                First
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" 
+                                               href="?page={{ page_obj.previous_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                                Previous
+                                            </a>
+                                        </li>
+                                    {% endif %}
+
+                                    <li class="page-item active">
+                                        <span class="page-link">
+                                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                        </span>
+                                    </li>
+
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" 
+                                               href="?page={{ page_obj.next_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                                Next
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" 
+                                               href="?page={{ page_obj.paginator.num_pages }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                                Last
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle"></i> No activity logs found.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

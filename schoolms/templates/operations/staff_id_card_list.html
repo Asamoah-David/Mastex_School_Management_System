@@ -40,6 +40,7 @@
             <td>{{ card.expiry_date|date:"M d, Y"|default:"N/A" }}</td>
             <td>
                 <a href="{% url 'operations:staff_id_card_print' card.pk %}" class="btn btn-sm btn-success">🖨️ Print</a>
+                <a href="{% url 'operations:staff_id_card_pdf' card.pk %}" class="btn btn-sm btn-primary">📥 PDF</a>
                 <a href="{% url 'operations:staff_id_card_edit' card.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                 <a href="{% url 'operations:staff_id_card_delete' card.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this ID card?');">🗑️ Delete</a>
             </td>

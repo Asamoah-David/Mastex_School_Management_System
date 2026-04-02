@@ -52,6 +52,7 @@
             <td>
                 <a href="{% url 'operations:id_card_view' card.pk %}" class="btn btn-sm btn-info">👁️ View</a>
                 <a href="{% url 'operations:id_card_print' card.pk %}" class="btn btn-sm btn-success">🖨️ Print</a>
+                <a href="{% url 'operations:id_card_pdf' card.pk %}" class="btn btn-sm btn-primary">📥 PDF</a>
                 <a href="{% url 'operations:id_card_edit' card.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                 <a href="{% url 'operations:id_card_delete' card.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this ID card?');">🗑️ Delete</a>
             </td>
