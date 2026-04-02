@@ -462,6 +462,64 @@
     <!-- Top Progress Bar -->
     <div id="page-progress"></div>
     
+    <!-- Full Page Splash Screen Loader -->
+    <div id="page-splash" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(2, 6, 23, 0.92);
+        backdrop-filter: blur(8px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s ease, visibility 0.25s ease;
+    ">
+        <div style="
+            width: 64px;
+            height: 64px;
+            border-radius: 1.1rem;
+            background: radial-gradient(circle at 20% 0, #4ade80 0, #22c55e 35%, #16a34a 55%, #0f766e 85%);
+            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3), 0 16px 38px rgba(34, 197, 94, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #022c22;
+            font-size: 1.3rem;
+            margin-bottom: 1.25rem;
+        ">MS</div>
+        <div id="splash-message" style="
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #e5e7eb;
+            letter-spacing: 0.03em;
+            margin-bottom: 1rem;
+        ">Loading...</div>
+        <div style="
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(34, 197, 94, 0.2);
+            border-top-color: #22c55e;
+            border-radius: 50%;
+            animation: splashSpin 0.9s linear infinite;
+        "></div>
+    </div>
+    <style>
+        @keyframes splashSpin {
+            to { transform: rotate(360deg); }
+        }
+        #page-splash.show {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
+    
     <!-- Mobile Sidebar Overlay -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     
@@ -983,99 +1041,166 @@
     });
     </script>
     
-    <!-- TOP PROGRESS BAR - Shows during page loads -->
+    <!-- FULL PAGE SPLASH SCREEN - Shows during navigation, clicks, and loading -->
     <script>
     (function() {
         var progressBar = document.getElementById('page-progress');
-        if (!progressBar) return;
+        var splashScreen = document.getElementById('page-splash');
+        var splashMessage = document.getElementById('splash-message');
+        if (!splashScreen) return;
         
-        var activeRequests = 0;
+        var loadingStartTime = 0;
+        var MIN_LOADING_TIME = 400; // Minimum time to show splash (prevents flash)
         var hideTimer = null;
         
-        function showProgress() {
+        function showSplash(message) {
             if (hideTimer) clearTimeout(hideTimer);
-            progressBar.style.opacity = '1';
-            progressBar.style.width = '85%';
+            if (splashMessage) splashMessage.textContent = message || 'Please wait...';
+            // Remove transition for instant show
+            splashScreen.style.transition = 'none';
+            splashScreen.style.opacity = '1';
+            splashScreen.style.visibility = 'visible';
+            splashScreen.classList.add('show');
+            loadingStartTime = Date.now();
+        }
+        
+        function hideSplash() {
+            var elapsed = Date.now() - loadingStartTime;
+            var remaining = MIN_LOADING_TIME - elapsed;
+            
+            if (remaining > 0) {
+                hideTimer = setTimeout(function() {
+                    doHideSplash();
+                }, remaining);
+            } else {
+                doHideSplash();
+            }
+        }
+        
+        function doHideSplash() {
+            // Add transition back for smooth hide
+            splashScreen.style.transition = 'opacity 0.2s ease, visibility 0.2s ease';
+            splashScreen.style.opacity = '0';
+            splashScreen.style.visibility = 'hidden';
+            splashScreen.classList.remove('show');
+        }
+        
+        function showProgress() {
+            if (progressBar) {
+                progressBar.style.opacity = '1';
+                progressBar.style.width = '90%';
+            }
         }
         
         function hideProgress() {
-            progressBar.style.width = '100%';
-            hideTimer = setTimeout(function() {
-                progressBar.style.opacity = '0';
+            if (progressBar) {
+                progressBar.style.width = '100%';
                 setTimeout(function() {
-                    progressBar.style.width = '0%';
-                }, 300);
-            }, 150);
+                    progressBar.style.opacity = '0';
+                    setTimeout(function() {
+                        progressBar.style.width = '0%';
+                    }, 300);
+                }, 150);
+            }
         }
         
-        // Intercept Fetch API
+        function startLoading(message) {
+            showSplash(message);
+            showProgress();
+        }
+        
+        function stopLoading() {
+            hideSplash();
+            hideProgress();
+        }
+        
+        // Helper to check if URL is local
+        function isLocalUrl(url) {
+            if (!url) return false;
+            if (!url.match(/^https?:\/\//)) return true;
+            try {
+                var a = document.createElement('a');
+                a.href = url;
+                return a.hostname === window.location.hostname;
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        // Intercept Fetch API for local requests
         var originalFetch = window.fetch;
         window.fetch = function() {
             var args = Array.prototype.slice.call(arguments);
             var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url);
             
-            // Only track local requests
-            if (url && !url.startsWith('http')) {
-                activeRequests++;
-                showProgress();
+            if (isLocalUrl(url)) {
+                startLoading('Loading...');
             }
             
-            return originalFetch.apply(this, args).then(function(response) {
-                if (url && !url.startsWith('http')) {
-                    activeRequests = Math.max(0, activeRequests - 1);
-                    if (activeRequests === 0) hideProgress();
-                }
+            return originalFetch.apply(this, arguments).then(function(response) {
+                if (isLocalUrl(url)) stopLoading();
                 return response;
             }).catch(function(error) {
-                if (url && !url.startsWith('http')) {
-                    activeRequests = Math.max(0, activeRequests - 1);
-                    if (activeRequests === 0) hideProgress();
-                }
+                if (isLocalUrl(url)) stopLoading();
                 throw error;
             });
         };
         
-        // Track link clicks for navigation
+        // Track link clicks - let browser handle navigation normally
         document.addEventListener('click', function(e) {
             var link = e.target.closest('a');
-            if (!link) return;
-            
-            // Skip UI controls
-            var skipIds = ['sidebarToggle', 'profileTrigger', 'notificationBell'];
-            if (link.id && skipIds.indexOf(link.id) > -1) return;
-            if (link.closest('#profileDropdown') || link.closest('#notificationDropdown')) return;
-            
-            var href = link.getAttribute('href');
-            if (!href || href === '#' || href.startsWith('#') || href.startsWith('javascript:')) return;
-            
-            // External links
-            if (href.match(/^https?:\/\//)) {
-                var a = document.createElement('a');
-                a.href = href;
-                if (a.hostname !== window.location.hostname) return;
+            if (!link) {
+                // Check for submit buttons
+                var btn = e.target.closest('button[data-action], button[type="submit"], input[type="submit"]');
+                if (btn && !btn.disabled && !btn.closest('form')) {
+                    var btnText = btn.textContent.trim() || btn.value || 'Processing...';
+                    startLoading(btnText + '...');
+                }
+                return;
             }
             
-            activeRequests++;
-            showProgress();
-        }, true);
-        
-        // Track form submissions
-        document.addEventListener('submit', function() {
-            activeRequests++;
-            showProgress();
-        }, true);
-        
-        // Hide on page load
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                if (activeRequests === 0) hideProgress();
-            }, 300);
+            // Skip UI controls
+            var skipSelectors = ['#sidebarToggle', '#sidebarClose', '#profileTrigger', '#notificationBell', 
+                '#profileDropdown', '#notificationDropdown', '.dropdown', '.menu', '.nav-section-header'];
+            for (var i = 0; i < skipSelectors.length; i++) {
+                if (link.closest(skipSelectors[i])) return;
+            }
+            
+            var href = link.getAttribute('href');
+            if (!href || href === '#' || href.startsWith('javascript:')) return;
+            
+            // Skip external links
+            if (href.match(/^https?:\/\//) && !isLocalUrl(href)) return;
+            
+            // Show splash and let browser navigate
+            startLoading('Loading...');
         });
         
-        // Clean up on navigation
+        // Track form submissions
+        document.addEventListener('submit', function(e) {
+            var submitBtn = e.target.querySelector('[type="submit"]:not(:disabled)');
+            var btnText = submitBtn ? (submitBtn.textContent.trim() || submitBtn.value || 'Submitting') : 'Submitting...';
+            startLoading(btnText + '...');
+        });
+        
+        // Keep splash visible during navigation
         window.addEventListener('beforeunload', function() {
-            progressBar.style.opacity = '0';
-            progressBar.style.width = '0';
+            if (splashScreen) {
+                splashScreen.style.transition = 'none';
+                splashScreen.style.opacity = '1';
+                splashScreen.style.visibility = 'visible';
+            }
+            if (progressBar) {
+                progressBar.style.opacity = '1';
+                progressBar.style.width = '100%';
+            }
+        });
+        
+        // Handle fast page loads
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                stopLoading();
+            }, 100);
         });
     })();
     </script>

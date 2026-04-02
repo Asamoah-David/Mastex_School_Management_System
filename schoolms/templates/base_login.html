@@ -206,14 +206,36 @@
     </div>
     
     <script>
-        // Splash Screen Auto-Hide
-        document.addEventListener('DOMContentLoaded', function() {
-            const splashScreen = document.getElementById('splashScreen');
-            // Hide splash screen after 2.5 seconds
-            setTimeout(function() {
-                splashScreen.classList.add('hidden');
-            }, 2500);
-        });
+        // Splash Screen with Form Submission Support
+        (function() {
+            var splashScreen = document.getElementById('splashScreen');
+            if (!splashScreen) return;
+            
+            // Auto-hide on initial page load
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    splashScreen.classList.add('hidden');
+                }, 1200);
+            });
+            
+            // Show splash during form submission
+            var loginForm = document.querySelector('form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    var submitBtn = loginForm.querySelector('[type="submit"]');
+                    var btnText = submitBtn ? (submitBtn.textContent.trim() || submitBtn.value || 'Signing in') : 'Signing in...';
+                    
+                    // Show splash immediately
+                    splashScreen.classList.remove('hidden');
+                    splashScreen.style.opacity = '1';
+                    splashScreen.style.visibility = 'visible';
+                    
+                    // Update message
+                    var subtext = splashScreen.querySelector('.splash-subtext');
+                    if (subtext) subtext.textContent = btnText;
+                });
+            }
+        })();
     </script>
 </body>
 </html>
