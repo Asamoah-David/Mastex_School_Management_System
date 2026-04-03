@@ -3328,26 +3328,26 @@ def id_card_pdf(request, pk):
         c.setFillColor(colors.darkgrey)
         c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
     
-    # Student info section - LEFT SIDE after photo
-    info_x = card_x + 85  # Start after photo area
-    info_y = card_y + card_height - 30
+    # Student info section - Positioned BELOW the photo to avoid overlap
+    info_x = card_x + 20  # Left align with card margin
+    info_y = card_y + 50  # Much lower position - below the photo
     
-    # Student name - LEFT aligned after photo
+    # Student name - first line
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 11)
+    c.setFont("Helvetica-Bold", 12)
     student_name = student.user.get_full_name() if student and student.user else "Student"
-    c.drawString(info_x, info_y, student_name.upper())
+    c.drawString(info_x, info_y + 30, student_name.upper())
     
-    # Class - below name
+    # Class - second line
+    c.setFont("Helvetica", 10)
+    c.drawString(info_x, info_y + 15, f"Class: {student.class_name or 'N/A'}")
+    
+    # Admission number - third line
+    c.drawString(info_x, info_y, f"Adm No: {student.admission_number or 'N/A'}")
+    
+    # Card number - fourth line
     c.setFont("Helvetica", 8)
-    c.drawString(info_x, info_y - 15, f"Class: {student.class_name or 'N/A'}")
-    
-    # Admission number - below class
-    c.drawString(info_x, info_y - 28, f"Adm No: {student.admission_number or 'N/A'}")
-    
-    # Card number - below admission number
-    c.setFont("Helvetica", 7)
-    c.drawString(info_x, info_y - 40, f"Card No: {id_card.card_number}")
+    c.drawString(info_x, info_y - 15, f"Card No: {id_card.card_number}")
     
     # Generate and draw QR code - positioned at bottom center to avoid overlap
     try:
