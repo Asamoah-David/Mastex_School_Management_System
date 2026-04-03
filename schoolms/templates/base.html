@@ -1203,7 +1203,32 @@
                 stopLoading();
             }, 100);
         });
+        
+        // Handle back/forward navigation (bfcache)
+        window.addEventListener('pageshow', function(event) {
+            // If page was loaded from back-forward cache, immediately hide splash
+            if (event.persisted) {
+                stopLoading();
+            }
+            
+            // Also check if we're navigating back by comparing timestamps
+            var now = Date.now();
+            var lastNav = window.lastNavTime || 0;
+            if (now - lastNav < 2000) {
+                // Likely a back navigation - hide splash immediately
+                stopLoading();
+            }
+            window.lastNavTime = now;
+        });
+        
+        // Only show splash on fresh navigation, not back button
+        window.addEventListener('popstate', function() {
+            // Small delay to let the page render first
+            setTimeout(function() {
+                stopLoading();
+            }, 50);
+        });
     })();
-    </script>
+</script>
 </body>
 </html>
