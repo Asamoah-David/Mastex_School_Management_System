@@ -797,15 +797,15 @@ def student_payment_history(request, student_id):
             'date': payment.created_at,
         })
     
-    # Get textbook sales
-    textbook_sales = TextbookSale.objects.filter(student=student).order_by('-created_at')
+    # Get textbook sales - use sale_date instead of created_at
+    textbook_sales = TextbookSale.objects.filter(student=student).order_by('-id')
     for sale in textbook_sales:
         all_payments.append({
             'type': 'textbook',
             'payment': sale,
             'amount': float(sale.amount),
             'status': sale.payment_status,
-            'date': sale.created_at,
+            'date': sale.sale_date,
         })
     
     # Sort by date
@@ -935,7 +935,7 @@ def my_payments(request):
             'date': payment.payment_date,
         })
     
-    # Textbook sales - use -id since created_at doesn't exist
+    # Textbook sales - use sale_date instead of created_at
     textbook_sales = TextbookSale.objects.filter(
         student=student
     ).order_by('-id')
@@ -945,7 +945,7 @@ def my_payments(request):
             'description': f"Textbook - {sale.textbook.title if sale.textbook else 'Textbook'}",
             'amount': float(sale.amount),
             'status': sale.payment_status,
-            'date': sale.created_at,
+            'date': sale.sale_date,
         })
     
     # Sort by date
