@@ -3328,8 +3328,8 @@ def id_card_pdf(request, pk):
         c.setFillColor(colors.darkgrey)
         c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
     
-    # Student info section - Positioned at LEFT BOTTOM corner, FAR from photo
-    info_x = card_x + 85  # Much further right to avoid photo overlap
+    # Student info section - Positioned at LEFT BOTTOM corner
+    info_x = card_x + 20  # Left align with card margin
     info_y = card_y + 35  # Bottom area of the card
     
     # Student name - first line
@@ -3486,8 +3486,8 @@ def staff_id_card_pdf(request, pk):
         c.setFillColor(colors.darkgrey)
         c.drawCentredString(photo_x + 27.5, photo_y + 22, "PHOTO")
     
-    # Staff info section - Positioned at LEFT BOTTOM corner, FAR from photo
-    info_x = card_x + 85  # Much further right to avoid photo overlap
+    # Staff info section - Positioned at LEFT BOTTOM corner
+    info_x = card_x + 20  # Left align with card margin
     info_y = card_y + 35  # Bottom area of the card
     
     # Staff name - first line
