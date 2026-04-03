@@ -1,4 +1,4 @@
-from django import template
+﻿from django import template\nimport calendar
 
 register = template.Library()
 
@@ -25,3 +25,7 @@ def get_photo_url(photo):
         return photo.url
     except (AttributeError, ValueError):
         return None
+  
+@register.filter  
+def month_name(value):  
+    month_map = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'}  
