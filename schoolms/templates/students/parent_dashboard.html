@@ -47,6 +47,9 @@
                         <td>
                             <a class="btn btn-secondary btn-sm" href="{% url 'students:parent_child_detail' child.id %}">Open</a>
                             <a class="btn btn-primary btn-sm" href="{% url 'academics:report_card' child.id %}">Report card</a>  <a class="btn btn-success btn-sm" href="{% url 'academics:enhanced_report_card' child.id %}">Enhanced</a>
+                            <a class="btn btn-info btn-sm" href="{% url 'operations:canteen_my' %}" title="Canteen">🍱</a>
+                            <a class="btn btn-warning btn-sm" href="{% url 'operations:bus_my' %}" title="Transport">🚌</a>
+                            <a class="btn btn-purple btn-sm" href="{% url 'operations:textbook_my' %}" title="Textbooks">📕</a>
                         </td>
                     </tr>
                     {% endwith %}

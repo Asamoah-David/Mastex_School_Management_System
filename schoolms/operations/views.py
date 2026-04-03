@@ -218,6 +218,93 @@ def canteen_payments(request):
 
 
 @login_required
+def canteen_my(request):
+    """
+    Student/parent view: view available canteen items and make purchases.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    role = getattr(request.user, "role", None)
+    if role not in ("student", "parent"):
+        return redirect("home")
+    
+    # Get available canteen items
+    items = CanteenItem.objects.filter(school=school, is_available=True).order_by("name")
+    
+    # Get student's/children's purchase history
+    if role == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        my_payments = CanteenPayment.objects.filter(school=school, student=student).select_related("item").order_by("-payment_date")[:50] if student else []
+    else:
+        children = Student.objects.filter(parent=request.user, school=school)
+        my_payments = CanteenPayment.objects.filter(school=school, student__in=children).select_related("item", "student", "student__user").order_by("-payment_date")[:100]
+    
+    return render(request, "operations/canteen_my.html", {
+        "items": items,
+        "my_payments": my_payments,
+        "school": school,
+        "mode": role
+    })
+
+
+@login_required
+def canteen_buy(request):
+    """
+    Student/parent purchases a canteen item.
+    """
+    from django.contrib import messages
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    role = getattr(request.user, "role", None)
+    if role not in ("student", "parent"):
+        return redirect("home")
+    
+    if request.method == "POST":
+        item_id = request.POST.get("item_id")
+        quantity = int(request.POST.get("quantity", 1))
+        
+        item = CanteenItem.objects.filter(id=item_id, school=school, is_available=True).first()
+        if not item:
+            messages.error(request, "Item not available.")
+            return redirect("operations:canteen_my")
+        
+        # Get the student
+        if role == "student":
+            student = Student.objects.filter(user=request.user, school=school).first()
+        else:
+            # For parent, get first child or selected child
+            child_id = request.POST.get("student_id")
+            if child_id:
+                student = Student.objects.filter(id=child_id, parent=request.user, school=school).first()
+            else:
+                student = Student.objects.filter(parent=request.user, school=school).first()
+        
+        if not student:
+            messages.error(request, "No student found.")
+            return redirect("operations:canteen_my")
+        
+        # Create payment record
+        total_amount = item.price * quantity
+        CanteenPayment.objects.create(
+            school=school,
+            student=student,
+            item=item,
+            quantity=quantity,
+            amount=total_amount,
+            payment_date=timezone.now().date()
+        )
+        
+        messages.success(request, f"Purchased {quantity}x {item.name} for {total_amount} GHS!")
+        return redirect("operations:canteen_my")
+    
+    return redirect("operations:canteen_my")
+
+
+@login_required
 def bus_list(request):
     school = _get_school(request)
     if not school:
@@ -269,6 +356,38 @@ def bus_payments(request):
 
 
 @login_required
+def bus_my(request):
+    """
+    Student/parent view: view available bus routes and their payment status.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    role = getattr(request.user, "role", None)
+    if role not in ("student", "parent"):
+        return redirect("home")
+    
+    # Get available bus routes
+    routes = BusRoute.objects.filter(school=school).order_by("name")
+    
+    # Get student's/children's bus payment history
+    if role == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        my_payments = BusPayment.objects.filter(school=school, student=student).select_related("route").order_by("-payment_date")[:50] if student else []
+    else:
+        children = Student.objects.filter(parent=request.user, school=school)
+        my_payments = BusPayment.objects.filter(school=school, student__in=children).select_related("route", "student", "student__user").order_by("-payment_date")[:100]
+    
+    return render(request, "operations/bus_my.html", {
+        "routes": routes,
+        "my_payments": my_payments,
+        "school": school,
+        "mode": role
+    })
+
+
+@login_required
 def textbook_list(request):
     school = _get_school(request)
     if not school:
@@ -309,6 +428,38 @@ def textbook_create(request):
                 pass
     
     return render(request, "operations/textbook_form.html", {"school": school})
+
+
+@login_required
+def textbook_my(request):
+    """
+    Student/parent view: view available textbooks and their purchase history.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    
+    role = getattr(request.user, "role", None)
+    if role not in ("student", "parent"):
+        return redirect("home")
+    
+    # Get available textbooks
+    books = Textbook.objects.filter(school=school).order_by("title")
+    
+    # Get student's/children's purchase history
+    if role == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        my_purchases = TextbookSale.objects.filter(school=school, student=student).select_related("textbook").order_by("-sale_date")[:50] if student else []
+    else:
+        children = Student.objects.filter(parent=request.user, school=school)
+        my_purchases = TextbookSale.objects.filter(school=school, student__in=children).select_related("textbook", "student", "student__user").order_by("-sale_date")[:100]
+    
+    return render(request, "operations/textbook_my.html", {
+        "books": books,
+        "my_purchases": my_purchases,
+        "school": school,
+        "mode": role
+    })
 
 
 @login_required
@@ -3049,7 +3200,9 @@ def id_card_pdf(request, pk):
     from reportlab.lib.pagesizes import landscape, A4
     from reportlab.lib import colors
     from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
     from io import BytesIO
+    from core.qr_utils import generate_student_qr_data, generate_qr_code_bytes
     
     school = _get_school(request)
     if not school:
@@ -3093,22 +3246,71 @@ def id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width/2, card_y + card_height - 45, "STUDENT ID CARD")
     
-    # Student name
+    # Student photo (from user's profile_photo)
+    student_user = student.user if student else None
+    photo = None
+    if student_user and hasattr(student_user, 'profile_photo') and student_user.profile_photo:
+        try:
+            # Open the user's profile photo
+            student_user.profile_photo.open()
+            photo = ImageReader(student_user.profile_photo)
+            student_user.profile_photo.close()
+        except Exception:
+            photo = None
+    
+    # Draw student photo if available (on the left side)
+    if photo:
+        # Draw photo in a circular/oval area on the left
+        photo_x = card_x + 30
+        photo_y = card_y + card_height - 100
+        photo_size = 50
+        c.saveState()
+        c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
+        c.clip()
+        c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
+        c.restoreState()
+    else:
+        # Draw placeholder circle if no photo
+        c.setStrokeColor(colors.lightgrey)
+        c.setLineWidth(1)
+        c.setFillColor(colors.lightgrey)
+        photo_x = card_x + 30
+        photo_y = card_y + card_height - 100
+        c.circle(photo_x + 25, photo_y + 25, 25, fill=1, stroke=1)
+        c.setFont("Helvetica", 10)
+        c.setFillColor(colors.darkgrey)
+        c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
+    
+    # Student name (center-right)
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 16)
     student_name = student.user.get_full_name() if student and student.user else "Student"
-    c.drawCentredString(width/2, card_y + card_height - 75, student_name.upper())
+    c.drawCentredString(width/2 + 20, card_y + card_height - 75, student_name.upper())
     
     # Class
     c.setFont("Helvetica", 11)
-    c.drawCentredString(width/2, card_y + card_height - 95, f"Class: {student.class_name or 'N/A'}")
+    c.drawCentredString(width/2 + 20, card_y + card_height - 95, f"Class: {student.class_name or 'N/A'}")
     
     # Admission number
-    c.drawCentredString(width/2, card_y + card_height - 110, f"Adm No: {student.admission_number or 'N/A'}")
+    c.drawCentredString(width/2 + 20, card_y + card_height - 110, f"Adm No: {student.admission_number or 'N/A'}")
     
     # Card number
     c.setFont("Helvetica", 9)
-    c.drawCentredString(width/2, card_y + card_height - 128, f"Card No: {id_card.card_number}")
+    c.drawCentredString(width/2 + 20, card_y + card_height - 128, f"Card No: {id_card.card_number}")
+    
+    # Generate and draw QR code on the right side
+    try:
+        qr_data = generate_student_qr_data(student)
+        qr_bytes = generate_qr_code_bytes(qr_data, box_size=3, border=1)
+        qr_buffer = BytesIO(qr_bytes)
+        qr_image = ImageReader(qr_buffer)
+        # Draw QR code on right side of the card
+        qr_x = card_x + card_width - 60
+        qr_y = card_y + card_height - 90
+        c.drawImage(qr_image, qr_x, qr_y, width=45, height=45, mask='auto')
+    except Exception:
+        # If QR generation fails, just skip
+        pass
     
     # Issue and Expiry dates
     issue_date = id_card.issue_date.strftime("%d/%m/%Y") if id_card.issue_date else "N/A"
@@ -3137,7 +3339,9 @@ def staff_id_card_pdf(request, pk):
     from reportlab.lib.pagesizes import landscape, A4
     from reportlab.lib import colors
     from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
     from io import BytesIO
+    from core.qr_utils import generate_staff_qr_data, generate_qr_code_bytes
     
     school = _get_school(request)
     if not school:
@@ -3185,18 +3389,62 @@ def staff_id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width/2, card_y + card_height - 45, "STAFF ID CARD")
     
-    # Staff name
+    # Staff photo (from user's profile_photo)
+    photo = None
+    if staff and hasattr(staff, 'profile_photo') and staff.profile_photo:
+        try:
+            staff.profile_photo.open()
+            photo = ImageReader(staff.profile_photo)
+            staff.profile_photo.close()
+        except Exception:
+            photo = None
+    
+    # Draw staff photo if available (on the left side)
+    if photo:
+        photo_x = card_x + 30
+        photo_y = card_y + card_height - 100
+        photo_size = 50
+        c.saveState()
+        c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
+        c.clip()
+        c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
+        c.restoreState()
+    else:
+        # Draw placeholder circle if no photo
+        c.setStrokeColor(colors.lightgrey)
+        c.setLineWidth(1)
+        c.setFillColor(colors.lightgrey)
+        photo_x = card_x + 30
+        photo_y = card_y + card_height - 100
+        c.circle(photo_x + 25, photo_y + 25, 25, fill=1, stroke=1)
+        c.setFont("Helvetica", 10)
+        c.setFillColor(colors.darkgrey)
+        c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
+    
+    # Staff name (center-right)
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 16)
     staff_name = staff.get_full_name() if staff else "Staff"
-    c.drawCentredString(width/2, card_y + card_height - 75, staff_name.upper())
+    c.drawCentredString(width/2 + 20, card_y + card_height - 75, staff_name.upper())
     
     # Position
     c.setFont("Helvetica", 11)
-    c.drawCentredString(width/2, card_y + card_height - 95, f"Position: {id_card.position or staff.role.title()}")
+    c.drawCentredString(width/2 + 20, card_y + card_height - 95, f"Position: {id_card.position or staff.role.title()}")
     
     # Staff ID
-    c.drawCentredString(width/2, card_y + card_height - 110, f"Staff ID: {id_card.card_number}")
+    c.drawCentredString(width/2 + 20, card_y + card_height - 110, f"Staff ID: {id_card.card_number}")
+    
+    # Generate and draw QR code on the right side
+    try:
+        qr_data = generate_staff_qr_data(staff)
+        qr_bytes = generate_qr_code_bytes(qr_data, box_size=3, border=1)
+        qr_buffer = BytesIO(qr_bytes)
+        qr_image = ImageReader(qr_buffer)
+        qr_x = card_x + card_width - 60
+        qr_y = card_y + card_height - 90
+        c.drawImage(qr_image, qr_x, qr_y, width=45, height=45, mask='auto')
+    except Exception:
+        pass
     
     # Issue and Expiry dates
     c.setFont("Helvetica", 9)

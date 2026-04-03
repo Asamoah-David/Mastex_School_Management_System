@@ -3,6 +3,47 @@
 
 {% block title %}QR Attendance Scanner - {{ school.name }}{% endblock %}
 
+{% block extra_css %}
+<style>
+#qr-reader {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+}
+
+#qr-reader video {
+    width: 100%;
+    height: auto;
+}
+
+#qr-reader__dashboard_section_csr span button {
+    background: #3b82f6 !important;
+    color: white !important;
+    border: none !important;
+    padding: 8px 16px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+}
+
+#qr-reader__dashboard_section_swaplink {
+    display: none !important;
+}
+
+.scanner-active {
+    border: 2px solid #22c55e;
+}
+
+.scanner-inactive {
+    border: 2px dashed #94a3b8;
+    padding: 2rem;
+    text-align: center;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="content-card">
     <div class="page-heading">
@@ -55,14 +96,34 @@
                     </div>
                 </div>
                 
+                <!-- Camera Scanner -->
                 <div class="form-group">
-                    <label>Manual QR Input (for testing)</label>
-                    <input type="text" id="manualQR" class="form-control" placeholder="Or enter QR data manually: MASEXTICKET:1:ADM001">
+                    <label>Camera Scanner</label>
+                    <div id="qr-reader" class="scanner-inactive">
+                        <p style="color: #94a3b8; padding: 2rem;">
+                            Click "Start Camera" to enable scanner
+                        </p>
+                    </div>
                 </div>
                 
                 <div class="button-row">
-                    <button type="button" id="scanBtn" class="btn btn-primary" style="flex: 1;">
-                        📷 Mark Attendance
+                    <button type="button" id="startScanBtn" class="btn btn-primary" style="flex: 1;">
+                        📷 Start Camera
+                    </button>
+                    <button type="button" id="stopScanBtn" class="btn btn-secondary" style="flex: 1; display: none;">
+                        ⏹ Stop Camera
+                    </button>
+                </div>
+                
+                <!-- Manual Input -->
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>Or Enter QR Code Manually</label>
+                    <input type="text" id="manualQR" class="form-control" placeholder="MASEXTICKET:1:ADM001">
+                </div>
+                
+                <div class="button-row">
+                    <button type="button" id="manualScanBtn" class="btn btn-outline" style="flex: 1;">
+                        ➡️ Mark Manually
                     </button>
                 </div>
             </div>
@@ -73,8 +134,8 @@
                 <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
                     <li>Select the class</li>
                     <li>Choose attendance status (Present/Late/Absent)</li>
-                    <li>Click "Mark Attendance" button</li>
-                    <li>A camera dialog will open for scanning</li>
+                    <li>Click "Start Camera" button</li>
+                    <li>Allow camera access when prompted</li>
                     <li>Point camera at student's ID card QR code</li>
                     <li>Attendance is marked automatically!</li>
                 </ol>
@@ -116,27 +177,138 @@
     </div>
 </div>
 
+<!-- Load html5-qrcode library from CDN (jsDelivr) -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
 <script>
 // QR Scanner functionality using device camera
 document.addEventListener('DOMContentLoaded', function() {
-    const scanBtn = document.getElementById('scanBtn');
     const manualQR = document.getElementById('manualQR');
     const resultsArea = document.getElementById('resultsArea');
+    const startScanBtn = document.getElementById('startScanBtn');
+    const stopScanBtn = document.getElementById('stopScanBtn');
+    const manualScanBtn = document.getElementById('manualScanBtn');
+    const qrReader = document.getElementById('qr-reader');
     
     let stats = { total: 0, present: 0, late: 0, absent: 0 };
+    let html5QrcodeScanner = null;
+    let isScanning = false;
     
     // Set today's date as default
     document.getElementById('attendanceDate').valueAsDate = new Date();
     
-    scanBtn.addEventListener('click', function() {
+    // Start Camera Button
+    startScanBtn.addEventListener('click', function() {
+        if (isScanning) return;
+        
+        const className = document.getElementById('classSelect').value;
+        if (!className) {
+            alert('Please select a class first');
+            return;
+        }
+        
+        startCameraScanner();
+    });
+    
+    // Stop Camera Button
+    stopScanBtn.addEventListener('click', function() {
+        stopCameraScanner();
+    });
+    
+    // Manual Entry Button
+    manualScanBtn.addEventListener('click', function() {
         const qrData = manualQR.value.trim();
         if (!qrData) {
-            alert('Please enter QR code data or use camera scanner');
+            alert('Please enter QR code data');
             return;
         }
         
         markAttendance(qrData);
     });
+    
+    function startCameraScanner() {
+        isScanning = true;
+        startScanBtn.style.display = 'none';
+        stopScanBtn.style.display = 'block';
+        qrReader.classList.remove('scanner-inactive');
+        qrReader.classList.add('scanner-active');
+        
+        // Create html5-qrcode scanner
+        html5QrcodeScanner = new Html5Qrcode("qr-reader");
+        
+        const config = { 
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+        };
+        
+        html5QrcodeScanner.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccess,
+            onScanFailure
+        ).catch(err => {
+            console.error('Error starting scanner:', err);
+            showNotification('error', 'Could not access camera. Please grant permission.');
+            stopCameraScanner();
+        });
+    }
+    
+    function stopCameraScanner() {
+        isScanning = false;
+        startScanBtn.style.display = 'block';
+        stopScanBtn.style.display = 'none';
+        qrReader.classList.remove('scanner-active');
+        qrReader.classList.add('scanner-inactive');
+        qrReader.innerHTML = '<p style="color: #94a3b8; padding: 2rem;">Click "Start Camera" to enable scanner</p>';
+        
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => {
+                html5QrcodeScanner = null;
+            }).catch(err => {
+                console.error('Error stopping scanner:', err);
+                html5QrcodeScanner = null;
+            });
+        }
+    }
+    
+    function onScanSuccess(decodedText, decodedResult) {
+        // Validate the QR code format
+        if (decodedText.startsWith('MASEXTICKET:')) {
+            // Play a beep sound (optional)
+            playBeep();
+            
+            // Mark attendance
+            markAttendance(decodedText);
+        } else {
+            showNotification('error', 'Invalid QR code format. This is not a valid student/staff ID.');
+        }
+    }
+    
+    function onScanFailure(error) {
+        // This is called constantly when no QR code is found, so we ignore it
+    }
+    
+    function playBeep() {
+        // Simple beep using Web Audio API
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 1000;
+            oscillator.type = 'sine';
+            gainNode.gain.value = 0.1;
+            
+            oscillator.start();
+            setTimeout(() => oscillator.stop(), 100);
+        } catch (e) {
+            // Ignore audio errors
+        }
+    }
     
     function markAttendance(qrData) {
         const className = document.getElementById('classSelect').value;
@@ -163,7 +335,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                addResult(data, status);
+                // Determine which data to use (student or staff)
+                const name = data.student ? data.student.name : (data.staff ? data.staff.name : 'Unknown');
+                const identifier = data.student ? data.student.admission_number : (data.staff ? data.staff.username : '');
+                const classInfo = data.student ? data.student.class_name : (data.staff ? data.staff.role : '');
+                
+                addResult(name, identifier, classInfo, status);
                 updateStats(status);
                 showNotification('success', data.message);
                 manualQR.value = '';
@@ -177,13 +354,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    function addResult(data, status) {
+    function addResult(name, identifier, classInfo, status) {
         const resultHTML = `
             <div class="result-item" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem; border-bottom: 1px solid rgba(148,163,184,0.2);">
                 <div style="flex: 1;">
-                    <div style="font-weight: 600;">${data.student.name}</div>
+                    <div style="font-weight: 600;">${name}</div>
                     <div style="font-size: 0.85rem; color: var(--text-soft);">
-                        ${data.student.admission_number} • ${data.student.class_name}
+                        ${identifier} • ${classInfo}
                     </div>
                 </div>
                 <span class="tag tag-${status === 'present' ? 'paid' : status === 'late' ? 'warning' : 'unpaid'}" style="background: ${status === 'present' ? 'rgba(34,197,94,0.2)' : status === 'late' ? 'rgba(251,191,36,0.2)' : 'rgba(248,113,113,0.2)'}; color: ${status === 'present' ? '#22c55e' : status === 'late' ? '#f59e0b' : '#ef4444'};">

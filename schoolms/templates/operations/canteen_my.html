@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+
+{% block title %}Canteen · Mastex SchoolOS{% endblock %}
+{% block page_title %}Canteen{% endblock %}
+{% block page_subtitle %}Browse and purchase canteen items{% endblock %}
+
+{% block content %}
+
+{% if items %}
+<div class="content-card">
+    <h3 class="section-title">🍔 Available Items</h3>
+    <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
+        {% for item in items %}
+        <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
+            <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ item.name }}</h4>
+            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0 0 1rem 0;">{{ item.price }} GHS</p>
+            <form method="post" action="{% url 'operations:canteen_buy' %}">
+                {% csrf_token %}
+                <input type="hidden" name="item_id" value="{{ item.id }}">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="number" name="quantity" value="1" min="1" max="10" style="width: 60px; padding: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5); border-radius: 0.4rem;">
+                    <button type="submit" class="btn btn-primary btn-sm">Buy</button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="content-card">
+    <div class="empty-state">
+        <div class="empty-state-icon">🍽️</div>
+        <div class="empty-state-title">No Items Available</div>
+        <div class="empty-state-desc">The canteen currently has no items available for purchase.</div>
+    </div>
+</div>
+{% endif %}
+
+{% if my_payments %}
+<h3 class="section-title">📜 My Purchase History</h3>
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Item</th>
+                <th>Quantity</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for payment in my_payments %}
+            <tr>
+                <td>{{ payment.payment_date|date:"M d, Y" }}</td>
+                <td>{{ payment.item.name }}</td>
+                <td>{{ payment.quantity }}</td>
+                <td>{{ payment.amount }} GHS</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<style>
+.section-title {
+    color: #22c55e;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}

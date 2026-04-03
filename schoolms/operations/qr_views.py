@@ -36,9 +36,13 @@ def qr_attendance_scanner(request):
     # Get classes for the dropdown
     classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
     
+    # Get today's date in the expected format
+    today = timezone.now().date().isoformat()
+    
     context = {
         'school': school,
         'classes': [c for c in classes if c],
+        'today': today,
     }
     return render(request, 'operations/qr_attendance_scanner.html', context)
 
@@ -100,7 +104,10 @@ def qr_mark_attendance(request):
         if not school:
             return JsonResponse({'success': False, 'error': 'No school found'}, status=400)
         
+        # Parse date, default to today if invalid
         attendance_date_obj = parse_date(attendance_date)
+        if not attendance_date_obj:
+            attendance_date_obj = timezone.now().date()
         
         # Check if it's a staff QR code first
         if qr_data.startswith('MASEXTICKET:STAFF:'):
@@ -193,6 +200,7 @@ def qr_mark_attendance(request):
             else:
                 StudentAttendance.objects.create(
                     student=student,
+                    school=school,
                     date=attendance_date_obj,
                     status=attendance_status,
                     marked_by=request.user

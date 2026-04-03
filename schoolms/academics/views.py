@@ -2314,8 +2314,9 @@ def enhanced_report_card_pdf(request, student_id):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
     from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
     from django.utils import timezone as dj_timezone
     from datetime import datetime
     
@@ -2350,22 +2351,81 @@ def enhanced_report_card_pdf(request, student_id):
     story.append(Paragraph(f"<font size=9>{getattr(school, 'address', '') or ''}</font>", styles["Normal"]))
     story.append(Spacer(1, 10))
     
-    # Student info
-    meta = [
-        ["Student:", student.user.get_full_name() or student.user.username, "Class:", student.class_name or "—"],
-        ["Adm No:", student.admission_number, "Term:", term_label],
+    # Try to get student photo
+    student_user = student.user if student else None
+    photo = None
+    photo_width = 25 * mm
+    photo_height = 25 * mm
+    
+    if student_user and hasattr(student_user, 'profile_photo') and student_user.profile_photo:
+        try:
+            student_user.profile_photo.open()
+            photo = ImageReader(student_user.profile_photo)
+            student_user.profile_photo.close()
+        except Exception:
+            photo = None
+    
+    # Student info with optional photo
+    if photo:
+        # Create a table with photo on the left and info on the right
+        img = Image(photo, width=photo_width, height=photo_height)
+        
+        # Student basic info table
+        basic_info = [
+            ["Student:", student.user.get_full_name() or student.user.username],
+            ["Class:", student.class_name or "—"],
+            ["Adm No:", student.admission_number],
+        ]
+        info_table = Table(basic_info, colWidths=[25*mm, 55*mm])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        # Combine photo and info
+        header_data = [[img, info_table]]
+        header_table = Table(header_data, colWidths=[photo_width + 5*mm, 90*mm])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ]))
+        story.append(header_table)
+    else:
+        # Just student info without photo
+        meta = [
+            ["Student:", student.user.get_full_name() or student.user.username, "Class:", student.class_name or "—"],
+            ["Adm No:", student.admission_number, "Term:", term_label],
+        ]
+        meta_table = Table(meta, colWidths=[30*mm, 60*mm, 25*mm, 60*mm])
+        meta_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor("#F3F4F6")),
+            ('BACKGROUND', (2, 0), (2, -1), colors.HexColor("#F3F4F6")),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(meta_table)
+    
+    story.append(Spacer(1, 10))
+    
+    # Score summary
+    summary_data = [
         ["Average Score:", f"{avg_score:.1f}%", "GPA:", f"{gpa:.2f}"],
     ]
-    meta_table = Table(meta, colWidths=[30*mm, 60*mm, 25*mm, 60*mm])
-    meta_table.setStyle(TableStyle([
+    summary_table = Table(summary_data, colWidths=[35*mm, 35*mm, 25*mm, 35*mm])
+    summary_table.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor("#F3F4F6")),
-        ('BACKGROUND', (2, 0), (2, -1), colors.HexColor("#F3F4F6")),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#E0E7FF")),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('ALIGN', (3, 0), (3, 0), 'CENTER'),
     ]))
-    story.append(meta_table)
+    story.append(summary_table)
     story.append(Spacer(1, 15))
     
     # Results table

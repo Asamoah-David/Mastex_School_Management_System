@@ -67,18 +67,22 @@ urlpatterns = [
     path("canteen/create/", views.canteen_create, name="canteen_create"),
     path("canteen/payments/", views.canteen_payments, name="canteen_payments"),
     path("canteen/delete/<int:pk>/", views.canteen_item_delete, name="canteen_item_delete"),
+    path("canteen/my/", views.canteen_my, name="canteen_my"),
+    path("canteen/buy/", views.canteen_buy, name="canteen_buy"),
     
     # Bus
     path("bus/", views.bus_list, name="bus_list"),
     path("bus/create/", views.bus_create, name="bus_create"),
     path("bus/payments/", views.bus_payments, name="bus_payments"),
     path("bus/delete/<int:pk>/", views.bus_route_delete, name="bus_route_delete"),
+    path("bus/my/", views.bus_my, name="bus_my"),
     
     # Textbooks
     path("textbooks/", views.textbook_list, name="textbook_list"),
     path("textbooks/create/", views.textbook_create, name="textbook_create"),
     path("textbooks/sales/", views.textbook_sales, name="textbook_sales"),
     path("textbooks/delete/<int:pk>/", views.textbook_delete, name="textbook_delete"),
+    path("textbooks/my/", views.textbook_my, name="textbook_my"),
 
     # Announcements
     path("announcements/", views.announcement_list, name="announcement_list"),

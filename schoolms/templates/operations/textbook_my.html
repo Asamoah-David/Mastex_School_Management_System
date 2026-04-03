@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+
+{% block title %}Textbooks · Mastex SchoolOS{% endblock %}
+{% block page_title %}Textbooks{% endblock %}
+{% block page_subtitle %}Available textbooks and purchase history{% endblock %}
+
+{% block content %}
+
+{% if books %}
+<div class="content-card">
+    <h3 class="section-title">📚 Available Textbooks</h3>
+    <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+        {% for book in books %}
+        <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
+            <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ book.title }}</h4>
+            <p style="font-size: 0.9rem; color: #9ca3af; margin: 0 0 0.5rem 0;">
+                {% if book.isbn %}ISBN: {{ book.isbn }}{% endif %}
+            </p>
+            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0;">{{ book.price }} GHS</p>
+            {% if book.stock > 0 %}
+            <p style="font-size: 0.8rem; color: #22c55e; margin: 0.5rem 0 0 0;">{{ book.stock }} available</p>
+            {% else %}
+            <p style="font-size: 0.8rem; color: #ef4444; margin: 0.5rem 0 0 0;">Out of stock</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="content-card">
+    <div class="empty-state">
+        <div class="empty-state-icon">📚</div>
+        <div class="empty-state-title">No Textbooks Available</div>
+        <div class="empty-state-desc">No textbooks are currently available for purchase.</div>
+    </div>
+</div>
+{% endif %}
+
+{% if my_purchases %}
+<h3 class="section-title">📜 My Textbook Purchases</h3>
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Book</th>
+                <th>Quantity</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for purchase in my_purchases %}
+            <tr>
+                <td>{{ purchase.sale_date|date:"M d, Y" }}</td>
+                <td>{{ purchase.textbook.title }}</td>
+                <td>{{ purchase.quantity }}</td>
+                <td>{{ purchase.amount }} GHS</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<style>
+.section-title {
+    color: #22c55e;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}
