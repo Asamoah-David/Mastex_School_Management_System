@@ -808,8 +808,8 @@ def student_payment_history(request, student_id):
             'date': sale.sale_date,
         })
     
-    # Sort by date
-    all_payments.sort(key=lambda x: x['date'], reverse=True)
+    # Sort by date (handle None dates)
+    all_payments.sort(key=lambda x: x['date'] or timezone.now().date(), reverse=True)
     
     # Calculate totals
     total_paid = sum(p['amount'] for p in all_payments if p['status'] == 'completed')
@@ -948,8 +948,8 @@ def my_payments(request):
             'date': sale.sale_date,
         })
     
-    # Sort by date
-    all_payments.sort(key=lambda x: x['date'], reverse=True)
+    # Sort by date (handle None dates)
+    all_payments.sort(key=lambda x: x['date'] or timezone.now().date(), reverse=True)
     
     # Calculate totals
     total_paid = sum(p['amount'] for p in all_payments if p['status'] == 'completed')
