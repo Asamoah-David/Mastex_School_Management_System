@@ -195,6 +195,7 @@ PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", "")
 PAYSTACK_WEBHOOK_SECRET = env("PAYSTACK_WEBHOOK_SECRET", "")
 PAYSTACK_PLATFORM_FEE_PERCENT = float(env("PAYSTACK_PLATFORM_FEE_PERCENT", "0"))  # Commission percentage (0 = no commission)
+PAYSTACK_CURRENCY = env("PAYSTACK_CURRENCY", "GHS")  # Currency: GHS, NGN, USD, etc. - must be activated in your Paystack dashboard
 
 # Cron job secret key (for securing subscription check endpoint)
 CRON_SECRET_KEY = env("CRON_SECRET_KEY", "")

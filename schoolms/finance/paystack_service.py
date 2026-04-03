@@ -17,6 +17,7 @@ class PaystackService:
         self.public_key = settings.PAYSTACK_PUBLIC_KEY
         self.base_url = "https://api.paystack.co"
         self.platform_fee_percent = getattr(settings, 'PAYSTACK_PLATFORM_FEE_PERCENT', 0)
+        self.currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
     
     def _get_headers(self):
         """Get headers for Paystack API requests."""
@@ -50,7 +51,7 @@ class PaystackService:
             "amount": int(amount * 100),  # Convert to kobo
             "reference": reference,
             "callback_url": callback_url,
-            "currency": "GHS",
+            "currency": self.currency,
             "metadata": metadata or {}
         }
         
@@ -158,7 +159,7 @@ class PaystackService:
             "amount": int(amount * 100),
             "authorization_code": authorization_code,
             "reference": reference,
-            "currency": "GHS"
+            "currency": self.currency
         }
         
         try:
