@@ -111,80 +111,127 @@
     </div>
 </div>
 
-<!-- Quick Actions Section - Enhanced Grid -->
+<!-- Quick Actions Section - Organized by Category -->
 <div class="content-card" style="margin-top: 1.2rem;">
     <h3 class="section-title">⚡ Quick Actions</h3>
-    <div class="quick-actions">
-        {% if user.role in "admin school_admin" %}
-        <a href="{% url 'students:student_register' %}" class="quick-action-btn">
-            <span class="quick-action-icon">👨‍🎓</span>
-            <span class="quick-action-label">Add Student</span>
-        </a>
-        <a href="{% url 'accounts:staff_register' %}" class="quick-action-btn">
-            <span class="quick-action-icon">👔</span>
-            <span class="quick-action-label">Add Staff</span>
-        </a>
-        <a href="{% url 'accounts:parent_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">👨‍👩‍👧</span>
-            <span class="quick-action-label">Parents</span>
-        </a>
-        {% endif %}
-
-        <a href="{% url 'students:graduate_class' %}" class="quick-action-btn">
-            <span class="quick-action-icon">🎓</span>
-            <span class="quick-action-label">Graduate Class</span>
-        </a>
-        <a href="{% url 'students:bulk_student_status' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📊</span>
-            <span class="quick-action-label">Bulk Status</span>
-        </a>
-        <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📈</span>
-            <span class="quick-action-label">Promote</span>
-        </a>
-        {% if user.is_school_admin %}
-        <a href="{% url 'operations:teacher_attendance_mark' %}" class="quick-action-btn">
-            <span class="quick-action-icon">✅</span>
-            <span class="quick-action-label">Teacher Attendance</span>
-        </a>
-        {% else %}
-        <a href="{% url 'operations:attendance_mark' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📋</span>
-            <span class="quick-action-label">Mark Attendance</span>
-        </a>
-        {% endif %}
-        <a href="{% url 'academics:result_upload' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📊</span>
-            <span class="quick-action-label">Upload Results</span>
-        </a>
-        <a href="{% url 'operations:expense_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">💸</span>
-            <span class="quick-action-label">Expenses</span>
-        </a>
-        <a href="{% url 'operations:budget_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📊</span>
-            <span class="quick-action-label">Budgets</span>
-        </a>
-        <a href="{% url 'operations:announcement_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📢</span>
-            <span class="quick-action-label">Announcements</span>
-        </a>
-        <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
-            <span class="quick-action-icon">💬</span>
-            <span class="quick-action-label">Messages</span>
-        </a>
-        <a href="{% url 'finance:fee_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">💰</span>
-            <span class="quick-action-label">Manage Fees</span>
-        </a>
-        <a href="{% url 'finance:subscription' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📋</span>
-            <span class="quick-action-label">Subscription</span>
-        </a>
-        <a href="{% url 'operations:calendar' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📅</span>
-            <span class="quick-action-label">Calendar</span>
-        </a>
+    
+    <!-- Category: User Management -->
+    <div style="margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
+            <span style="font-size: 0.95rem;">👥</span>
+            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">User Management</span>
+        </div>
+        <div class="quick-actions">
+            {% if user.role in "admin school_admin" %}
+            <a href="{% url 'students:student_register' %}" class="quick-action-btn">
+                <span class="quick-action-icon">👨‍🎓</span>
+                <span class="quick-action-label">Add Student</span>
+            </a>
+            <a href="{% url 'accounts:staff_register' %}" class="quick-action-btn">
+                <span class="quick-action-icon">👔</span>
+                <span class="quick-action-label">Add Staff</span>
+            </a>
+            <a href="{% url 'accounts:parent_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">👨‍👩‍👧</span>
+                <span class="quick-action-label">Parents</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Category: Student Operations -->
+    <div style="margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
+            <span style="font-size: 0.95rem;">🎓</span>
+            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Student Operations</span>
+        </div>
+        <div class="quick-actions">
+            <a href="{% url 'students:graduate_class' %}" class="quick-action-btn">
+                <span class="quick-action-icon">🎓</span>
+                <span class="quick-action-label">Graduate Class</span>
+            </a>
+            <a href="{% url 'students:bulk_student_status' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📊</span>
+                <span class="quick-action-label">Bulk Status</span>
+            </a>
+            <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📈</span>
+                <span class="quick-action-label">Promote</span>
+            </a>
+            {% if user.is_school_admin %}
+            <a href="{% url 'operations:teacher_attendance_mark' %}" class="quick-action-btn">
+                <span class="quick-action-icon">✅</span>
+                <span class="quick-action-label">Teacher Attendance</span>
+            </a>
+            {% else %}
+            <a href="{% url 'operations:attendance_mark' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📋</span>
+                <span class="quick-action-label">Mark Attendance</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Category: Academics -->
+    <div style="margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
+            <span style="font-size: 0.95rem;">📖</span>
+            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Academics</span>
+        </div>
+        <div class="quick-actions">
+            <a href="{% url 'academics:result_upload' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📊</span>
+                <span class="quick-action-label">Upload Results</span>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Category: Finance -->
+    <div style="margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
+            <span style="font-size: 0.95rem;">💰</span>
+            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Finance</span>
+        </div>
+        <div class="quick-actions">
+            <a href="{% url 'finance:fee_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">💰</span>
+                <span class="quick-action-label">Manage Fees</span>
+            </a>
+            <a href="{% url 'operations:expense_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">💸</span>
+                <span class="quick-action-label">Expenses</span>
+            </a>
+            <a href="{% url 'operations:budget_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📊</span>
+                <span class="quick-action-label">Budgets</span>
+            </a>
+            <a href="{% url 'finance:subscription' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📋</span>
+                <span class="quick-action-label">Subscription</span>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Category: General -->
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
+            <span style="font-size: 0.95rem;">📢</span>
+            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">General</span>
+        </div>
+        <div class="quick-actions">
+            <a href="{% url 'operations:announcement_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📢</span>
+                <span class="quick-action-label">Announcements</span>
+            </a>
+            <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
+                <span class="quick-action-icon">💬</span>
+                <span class="quick-action-label">Messages</span>
+            </a>
+            <a href="{% url 'operations:calendar' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📅</span>
+                <span class="quick-action-label">Calendar</span>
+            </a>
+        </div>
     </div>
 </div>
 
