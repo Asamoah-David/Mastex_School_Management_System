@@ -99,6 +99,51 @@ def _parse_date(value, default):
     return parsed or default
 
 
+def _get_image_reader_for_pdf(photo_field):
+    """
+    Get an ImageReader for PDF generation from a photo field.
+    Handles both local file paths and cloud storage URLs (Supabase).
+    
+    Args:
+        photo_field: Either an ImageFieldFile, URL string, or local file path
+        
+    Returns:
+        ImageReader object or None if image cannot be loaded
+    """
+    from reportlab.lib.utils import ImageReader
+    from io import BytesIO
+    import requests
+    
+    if not photo_field:
+        return None
+    
+    # Case 1: Local file path (has .path attribute)
+    if hasattr(photo_field, 'path') and photo_field.path:
+        try:
+            return ImageReader(photo_field.path)
+        except Exception as e:
+            print(f"Error reading local file: {e}")
+            return None
+    
+    # Case 2: Cloud storage URL (Supabase or similar)
+    url = None
+    if hasattr(photo_field, 'url'):
+        url = photo_field.url
+    elif isinstance(photo_field, str) and photo_field.startswith(('http://', 'https://')):
+        url = photo_field
+    
+    if url:
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                return ImageReader(BytesIO(response.content))
+        except Exception as e:
+            print(f"Error downloading image from URL: {e}")
+            return None
+    
+    return None
+
+
 @login_required
 def attendance_list(request):
     school = _require_school(request)
@@ -3276,93 +3321,82 @@ def id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width/2, card_y + card_height - 25, school.name)
     
-    # "STUDENT ID CARD" text - positioned on RIGHT side, after photo
-    c.setFillColor(colors.gold)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(card_x + 85, card_y + card_height - 45, "STUDENT ID CARD")
-    
-    # Student photo - improved approach for profile picture
+    # Student photo - positioned on LEFT side
     photo = None
-    photo_source = None
     
-    # Try multiple sources for the photo with better error handling
-    # Source 1: ID card uploaded photo
-    if id_card.photo and hasattr(id_card.photo, 'path') and id_card.photo.path:
+    # Try multiple sources for the photo - use helper that handles both local and cloud URLs
+    # Source 1: ID card uploaded photo (could be local path or Supabase URL)
+    if id_card.photo:
         try:
-            photo = ImageReader(id_card.photo.path)
-            photo_source = 'id_card'
+            photo = _get_image_reader_for_pdf(id_card.photo)
         except Exception as e:
             print(f"Error reading id_card.photo: {e}")
             photo = None
     
-    # Source 2: Student user's profile_photo
+    # Source 2: Student user's profile_photo (could be local path or Supabase URL)
     if not photo and student and student.user:
         try:
             user = student.user
-            # Check if user has profile_photo attribute and it's not empty
             if hasattr(user, 'profile_photo') and user.profile_photo:
-                if hasattr(user.profile_photo, 'path') and user.profile_photo.path:
-                    photo = ImageReader(user.profile_photo.path)
-                    photo_source = 'profile'
-                elif hasattr(user.profile_photo, 'url'):
-                    # For cloud storage URLs, we'd need different handling
-                    pass
+                photo = _get_image_reader_for_pdf(user.profile_photo)
         except Exception as e:
             print(f"Error reading student.user.profile_photo: {e}")
             photo = None
     
-    # Draw student photo - properly positioned with good spacing
+    # Draw student photo - LEFT side of card
+    photo_x = card_x + 15
+    photo_y = card_y + card_height - 85
+    photo_size = 55
+    
     if photo:
-        photo_x = card_x + 25
-        photo_y = card_y + card_height - 75
-        photo_size = 50
         c.saveState()
         c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
         c.clip()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
-        # Draw placeholder circle if no photo
         c.setStrokeColor(colors.lightgrey)
         c.setLineWidth(1)
         c.setFillColor(colors.lightgrey)
-        photo_x = card_x + 25
-        photo_y = card_y + card_height - 75
-        c.circle(photo_x + 25, photo_y + 25, 25, fill=1, stroke=1)
-        c.setFont("Helvetica", 8)
+        c.circle(photo_x + 27.5, photo_y + 27.5, 27.5, fill=1, stroke=1)
+        c.setFont("Helvetica", 9)
         c.setFillColor(colors.darkgrey)
-        c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
+        c.drawCentredString(photo_x + 27.5, photo_y + 22, "PHOTO")
     
-    # Student info section - Positioned at LEFT BOTTOM corner
-    info_x = card_x + 20  # Left align with card margin
-    info_y = card_y + 35  # Bottom area of the card
-    
-    # Student name - first line
-    c.setFillColor(colors.black)
+    # "STUDENT ID CARD" text - positioned on RIGHT side (next to photo)
+    c.setFillColor(colors.gold)
     c.setFont("Helvetica-Bold", 11)
+    c.drawString(card_x + 85, card_y + card_height - 40, "STUDENT ID CARD")
+    
+    # Student info section - LEFT BOTTOM corner
+    info_x = card_x + 15
+    info_y = card_y + 40
+    
+    # Student name
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 10)
     student_name = student.user.get_full_name() if student and student.user else "Student"
-    c.drawString(info_x, info_y + 25, student_name.upper())
+    c.drawString(info_x, info_y + 28, student_name.upper())
     
-    # Class - second line
-    c.setFont("Helvetica", 9)
-    c.drawString(info_x, info_y + 12, f"Class: {student.class_name or 'N/A'}")
-    
-    # Admission number - third line
-    c.drawString(info_x, info_y, f"Adm No: {student.admission_number or 'N/A'}")
-    
-    # Card number - fourth line
+    # Class
     c.setFont("Helvetica", 8)
-    c.drawString(info_x, info_y - 12, f"Card No: {id_card.card_number}")
+    c.drawString(info_x, info_y + 16, f"Class: {student.class_name or 'N/A'}")
     
-    # Generate and draw QR code - positioned at RIGHT BOTTOM corner
+    # Admission number
+    c.drawString(info_x, info_y + 5, f"Adm No: {student.admission_number or 'N/A'}")
+    
+    # Card number
+    c.setFont("Helvetica", 7)
+    c.drawString(info_x, info_y - 5, f"Card No: {id_card.card_number}")
+    
+    # Generate and draw QR code - RIGHT BOTTOM corner
     try:
         qr_data = generate_student_qr_data(student)
         qr_bytes = generate_qr_code_bytes(qr_data, box_size=4, border=1)
         qr_buffer = BytesIO(qr_bytes)
         qr_image = ImageReader(qr_buffer)
-        # Draw QR code at right bottom of card
-        qr_x = card_x + card_width - 70
-        qr_y = card_y + 20
+        qr_x = card_x + card_width - 65
+        qr_y = card_y + 15
         c.drawImage(qr_image, qr_x, qr_y, width=50, height=50, mask='auto')
     except Exception:
         pass
@@ -3370,12 +3404,14 @@ def id_card_pdf(request, pk):
     # Issue and Expiry dates
     issue_date = id_card.issue_date.strftime("%d/%m/%Y") if id_card.issue_date else "N/A"
     expiry_date = id_card.expiry_date.strftime("%d/%m/%Y") if id_card.expiry_date else "N/A"
-    c.drawCentredString(width/2, card_y + 15, f"Valid: {issue_date} - {expiry_date}")
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(width/2, card_y + 8, f"Valid: {issue_date} - {expiry_date}")
     
     # Footer
     c.setFillColor(colors.gray)
-    c.setFont("Helvetica", 7)
-    c.drawCentredString(width/2, card_y + 5, "This card is property of the school. Report if found.")
+    c.setFont("Helvetica", 6)
+    c.drawCentredString(width/2, card_y + 2, "This card is property of the school. Report if found.")
     
     c.save()
     
@@ -3439,98 +3475,92 @@ def staff_id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width/2, card_y + card_height - 25, school.name)
     
-    # "STAFF ID CARD" text - positioned on RIGHT side, after photo
-    c.setFillColor(colors.gold)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(card_x + 85, card_y + card_height - 45, "STAFF ID CARD")
-    
-    # Staff photo - improved approach for profile picture
+    # Staff photo - positioned on LEFT side
     photo = None
     
-    # Source 1: ID card uploaded photo
-    if id_card.photo and hasattr(id_card.photo, 'path') and id_card.photo.path:
+    # Try multiple sources for the photo - use helper that handles both local and cloud URLs
+    # Source 1: ID card uploaded photo (could be local path or Supabase URL)
+    if id_card.photo:
         try:
-            photo = ImageReader(id_card.photo.path)
+            photo = _get_image_reader_for_pdf(id_card.photo)
         except Exception as e:
             print(f"Error reading id_card.photo: {e}")
             photo = None
     
-    # Source 2: Staff user's profile_photo
+    # Source 2: Staff user's profile_photo (could be local path or Supabase URL)
     if not photo and staff:
         try:
-            # Staff is already the User object from StaffIDCard.staff
             if hasattr(staff, 'profile_photo') and staff.profile_photo:
-                if hasattr(staff.profile_photo, 'path') and staff.profile_photo.path:
-                    photo = ImageReader(staff.profile_photo.path)
-                elif hasattr(staff.profile_photo, 'url'):
-                    # For cloud storage URLs, we'd need different handling
-                    pass
+                photo = _get_image_reader_for_pdf(staff.profile_photo)
         except Exception as e:
             print(f"Error reading staff.profile_photo: {e}")
             photo = None
     
-    # Draw staff photo if available - positioned on left side with proper spacing
+    # Draw staff photo - LEFT side of card
+    photo_x = card_x + 15
+    photo_y = card_y + card_height - 85
+    photo_size = 55
+    
     if photo:
-        photo_x = card_x + 20
-        photo_y = card_y + card_height - 85
-        photo_size = 55
         c.saveState()
         c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
         c.clip()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
-        # Draw placeholder circle if no photo
         c.setStrokeColor(colors.lightgrey)
         c.setLineWidth(1)
         c.setFillColor(colors.lightgrey)
-        photo_x = card_x + 20
-        photo_y = card_y + card_height - 85
         c.circle(photo_x + 27.5, photo_y + 27.5, 27.5, fill=1, stroke=1)
         c.setFont("Helvetica", 9)
         c.setFillColor(colors.darkgrey)
         c.drawCentredString(photo_x + 27.5, photo_y + 22, "PHOTO")
     
-    # Staff info section - Positioned at LEFT BOTTOM corner
-    info_x = card_x + 20  # Left align with card margin
-    info_y = card_y + 35  # Bottom area of the card
-    
-    # Staff name - first line
-    c.setFillColor(colors.black)
+    # "STAFF ID CARD" text - positioned on RIGHT side (next to photo)
+    c.setFillColor(colors.gold)
     c.setFont("Helvetica-Bold", 11)
+    c.drawString(card_x + 85, card_y + card_height - 40, "STAFF ID CARD")
+    
+    # Staff info section - LEFT BOTTOM corner
+    info_x = card_x + 15
+    info_y = card_y + 40
+    
+    # Staff name
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 10)
     staff_name = staff.get_full_name() if staff else "Staff"
-    c.drawString(info_x, info_y + 25, staff_name.upper())
+    c.drawString(info_x, info_y + 28, staff_name.upper())
     
-    # Position - second line
-    c.setFont("Helvetica", 9)
-    c.drawString(info_x, info_y + 12, f"Position: {id_card.position or staff.role.title()}")
+    # Position
+    c.setFont("Helvetica", 8)
+    c.drawString(info_x, info_y + 16, f"Position: {id_card.position or staff.role.title()}")
     
-    # Staff ID - third line
-    c.drawString(info_x, info_y, f"Staff ID: {id_card.card_number}")
+    # Staff ID
+    c.drawString(info_x, info_y + 5, f"Staff ID: {id_card.card_number}")
     
-    # Generate and draw QR code - positioned at RIGHT BOTTOM corner
+    # Generate and draw QR code - RIGHT BOTTOM corner
     try:
         qr_data = generate_staff_qr_data(staff)
         qr_bytes = generate_qr_code_bytes(qr_data, box_size=4, border=1)
         qr_buffer = BytesIO(qr_bytes)
         qr_image = ImageReader(qr_buffer)
-        # Draw QR code at right bottom of card
-        qr_x = card_x + card_width - 70
-        qr_y = card_y + 20
+        qr_x = card_x + card_width - 65
+        qr_y = card_y + 15
         c.drawImage(qr_image, qr_x, qr_y, width=50, height=50, mask='auto')
     except Exception:
         pass
     
     # Issue and Expiry dates
-    c.setFont("Helvetica", 9)
     issue_date = id_card.issue_date.strftime("%d/%m/%Y") if id_card.issue_date else "N/A"
     expiry_date = id_card.expiry_date.strftime("%d/%m/%Y") if id_card.expiry_date else "N/A"
-    c.drawCentredString(width/2, card_y + 15, f"Valid: {issue_date} - {expiry_date}")
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(width/2, card_y + 8, f"Valid: {issue_date} - {expiry_date}")
     
     # Footer
     c.setFillColor(colors.gray)
-    c.setFont("Helvetica", 7)
-    c.drawCentredString(width/2, card_y + 5, "This card is property of the school. Report if found.")
+    c.setFont("Helvetica", 6)
+    c.drawCentredString(width/2, card_y + 2, "This card is property of the school. Report if found.")
     
     c.save()
     
