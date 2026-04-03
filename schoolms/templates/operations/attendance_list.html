@@ -1,47 +1,162 @@
 {% extends "base.html" %}
-{% block title %}Attendance · Mastex SchoolOS{% endblock %}
-{% block page_title %}Attendance{% endblock %}
-{% block page_subtitle %}Records for {{ school.name }}.{% endblock %}
+{% block title %}Student Attendance - {{ school.name }}{% endblock %}
+{% block page_title %}Student Attendance Records{% endblock %}
+{% block page_subtitle %}View and manage student attendance{% endblock %}
+
 {% block content %}
-<div class="button-row">
-    <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">Mark attendance</a>
-    <a href="{% url 'operations:export_attendance' %}?format=csv{% if from_date %}&from={{ from_date|date:'Y-m-d' }}{% endif %}{% if to_date %}&to={{ to_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">📥 CSV</a>
-    <a href="{% url 'operations:export_attendance' %}?format=excel{% if from_date %}&from={{ from_date|date:'Y-m-d' }}{% endif %}{% if to_date %}&to={{ to_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">📊 Excel</a>
-</div>
-<div class="table-card">
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h2>📊 Student Attendance</h2>
+            <p class="page-subtitle">View attendance records for all students</p>
+        </div>
+        <div class="button-row">
+            <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">📝 Mark Attendance</a>
+            <a href="{% url 'operations:qr_attendance_scanner' %}" class="btn btn-secondary">📱 QR Scanner</a>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="form-grid-3" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+        <form method="get" style="display: contents;">
+            <!-- Quick Filters -->
+            <div class="form-group" style="grid-column: span 3;">
+                <label>Quick Filters</label>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <a href="?filter=today" class="btn btn-sm {% if filter_type == 'today' %}btn-primary{% else %}btn-secondary{% endif %}">Today</a>
+                    <a href="?filter=week" class="btn btn-sm {% if filter_type == 'week' %}btn-primary{% else %}btn-secondary{% endif %}">This Week</a>
+                    <a href="?filter=month" class="btn btn-sm {% if filter_type == 'month' %}btn-primary{% else %}btn-secondary{% endif %}">This Month</a>
+                    <a href="?" class="btn btn-sm btn-secondary">All Time</a>
+                </div>
+            </div>
+            
+            <!-- Date Range -->
+            <div class="form-group">
+                <label>From Date</label>
+                <input type="date" name="from_date" class="form-control" value="{{ from_date }}">
+            </div>
+            <div class="form-group">
+                <label>To Date</label>
+                <input type="date" name="to_date" class="form-control" value="{{ to_date }}">
+            </div>
+            <div class="form-group">
+                <label>Class</label>
+                <select name="class" class="form-control">
+                    <option value="">All Classes</option>
+                    {% for class in classes %}
+                    <option value="{{ class }}" {% if selected_class == class %}selected{% endif %}>{{ class }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Status Filter -->
+            <div class="form-group">
+                <label>Status</label>
+                <select name="status" class="form-control">
+                    <option value="">All Statuses</option>
+                    <option value="present" {% if status_filter == 'present' %}selected{% endif %}>Present</option>
+                    <option value="absent" {% if status_filter == 'absent' %}selected{% endif %}>Absent</option>
+                    <option value="late" {% if status_filter == 'late' %}selected{% endif %}>Late</option>
+                    <option value="excused" {% if status_filter == 'excused' %}selected{% endif %}>Excused</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Student</label>
+                <input type="text" name="student" class="form-control" placeholder="Search student name..." value="{{ student_search }}">
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">🔍 Filter</button>
+                <a href="{% url 'operations:attendance_list' %}" class="btn btn-secondary">↺ Reset</a>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Stats Summary -->
+    <div class="content-grid" style="margin-top: 1rem;">
+        <div class="metric">
+            <div class="metric-label">Total Records</div>
+            <div class="metric-value">{{ attendances|length }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Present</div>
+            <div class="metric-value" style="color: #22c55e;">{{ stats.present|default:0 }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Absent</div>
+            <div class="metric-value" style="color: #ef4444;">{{ stats.absent|default:0 }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Late</div>
+            <div class="metric-value" style="color: #f59e0b;">{{ stats.late|default:0 }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Excused</div>
+            <div class="metric-value" style="color: #6366f1;">{{ stats.excused|default:0 }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Attendance Rate</div>
+            <div class="metric-value" style="color: #22c55e;">{{ attendance_rate|default:0 }}%</div>
+        </div>
+    </div>
+    
+    <!-- Export Buttons -->
+    <div class="button-row" style="margin-top: 1rem;">
+        <a href="{% url 'operations:export_attendance' %}?format=csv{% if from_date %}&from={{ from_date }}{% endif %}{% if to_date %}&to={{ to_date }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if selected_class %}&class={{ selected_class }}{% endif %}" class="btn btn-success">📥 CSV</a>
+        <a href="{% url 'operations:export_attendance' %}?format=excel{% if from_date %}&from={{ from_date }}{% endif %}{% if to_date %}&to={{ to_date }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if selected_class %}&class={{ selected_class }}{% endif %}" class="btn btn-success">📊 Excel</a>
+    </div>
+    
+    <!-- Attendance Table -->
     {% if attendances %}
-    <table>
-        <thead>
-            <tr><th>Student</th><th>Date</th><th>Status</th><th>Notes</th><th></th></tr>
-        </thead>
-        <tbody>
-            {% for a in attendances %}
-            <tr>
-                <td>{{ a.student.user.get_full_name|default:a.student.admission_number }}</td>
-                <td>{{ a.date }}</td>
-                <td>{{ a.get_status_display }}</td>
-                <td>{{ a.notes|default:"—" }}</td>
-                <td>
-                    <a href="{% url 'operations:attendance_edit' a.pk %}" class="btn btn-secondary btn-sm">Edit</a>
-                    <a href="{% url 'operations:attendance_delete' a.pk %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this record?');">Delete</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-responsive" style="margin-top: 1.5rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Admission No.</th>
+                    <th>Class</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Marked By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in attendances %}
+                <tr>
+                    <td>{{ a.student.user.get_full_name|default:a.student.user.username }}</td>
+                    <td>{{ a.student.admission_number }}</td>
+                    <td>{{ a.student.class_name }}</td>
+                    <td>{{ a.date|date:"M d, Y" }}</td>
+                    <td>
+                        <span class="tag tag-{% if a.status == 'present' %}paid{% elif a.status == 'late' %}warning{% elif a.status == 'excused' %}info{% else %}unpaid{% endif %}">
+                            {{ a.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ a.marked_by.get_full_name|default:a.marked_by.username|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'operations:attendance_edit' a.pk %}" class="btn btn-sm btn-secondary">✏️ Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <div class="empty-state">No attendance records. <a href="{% url 'operations:attendance_mark' %}">Mark attendance</a>.</div>
+    <p class="empty-state" style="text-align: center; padding: 3rem;">
+        No attendance records found. 
+        <a href="{% url 'operations:attendance_mark' %}">Mark attendance</a>
+    </p>
     {% endif %}
 </div>
 
 <style>
 .btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
 }
-.btn-danger {
-    background: linear-gradient(135deg, #f97373, #dc2626) !important;
-    color: #ffffff !important;
+.tag-info {
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: #6366f1 !important;
 }
 </style>
 {% endblock %}
