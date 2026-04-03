@@ -1,4 +1,4 @@
-"""
+﻿"""
 Payment Views for Canteen, Bus, Textbooks, and Hostel with Paystack Integration
 """
 from django.shortcuts import render, redirect, get_object_or_404
@@ -135,7 +135,7 @@ def canteen_initiate_payment(request):
         'payment_id': str(payment.id),
         'item_name': item.name,
         'quantity': quantity,
-        'student_name': student.full_name
+        'student_name': student.user.get_full_name()
     }
     
     result = paystack_service.initialize_payment(
@@ -284,7 +284,7 @@ def bus_initiate_payment(request):
         'payment_id': str(payment.id),
         'route_name': route.name,
         'term': term,
-        'student_name': student.full_name
+        'student_name': student.user.get_full_name()
     }
     
     result = paystack_service.initialize_payment(
@@ -423,7 +423,7 @@ def textbook_initiate_payment(request):
         'payment_id': str(sale.id),
         'textbook_title': textbook.title,
         'quantity': quantity,
-        'student_name': student.full_name
+        'student_name': student.user.get_full_name()
     }
     
     result = paystack_service.initialize_payment(
@@ -559,7 +559,7 @@ def hostel_initiate_payment(request):
         'payment_id': str(fee.id),
         'hostel_name': fee.hostel.name,
         'term': fee.term,
-        'student_name': student.full_name
+        'student_name': student.user.get_full_name()
     }
     
     result = paystack_service.initialize_payment(
@@ -787,7 +787,7 @@ def student_payment_history(request, student_id):
         'fees': fees,
         'total_paid': total_paid,
         'total_pending': total_pending,
-        'page_title': f'Payment History - {student.full_name}',
+        'page_title': f'Payment History - {student.user.get_full_name()}',
     }
     return render(request, 'operations/student_payment_history.html', context)
 
@@ -1044,7 +1044,7 @@ def initiate_online_payment(request):
     metadata = {
         'payment_type': 'school_fee',
         'fee_id': str(fee.id),
-        'student_name': student.full_name,
+        'student_name': student.user.get_full_name(),
     }
     
     result = paystack_service.initialize_payment(
@@ -1226,7 +1226,7 @@ def send_payment_reminder(request):
                     parent_phone = student.parent.phone
                 
                 if parent_phone:
-                    sms_message = f"Dear Parent/Guardian of {student.full_name}, this is a reminder that there are pending fees of GHS {total_pending} for the current term. Please make payments at your earliest convenience to avoid disruption. Best regards, {school.name}"
+                    sms_message = f"Dear Parent/Guardian of {student.user.get_full_name()}, this is a reminder that there are pending fees of GHS {total_pending} for the current term. Please make payments at your earliest convenience to avoid disruption. Best regards, {school.name}"
                     
                     try:
                         SMSService.send_sms(parent_phone, sms_message, school.name)
