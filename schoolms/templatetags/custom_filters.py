@@ -1,4 +1,5 @@
-﻿from django import template\nimport calendar
+﻿from django import template
+import calendar
 
 register = template.Library()
 
@@ -18,14 +19,23 @@ def get_photo_url(photo):
     if not photo:
         return None
     # If it's already a full URL (starts with http), return as-is
-    if isinstance(photo, str) and photo.startswith('http'):
+    if isinstance(photo, str) and photo.startswith(('http://', 'https://')):
         return photo
-    # Otherwise it's an ImageField and needs .url
-    try:
+    # If it's an ImageField or file, call .url
+    if hasattr(photo, 'url'):
         return photo.url
-    except (AttributeError, ValueError):
-        return None
-  
-@register.filter  
-def month_name(value):  
-    month_map = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'}  
+    # Otherwise return as-is (might be a URL string)
+    return photo
+
+@register.filter
+def month_name(month_number):
+    """Convert month number to month name."""
+    if not month_number:
+        return ""
+    try:
+        month = int(month_number)
+        if 1 <= month <= 12:
+            return calendar.month_name[month]
+    except (ValueError, TypeError):
+        pass
+    return ""
