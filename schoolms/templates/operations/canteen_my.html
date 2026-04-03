@@ -15,14 +15,10 @@
         <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ item.name }}</h4>
             <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0 0 1rem 0;">{{ item.price }} GHS</p>
-            <form method="post" action="{% url 'operations:canteen_buy' %}">
-                {% csrf_token %}
-                <input type="hidden" name="item_id" value="{{ item.id }}">
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="number" name="quantity" value="1" min="1" max="10" style="width: 60px; padding: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5); border-radius: 0.4rem;">
-                    <button type="submit" class="btn btn-primary btn-sm">Buy</button>
-                </div>
-            </form>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="number" id="quantity-{{ item.id }}" value="1" min="1" max="10" style="width: 60px; padding: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5); border-radius: 0.4rem;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="payCanteen({{ item.id }}, {{ item.price }})">Pay with Paystack</button>
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -37,6 +33,19 @@
 </div>
 {% endif %}
 
+{% if pending_payments %}
+<div class="content-card" style="border: 2px solid #f59e0b;">
+    <h3 class="section-title">⏳ Pending Payments</h3>
+    <p>You have pending payments that need to be completed.</p>
+    {% for payment in pending_payments %}
+    <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.5rem;">
+        <strong>{{ payment.description }}</strong> - {{ payment.amount }} GHS
+        <br><small>Reference: {{ payment.payment_reference }}</small>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% if my_payments %}
 <h3 class="section-title">📜 My Purchase History</h3>
 <div class="table-card">
@@ -44,18 +53,18 @@
         <thead>
             <tr>
                 <th>Date</th>
-                <th>Item</th>
-                <th>Quantity</th>
+                <th>Description</th>
                 <th>Amount</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
             {% for payment in my_payments %}
             <tr>
                 <td>{{ payment.payment_date|date:"M d, Y" }}</td>
-                <td>{{ payment.item.name }}</td>
-                <td>{{ payment.quantity }}</td>
+                <td>{{ payment.description }}</td>
                 <td>{{ payment.amount }} GHS</td>
+                <td><span class="badge badge-success">Completed</span></td>
             </tr>
             {% endfor %}
         </tbody>
@@ -63,10 +72,59 @@
 </div>
 {% endif %}
 
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script>
+function payCanteen(itemId, price) {
+    const quantity = document.getElementById('quantity-' + itemId).value;
+    const amount = parseFloat(price) * parseInt(quantity);
+    
+    fetch('{% url "operations:canteen_initiate_payment" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: 'item_id=' + itemId + '&quantity=' + quantity
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const handler = PaystackPop.setup({
+                key: '{{ paystack_public_key }}',
+                email: '{{ request.user.email }}',
+                amount: amount * 100,
+                reference: data.reference,
+                callback: function(response) {
+                    window.location.href = '{% url "operations:canteen_payment_verify" %}?reference=' + response.reference;
+                },
+                onClose: function() {
+                    alert('Payment window closed');
+                }
+            });
+            handler.openIframe();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error initiating payment: ' + error);
+    });
+}
+</script>
+
 <style>
 .section-title {
     color: #22c55e;
     margin-bottom: 1rem;
+}
+.badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+}
+.badge-success {
+    background: #22c55e;
+    color: white;
 }
 </style>
 {% endblock %}

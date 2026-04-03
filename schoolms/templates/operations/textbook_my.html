@@ -3,25 +3,26 @@
 
 {% block title %}Textbooks · Mastex SchoolOS{% endblock %}
 {% block page_title %}Textbooks{% endblock %}
-{% block page_subtitle %}Available textbooks and purchase history{% endblock %}
+{% block page_subtitle %}Purchase textbooks from school{% endblock %}
 
 {% block content %}
 
-{% if books %}
+{% if textbooks %}
 <div class="content-card">
     <h3 class="section-title">📚 Available Textbooks</h3>
     <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
-        {% for book in books %}
+        {% for textbook in textbooks %}
         <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
-            <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ book.title }}</h4>
-            <p style="font-size: 0.9rem; color: #9ca3af; margin: 0 0 0.5rem 0;">
-                {% if book.isbn %}ISBN: {{ book.isbn }}{% endif %}
-            </p>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0;">{{ book.price }} GHS</p>
-            {% if book.stock > 0 %}
-            <p style="font-size: 0.8rem; color: #22c55e; margin: 0.5rem 0 0 0;">{{ book.stock }} available</p>
-            {% else %}
-            <p style="font-size: 0.8rem; color: #ef4444; margin: 0.5rem 0 0 0;">Out of stock</p>
+            <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ textbook.title }}</h4>
+            <p style="color: #9ca3af; margin: 0.25rem 0;">{{ textbook.author }}</p>
+            <p style="color: #9ca3af; margin: 0.25rem 0;">Class: {{ textbook.class_name }}</p>
+            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0.5rem 0;">{{ textbook.price }} GHS</p>
+            <p style="color: #9ca3af; margin: 0.25rem 0;">Stock: {{ textbook.stock }}</p>
+            {% if request.user.role == 'student' or request.user.role == 'parent' %}
+            <div style="margin-top: 0.5rem;">
+                <input type="number" id="quantity-{{ textbook.id }}" value="1" min="1" max="{{ textbook.stock }}" style="width: 60px; padding: 0.25rem; margin-right: 0.5rem;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="payTextbook({{ textbook.id }}, {{ textbook.price }})">Buy with Paystack</button>
+            </div>
             {% endif %}
         </div>
         {% endfor %}
@@ -32,8 +33,21 @@
     <div class="empty-state">
         <div class="empty-state-icon">📚</div>
         <div class="empty-state-title">No Textbooks Available</div>
-        <div class="empty-state-desc">No textbooks are currently available for purchase.</div>
+        <div class="empty-state-desc">No textbooks have been added by your school yet.</div>
     </div>
+</div>
+{% endif %}
+
+{% if pending_purchases %}
+<div class="content-card" style="border: 2px solid #f59e0b;">
+    <h3 class="section-title">⏳ Pending Purchases</h3>
+    <p>You have pending purchases that need to be completed.</p>
+    {% for purchase in pending_purchases %}
+    <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.5rem;">
+        <strong>{{ purchase.textbook.title }}</strong> - {{ purchase.amount }} GHS ({{ purchase.quantity }} copies)
+        <br><small>Reference: {{ purchase.payment_reference }}</small>
+    </div>
+    {% endfor %}
 </div>
 {% endif %}
 
@@ -44,18 +58,26 @@
         <thead>
             <tr>
                 <th>Date</th>
-                <th>Book</th>
+                <th>Title</th>
                 <th>Quantity</th>
                 <th>Amount</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
             {% for purchase in my_purchases %}
             <tr>
-                <td>{{ purchase.sale_date|date:"M d, Y" }}</td>
+                <td>{{ purchase.purchase_date|date:"M d, Y" }}</td>
                 <td>{{ purchase.textbook.title }}</td>
                 <td>{{ purchase.quantity }}</td>
                 <td>{{ purchase.amount }} GHS</td>
+                <td>
+                    {% if purchase.payment_status == 'completed' %}
+                    <span class="tag tag-success">Purchased</span>
+                    {% else %}
+                    <span class="tag tag-unpaid">Pending</span>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -63,10 +85,60 @@
 </div>
 {% endif %}
 
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script>
+function payTextbook(textbookId, price) {
+    const quantity = document.getElementById('quantity-' + textbookId).value;
+    const amount = parseFloat(price) * parseInt(quantity);
+    
+    fetch('{% url "operations:textbook_initiate_payment" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: 'textbook_id=' + textbookId + '&quantity=' + quantity
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const handler = PaystackPop.setup({
+                key: '{{ paystack_public_key }}',
+                email: '{{ request.user.email }}',
+                amount: amount * 100,
+                reference: data.reference,
+                callback: function(response) {
+                    window.location.href = '{% url "operations:textbook_payment_verify" %}?reference=' + response.reference;
+                },
+                onClose: function() {
+                    alert('Payment window closed');
+                }
+            });
+            handler.openIframe();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error initiating payment: ' + error);
+    });
+}
+</script>
+
 <style>
 .section-title {
     color: #22c55e;
     margin-bottom: 1rem;
+}
+.tag-success {
+    background: rgba(34,197,94,0.2);
+    color: #22c55e;
+    border: 1px solid #22c55e;
+}
+.tag-unpaid {
+    background: rgba(239,68,68,0.2);
+    color: #ef4444;
+    border: 1px solid #ef4444;
 }
 </style>
 {% endblock %}

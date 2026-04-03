@@ -6,6 +6,16 @@ from django.shortcuts import redirect
 from django.contrib import messages
 
 
+def login_required(view_func):
+    """Decorator that requires user to be logged in."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def admin_required(view_func):
     """Decorator that requires user to be a school admin."""
     @wraps(view_func)
@@ -197,6 +207,39 @@ def results_upload_required(view_func):
             return view_func(request, *args, **kwargs)
         
         messages.error(request, 'You do not have permission to upload results.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def student_required(view_func):
+    """Decorator that requires user to be a student or parent."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        # Allow students and parents
+        if request.user.role in ['student', 'parent']:
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You must be a student or parent to access this page.')
+        return redirect('home')
+    
+    return wrapper
+
+
+def parent_required(view_func):
+    """Decorator that requires user to be a parent."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if request.user.role == 'parent':
+            return view_func(request, *args, **kwargs)
+        
+        messages.error(request, 'You must be a parent to access this page.')
         return redirect('home')
     
     return wrapper

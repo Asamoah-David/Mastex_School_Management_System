@@ -62,27 +62,37 @@ urlpatterns = [
     path("calendar/edit/<int:pk>/", views.calendar_edit, name="calendar_edit"),
     path("calendar/delete/<int:pk>/", views.calendar_delete, name="calendar_delete"),
     
-    # Canteen
+    # Canteen (Student/Parent Portal with Paystack)
     path("canteen/", views.canteen_list, name="canteen_list"),
     path("canteen/create/", views.canteen_create, name="canteen_create"),
     path("canteen/payments/", views.canteen_payments, name="canteen_payments"),
     path("canteen/delete/<int:pk>/", views.canteen_item_delete, name="canteen_item_delete"),
-    path("canteen/my/", views.canteen_my, name="canteen_my"),
-    path("canteen/buy/", views.canteen_buy, name="canteen_buy"),
+    path("canteen/my/", payment_views.canteen_my, name="canteen_my"),
+    path("canteen/pay/", payment_views.canteen_initiate_payment, name="canteen_initiate_payment"),
+    path("canteen/verify/", payment_views.canteen_payment_verify, name="canteen_payment_verify"),
     
-    # Bus
+    # Bus/Transport (Student/Parent Portal with Paystack)
     path("bus/", views.bus_list, name="bus_list"),
     path("bus/create/", views.bus_create, name="bus_create"),
     path("bus/payments/", views.bus_payments, name="bus_payments"),
     path("bus/delete/<int:pk>/", views.bus_route_delete, name="bus_route_delete"),
-    path("bus/my/", views.bus_my, name="bus_my"),
+    path("bus/my/", payment_views.bus_my, name="bus_my"),
+    path("bus/pay/", payment_views.bus_initiate_payment, name="bus_initiate_payment"),
+    path("bus/verify/", payment_views.bus_payment_verify, name="bus_payment_verify"),
     
-    # Textbooks
+    # Textbooks (Student/Parent Portal with Paystack)
     path("textbooks/", views.textbook_list, name="textbook_list"),
     path("textbooks/create/", views.textbook_create, name="textbook_create"),
     path("textbooks/sales/", views.textbook_sales, name="textbook_sales"),
     path("textbooks/delete/<int:pk>/", views.textbook_delete, name="textbook_delete"),
-    path("textbooks/my/", views.textbook_my, name="textbook_my"),
+    path("textbooks/my/", payment_views.textbook_my, name="textbook_my"),
+    path("textbooks/pay/", payment_views.textbook_initiate_payment, name="textbook_initiate_payment"),
+    path("textbooks/verify/", payment_views.textbook_payment_verify, name="textbook_payment_verify"),
+    
+    # Hostel (Student/Parent Portal with Paystack)
+    path("hostel/my/", payment_views.hostel_my, name="hostel_my"),
+    path("hostel/pay/", payment_views.hostel_initiate_payment, name="hostel_initiate_payment"),
+    path("hostel/verify/", payment_views.hostel_payment_verify, name="hostel_payment_verify"),
 
     # Announcements
     path("announcements/", views.announcement_list, name="announcement_list"),

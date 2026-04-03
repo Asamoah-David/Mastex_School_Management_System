@@ -640,15 +640,26 @@
                         </div>
                     </div>
                     <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>Finance</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📚 Services</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'finance:fee_structure_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Fee Structure</span></div></a></li>
-                                <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">💸</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
-                                <li><a href="{% url 'operations:expense_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Expense Categories</span></div></a></li>
-                                <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Budget</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_my' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:bus_my' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
+                                <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
+                                <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>
                             </ul>
                         </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📢 General</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">School Events</span></div></a></li>
+                                <li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
                     </div>
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>🏢 Operations</span><span class="toggle-icon">▾</span></div>
@@ -704,6 +715,42 @@
                             <ul class="nav-list">
                                 <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">📦</span><div class="nav-item-label"><span class="nav-item-title">Items</span></div></a></li>
                                 <li><a href="{% url 'operations:inventory_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Categories</span></div></a></li>
+                                <li><a href="{% url 'operations:inventory_transaction_list' %}" class="nav-item"><span class="nav-item-icon">🔄</span><div class="nav-item-label"><span class="nav-item-title">Transactions</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📊 Reports</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:payment_dashboard' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payments</span></div></a></li>
+                                <li><a href="{% url 'operations:financial_reports_page' %}" class="nav-item"><span class="nav-item-icon">📈</span><div class="nav-item-label"><span class="nav-item-title">Financial Reports</span></div></a></li>
+                                <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
+                                <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Budgets</span></div></a></li>
+                                <li><a href="{% url 'operations:expense_category_list' %}" class="nav-item"><span class="nav-item-icon">📂</span><div class="nav-item-label"><span class="nav-item-title">Expense Categories</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📤 Export</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:export_students' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Export Students</span></div></a></li>
+                                <li><a href="{% url 'operations:export_staff' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Export Staff</span></div></a></li>
+                                <li><a href="{% url 'operations:export_attendance' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Export Attendance</span></div></a></li>
+                                <li><a href="{% url 'operations:export_fees' %}" class="nav-item"><span class="nav-item-icon">💵</span><div class="nav-item-label"><span class="nav-item-title">Export Fees</span></div></a></li>
+                                <li><a href="{% url 'operations:export_all_data' %}" class="nav-item"><span class="nav-item-icon">📁</span><div class="nav-item-label"><span class="nav-item-title">Export All Data</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>⚙️ Automation</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:auto_timetable_page' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Auto Timetable</span></div></a></li>
+                                <li><a href="{% url 'operations:auto_seating_plan_page' %}" class="nav-item"><span class="nav-item-icon">🪑</span><div class="nav-item-label"><span class="nav-item-title">Auto Seating Plan</span></div></a></li>
+                                <li><a href="{% url 'operations:exam_hall_list' %}" class="nav-item"><span class="nav-item-icon">🏢</span><div class="nav-item-label"><span class="nav-item-title">Exam Halls</span></div></a></li>
+                                <li><a href="{% url 'operations:seating_plan_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Seating Plans</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -836,7 +883,9 @@
                                 <li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">School Events</span></div></a></li>
                                 <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
                                 <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">My Books</span></div></a></li>
-                                <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_my' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:bus_my' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
+                                <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
                                 <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>
                                 <li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">Sports & Clubs</span></div></a></li>
                             </ul>
@@ -896,6 +945,17 @@
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">Borrowed Books</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📚 Services</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:canteen_my' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:bus_my' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
+                                <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
+                                <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>
                             </ul>
                         </div>
                     </div>

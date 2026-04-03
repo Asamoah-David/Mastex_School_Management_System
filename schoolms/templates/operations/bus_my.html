@@ -15,6 +15,9 @@
         <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ route.name }}</h4>
             <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0;">{{ route.fee_per_term }} GHS <span style="font-size: 0.9rem; color: #9ca3af;">/ term</span></p>
+            {% if request.user.role == 'student' or request.user.role == 'parent' %}
+            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="payBus({{ route.id }}, {{ route.fee_per_term }})">Pay with Paystack</button>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -44,6 +47,19 @@
 </div>
 {% endif %}
 
+{% if pending_payments %}
+<div class="content-card" style="border: 2px solid #f59e0b;">
+    <h3 class="section-title">⏳ Pending Payments</h3>
+    <p>You have pending payments that need to be completed.</p>
+    {% for payment in pending_payments %}
+    <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.5rem;">
+        <strong>{{ payment.route.name }}</strong> - {{ payment.amount }} GHS
+        <br><small>Reference: {{ payment.payment_reference }}</small>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% if my_payments %}
 <h3 class="section-title">📜 My Bus Payment History</h3>
 <div class="table-card">
@@ -63,7 +79,7 @@
                 <td>{{ payment.route.name }}</td>
                 <td>{{ payment.amount }} GHS</td>
                 <td>
-                    {% if payment.status == 'paid' %}
+                    {% if payment.payment_status == 'completed' %}
                     <span class="tag tag-success">Paid</span>
                     {% else %}
                     <span class="tag tag-unpaid">Pending</span>
@@ -75,6 +91,43 @@
     </table>
 </div>
 {% endif %}
+
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script>
+function payBus(routeId, fee) {
+    fetch('{% url "operations:bus_initiate_payment" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: 'route_id=' + routeId
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const handler = PaystackPop.setup({
+                key: '{{ paystack_public_key }}',
+                email: '{{ request.user.email }}',
+                amount: fee * 100,
+                reference: data.reference,
+                callback: function(response) {
+                    window.location.href = '{% url "operations:bus_payment_verify" %}?reference=' + response.reference;
+                },
+                onClose: function() {
+                    alert('Payment window closed');
+                }
+            });
+            handler.openIframe();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error initiating payment: ' + error);
+    });
+}
+</script>
 
 <style>
 .section-title {

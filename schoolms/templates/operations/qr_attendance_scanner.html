@@ -304,23 +304,67 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function playBeep() {
-        // Simple beep using Web Audio API
+        // ULTRA LOUD BEEP - Maximum volume enhancement (5x gain)
         try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
             
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            const audioCtx = new AudioContext();
             
-            oscillator.frequency.value = 1000;
-            oscillator.type = 'sine';
-            gainNode.gain.value = 0.8;
+            // Create multiple oscillators for maximum volume - 5x GAIN FOR VERY LOUD BEEP
+            const createOsc = (freq, type) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.value = freq;
+                gain.gain.value = 5.0; // MAXIMUM GAIN - 5x louder than default
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                return { osc, gain };
+            };
             
-            oscillator.start();
-            setTimeout(() => oscillator.stop(), 100);
+            // Primary beep - high frequency for maximum audibility
+            const primary = createOsc(2000, 'square');
+            primary.osc.start();
+            primary.gain.gain.exponentialRampToValueAtTime(5.0, audioCtx.currentTime + 0.05);
+            primary.gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            primary.osc.stop(audioCtx.currentTime + 0.4);
+            
+            // Secondary harmonic - adds richness
+            const secondary = createOsc(2500, 'square');
+            secondary.osc.start();
+            secondary.gain.gain.exponentialRampToValueAtTime(4.5, audioCtx.currentTime + 0.05);
+            secondary.gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+            secondary.osc.stop(audioCtx.currentTime + 0.35);
+            
+            // Third harmonic - extra loudness
+            const tertiary = createOsc(1500, 'sawtooth');
+            tertiary.osc.start();
+            tertiary.gain.gain.exponentialRampToValueAtTime(4.0, audioCtx.currentTime + 0.05);
+            tertiary.gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            tertiary.osc.stop(audioCtx.currentTime + 0.3);
+            
+            // Double beep effect - second beep after 120ms
+            setTimeout(() => {
+                const beep2a = createOsc(2200, 'square');
+                beep2a.osc.start();
+                beep2a.gain.gain.exponentialRampToValueAtTime(5.0, audioCtx.currentTime + 0.03);
+                beep2a.gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+                beep2a.osc.stop(audioCtx.currentTime + 0.25);
+                
+                const beep2b = createOsc(1800, 'sawtooth');
+                beep2b.osc.start();
+                beep2b.gain.gain.exponentialRampToValueAtTime(4.0, audioCtx.currentTime + 0.03);
+                beep2b.gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                beep2b.osc.stop(audioCtx.currentTime + 0.2);
+            }, 120);
+            
+            // Cleanup after all beeps
+            setTimeout(() => { audioCtx.close(); }, 600);
+            
         } catch (e) {
-            // Ignore audio errors
+            // Fallback for browsers that don't support Web Audio API
+            console.log('Web Audio API not supported, using fallback');
         }
     }
     

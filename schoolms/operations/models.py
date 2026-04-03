@@ -83,6 +83,8 @@ class CanteenPayment(models.Model):
     description = models.CharField(max_length=255, blank=True)  # e.g. "Lunch", "Snack"
     payment_date = models.DateField(auto_now_add=True)
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="canteen_payments_recorded")
+    payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
+    payment_status = models.CharField(max_length=20, default='pending')  # pending, completed, failed
 
     class Meta:
         ordering = ["-payment_date"]
@@ -105,9 +107,11 @@ class BusPayment(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     route = models.ForeignKey(BusRoute, on_delete=models.SET_NULL, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    term_period = models.CharField(max_length=50, blank=True)  # e.g. "Term 1 2025"
+    term_period = models.CharField(max_length=50, blank=True)  # e.g., "Term 1 2025"
     paid = models.BooleanField(default=False)
     payment_date = models.DateField(null=True, blank=True)
+    payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
+    payment_status = models.CharField(max_length=20, default='pending')  # pending, completed, failed
 
     class Meta:
         ordering = ["-id"]
@@ -135,6 +139,8 @@ class TextbookSale(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     sale_date = models.DateField(auto_now_add=True)
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="textbook_sales_recorded")
+    payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
+    payment_status = models.CharField(max_length=20, default='pending')  # pending, completed, failed
 
     class Meta:
         ordering = ["-sale_date"]
@@ -310,6 +316,8 @@ class HostelFee(models.Model):
     term = models.CharField(max_length=50)  # e.g., "Term 1 2025"
     paid = models.BooleanField(default=False)
     payment_date = models.DateField(null=True, blank=True)
+    payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
+    payment_status = models.CharField(max_length=20, default='pending')  # pending, completed, failed
 
     class Meta:
         ordering = ["-id"]

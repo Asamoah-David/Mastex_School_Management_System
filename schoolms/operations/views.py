@@ -222,12 +222,22 @@ def canteen_my(request):
     """
     Student/parent view: view available canteen items and make purchases.
     """
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
-    
     role = getattr(request.user, "role", None)
     if role not in ("student", "parent"):
+        return redirect("home")
+    
+    # For parents, get school from children; for students, use their school
+    school = _get_school(request)
+    if role == "parent":
+        # Get school from any of the parent's children
+        child = Student.objects.filter(parent=request.user).first()
+        if child:
+            school = child.school
+        else:
+            messages.error(request, "No children found linked to your account.")
+            return redirect("home")
+    
+    if not school:
         return redirect("home")
     
     # Get available canteen items
@@ -360,12 +370,22 @@ def bus_my(request):
     """
     Student/parent view: view available bus routes and their payment status.
     """
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
-    
     role = getattr(request.user, "role", None)
     if role not in ("student", "parent"):
+        return redirect("home")
+    
+    # For parents, get school from children; for students, use their school
+    school = _get_school(request)
+    if role == "parent":
+        # Get school from any of the parent's children
+        child = Student.objects.filter(parent=request.user).first()
+        if child:
+            school = child.school
+        else:
+            messages.error(request, "No children found linked to your account.")
+            return redirect("home")
+    
+    if not school:
         return redirect("home")
     
     # Get available bus routes
@@ -435,12 +455,22 @@ def textbook_my(request):
     """
     Student/parent view: view available textbooks and their purchase history.
     """
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
-    
     role = getattr(request.user, "role", None)
     if role not in ("student", "parent"):
+        return redirect("home")
+    
+    # For parents, get school from children; for students, use their school
+    school = _get_school(request)
+    if role == "parent":
+        # Get school from any of the parent's children
+        child = Student.objects.filter(parent=request.user).first()
+        if child:
+            school = child.school
+        else:
+            messages.error(request, "No children found linked to your account.")
+            return redirect("home")
+    
+    if not school:
         return redirect("home")
     
     # Get available textbooks
@@ -3246,23 +3276,40 @@ def id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width/2, card_y + card_height - 45, "STUDENT ID CARD")
     
-    # Student photo (from user's profile_photo)
-    student_user = student.user if student else None
+    # Student photo - improved approach for profile picture
     photo = None
-    if student_user and hasattr(student_user, 'profile_photo') and student_user.profile_photo:
+    photo_source = None
+    
+    # Try multiple sources for the photo with better error handling
+    # Source 1: ID card uploaded photo
+    if id_card.photo and hasattr(id_card.photo, 'path') and id_card.photo.path:
         try:
-            # Open the user's profile photo
-            student_user.profile_photo.open()
-            photo = ImageReader(student_user.profile_photo)
-            student_user.profile_photo.close()
-        except Exception:
+            photo = ImageReader(id_card.photo.path)
+            photo_source = 'id_card'
+        except Exception as e:
+            print(f"Error reading id_card.photo: {e}")
             photo = None
     
-    # Draw student photo if available (on the left side)
+    # Source 2: Student user's profile_photo
+    if not photo and student and student.user:
+        try:
+            user = student.user
+            # Check if user has profile_photo attribute and it's not empty
+            if hasattr(user, 'profile_photo') and user.profile_photo:
+                if hasattr(user.profile_photo, 'path') and user.profile_photo.path:
+                    photo = ImageReader(user.profile_photo.path)
+                    photo_source = 'profile'
+                elif hasattr(user.profile_photo, 'url'):
+                    # For cloud storage URLs, we'd need different handling
+                    pass
+        except Exception as e:
+            print(f"Error reading student.user.profile_photo: {e}")
+            photo = None
+    
+    # Draw student photo - properly positioned with good spacing
     if photo:
-        # Draw photo in a circular/oval area on the left
-        photo_x = card_x + 30
-        photo_y = card_y + card_height - 100
+        photo_x = card_x + 25
+        photo_y = card_y + card_height - 75
         photo_size = 50
         c.saveState()
         c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
@@ -3274,42 +3321,41 @@ def id_card_pdf(request, pk):
         c.setStrokeColor(colors.lightgrey)
         c.setLineWidth(1)
         c.setFillColor(colors.lightgrey)
-        photo_x = card_x + 30
-        photo_y = card_y + card_height - 100
+        photo_x = card_x + 25
+        photo_y = card_y + card_height - 75
         c.circle(photo_x + 25, photo_y + 25, 25, fill=1, stroke=1)
-        c.setFont("Helvetica", 10)
+        c.setFont("Helvetica", 8)
         c.setFillColor(colors.darkgrey)
         c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
     
-    # Student name (center-right)
+    # Student name - centered at top, no overlap with photo
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 16)
+    c.setFont("Helvetica-Bold", 12)
     student_name = student.user.get_full_name() if student and student.user else "Student"
-    c.drawCentredString(width/2 + 20, card_y + card_height - 75, student_name.upper())
+    c.drawCentredString(card_x + card_width/2, card_y + card_height - 20, student_name.upper())
     
-    # Class
-    c.setFont("Helvetica", 11)
-    c.drawCentredString(width/2 + 20, card_y + card_height - 95, f"Class: {student.class_name or 'N/A'}")
-    
-    # Admission number
-    c.drawCentredString(width/2 + 20, card_y + card_height - 110, f"Adm No: {student.admission_number or 'N/A'}")
-    
-    # Card number
+    # Class - below name
     c.setFont("Helvetica", 9)
-    c.drawCentredString(width/2 + 20, card_y + card_height - 128, f"Card No: {id_card.card_number}")
+    c.drawCentredString(card_x + card_width/2, card_y + card_height - 35, f"Class: {student.class_name or 'N/A'}")
     
-    # Generate and draw QR code on the right side
+    # Admission number - below class
+    c.drawCentredString(card_x + card_width/2, card_y + card_height - 48, f"Adm No: {student.admission_number or 'N/A'}")
+    
+    # Card number - below admission number
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(card_x + card_width/2, card_y + card_height - 60, f"Card No: {id_card.card_number}")
+    
+    # Generate and draw QR code - positioned at bottom center to avoid overlap
     try:
         qr_data = generate_student_qr_data(student)
-        qr_bytes = generate_qr_code_bytes(qr_data, box_size=3, border=1)
+        qr_bytes = generate_qr_code_bytes(qr_data, box_size=4, border=1)
         qr_buffer = BytesIO(qr_bytes)
         qr_image = ImageReader(qr_buffer)
-        # Draw QR code on right side of the card
-        qr_x = card_x + card_width - 60
-        qr_y = card_y + card_height - 90
-        c.drawImage(qr_image, qr_x, qr_y, width=45, height=45, mask='auto')
+        # Draw QR code at bottom center of card
+        qr_x = card_x + (card_width - 50) / 2
+        qr_y = card_y + 20
+        c.drawImage(qr_image, qr_x, qr_y, width=50, height=50, mask='auto')
     except Exception:
-        # If QR generation fails, just skip
         pass
     
     # Issue and Expiry dates
@@ -3389,21 +3435,36 @@ def staff_id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width/2, card_y + card_height - 45, "STAFF ID CARD")
     
-    # Staff photo (from user's profile_photo)
+    # Staff photo - improved approach for profile picture
     photo = None
-    if staff and hasattr(staff, 'profile_photo') and staff.profile_photo:
+    
+    # Source 1: ID card uploaded photo
+    if id_card.photo and hasattr(id_card.photo, 'path') and id_card.photo.path:
         try:
-            staff.profile_photo.open()
-            photo = ImageReader(staff.profile_photo)
-            staff.profile_photo.close()
-        except Exception:
+            photo = ImageReader(id_card.photo.path)
+        except Exception as e:
+            print(f"Error reading id_card.photo: {e}")
             photo = None
     
-    # Draw staff photo if available (on the left side)
+    # Source 2: Staff user's profile_photo
+    if not photo and staff:
+        try:
+            # Staff is already the User object from StaffIDCard.staff
+            if hasattr(staff, 'profile_photo') and staff.profile_photo:
+                if hasattr(staff.profile_photo, 'path') and staff.profile_photo.path:
+                    photo = ImageReader(staff.profile_photo.path)
+                elif hasattr(staff.profile_photo, 'url'):
+                    # For cloud storage URLs, we'd need different handling
+                    pass
+        except Exception as e:
+            print(f"Error reading staff.profile_photo: {e}")
+            photo = None
+    
+    # Draw staff photo if available - positioned on left side with proper spacing
     if photo:
-        photo_x = card_x + 30
-        photo_y = card_y + card_height - 100
-        photo_size = 50
+        photo_x = card_x + 20
+        photo_y = card_y + card_height - 85
+        photo_size = 55
         c.saveState()
         c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
         c.clip()
@@ -3414,35 +3475,36 @@ def staff_id_card_pdf(request, pk):
         c.setStrokeColor(colors.lightgrey)
         c.setLineWidth(1)
         c.setFillColor(colors.lightgrey)
-        photo_x = card_x + 30
-        photo_y = card_y + card_height - 100
-        c.circle(photo_x + 25, photo_y + 25, 25, fill=1, stroke=1)
-        c.setFont("Helvetica", 10)
+        photo_x = card_x + 20
+        photo_y = card_y + card_height - 85
+        c.circle(photo_x + 27.5, photo_y + 27.5, 27.5, fill=1, stroke=1)
+        c.setFont("Helvetica", 9)
         c.setFillColor(colors.darkgrey)
-        c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
+        c.drawCentredString(photo_x + 27.5, photo_y + 22, "PHOTO")
     
-    # Staff name (center-right)
+    # Staff name - centered below the photo
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 16)
+    c.setFont("Helvetica-Bold", 14)
     staff_name = staff.get_full_name() if staff else "Staff"
-    c.drawCentredString(width/2 + 20, card_y + card_height - 75, staff_name.upper())
+    c.drawCentredString(card_x + card_width/2, card_y + card_height - 55, staff_name.upper())
     
-    # Position
-    c.setFont("Helvetica", 11)
-    c.drawCentredString(width/2 + 20, card_y + card_height - 95, f"Position: {id_card.position or staff.role.title()}")
+    # Position - below name
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(card_x + card_width/2, card_y + card_height - 70, f"Position: {id_card.position or staff.role.title()}")
     
-    # Staff ID
-    c.drawCentredString(width/2 + 20, card_y + card_height - 110, f"Staff ID: {id_card.card_number}")
+    # Staff ID - below position
+    c.drawCentredString(card_x + card_width/2, card_y + card_height - 85, f"Staff ID: {id_card.card_number}")
     
-    # Generate and draw QR code on the right side
+    # Generate and draw QR code - positioned at bottom center to avoid overlap
     try:
         qr_data = generate_staff_qr_data(staff)
-        qr_bytes = generate_qr_code_bytes(qr_data, box_size=3, border=1)
+        qr_bytes = generate_qr_code_bytes(qr_data, box_size=4, border=1)
         qr_buffer = BytesIO(qr_bytes)
         qr_image = ImageReader(qr_buffer)
-        qr_x = card_x + card_width - 60
-        qr_y = card_y + card_height - 90
-        c.drawImage(qr_image, qr_x, qr_y, width=45, height=45, mask='auto')
+        # Draw QR code at bottom center of card
+        qr_x = card_x + (card_width - 50) / 2
+        qr_y = card_y + 20
+        c.drawImage(qr_image, qr_x, qr_y, width=50, height=50, mask='auto')
     except Exception:
         pass
     
