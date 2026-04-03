@@ -17,7 +17,7 @@
     </div>
     
     {% if expenses %}
-    <p class="total-display">Total: <strong>${{ total }}</strong></p>
+    <p class="total-display">Total: <strong>GHS {{ total }}</strong></p>
     <table class="data-table">
         <thead>
             <tr>
@@ -35,7 +35,7 @@
             <td>{{ expense.expense_date|date:"M d, Y" }}</td>
             <td>{{ expense.category.name|default:"N/A" }}</td>
             <td>{{ expense.description }}</td>
-            <td>${{ expense.amount }}</td>
+            <td>GHS {{ expense.amount }}</td>
             <td>{{ expense.vendor|default:"N/A" }}</td>
             <td>
                 <a href="{% url 'operations:expense_detail' expense.pk %}" class="btn btn-sm btn-info">👁️ View</a>

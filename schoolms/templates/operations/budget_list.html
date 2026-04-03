@@ -32,9 +32,9 @@
             <td>{{ budget.category.name|default:"General" }}</td>
             <td>{{ budget.academic_year }}</td>
             <td>{{ budget.term|default:"All Terms" }}</td>
-            <td>${{ budget.allocated_amount }}</td>
-            <td>${{ budget.spent_amount|default:"0" }}</td>
-            <td>${{ budget.remaining|default:budget.allocated_amount }}</td>
+            <td>GHS {{ budget.allocated_amount }}</td>
+            <td>GHS {{ budget.spent_amount|default:"0" }}</td>
+            <td>GHS {{ budget.remaining|default:budget.allocated_amount }}</td>
             <td>
                 <a href="{% url 'operations:budget_edit' budget.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                 <a href="{% url 'operations:budget_delete' budget.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
