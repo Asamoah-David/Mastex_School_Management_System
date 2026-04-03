@@ -3,86 +3,100 @@
 {% load qr_utils %}
 
 {% block title %}Print Staff ID Card - {{ id_card.staff.get_full_name }}{% endblock %}
+{% block page_title %}Print Staff ID Card{% endblock %}
 
 {% block content %}
 <div class="content-card" style="display: flex; flex-direction: column; align-items: center; padding: 2rem;">
     <h2 style="margin-bottom: 1.5rem;">🪪 Staff ID Card Preview</h2>
     
-    <div class="id-card" style="border: 3px solid #059669; border-radius: 16px; padding: 0; width: 480px; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden; position: relative;">
-        <!-- Header with School Name -->
-        <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; padding: 15px 20px; text-align: center;">
-            <h3 style="margin: 0; font-size: 18px; font-weight: 700;">{{ school.name|default:"SCHOOL NAME" }}</h3>
-            <p style="margin: 5px 0 0; font-size: 11px; opacity: 0.9;">Staff Identification Card</p>
+    <!-- ID Card - Fixed Layout with NO overlapping -->
+    <div class="id-card" style="border: 3px solid #059669; border-radius: 16px; width: 520px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; padding: 12px 20px; text-align: center;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">{{ school.name|default:"SCHOOL NAME" }}</h3>
+            <p style="margin: 3px 0 0; font-size: 10px; opacity: 0.9;">Staff Identification Card</p>
         </div>
         
-        <!-- Card Body -->
-        <div style="padding: 20px;">
-            <!-- Photo and Basic Info Row -->
-            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                <div style="flex-shrink: 0;">
-                    {% if id_card.photo %}
-                    <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #d1fae5; border-radius: 8px;">
-                    {% elif id_card.staff.profile_photo %}
-                    <img src="{{ id_card.staff.profile_photo }}" alt="Photo" style="width: 100px; height: 120px; object-fit: cover; border: 2px solid #d1fae5; border-radius: 8px;">
-                    {% else %}
-                    <div style="width: 100px; height: 120px; background: #ecfdf5; display: flex; align-items: center; justify-content: center; border: 2px dashed #a7f3d0; border-radius: 8px;">
-                        <span style="color: #6ee7b7; font-size: 12px;">No Photo</span>
-                    </div>
-                    {% endif %}
+        <!-- Body - Vertical Layout to prevent overlapping -->
+        <div style="padding: 15px 20px;">
+            
+            <!-- Photo Section - Centered -->
+            <div style="text-align: center; margin-bottom: 15px;">
+                {% if id_card.photo %}
+                <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 120px; height: 140px; object-fit: cover; border: 3px solid #e2e8f0; border-radius: 8px;">
+                {% elif id_card.staff.profile_photo %}
+                <img src="{{ id_card.staff.profile_photo }}" alt="Photo" style="width: 120px; height: 140px; object-fit: cover; border: 3px solid #e2e8f0; border-radius: 8px;">
+                {% else %}
+                <div style="width: 120px; height: 140px; background: #f1f5f9; display: inline-flex; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; border-radius: 8px;">
+                    <span style="color: #94a3b8; font-size: 11px;">No Photo</span>
                 </div>
-                
-                <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
-                    <h4 style="margin: 0 0 8px; font-size: 16px; color: #1e293b; font-weight: 700;">{{ id_card.staff.get_full_name }}</h4>
-                    <p style="margin: 4px 0; font-size: 12px; color: #475569;">
-                        <strong>ID:</strong> {{ id_card.staff.username }}
-                    </p>
-                    <p style="margin: 4px 0; font-size: 12px; color: #475569;">
-                        <strong>Role:</strong> {{ id_card.staff.get_role_display|default:id_card.staff.role|capfirst }}
-                    </p>
-                    <p style="margin: 4px 0; font-size: 12px; color: #475569;">
-                        <strong>Position:</strong> {{ id_card.position|default:"Staff" }}
-                    </p>
+                {% endif %}
+            </div>
+            
+            <!-- Staff Name - Clear and separated -->
+            <div style="text-align: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; font-size: 18px; color: #1e293b; font-weight: 700;">{{ id_card.staff.get_full_name }}</h4>
+            </div>
+            
+            <!-- Info Grid - 2 columns -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; margin-bottom: 12px;">
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>ID Number:</strong></p>
+                    <p style="margin: 2px 0 4px; color: #1e293b;">{{ id_card.staff.employee_id|default:id_card.card_number }}</p>
+                </div>
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>Role:</strong></p>
+                    <p style="margin: 2px 0 4px; color: #1e293b;">{{ id_card.staff.get_role_display|default:id_card.staff.role|capfirst }}</p>
+                </div>
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>Department:</strong></p>
+                    <p style="margin: 2px 0 4px; color: #1e293b;">{{ id_card.staff.department|default:"N/A" }}</p>
+                </div>
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>Gender:</strong></p>
+                    <p style="margin: 2px 0 4px; color: #1e293b;">{{ id_card.staff.gender|default:"N/A" }}</p>
+                </div>
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>Phone:</strong></p>
+                    <p style="margin: 2px 0 4px; color: #1e293b;">{{ id_card.staff.phone|default:"N/A" }}</p>
+                </div>
+                <div>
+                    <p style="margin: 0; color: #64748b;"><strong>Email:</strong></p>
+                    <p style="margin: 2px 0 4px; color: #1e293b; font-size: 10px;">{{ id_card.staff.email|default:"N/A" }}</p>
                 </div>
             </div>
             
-            <!-- Divider -->
-            <div style="border-top: 1px dashed #d1fae5; margin: 10px 0;"></div>
-            
-            <!-- Contact Details -->
-            <div style="font-size: 11px;">
-                <p style="margin: 0; color: #64748b;"><strong>Email:</strong></p>
-                <p style="margin: 2px 0 6px; color: #1e293b;">{{ id_card.staff.email|default:"N/A" }}</p>
-                
-                <p style="margin: 0; color: #64748b;"><strong>Phone:</strong></p>
-                <p style="margin: 2px 0 6px; color: #1e293b;">{{ id_card.staff.phone|default:"N/A" }}</p>
-            </div>
-            
-            <!-- Department/Subject -->
-            {% if id_card.staff.assigned_subjects.exists %}
-            <div style="background: #eff6ff; border-radius: 8px; padding: 10px; margin-top: 10px;">
-                <p style="margin: 0; font-size: 10px; color: #1d4ed8; font-weight: 600;">📚 SUBJECTS TAUGHT</p>
-                <p style="margin: 4px 0 0; font-size: 11px; color: #1e293b;">
-                    {{ id_card.staff.assigned_subjects.all|join:", " }}
+            <!-- Emergency Contact -->
+            <div style="background: #fef2f2; border-radius: 6px; padding: 8px; margin-bottom: 12px;">
+                <p style="margin: 0; font-size: 9px; color: #dc2626; font-weight: 600;">⚠️ EMERGENCY CONTACT</p>
+                {% if id_card.staff.emergency_contact %}
+                <p style="margin: 3px 0 0; font-size: 10px; color: #1e293b;">
+                    {{ id_card.staff.emergency_contact }}
                 </p>
+                {% else %}
+                <p style="margin: 3px 0 0; font-size: 10px; color: #64748b;">No emergency contact</p>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
         
-        <!-- Footer with QR Code -->
-        <div style="background: #f0fdf4; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #d1fae5;">
-            <div style="font-size: 10px; color: #64748b;">
+        <!-- Footer with QR Code - Fixed position -->
+        <div style="background: #f8fafc; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0;">
+            <div style="font-size: 9px; color: #64748b; flex: 1;">
                 <p style="margin: 0;"><strong>Issued:</strong> {{ id_card.issue_date|date:"M Y" }}</p>
                 <p style="margin: 2px 0 0;"><strong>Expires:</strong> {{ id_card.expiry_date|date:"M Y"|default:"Lifetime" }}</p>
             </div>
-            <!-- QR Code in Footer -->
-            <div style="text-align: center;">
-                <img src="data:image/png;base64,{% generate_staff_qr_base64 id_card.staff %}" alt="QR Code" style="width: 60px; height: 60px;">
-                <p style="margin: 2px 0 0; font-size: 7px; color: #64748b; font-weight: 600;">ATTENDANCE</p>
+            
+            <!-- QR Code - Centered -->
+            <div style="text-align: center; padding: 0 10px;">
+                <img src="data:image/png;base64,{% generate_staff_qr_base64 id_card.staff %}" alt="QR Code" style="width: 55px; height: 55px;">
+                <p style="margin: 2px 0 0; font-size: 6px; color: #64748b; font-weight: 600;">SCAN ME</p>
             </div>
-            <div style="text-align: right;">
-                <p style="margin: 0; font-size: 10px; color: #64748b;">Card #: {{ id_card.card_number }}</p>
-                {% if school.address %}
-                <p style="margin: 2px 0 0; font-size: 9px; color: #94a3b8;">{{ school.address|truncatechars:30 }}</p>
+            
+            <div style="text-align: right; font-size: 9px; color: #64748b; flex: 1;">
+                <p style="margin: 0;">Card #: {{ id_card.card_number }}</p>
+                {% if id_card.staff.school.address %}
+                <p style="margin: 2px 0 0; font-size: 8px; color: #94a3b8;">{{ id_card.staff.school.address|truncatechars:25 }}</p>
                 {% endif %}
             </div>
         </div>
