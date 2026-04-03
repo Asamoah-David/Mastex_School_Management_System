@@ -623,3 +623,645 @@ def hostel_payment_verify(request):
         messages.error(request, "Payment record not found")
     
     return redirect('operations:hostel_my')
+
+
+# ==================== GENERAL PAYMENT DASHBOARD ====================
+
+@login_required
+def payment_dashboard(request):
+    """Admin dashboard showing all payments across the system."""
+    school = getattr(request.user, 'school', None)
+    if not school:
+        messages.error(request, "School not found")
+        return redirect('dashboard')
+    
+    # Get filter parameters
+    date_filter = request.GET.get('date_filter', 'all')
+    payment_type = request.GET.get('payment_type', 'all')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    # Base queryset for fees
+    from finance.models import Fee
+    fees = Fee.objects.filter(school=school).select_related('student')
+    
+    # Filter by date
+    if date_filter == 'today':
+        from django.utils import timezone
+        today = timezone.now().date()
+        fees = fees.filter(created_at__date=today)
+    elif date_filter == 'week':
+        from django.utils import timezone
+        week_ago = timezone.now() - timezone.timedelta(days=7)
+        fees = fees.filter(created_at__gte=week_ago)
+    elif date_filter == 'month':
+        from django.utils import timezone
+        month_ago = timezone.now() - timezone.timedelta(days=30)
+        fees = fees.filter(created_at__gte=month_ago)
+    
+    if start_date:
+        fees = fees.filter(created_at__date__gte=start_date)
+    if end_date:
+        fees = fees.filter(created_at__date__lte=end_date)
+    
+    # Get payment counts
+    total_fees = fees.count()
+    paid_fees = fees.filter(paid=True).count()
+    pending_fees = total_fees - paid_fees
+    
+    # Get amounts
+    total_amount = sum(float(f.amount) for f in fees)
+    total_collected = sum(float(f.amount_paid) for f in fees)
+    
+    # Get other payments (canteen, bus, textbook)
+    canteen_payments = CanteenPayment.objects.filter(school=school, payment_status='completed')
+    bus_payments = BusPayment.objects.filter(school=school, payment_status='completed')
+    textbook_sales = TextbookSale.objects.filter(school=school, payment_status='completed')
+    
+    # Calculate totals by type
+    if payment_type == 'all' or payment_type == 'school_fees':
+        school_fees_total = total_collected
+    else:
+        school_fees_total = 0
+    
+    if payment_type == 'all' or payment_type == 'canteen':
+        canteen_total = sum(float(p.amount) for p in canteen_payments)
+    else:
+        canteen_total = 0
+    
+    if payment_type == 'all' or payment_type == 'bus':
+        bus_total = sum(float(p.amount) for p in bus_payments)
+    else:
+        bus_total = 0
+    
+    if payment_type == 'all' or payment_type == 'textbook':
+        textbook_total = sum(float(s.amount) for s in textbook_sales)
+    else:
+        textbook_total = 0
+    
+    # Recent payments
+    recent_fee_payments = fees[:20]
+    
+    context = {
+        'fees': recent_fee_payments,
+        'total_fees': total_fees,
+        'paid_fees': paid_fees,
+        'pending_fees': pending_fees,
+        'total_amount': total_amount,
+        'total_collected': total_collected,
+        'canteen_total': canteen_total,
+        'bus_total': bus_total,
+        'textbook_total': textbook_total,
+        'school_fees_total': school_fees_total,
+        'date_filter': date_filter,
+        'payment_type': payment_type,
+        'start_date': start_date,
+        'end_date': end_date,
+        'page_title': 'Payment Dashboard',
+    }
+    return render(request, 'operations/payment_dashboard.html', context)
+
+
+@login_required
+def student_payment_history(request, student_id):
+    """View payment history for a specific student."""
+    from finance.models import Fee, FeePayment
+    
+    student = get_object_or_404(Student, id=student_id)
+    school = getattr(request.user, 'school', None)
+    
+    if school and student.school != school:
+        messages.error(request, "Student not found")
+        return redirect('operations:payment_dashboard')
+    
+    # Get all fees for student
+    fees = Fee.objects.filter(student=student).order_by('-created_at')
+    
+    # Get all related payments
+    all_payments = []
+    for fee in fees:
+        fee_payments = FeePayment.objects.filter(fee=fee).order_by('-created_at')
+        for payment in fee_payments:
+            all_payments.append({
+                'type': 'school_fee',
+                'fee': fee,
+                'payment': payment,
+                'amount': float(payment.amount),
+                'status': payment.status,
+                'date': payment.created_at,
+            })
+    
+    # Get canteen payments
+    canteen_payments = CanteenPayment.objects.filter(student=student).order_by('-created_at')
+    for payment in canteen_payments:
+        all_payments.append({
+            'type': 'canteen',
+            'payment': payment,
+            'amount': float(payment.amount),
+            'status': payment.payment_status,
+            'date': payment.created_at,
+        })
+    
+    # Get bus payments
+    bus_payments = BusPayment.objects.filter(student=student).order_by('-created_at')
+    for payment in bus_payments:
+        all_payments.append({
+            'type': 'bus',
+            'payment': payment,
+            'amount': float(payment.amount),
+            'status': payment.payment_status,
+            'date': payment.created_at,
+        })
+    
+    # Get textbook sales
+    textbook_sales = TextbookSale.objects.filter(student=student).order_by('-created_at')
+    for sale in textbook_sales:
+        all_payments.append({
+            'type': 'textbook',
+            'payment': sale,
+            'amount': float(sale.amount),
+            'status': sale.payment_status,
+            'date': sale.created_at,
+        })
+    
+    # Sort by date
+    all_payments.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Calculate totals
+    total_paid = sum(p['amount'] for p in all_payments if p['status'] == 'completed')
+    total_pending = sum(p['amount'] for p in all_payments if p['status'] == 'pending')
+    
+    context = {
+        'student': student,
+        'payments': all_payments,
+        'fees': fees,
+        'total_paid': total_paid,
+        'total_pending': total_pending,
+        'page_title': f'Payment History - {student.full_name}',
+    }
+    return render(request, 'operations/student_payment_history.html', context)
+
+
+@login_required
+def record_payment(request):
+    """Manually record a payment for a student."""
+    from finance.models import Fee, FeePayment
+    
+    school = getattr(request.user, 'school', None)
+    if not school:
+        messages.error(request, "School not found")
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        student_id = request.POST.get('student_id')
+        fee_id = request.POST.get('fee_id')
+        amount = request.POST.get('amount')
+        payment_method = request.POST.get('payment_method', 'cash')
+        
+        try:
+            student = Student.objects.get(id=student_id, school=school)
+            fee = Fee.objects.get(id=fee_id, student=student)
+            
+            amount_decimal = float(amount)
+            
+            if amount_decimal <= 0:
+                messages.error(request, "Amount must be positive")
+                return redirect('operations:record_payment')
+            
+            # Create payment record
+            payment = FeePayment.objects.create(
+                fee=fee,
+                amount=amount_decimal,
+                payment_method=payment_method,
+                status='completed'
+            )
+            
+            # Update fee
+            fee.amount_paid += amount_decimal
+            fee.save()
+            
+            messages.success(request, f"Payment of GHS {amount} recorded successfully")
+            return redirect('operations:student_payment_history', student_id=student.id)
+            
+        except (Student.DoesNotExist, Fee.DoesNotExist) as e:
+            messages.error(request, "Student or fee not found")
+        except ValueError:
+            messages.error(request, "Invalid amount")
+    
+    # Get students for dropdown
+    students = Student.objects.filter(school=school, is_active=True).order_by('full_name')
+    
+    context = {
+        'students': students,
+        'page_title': 'Record Payment',
+    }
+    return render(request, 'operations/record_payment.html', context)
+
+
+@student_required
+def my_payments(request):
+    """Student view of their own payments."""
+    student = _get_user_student(request)
+    if not student:
+        return redirect('accounts:login')
+    
+    from finance.models import Fee, FeePayment
+    
+    # Get school fees
+    fees = Fee.objects.filter(student=student).order_by('-created_at')
+    
+    # Get all payment records
+    all_payments = []
+    
+    # Fee payments
+    for fee in fees:
+        fee_payments = FeePayment.objects.filter(fee=fee).order_by('-created_at')
+        for payment in fee_payments:
+            all_payments.append({
+                'type': 'school_fee',
+                'description': f"School Fees",
+                'amount': float(payment.amount),
+                'status': payment.status,
+                'date': payment.created_at,
+            })
+    
+    # Canteen payments
+    canteen_payments = CanteenPayment.objects.filter(
+        student=student
+    ).order_by('-created_at')
+    for payment in canteen_payments:
+        all_payments.append({
+            'type': 'canteen',
+            'description': payment.description or "Canteen",
+            'amount': float(payment.amount),
+            'status': payment.payment_status,
+            'date': payment.created_at,
+        })
+    
+    # Bus payments
+    bus_payments = BusPayment.objects.filter(
+        student=student
+    ).order_by('-created_at')
+    for payment in bus_payments:
+        all_payments.append({
+            'type': 'bus',
+            'description': f"Bus - {payment.route.name if payment.route else 'Transport'}",
+            'amount': float(payment.amount),
+            'status': payment.payment_status,
+            'date': payment.created_at,
+        })
+    
+    # Textbook sales
+    textbook_sales = TextbookSale.objects.filter(
+        student=student
+    ).order_by('-created_at')
+    for sale in textbook_sales:
+        all_payments.append({
+            'type': 'textbook',
+            'description': f"Textbook - {sale.textbook.title if sale.textbook else 'Textbook'}",
+            'amount': float(sale.amount),
+            'status': sale.payment_status,
+            'date': sale.created_at,
+        })
+    
+    # Sort by date
+    all_payments.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Calculate totals
+    total_paid = sum(p['amount'] for p in all_payments if p['status'] == 'completed')
+    total_pending = sum(p['amount'] for p in all_payments if p['status'] == 'pending')
+    
+    context = {
+        'payments': all_payments,
+        'fees': fees,
+        'total_paid': total_paid,
+        'total_pending': total_pending,
+        'page_title': 'My Payments',
+    }
+    return render(request, 'operations/my_payments.html', context)
+
+
+@login_required
+def generate_receipt(request, payment_type, payment_id):
+    """Generate receipt for a payment."""
+    from finance.models import Fee, FeePayment
+    
+    if payment_type == 'school_fee':
+        try:
+            payment = FeePayment.objects.get(id=payment_id)
+            fee = payment.fee
+            student = fee.student
+            amount = float(payment.amount)
+            date = payment.created_at
+            description = f"School Fees - {fee.amount} GHS"
+        except FeePayment.DoesNotExist:
+            messages.error(request, "Payment not found")
+            return redirect('operations:payment_dashboard')
+    
+    elif payment_type == 'canteen':
+        try:
+            payment = CanteenPayment.objects.get(id=payment_id)
+            student = payment.student
+            amount = float(payment.amount)
+            date = payment.created_at
+            description = payment.description or "Canteen Purchase"
+        except CanteenPayment.DoesNotExist:
+            messages.error(request, "Payment not found")
+            return redirect('operations:payment_dashboard')
+    
+    elif payment_type == 'bus':
+        try:
+            payment = BusPayment.objects.get(id=payment_id)
+            student = payment.student
+            amount = float(payment.amount)
+            date = payment.created_at
+            description = f"Bus Transport - {payment.route.name if payment.route else 'Transport'}"
+        except BusPayment.DoesNotExist:
+            messages.error(request, "Payment not found")
+            return redirect('operations:payment_dashboard')
+    
+    elif payment_type == 'textbook':
+        try:
+            payment = TextbookSale.objects.get(id=payment_id)
+            student = payment.student
+            amount = float(payment.amount)
+            date = payment.created_at
+            description = f"Textbook - {payment.textbook.title if payment.textbook else 'Textbook'}"
+        except TextbookSale.DoesNotExist:
+            messages.error(request, "Payment not found")
+            return redirect('operations:payment_dashboard')
+    
+    else:
+        messages.error(request, "Invalid payment type")
+        return redirect('operations:payment_dashboard')
+    
+    # Verify access
+    school = getattr(request.user, 'school', None)
+    if school and student.school != school:
+        messages.error(request, "Access denied")
+        return redirect('operations:payment_dashboard')
+    
+    if request.user.role == 'student' and request.user.student != student:
+        messages.error(request, "Access denied")
+        return redirect('operations:my_payments')
+    
+    context = {
+        'student': student,
+        'amount': amount,
+        'date': date,
+        'description': description,
+        'payment_type': payment_type,
+        'page_title': 'Payment Receipt',
+    }
+    return render(request, 'operations/receipt.html', context)
+
+
+@require_POST
+@login_required
+def initiate_online_payment(request):
+    """Initiate Paystack payment for school fees."""
+    from finance.models import Fee
+    
+    school = getattr(request.user, 'school', None)
+    if not school:
+        return JsonResponse({'success': False, 'error': 'School not found'}, status=400)
+    
+    fee_id = request.POST.get('fee_id')
+    
+    try:
+        fee = Fee.objects.get(id=fee_id, school=school)
+    except Fee.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Fee not found'}, status=404)
+    
+    remaining = fee.remaining_balance
+    if remaining <= 0:
+        return JsonResponse({'success': False, 'error': 'Fee already paid'}, status=400)
+    
+    student = fee.student
+    
+    # Get parent email
+    parent_email = ""
+    if request.user.role == 'parent':
+        parent_email = request.user.email
+    elif student.parent_email:
+        parent_email = student.parent_email
+    
+    if not parent_email and request.user.email:
+        parent_email = request.user.email
+    
+    # Generate unique reference
+    reference = f"FEE_{uuid.uuid4().hex[:12].upper()}"
+    
+    # Build callback URL
+    callback_url = request.build_absolute_uri(reverse('operations:paystack_callback', args=[fee.id]))
+    
+    metadata = {
+        'payment_type': 'school_fee',
+        'fee_id': str(fee.id),
+        'student_name': student.full_name,
+    }
+    
+    result = paystack_service.initialize_payment(
+        email=parent_email or student.user.email,
+        amount=remaining,
+        callback_url=callback_url,
+        reference=reference,
+        metadata=metadata
+    )
+    
+    if result.get('status'):
+        # Update fee with reference
+        fee.paystack_reference = reference
+        fee.save()
+        
+        return JsonResponse({
+            'success': True,
+            'authorization_url': result['data']['authorization_url'],
+            'reference': reference
+        })
+    else:
+        return JsonResponse({
+            'success': False,
+            'error': result.get('message', 'Payment initialization failed')
+        })
+
+
+def paystack_callback(request, fee_id):
+    """Handle Paystack payment callback for school fees."""
+    from finance.models import Fee, FeePayment
+    
+    reference = request.GET.get('reference')
+    
+    if not reference:
+        messages.error(request, "Invalid payment reference")
+        return redirect('students:fees_list')
+    
+    # Verify with Paystack
+    result = paystack_service.verify_payment(reference)
+    
+    try:
+        fee = Fee.objects.get(id=fee_id)
+        
+        if result.get('status') and result['data']['status'] == 'success':
+            # Create payment record
+            amount = float(result['data']['amount']) / 100  # Paystack returns kobo
+            
+            payment = FeePayment.objects.create(
+                fee=fee,
+                amount=amount,
+                paystack_reference=reference,
+                payment_method='card',
+                status='completed'
+            )
+            
+            # Update fee
+            fee.amount_paid += amount
+            fee.paystack_reference = reference
+            fee.save()
+            
+            messages.success(request, "Payment successful!")
+        else:
+            messages.error(request, "Payment failed. Please try again.")
+            
+    except Fee.DoesNotExist:
+        messages.error(request, "Fee record not found")
+    
+    return redirect('students:fees_list')
+
+
+@require_POST
+def paystack_webhook(request):
+    """Handle Paystack webhook for payment notifications."""
+    import json
+    
+    try:
+        # Get raw request body
+        body = request.body
+        data = json.loads(body)
+        
+        event = data.get('event')
+        
+        if event == 'charge.success':
+            # Get payment reference from metadata
+            metadata = data.get('metadata', {})
+            payment_type = metadata.get('payment_type')
+            
+            if payment_type == 'school_fee':
+                fee_id = metadata.get('fee_id')
+                if fee_id:
+                    try:
+                        fee = Fee.objects.get(id=fee_id)
+                        amount = float(data.get('data', {}).get('amount', 0)) / 100
+                        
+                        payment = FeePayment.objects.create(
+                            fee=fee,
+                            amount=amount,
+                            paystack_reference=data.get('data', {}).get('reference'),
+                            payment_method='card',
+                            status='completed'
+                        )
+                        
+                        fee.amount_paid += amount
+                        fee.save()
+                        
+                    except Fee.DoesNotExist:
+                        pass
+            
+            elif payment_type == 'canteen':
+                payment_id = metadata.get('payment_id')
+                if payment_id:
+                    try:
+                        payment = CanteenPayment.objects.get(id=payment_id)
+                        payment.payment_status = 'completed'
+                        payment.save()
+                    except CanteenPayment.DoesNotExist:
+                        pass
+            
+            elif payment_type == 'bus':
+                payment_id = metadata.get('payment_id')
+                if payment_id:
+                    try:
+                        payment = BusPayment.objects.get(id=payment_id)
+                        payment.payment_status = 'completed'
+                        payment.paid = True
+                        payment.save()
+                    except BusPayment.DoesNotExist:
+                        pass
+            
+            elif payment_type == 'textbook':
+                payment_id = metadata.get('payment_id')
+                if payment_id:
+                    try:
+                        sale = TextbookSale.objects.get(id=payment_id)
+                        sale.payment_status = 'completed'
+                        sale.save()
+                    except TextbookSale.DoesNotExist:
+                        pass
+        
+        return JsonResponse({'success': True})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def send_payment_reminder(request):
+    """Send payment reminder to parents/students."""
+    from django.core.mail import send_mail
+    from django.conf import settings
+    
+    school = getattr(request.user, 'school', None)
+    if not school:
+        messages.error(request, "School not found")
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        student_ids = request.POST.getlist('student_ids')
+        
+        if not student_ids:
+            messages.error(request, "No students selected")
+            return redirect('operations:payment_dashboard')
+        
+        from finance.models import Fee
+        
+        for student_id in student_ids:
+            try:
+                student = Student.objects.get(id=student_id, school=school)
+                fees = Fee.objects.filter(student=student, paid=False)
+                
+                if not fees.exists():
+                    continue
+                
+                total_pending = sum(float(f.remaining_balance) for f in fees)
+                
+                # Send email reminder
+                if student.parent_email:
+                    subject = f"Payment Reminder - {school.name}"
+                    message = f"Dear Parent/Guardian of {student.full_name},\n\n"
+                    message += f"This is a reminder that there are pending fees of GHS {total_pending} for the current term.\n\n"
+                    message += f"Please make payments at your earliest convenience to avoid disruption.\n\n"
+                    message += f"Best regards,\n{school.name}"
+                    
+                    try:
+                        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [student.parent_email])
+                    except Exception:
+                        pass
+                
+                messages.success(request, f"Reminder sent for {len(student_ids)} student(s)")
+                
+            except Student.DoesNotExist:
+                continue
+        
+        return redirect('operations:payment_dashboard')
+    
+    # Get students with pending fees
+    pending_fees = Fee.objects.filter(school=school, paid=False).select_related('student')
+    students_with_pending = Student.objects.filter(
+        id__in=pending_fees.values_list('student_id', flat=True).distinct()
+    ).order_by('full_name')
+    
+    context = {
+        'students': students_with_pending,
+        'page_title': 'Send Payment Reminder',
+    }
+    return render(request, 'operations/payment_dashboard.html', context)
