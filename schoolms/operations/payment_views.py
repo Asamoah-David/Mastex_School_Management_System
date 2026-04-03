@@ -151,8 +151,7 @@ def canteen_initiate_payment(request):
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount,
-        channels=['card', 'mobile_money', 'bank']
+        subaccount=school_subaccount
     )
     
     if result.get('status'):
@@ -310,8 +309,7 @@ def bus_initiate_payment(request):
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount,
-        channels=['card', 'mobile_money', 'bank']
+        subaccount=school_subaccount
     )
     
     if result.get('status'):
@@ -457,8 +455,7 @@ def textbook_initiate_payment(request):
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount,
-        channels=['card', 'mobile_money', 'bank']
+        subaccount=school_subaccount
     )
     
     if result.get('status'):
@@ -601,8 +598,7 @@ def hostel_initiate_payment(request):
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount,
-        channels=['card', 'mobile_money', 'bank']
+        subaccount=school_subaccount
     )
     
     if result.get('status'):
@@ -1094,8 +1090,7 @@ def initiate_online_payment(request):
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount,
-        channels=['card', 'mobile_money', 'bank']
+        subaccount=school_subaccount
     )
     
     if result.get('status'):
