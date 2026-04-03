@@ -160,7 +160,8 @@ def canteen_initiate_payment(request):
         return JsonResponse({
             'success': True,
             'authorization_url': result['data']['authorization_url'],
-            'reference': reference
+            'reference': reference,
+            'email': parent_email or student.user.email
         })
     else:
         payment.payment_status = 'failed'

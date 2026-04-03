@@ -91,6 +91,11 @@ function payTextbook(textbookId, price) {
     const quantity = document.getElementById('quantity-' + textbookId).value;
     const amount = parseFloat(price) * parseInt(quantity);
     
+    // Disable button to prevent double-clicks
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    
     fetch('{% url "operations:textbook_initiate_payment" %}', {
         method: 'POST',
         headers: {
@@ -102,25 +107,41 @@ function payTextbook(textbookId, price) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            const handler = PaystackPop.setup({
-                key: '{{ paystack_public_key }}',
-                email: '{{ request.user.email }}',
-                amount: amount * 100,
-                reference: data.reference,
-                callback: function(response) {
-                    window.location.href = '{% url "operations:textbook_payment_verify" %}?reference=' + response.reference;
-                },
-                onClose: function() {
-                    alert('Payment window closed');
-                }
-            });
-            handler.openIframe();
+            console.log('Payment initialized:', data);
+            
+            // Try Paystack inline popup first
+            if (typeof PaystackPop !== 'undefined') {
+                const handler = PaystackPop.setup({
+                    key: '{{ paystack_public_key }}',
+                    email: data.email || '{{ request.user.email }}',
+                    amount: amount * 100,
+                    reference: data.reference,
+                    callback: function(response) {
+                        console.log('Payment callback:', response);
+                        window.location.href = '{% url "operations:textbook_payment_verify" %}?reference=' + response.reference;
+                    },
+                    onClose: function() {
+                        btn.disabled = false;
+                        btn.textContent = 'Buy with Paystack';
+                        alert('Payment window closed. Your payment is still pending.');
+                    }
+                });
+                handler.openIframe();
+            } else {
+                // Fallback: use redirect if PaystackPop not available
+                console.log('PaystackPop not available, redirecting to:', data.authorization_url);
+                window.location.href = data.authorization_url;
+            }
         } else {
             alert('Error: ' + data.error);
+            btn.disabled = false;
+            btn.textContent = 'Buy with Paystack';
         }
     })
     .catch(error => {
         alert('Error initiating payment: ' + error);
+        btn.disabled = false;
+        btn.textContent = 'Buy with Paystack';
     });
 }
 </script>
