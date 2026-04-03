@@ -139,12 +139,20 @@ def canteen_initiate_payment(request):
         'student_name': student.user.get_full_name()
     }
     
+    # Get school's subaccount if configured
+    school = student.school
+    school_subaccount = None
+    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+        school_subaccount = school.paystack_subaccount_code
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=total_amount,
         callback_url=callback_url,
         reference=reference,
-        metadata=metadata
+        metadata=metadata,
+        subaccount=school_subaccount,
+        channels=['card', 'mobile_money', 'bank']
     )
     
     if result.get('status'):
@@ -289,12 +297,20 @@ def bus_initiate_payment(request):
         'student_name': student.user.get_full_name()
     }
     
+    # Get school's subaccount if configured
+    school = student.school
+    school_subaccount = None
+    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+        school_subaccount = school.paystack_subaccount_code
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=amount,
         callback_url=callback_url,
         reference=reference,
-        metadata=metadata
+        metadata=metadata,
+        subaccount=school_subaccount,
+        channels=['card', 'mobile_money', 'bank']
     )
     
     if result.get('status'):
@@ -428,12 +444,20 @@ def textbook_initiate_payment(request):
         'student_name': student.user.get_full_name()
     }
     
+    # Get school's subaccount if configured
+    school = student.school
+    school_subaccount = None
+    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+        school_subaccount = school.paystack_subaccount_code
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=total_amount,
         callback_url=callback_url,
         reference=reference,
-        metadata=metadata
+        metadata=metadata,
+        subaccount=school_subaccount,
+        channels=['card', 'mobile_money', 'bank']
     )
     
     if result.get('status'):
@@ -564,12 +588,20 @@ def hostel_initiate_payment(request):
         'student_name': student.user.get_full_name()
     }
     
+    # Get school's subaccount if configured
+    school = student.school
+    school_subaccount = None
+    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+        school_subaccount = school.paystack_subaccount_code
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=amount,
         callback_url=callback_url,
         reference=reference,
-        metadata=metadata
+        metadata=metadata,
+        subaccount=school_subaccount,
+        channels=['card', 'mobile_money', 'bank']
     )
     
     if result.get('status'):
@@ -877,36 +909,36 @@ def my_payments(request):
                 'date': payment.created_at,
             })
     
-    # Canteen payments
+    # Canteen payments - use payment_date since created_at doesn't exist
     canteen_payments = CanteenPayment.objects.filter(
         student=student
-    ).order_by('-created_at')
+    ).order_by('-payment_date')
     for payment in canteen_payments:
         all_payments.append({
             'type': 'canteen',
             'description': payment.description or "Canteen",
             'amount': float(payment.amount),
             'status': payment.payment_status,
-            'date': payment.created_at,
+            'date': payment.payment_date,
         })
     
-    # Bus payments
+    # Bus payments - use payment_date since created_at doesn't exist
     bus_payments = BusPayment.objects.filter(
         student=student
-    ).order_by('-created_at')
+    ).order_by('-payment_date')
     for payment in bus_payments:
         all_payments.append({
             'type': 'bus',
             'description': f"Bus - {payment.route.name if payment.route else 'Transport'}",
             'amount': float(payment.amount),
             'status': payment.payment_status,
-            'date': payment.created_at,
+            'date': payment.payment_date,
         })
     
-    # Textbook sales
+    # Textbook sales - use -id since created_at doesn't exist
     textbook_sales = TextbookSale.objects.filter(
         student=student
-    ).order_by('-created_at')
+    ).order_by('-id')
     for sale in textbook_sales:
         all_payments.append({
             'type': 'textbook',
@@ -1049,12 +1081,20 @@ def initiate_online_payment(request):
         'student_name': student.user.get_full_name(),
     }
     
+    # Get school's subaccount if configured
+    school = student.school
+    school_subaccount = None
+    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+        school_subaccount = school.paystack_subaccount_code
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=remaining,
         callback_url=callback_url,
         reference=reference,
-        metadata=metadata
+        metadata=metadata,
+        subaccount=school_subaccount,
+        channels=['card', 'mobile_money', 'bank']
     )
     
     if result.get('status'):

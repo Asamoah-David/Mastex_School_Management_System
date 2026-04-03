@@ -87,7 +87,7 @@ def pay_with_paystack(request, fee_id):
             "school_id": fee.school.id if fee.school else None,
         },
         subaccount=school_subaccount,  # Pass school's subaccount for direct payment
-        channels=None  # Allow all payment methods (card, mobile_money, bank)
+        channels=['card', 'mobile_money', 'bank']
     )
     
     if response.get("status") and response.get("data", {}).get("authorization_url"):
@@ -153,7 +153,8 @@ def pay_with_paystack_custom_amount(request, fee_id):
                     "school_name": fee.school.name if fee.school else "",
                     "school_id": fee.school.id if fee.school else None,
                 },
-                subaccount=school_subaccount  # Pass school's subaccount for direct payment
+                subaccount=school_subaccount,  # Pass school's subaccount for direct payment
+                channels=['card', 'mobile_money', 'bank']
             )
             
             if response.get("status") and response.get("data", {}).get("authorization_url"):
@@ -590,7 +591,8 @@ def pay_subscription(request):
             "school_id": school.id,
             "school_name": school.name,
             "type": "subscription",
-        }
+        },
+        channels=['card', 'mobile_money', 'bank']
     )
     
     if response.get("status") and response.get("data", {}).get("authorization_url"):
