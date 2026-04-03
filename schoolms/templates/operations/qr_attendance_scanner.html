@@ -193,6 +193,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let stats = { total: 0, present: 0, late: 0, absent: 0 };
     let html5QrcodeScanner = null;
     let isScanning = false;
+    let lastScannedCode = null;
+    let lastScanTime = 0;
+    const SCAN_COOLDOWN = 5000; // 5 seconds cooldown between same QR code scans
     
     // Set today's date as default
     document.getElementById('attendanceDate').valueAsDate = new Date();
@@ -273,6 +276,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function onScanSuccess(decodedText, decodedResult) {
+        // Debounce: prevent scanning same code within cooldown period
+        const now = Date.now();
+        if (decodedText === lastScannedCode && (now - lastScanTime) < SCAN_COOLDOWN) {
+            // Same QR code scanned within cooldown period - ignore
+            return;
+        }
+        
+        // Update last scanned code and time
+        lastScannedCode = decodedText;
+        lastScanTime = now;
+        
         // Validate the QR code format
         if (decodedText.startsWith('MASEXTICKET:')) {
             // Play a beep sound (optional)

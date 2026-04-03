@@ -317,7 +317,7 @@ def attendance_qr_summary(request):
     # Get attendance for today
     attendance_today = StudentAttendance.objects.filter(
         date=today
-    ).select_related('student', 'student__user').order_by('-created_at')
+    ).select_related('student', 'student__user').order_by('-date')
     
     # Count by status
     stats = {
