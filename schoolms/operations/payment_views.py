@@ -98,6 +98,7 @@ def canteen_initiate_payment(request):
     
     item_id = request.POST.get('item_id')
     quantity = int(request.POST.get('quantity', 1))
+    payment_method = request.POST.get('payment_method', 'card')
     
     try:
         item = CanteenItem.objects.get(id=item_id, school=student.school, is_available=True)
@@ -237,6 +238,7 @@ def bus_initiate_payment(request):
     
     route_id = request.POST.get('route_id')
     term = request.POST.get('term', f'Term {timezone.now().year}')
+    payment_method = request.POST.get('payment_method', 'card')
     
     try:
         route = BusRoute.objects.get(id=route_id, school=student.school)

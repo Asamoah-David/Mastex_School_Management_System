@@ -26,7 +26,7 @@ class PaystackService:
             "Content-Type": "application/json"
         }
     
-    def initialize_payment(self, email, amount, callback_url, reference=None, metadata=None, subaccount=None, split_code=None):
+    def initialize_payment(self, email, amount, callback_url, reference=None, metadata=None, subaccount=None, split_code=None, channels=None):
         """
         Initialize a Paystack payment.
         
@@ -38,6 +38,7 @@ class PaystackService:
             metadata: Additional data to pass
             subaccount: Paystack subaccount code for direct payment to school
             split_code: Paystack split code for payment splitting
+            channels: List of payment channels (e.g., ['card'], ['mobile_money'], ['bank'])
             
         Returns:
             dict with status, authorization_url, reference
@@ -63,6 +64,10 @@ class PaystackService:
         # Add split code for payment splitting
         if split_code:
             data["split_code"] = split_code
+        
+        # Add channels for specific payment methods (card, mobile_money, bank)
+        if channels:
+            data["channels"] = channels
         
         try:
             response = requests.post(

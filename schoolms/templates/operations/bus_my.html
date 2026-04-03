@@ -16,7 +16,14 @@
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ route.name }}</h4>
             <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0;">{{ route.fee_per_term }} GHS <span style="font-size: 0.9rem; color: #9ca3af;">/ term</span></p>
             {% if request.user.role == 'student' or request.user.role == 'parent' %}
-            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="payBus('{{ route.id }}', '{{ route.fee_per_term }}')">Pay with Paystack</button>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem;">
+                <select id="payment-method-{{ route.id }}" title="Select payment method" style="padding: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5); border-radius: 0.4rem;">
+                    <option value="card">💳 Card</option>
+                    <option value="mobile_money">📱 Mobile Money</option>
+                    <option value="bank">🏦 Bank Transfer</option>
+                </select>
+                <button type="button" class="btn btn-primary btn-sm" onclick="payBus('{{ route.id }}', '{{ route.fee_per_term }}')">Pay with Paystack</button>
+            </div>
             {% endif %}
         </div>
         {% endfor %}
@@ -95,22 +102,33 @@
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script>
 function payBus(routeId, fee) {
+    const paymentMethod = document.getElementById('payment-method-' + routeId).value;
+    
     fetch('{% url "operations:bus_initiate_payment" %}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: 'route_id=' + routeId
+        body: 'route_id=' + routeId + '&payment_method=' + paymentMethod
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Build channels array based on selection
+            let channels = ['card'];
+            if (paymentMethod === 'mobile_money') {
+                channels = ['mobile_money'];
+            } else if (paymentMethod === 'bank') {
+                channels = ['bank'];
+            }
+            
             const handler = PaystackPop.setup({
                 key: '{{ paystack_public_key }}',
                 email: '{{ request.user.email }}',
                 amount: fee * 100,
                 reference: data.reference,
+                channels: channels,
                 callback: function(response) {
                     window.location.href = '{% url "operations:bus_payment_verify" %}?reference=' + response.reference;
                 },

@@ -6,6 +6,7 @@ app_name = "finance"
 urlpatterns = [
     # Paystack payment routes (primary)
     path("pay/<int:fee_id>/", views.pay_with_paystack, name="pay"),
+    path("pay/<int:fee_id>/<str:payment_method>/", views.pay_with_paystack, name="pay_with_method"),
     path("pay/<int:fee_id>/custom/", views.pay_with_paystack_custom_amount, name="pay_custom"),
     path("paystack-callback/<int:fee_id>/", views.paystack_callback, name="paystack_callback"),
     path("paystack-webhook/", views.paystack_webhook, name="paystack_webhook"),

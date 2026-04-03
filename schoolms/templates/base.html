@@ -115,7 +115,11 @@
             grid-template-columns: minmax(0, 1fr);
             gap: 1.5rem;
         }
-        @media (min-width: 900px) { .layout { grid-template-columns: 260px minmax(0, 1fr); } }
+        @media (min-width: 900px) { 
+            .layout { 
+                grid-template-columns: 260px minmax(0, 1fr); 
+            } 
+        }
         .sidebar { display: none; }
         .sidebar.sidebar--open { display: flex; flex-direction: column; gap: 0.5rem; }
         .sidebar-card {

@@ -15,8 +15,13 @@
         <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ item.name }}</h4>
             <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0 0 1rem 0;">{{ item.price }} GHS</p>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <input type="number" id="quantity-{{ item.id }}" value="1" min="1" max="10" style="width: 60px; padding: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5); border-radius: 0.4rem;">
+                <select id="payment-method-{{ item.id }}" title="Select payment method" style="padding: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5); border-radius: 0.4rem;">
+                    <option value="card">💳 Card</option>
+                    <option value="mobile_money">📱 Mobile Money</option>
+                    <option value="bank">🏦 Bank Transfer</option>
+                </select>
                 <button type="button" class="btn btn-primary btn-sm" onclick="payCanteen('{{ item.id }}', '{{ item.price }}')">Pay with Paystack</button>
             </div>
         </div>
@@ -76,6 +81,7 @@
 <script>
 function payCanteen(itemId, price) {
     const quantity = document.getElementById('quantity-' + itemId).value;
+    const paymentMethod = document.getElementById('payment-method-' + itemId).value;
     const amount = parseFloat(price) * parseInt(quantity);
     
     fetch('{% url "operations:canteen_initiate_payment" %}', {
@@ -84,16 +90,25 @@ function payCanteen(itemId, price) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: 'item_id=' + itemId + '&quantity=' + quantity
+        body: 'item_id=' + itemId + '&quantity=' + quantity + '&payment_method=' + paymentMethod
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Build channels array based on selection
+            let channels = ['card'];
+            if (paymentMethod === 'mobile_money') {
+                channels = ['mobile_money'];
+            } else if (paymentMethod === 'bank') {
+                channels = ['bank'];
+            }
+            
             const handler = PaystackPop.setup({
                 key: '{{ paystack_public_key }}',
                 email: data.email || 'student@mastexschool.com',
                 amount: amount * 100,
                 reference: data.reference,
+                channels: channels,
                 callback: function(response) {
                     window.location.href = '{% url "operations:canteen_payment_verify" %}?reference=' + response.reference;
                 },
