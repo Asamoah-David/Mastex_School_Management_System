@@ -9,78 +9,71 @@
 <div class="content-card" style="display: flex; flex-direction: column; align-items: center; padding: 2rem;">
     <h2 style="margin-bottom: 1.5rem;">🪪 Student ID Card Preview</h2>
     
-    <!-- ID Card - New Horizontal Layout -->
-    <div class="id-card" style="border: 3px solid #1e40af; border-radius: 16px; width: 550px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden;">
+    <!-- ID Card - New Layout -->
+    <div class="id-card" style="border: 3px solid #1e40af; border-radius: 16px; width: 550px; height: 320px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); box-shadow: 0 10px 40px rgba(0,0,0,0.15); overflow: hidden; position: relative;">
         
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 10px 20px; text-align: center;">
+        <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 8px 20px; text-align: center;">
             <h3 style="margin: 0; font-size: 16px; font-weight: 700;">{{ school.name|default:"SCHOOL NAME" }}</h3>
         </div>
         
-        <!-- Body - New Horizontal Layout -->
-        <div style="padding: 20px; display: flex; gap: 15px;">
+        <!-- Body - Horizontal Layout with LEFT PHOTO and RIGHT SIDE -->
+        <div style="padding: 15px 20px; display: flex; height: 200px;">
             
-            <!-- LEFT: Photo Section -->
-            <div style="flex-shrink: 0;">
+            <!-- LEFT SIDE: Photo Section -->
+            <div style="width: 120px; display: flex; flex-direction: column; justify-content: space-between;">
                 {% if id_card.photo and id_card.photo.url %}
-                <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 110px; height: 130px; object-fit: cover; border: 3px solid #e2e8f0; border-radius: 8px;">
+                <img src="{{ id_card.photo.url }}" alt="Photo" style="width: 120px; height: 140px; object-fit: cover; border: 3px solid #e2e8f0; border-radius: 8px;">
                 {% elif id_card.student.user.profile_photo and id_card.student.user.profile_photo.url %}
-                <img src="{{ id_card.student.user.profile_photo.url }}" alt="Photo" style="width: 110px; height: 130px; object-fit: cover; border: 3px solid #e2e8f0; border-radius: 8px;">
+                <img src="{{ id_card.student.user.profile_photo.url }}" alt="Photo" style="width: 120px; height: 140px; object-fit: cover; border: 3px solid #e2e8f0; border-radius: 8px;">
                 {% else %}
-                <div style="width: 110px; height: 130px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; border-radius: 8px;">
+                <div style="width: 120px; height: 140px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; border-radius: 8px;">
                     <span style="color: #94a3b8; font-size: 11px;">No Photo</span>
                 </div>
                 {% endif %}
+                
+                <!-- LEFT BOTTOM: Student Info (Name, Class, Adm No, Card No) -->
+                <div style="margin-top: 8px;">
+                    <p style="margin: 0; font-size: 11px; color: #1e293b; font-weight: 700;">{{ id_card.student.get_full_name }}</p>
+                    <p style="margin: 2px 0 0; font-size: 10px; color: #64748b;">Class: {{ id_card.student.class_name|default:"N/A" }}</p>
+                    <p style="margin: 1px 0 0; font-size: 10px; color: #64748b;">Adm No: {{ id_card.student.admission_number|default:id_card.card_number }}</p>
+                    <p style="margin: 1px 0 0; font-size: 10px; color: #64748b;">Card No: {{ id_card.card_number }}</p>
+                </div>
             </div>
             
             <!-- RIGHT SIDE OF PHOTO: Title "STUDENT ID CARD" -->
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="text-align: center; margin-bottom: 10px;">
-                    <h4 style="margin: 0; font-size: 20px; color: #1e40af; font-weight: 800; letter-spacing: 1px;">STUDENT ID CARD</h4>
+            <div style="flex: 1; padding-left: 20px; display: flex; flex-direction: column; justify-content: center;">
+                <div style="text-align: center;">
+                    <h4 style="margin: 0; font-size: 22px; color: #1e40af; font-weight: 800; letter-spacing: 2px;">STUDENT ID CARD</h4>
                 </div>
                 
                 <!-- School Info -->
-                <div style="text-align: center; margin-bottom: 8px;">
-                    <p style="margin: 0; font-size: 9px; color: #64748b;">{{ school.address|default:school.name|truncatechars:30 }}</p>
+                <div style="text-align: center; margin-top: 10px;">
+                    <p style="margin: 0; font-size: 10px; color: #64748b;">{{ school.address|default:school.name|truncatechars:35 }}</p>
                 </div>
                 
-                <!-- BOTTOM LEFT: Student Info (Name, Class, Adm No, Card No) -->
-                <div style="background: #f8fafc; border-radius: 8px; padding: 10px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
-                    <div style="margin-bottom: 6px;">
-                        <p style="margin: 0; font-size: 12px; color: #1e293b; font-weight: 700;">{{ id_card.student.get_full_name }}</p>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px;">
-                        <div>
-                            <p style="margin: 0; color: #64748b;"><strong>Class:</strong></p>
-                            <p style="margin: 1px 0 0; color: #1e293b;">{{ id_card.student.class_name|default:"N/A" }}</p>
-                        </div>
-                        <div>
-                            <p style="margin: 0; color: #64748b;"><strong>Adm No:</strong></p>
-                            <p style="margin: 1px 0 0; color: #1e293b;">{{ id_card.student.admission_number|default:id_card.card_number }}</p>
-                        </div>
-                        <div>
-                            <p style="margin: 0; color: #64748b;"><strong>Card No:</strong></p>
-                            <p style="margin: 1px 0 0; color: #1e293b;">{{ id_card.card_number }}</p>
-                        </div>
-                    </div>
+                <!-- More info -->
+                <div style="margin-top: 15px; font-size: 9px; color: #64748b;">
+                    <p style="margin: 2px 0;">Gender: {{ id_card.student.gender|default:"N/A" }}</p>
+                    <p style="margin: 2px 0;">DOB: {{ id_card.student.date_of_birth|date:"M d, Y"|default:"N/A" }}</p>
                 </div>
             </div>
         </div>
         
         <!-- Footer with QR Code - RIGHT BOTTOM CORNER -->
-        <div style="background: #f8fafc; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0;">
-            <div style="font-size: 9px; color: #64748b; flex: 1;">
+        <div style="background: #f8fafc; padding: 8px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; position: absolute; bottom: 0; left: 0; right: 0;">
+            <div style="font-size: 9px; color: #64748b;">
                 <p style="margin: 0;"><strong>Issued:</strong> {{ id_card.issue_date|date:"M Y" }}</p>
                 <p style="margin: 2px 0 0;"><strong>Expires:</strong> {{ id_card.expiry_date|date:"M Y"|default:"Lifetime" }}</p>
             </div>
             
             <!-- QR Code - RIGHT BOTTOM CORNER -->
-            <div style="text-align: center; padding: 0 10px;">
-                <img src="data:image/png;base64,{% generate_student_qr_base64 id_card.student %}" alt="QR Code" style="width: 50px; height: 50px;">
+            <div style="text-align: center;">
+                <img src="data:image/png;base64,{% generate_student_qr_base64 id_card.student %}" alt="QR Code" style="width: 45px; height: 45px;">
                 <p style="margin: 2px 0 0; font-size: 6px; color: #64748b; font-weight: 600;">SCAN ME</p>
             </div>
             
-            <div style="text-align: right; font-size: 8px; color: #64748b; flex: 1;">
+            <div style="text-align: right; font-size: 8px; color: #64748b;">
                 {% if id_card.student.school.address %}
                 <p style="margin: 0; font-size: 7px; color: #94a3b8;">{{ id_card.student.school.address|truncatechars:20 }}</p>
                 {% endif %}
