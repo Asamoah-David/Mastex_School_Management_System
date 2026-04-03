@@ -2812,9 +2812,14 @@ def id_card_edit(request, pk):
             messages.success(request, 'ID Card updated successfully!')
             return redirect('operations:id_card_list')
     
+    # Get all students for the dropdown (including the current one)
+    students = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
+    
     return render(request, 'operations/id_card_form.html', {
         'school': school,
-        'id_card': id_card
+        'id_card': id_card,
+        'students': students,
+        'title': 'Edit ID Card'
     })
 
 

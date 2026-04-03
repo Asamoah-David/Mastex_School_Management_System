@@ -9,6 +9,17 @@
     <form method="POST" enctype="multipart/form-data" class="form-styled">
         {% csrf_token %}
         
+        {% if id_card %}
+        <div class="form-group">
+            <label for="student">Student</label>
+            <select name="student" id="student" class="form-control" disabled>
+                <option value="{{ id_card.student.id }}" selected>
+                    {{ id_card.student.user.get_full_name }} ({{ id_card.student.admission_number }})
+                </option>
+            </select>
+            <small class="form-text text-muted">Student cannot be changed when editing</small>
+        </div>
+        {% else %}
         <div class="form-group">
             <label for="student">Student *</label>
             <select name="student" id="student" required class="form-control">
@@ -20,31 +31,38 @@
                 {% endfor %}
             </select>
         </div>
+        {% endif %}
         
         <div class="form-group">
             <label for="card_number">Card Number *</label>
-            <input type="text" name="card_number" id="card_number" required value="{{ form.card_number.value|default:'' }}" placeholder="e.g., STU-2025-001" class="form-control">
+            <input type="text" name="card_number" id="card_number" required value="{{ id_card.card_number|default:'' }}" placeholder="e.g., STU-2025-001" class="form-control">
         </div>
         
         <div class="form-group">
             <label for="photo">Student Photo</label>
+            {% if id_card.photo %}
+            <div style="margin-bottom: 10px;">
+                <img src="{{ id_card.photo.url }}" alt="Current Photo" style="max-width: 150px; border-radius: 8px;">
+                <small class="form-text text-muted">Current photo</small>
+            </div>
+            {% endif %}
             <input type="file" name="photo" id="photo" accept="image/*" class="form-control">
-            <small class="form-text text-muted">Upload a passport-size photo (JPG, PNG)</small>
+            <small class="form-text text-muted">Upload a passport-size photo (JPG, PNG). Leave empty to keep current photo.</small>
         </div>
         
         <div class="form-group">
             <label for="issue_date">Issue Date *</label>
-            <input type="date" name="issue_date" id="issue_date" required value="{{ form.issue_date.value|default:'' }}" class="form-control">
+            <input type="date" name="issue_date" id="issue_date" required value="{{ id_card.issue_date|date:'Y-m-d'|default:'' }}" class="form-control">
         </div>
         
         <div class="form-group">
             <label for="expiry_date">Expiry Date</label>
-            <input type="date" name="expiry_date" id="expiry_date" value="{{ form.expiry_date.value|default:'' }}" class="form-control">
+            <input type="date" name="expiry_date" id="expiry_date" value="{{ id_card.expiry_date|date:'Y-m-d'|default:'' }}" class="form-control">
         </div>
         
         <div class="form-group">
             <label>
-                <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+                <input type="checkbox" name="is_active" {% if id_card.is_active %}checked{% endif %}>
                 Active Card
             </label>
         </div>
