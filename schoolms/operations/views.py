@@ -3271,10 +3271,10 @@ def id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width/2, card_y + card_height - 25, school.name)
     
-    # "STUDENT ID CARD" text
+    # "STUDENT ID CARD" text - positioned on RIGHT side, after photo
     c.setFillColor(colors.gold)
     c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(width/2, card_y + card_height - 45, "STUDENT ID CARD")
+    c.drawString(card_x + 85, card_y + card_height - 45, "STUDENT ID CARD")
     
     # Student photo - improved approach for profile picture
     photo = None
@@ -3434,10 +3434,10 @@ def staff_id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width/2, card_y + card_height - 25, school.name)
     
-    # "STAFF ID CARD" text
+    # "STAFF ID CARD" text - positioned on RIGHT side, after photo
     c.setFillColor(colors.gold)
     c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(width/2, card_y + card_height - 45, "STAFF ID CARD")
+    c.drawString(card_x + 85, card_y + card_height - 45, "STAFF ID CARD")
     
     # Staff photo - improved approach for profile picture
     photo = None
