@@ -16,7 +16,7 @@
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ route.name }}</h4>
             <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0;">{{ route.fee_per_term }} GHS <span style="font-size: 0.9rem; color: #9ca3af;">/ term</span></p>
             {% if request.user.role == 'student' or request.user.role == 'parent' %}
-            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="payBus({{ route.id }}, {{ route.fee_per_term }})">Pay with Paystack</button>
+            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="payBus('{{ route.id }}', '{{ route.fee_per_term }}')">Pay with Paystack</button>
             {% endif %}
         </div>
         {% endfor %}

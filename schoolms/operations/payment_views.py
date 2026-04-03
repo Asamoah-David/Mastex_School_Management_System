@@ -45,6 +45,13 @@ def _get_school(request):
     return None
 
 
+def _get_parent_email(student, request):
+    """Get parent's email for a student."""
+    if student.parent and student.parent.email:
+        return student.parent.email
+    return None
+
+
 # ==================== CANTEEN PAYMENTS ====================
 
 @student_required
@@ -63,7 +70,7 @@ def canteen_my(request):
     my_payments = CanteenPayment.objects.filter(
         student=student,
         payment_status='completed'
-    ).select_related('item')[:20]
+    )[:20]
     
     # Get pending payments
     pending_payments = CanteenPayment.objects.filter(
@@ -113,12 +120,8 @@ def canteen_initiate_payment(request):
     payment.payment_reference = reference
     payment.save()
     
-    # Get parent email for payment
-    parent_email = ""
-    if request.user.role == 'parent':
-        parent_email = request.user.email
-    elif student.parent_email:
-        parent_email = student.parent_email
+    # Get parent email for payment using helper function
+    parent_email = _get_parent_email(student, request)
     
     if not parent_email and request.user.email:
         parent_email = request.user.email
@@ -250,7 +253,6 @@ def bus_initiate_payment(request):
     
     if existing:
         return JsonResponse({'success': False, 'error': 'Already paid for this term'}, status=400)
-    
     amount = float(route.fee_per_term)
     
     # Create pending payment record
@@ -268,12 +270,8 @@ def bus_initiate_payment(request):
     payment.payment_reference = reference
     payment.save()
     
-    # Get parent email
-    parent_email = ""
-    if request.user.role == 'parent':
-        parent_email = request.user.email
-    elif student.parent_email:
-        parent_email = student.parent_email
+    # Get parent email using helper function
+    parent_email = _get_parent_email(student, request)
     
     if not parent_email and request.user.email:
         parent_email = request.user.email
@@ -360,7 +358,7 @@ def textbook_my(request):
     my_purchases = TextbookSale.objects.filter(
         student=student,
         payment_status='completed'
-    ).select_related('textbook')[:20]
+    )[:20]
     
     # Get pending purchases
     pending_purchases = TextbookSale.objects.filter(
@@ -411,12 +409,8 @@ def textbook_initiate_payment(request):
     sale.payment_reference = reference
     sale.save()
     
-    # Get parent email
-    parent_email = ""
-    if request.user.role == 'parent':
-        parent_email = request.user.email
-    elif student.parent_email:
-        parent_email = student.parent_email
+    # Get parent email using helper function
+    parent_email = _get_parent_email(student, request)
     
     if not parent_email and request.user.email:
         parent_email = request.user.email
@@ -551,12 +545,8 @@ def hostel_initiate_payment(request):
     fee.payment_status = 'pending'
     fee.save()
     
-    # Get parent email
-    parent_email = ""
-    if request.user.role == 'parent':
-        parent_email = request.user.email
-    elif student.parent_email:
-        parent_email = student.parent_email
+    # Get parent email using helper function
+    parent_email = _get_parent_email(student, request)
     
     if not parent_email and request.user.email:
         parent_email = request.user.email
@@ -1039,12 +1029,8 @@ def initiate_online_payment(request):
     
     student = fee.student
     
-    # Get parent email
-    parent_email = ""
-    if request.user.role == 'parent':
-        parent_email = request.user.email
-    elif student.parent_email:
-        parent_email = student.parent_email
+    # Get parent email using helper function
+    parent_email = _get_parent_email(student, request)
     
     if not parent_email and request.user.email:
         parent_email = request.user.email
@@ -1206,9 +1192,8 @@ def paystack_webhook(request):
 
 @login_required
 def send_payment_reminder(request):
-    """Send payment reminder to parents/students."""
-    from django.core.mail import send_mail
-    from django.conf import settings
+    """Send payment reminder to parents/students via SMS."""
+    from services.sms_service import SMSService
     
     school = getattr(request.user, 'school', None)
     if not school:
@@ -1223,6 +1208,7 @@ def send_payment_reminder(request):
             return redirect('operations:payment_dashboard')
         
         from finance.models import Fee
+        sent_count = 0
         
         for student_id in student_ids:
             try:
@@ -1234,20 +1220,21 @@ def send_payment_reminder(request):
                 
                 total_pending = sum(float(f.remaining_balance) for f in fees)
                 
-                # Send email reminder
-                if student.parent_email:
-                    subject = f"Payment Reminder - {school.name}"
-                    message = f"Dear Parent/Guardian of {student.full_name},\n\n"
-                    message += f"This is a reminder that there are pending fees of GHS {total_pending} for the current term.\n\n"
-                    message += f"Please make payments at your earliest convenience to avoid disruption.\n\n"
-                    message += f"Best regards,\n{school.name}"
+                # Get parent's phone number for SMS
+                parent_phone = None
+                if student.parent and student.parent.phone:
+                    parent_phone = student.parent.phone
+                
+                if parent_phone:
+                    sms_message = f"Dear Parent/Guardian of {student.full_name}, this is a reminder that there are pending fees of GHS {total_pending} for the current term. Please make payments at your earliest convenience to avoid disruption. Best regards, {school.name}"
                     
                     try:
-                        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [student.parent_email])
+                        SMSService.send_sms(parent_phone, sms_message, school.name)
+                        sent_count += 1
                     except Exception:
                         pass
                 
-                messages.success(request, f"Reminder sent for {len(student_ids)} student(s)")
+                messages.success(request, f"Reminder sent for {sent_count} student(s)")
                 
             except Student.DoesNotExist:
                 continue

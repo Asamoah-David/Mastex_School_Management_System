@@ -21,7 +21,7 @@
             {% if request.user.role == 'student' or request.user.role == 'parent' %}
             <div style="margin-top: 0.5rem;">
                 <input type="number" id="quantity-{{ textbook.id }}" value="1" min="1" max="{{ textbook.stock }}" style="width: 60px; padding: 0.25rem; margin-right: 0.5rem;">
-                <button type="button" class="btn btn-primary btn-sm" onclick="payTextbook({{ textbook.id }}, {{ textbook.price }})">Buy with Paystack</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="payTextbook('{{ textbook.id }}', '{{ textbook.price }}')">Buy with Paystack</button>
             </div>
             {% endif %}
         </div>
