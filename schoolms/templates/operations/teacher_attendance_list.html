@@ -1,25 +1,112 @@
 {% extends "base.html" %}
-{% block title %}Teacher Attendance - {{ school.name }}{% endblock %}
-{% block page_title %}Teacher Attendance Records{% endblock %}
+{% block title %}Staff Attendance - {{ school.name }}{% endblock %}
+{% block page_title %}Staff Attendance Records{% endblock %}
+
 {% block content %}
 <div class="content-card">
-    <h2>Teacher Attendance</h2>
-    <a href="{% url 'operations:teacher_attendance_mark' %}" class="btn">Mark Attendance</a>
+    <div class="page-heading">
+        <div>
+            <h2>👨‍🏫 Staff Attendance</h2>
+            <p class="page-subtitle">View and manage staff attendance records</p>
+        </div>
+        <div class="button-row">
+            <a href="{% url 'operations:teacher_attendance_mark' %}" class="btn btn-primary">📝 Mark Attendance</a>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="form-grid-3" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+        <form method="get" style="display: contents;">
+            <div class="form-group">
+                <label>Filter by Date</label>
+                <input type="date" name="date" class="form-control" value="{{ filter_date }}">
+            </div>
+            <div class="form-group">
+                <label>Filter by Status</label>
+                <select name="status" class="form-control">
+                    <option value="">All Statuses</option>
+                    <option value="present" {% if filter_status == 'present' %}selected{% endif %}>Present</option>
+                    <option value="absent" {% if filter_status == 'absent' %}selected{% endif %}>Absent</option>
+                    <option value="late" {% if filter_status == 'late' %}selected{% endif %}>Late</option>
+                    <option value="excused" {% if filter_status == 'excused' %}selected{% endif %}>Excused</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Filter by Staff</label>
+                <select name="staff" class="form-control">
+                    <option value="">All Staff</option>
+                    {% for staff_member in staff_members %}
+                    <option value="{{ staff_member.id }}" {% if filter_staff == staff_member.id|stringformat:"s" %}selected{% endif %}>
+                        {{ staff_member.get_full_name|default:staff_member.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">🔍 Filter</button>
+                <a href="{% url 'operations:teacher_attendance_list' %}" class="btn btn-secondary">↺ Reset</a>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Stats Summary -->
+    <div class="content-grid" style="margin-top: 1rem;">
+        <div class="metric">
+            <div class="metric-label">Total Records</div>
+            <div class="metric-value">{{ attendances|length }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Present</div>
+            <div class="metric-value" style="color: #22c55e;">{{ stats.present|default:0 }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Absent</div>
+            <div class="metric-value" style="color: #ef4444;">{{ stats.absent|default:0 }}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Late</div>
+            <div class="metric-value" style="color: #f59e0b;">{{ stats.late|default:0 }}</div>
+        </div>
+    </div>
+    
     {% if attendances %}
-    <table>
-        <thead><tr><th>Teacher</th><th>Date</th><th>Status</th></tr></thead>
-        <tbody>
-        {% for att in attendances %}
-        <tr>
-            <td>{{ att.teacher.get_full_name }}</td>
-            <td>{{ att.date|date }}</td>
-            <td>{{ att.status|title }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-responsive" style="margin-top: 1.5rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Staff Member</th>
+                    <th>Role</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Marked By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for att in attendances %}
+                <tr>
+                    <td>{{ att.teacher.get_full_name|default:att.teacher.username }}</td>
+                    <td>{{ att.teacher.get_role_display|default:att.teacher.role|capfirst }}</td>
+                    <td>{{ att.date|date:"M d, Y" }}</td>
+                    <td>
+                        <span class="tag tag-{% if att.status == 'present' %}paid{% elif att.status == 'late' %}warning{% else %}unpaid{% endif %}">
+                            {{ att.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ att.marked_by.get_full_name|default:att.marked_by.username|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'operations:teacher_attendance_edit' att.id %}" class="btn btn-sm btn-secondary">✏️ Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <p class="empty-state">No teacher attendance records found.</p>
+    <p class="empty-state" style="text-align: center; padding: 3rem;">
+        No staff attendance records found. 
+        <a href="{% url 'operations:teacher_attendance_mark' %}">Mark attendance</a>
+    </p>
     {% endif %}
 </div>
 {% endblock %}
