@@ -103,7 +103,6 @@
         <h3 style="margin-top: 0;">💰 Budget Overview</h3>
         
         <div style="margin-top: 1rem;">
-            {% with budget_used=total_expenses|before:total_budget %}
             <div style="margin-bottom: 1rem;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                     <span>Budget Used</span>
@@ -113,7 +112,6 @@
                     <div style="height: 100%; width: {% widthratio total_expenses total_budget 100 %}%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 999px;"></div>
                 </div>
             </div>
-            {% endwith %}
         </div>
     </div>
 </div>
