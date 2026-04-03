@@ -984,7 +984,7 @@ def generate_receipt(request, payment_type, payment_id):
             payment = CanteenPayment.objects.get(id=payment_id)
             student = payment.student
             amount = float(payment.amount)
-            date = payment.created_at
+            date = payment.payment_date
             description = payment.description or "Canteen Purchase"
         except CanteenPayment.DoesNotExist:
             messages.error(request, "Payment not found")
@@ -995,7 +995,7 @@ def generate_receipt(request, payment_type, payment_id):
             payment = BusPayment.objects.get(id=payment_id)
             student = payment.student
             amount = float(payment.amount)
-            date = payment.created_at
+            date = payment.payment_date
             description = f"Bus Transport - {payment.route.name if payment.route else 'Transport'}"
         except BusPayment.DoesNotExist:
             messages.error(request, "Payment not found")
@@ -1006,7 +1006,7 @@ def generate_receipt(request, payment_type, payment_id):
             payment = TextbookSale.objects.get(id=payment_id)
             student = payment.student
             amount = float(payment.amount)
-            date = payment.created_at
+            date = payment.sale_date
             description = f"Textbook - {payment.textbook.title if payment.textbook else 'Textbook'}"
         except TextbookSale.DoesNotExist:
             messages.error(request, "Payment not found")
