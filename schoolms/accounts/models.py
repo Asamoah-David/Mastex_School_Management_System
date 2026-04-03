@@ -45,7 +45,7 @@ class User(AbstractUser):
     # Stores role strings as comma-separated values for simplicity
     secondary_roles = models.TextField(blank=True, default='', help_text="Comma-separated list of secondary role values")
     # Profile photo
-    profile_photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
+    profile_photo = models.URLField(max_length=500, null=True, blank=True)
     # Gender
     gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female')], blank=True, null=True)
     
