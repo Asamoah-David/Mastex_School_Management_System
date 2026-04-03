@@ -40,7 +40,20 @@ class SupabaseStorage:
             return None
         
         # Generate unique filename
-        ext = os.path.splitext(file.name)[1]
+        ext = os.path.splitext(file.name)[1].lower()
+        # If no extension, try to detect from content type or use a default
+        if not ext:
+            content_type = getattr(file, 'content_type', '')
+            if 'jpeg' in content_type or 'jpg' in content_type:
+                ext = '.jpg'
+            elif 'png' in content_type:
+                ext = '.png'
+            elif 'gif' in content_type:
+                ext = '.gif'
+            elif 'webp' in content_type:
+                ext = '.webp'
+            else:
+                ext = '.jpg'  # Default to jpg for images
         filename = f"{uuid.uuid4().hex}{ext}"
         full_path = f"{folder}/{filename}"
         
