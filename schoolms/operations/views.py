@@ -3351,7 +3351,6 @@ def id_card_pdf(request, pk):
     if photo:
         c.saveState()
         c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
-        c.clip()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
@@ -3504,7 +3503,6 @@ def staff_id_card_pdf(request, pk):
     if photo:
         c.saveState()
         c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
-        c.clip()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
