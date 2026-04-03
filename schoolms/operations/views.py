@@ -3328,35 +3328,35 @@ def id_card_pdf(request, pk):
         c.setFillColor(colors.darkgrey)
         c.drawCentredString(photo_x + 25, photo_y + 20, "PHOTO")
     
-    # Student info section - Positioned BELOW the photo to avoid overlap
+    # Student info section - Positioned at LEFT BOTTOM corner
     info_x = card_x + 20  # Left align with card margin
-    info_y = card_y + 50  # Much lower position - below the photo
+    info_y = card_y + 35  # Bottom area of the card
     
     # Student name - first line
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 12)
+    c.setFont("Helvetica-Bold", 11)
     student_name = student.user.get_full_name() if student and student.user else "Student"
-    c.drawString(info_x, info_y + 30, student_name.upper())
+    c.drawString(info_x, info_y + 25, student_name.upper())
     
     # Class - second line
-    c.setFont("Helvetica", 10)
-    c.drawString(info_x, info_y + 15, f"Class: {student.class_name or 'N/A'}")
+    c.setFont("Helvetica", 9)
+    c.drawString(info_x, info_y + 12, f"Class: {student.class_name or 'N/A'}")
     
     # Admission number - third line
     c.drawString(info_x, info_y, f"Adm No: {student.admission_number or 'N/A'}")
     
     # Card number - fourth line
     c.setFont("Helvetica", 8)
-    c.drawString(info_x, info_y - 15, f"Card No: {id_card.card_number}")
+    c.drawString(info_x, info_y - 12, f"Card No: {id_card.card_number}")
     
-    # Generate and draw QR code - positioned at bottom center to avoid overlap
+    # Generate and draw QR code - positioned at RIGHT BOTTOM corner
     try:
         qr_data = generate_student_qr_data(student)
         qr_bytes = generate_qr_code_bytes(qr_data, box_size=4, border=1)
         qr_buffer = BytesIO(qr_bytes)
         qr_image = ImageReader(qr_buffer)
-        # Draw QR code at bottom center of card
-        qr_x = card_x + (card_width - 50) / 2
+        # Draw QR code at right bottom of card
+        qr_x = card_x + card_width - 70
         qr_y = card_y + 20
         c.drawImage(qr_image, qr_x, qr_y, width=50, height=50, mask='auto')
     except Exception:
@@ -3486,27 +3486,31 @@ def staff_id_card_pdf(request, pk):
         c.setFillColor(colors.darkgrey)
         c.drawCentredString(photo_x + 27.5, photo_y + 22, "PHOTO")
     
-    # Staff name - centered below the photo
+    # Staff info section - Positioned at LEFT BOTTOM corner
+    info_x = card_x + 20  # Left align with card margin
+    info_y = card_y + 35  # Bottom area of the card
+    
+    # Staff name - first line
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 14)
+    c.setFont("Helvetica-Bold", 11)
     staff_name = staff.get_full_name() if staff else "Staff"
-    c.drawCentredString(card_x + card_width/2, card_y + card_height - 55, staff_name.upper())
+    c.drawString(info_x, info_y + 25, staff_name.upper())
     
-    # Position - below name
-    c.setFont("Helvetica", 10)
-    c.drawCentredString(card_x + card_width/2, card_y + card_height - 70, f"Position: {id_card.position or staff.role.title()}")
+    # Position - second line
+    c.setFont("Helvetica", 9)
+    c.drawString(info_x, info_y + 12, f"Position: {id_card.position or staff.role.title()}")
     
-    # Staff ID - below position
-    c.drawCentredString(card_x + card_width/2, card_y + card_height - 85, f"Staff ID: {id_card.card_number}")
+    # Staff ID - third line
+    c.drawString(info_x, info_y, f"Staff ID: {id_card.card_number}")
     
-    # Generate and draw QR code - positioned at bottom center to avoid overlap
+    # Generate and draw QR code - positioned at RIGHT BOTTOM corner
     try:
         qr_data = generate_staff_qr_data(staff)
         qr_bytes = generate_qr_code_bytes(qr_data, box_size=4, border=1)
         qr_buffer = BytesIO(qr_bytes)
         qr_image = ImageReader(qr_buffer)
-        # Draw QR code at bottom center of card
-        qr_x = card_x + (card_width - 50) / 2
+        # Draw QR code at right bottom of card
+        qr_x = card_x + card_width - 70
         qr_y = card_y + 20
         c.drawImage(qr_image, qr_x, qr_y, width=50, height=50, mask='auto')
     except Exception:
