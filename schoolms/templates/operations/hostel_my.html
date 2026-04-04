@@ -22,6 +22,29 @@
     <div class="empty-state">No active hostel assignment.</div>
     {% endif %}
 
+    {# Pending Payments Section #}
+    {% if pending_fees %}
+    <h3 class="section-title" style="color: #f59e0b;">Pending Payments</h3>
+    <div class="table-card">
+        <table>
+            <thead><tr><th>Term</th><th>Hostel</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for f in pending_fees %}
+                <tr>
+                    <td>{{ f.term }}</td>
+                    <td>{{ f.hostel.name }}</td>
+                    <td>{{ f.amount }} GHS</td>
+                    <td><span class="tag" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">Pending</span></td>
+                    <td>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="cancelPending('{{ f.id }}', 'hostel')">Cancel</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
     <h3 class="section-title">Hostel Fees</h3>
     {% if fees %}
     <div class="table-card">
@@ -69,6 +92,30 @@
     </div>
     {% else %}
     <div class="empty-state">No active hostel assignments.</div>
+    {% endif %}
+
+    {# Pending Payments Section #}
+    {% if pending_fees %}
+    <h3 class="section-title" style="color: #f59e0b;">Pending Payments</h3>
+    <div class="table-card">
+        <table>
+            <thead><tr><th>Student</th><th>Hostel</th><th>Term</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for f in pending_fees %}
+                <tr>
+                    <td>{{ f.student.user.get_full_name|default:f.student.admission_number }}</td>
+                    <td>{{ f.hostel.name }}</td>
+                    <td>{{ f.term }}</td>
+                    <td>{{ f.amount }} GHS</td>
+                    <td><span class="tag" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">Pending</span></td>
+                    <td>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="cancelPending('{{ f.id }}', 'hostel')">Cancel</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% endif %}
 
     <h3 class="section-title">Hostel Fees</h3>
@@ -159,6 +206,33 @@ function payHostel(feeId, amount) {
         btn.textContent = 'Pay with Paystack';
     });
 }
+
+function cancelPending(purchaseId, paymentType) {
+    if (!confirm('Are you sure you want to cancel this pending payment?')) {
+        return;
+    }
+    
+    fetch('{% url "operations:cancel_pending_payment" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: 'purchase_id=' + purchaseId + '&payment_type=' + paymentType
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Payment cancelled successfully');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error cancelling payment: ' + error);
+    });
+}
 </script>
 
 <style>
@@ -182,6 +256,18 @@ function payHostel(feeId, amount) {
     border-radius: 50%;
     background: #22c55e;
     margin-right: 0.375rem;
+}
+.btn-danger {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+.btn-danger:hover {
+    background: #b91c1c;
 }
 </style>
 

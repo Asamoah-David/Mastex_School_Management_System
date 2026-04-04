@@ -1360,6 +1360,15 @@ def cancel_pending_payment(request):
             except TextbookPayment.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Textbook payment not found'}, status=404)
         
+        elif payment_type == 'hostel':
+            try:
+                payment = HostelFee.objects.get(id=purchase_id, payment_status='pending')
+                payment.payment_status = 'cancelled'
+                payment.save()
+                deleted = True
+            except HostelFee.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Hostel payment not found'}, status=404)
+        
         else:
             return JsonResponse({'success': False, 'error': f'Invalid payment type: {payment_type}'}, status=400)
         
