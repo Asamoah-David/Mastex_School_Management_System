@@ -145,13 +145,18 @@ def canteen_initiate_payment(request):
     if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
         school_subaccount = school.paystack_subaccount_code
     
+    # Get currency from settings
+    from django.conf import settings
+    currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=total_amount,
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount
+        subaccount=school_subaccount,
+        currency=currency
     )
     
     if result.get('status'):
@@ -303,13 +308,18 @@ def bus_initiate_payment(request):
     if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
         school_subaccount = school.paystack_subaccount_code
     
+    # Get currency from settings
+    from django.conf import settings
+    currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=amount,
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount
+        subaccount=school_subaccount,
+        currency=currency
     )
     
     if result.get('status'):
@@ -449,13 +459,18 @@ def textbook_initiate_payment(request):
     if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
         school_subaccount = school.paystack_subaccount_code
     
+    # Get currency from settings
+    from django.conf import settings
+    currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=total_amount,
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount
+        subaccount=school_subaccount,
+        currency=currency
     )
     
     if result.get('status'):
@@ -592,13 +607,18 @@ def hostel_initiate_payment(request):
     if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
         school_subaccount = school.paystack_subaccount_code
     
+    # Get currency from settings
+    from django.conf import settings
+    currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=amount,
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount
+        subaccount=school_subaccount,
+        currency=currency
     )
     
     if result.get('status'):
@@ -1084,13 +1104,18 @@ def initiate_online_payment(request):
     if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
         school_subaccount = school.paystack_subaccount_code
     
+    # Get currency from settings
+    from django.conf import settings
+    currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=remaining,
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
-        subaccount=school_subaccount
+        subaccount=school_subaccount,
+        currency=currency
     )
     
     if result.get('status'):
