@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.conf import settings
 import uuid
@@ -1315,3 +1316,57 @@ def send_payment_reminder(request):
         'page_title': 'Send Payment Reminder',
     }
     return render(request, 'operations/payment_dashboard.html', context)
+
+
+@csrf_exempt
+def cancel_pending_payment(request):
+    """API endpoint to cancel/delete pending payments"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        purchase_id = request.POST.get('purchase_id')
+        payment_type = request.POST.get('payment_type')  # canteen, bus, textbook
+        
+        if not purchase_id or not payment_type:
+            return JsonResponse({'success': False, 'error': 'Missing purchase_id or payment_type'}, status=400)
+        
+        # Import models here to avoid circular imports
+        from .models import CanteenPayment, BusPayment, TextbookPayment
+        
+        deleted = False
+        
+        if payment_type == 'canteen':
+            try:
+                payment = CanteenPayment.objects.get(id=purchase_id, payment_status='pending')
+                payment.delete()
+                deleted = True
+            except CanteenPayment.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Canteen payment not found'}, status=404)
+        
+        elif payment_type == 'bus':
+            try:
+                payment = BusPayment.objects.get(id=purchase_id, payment_status='pending')
+                payment.delete()
+                deleted = True
+            except BusPayment.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Bus payment not found'}, status=404)
+        
+        elif payment_type == 'textbook':
+            try:
+                payment = TextbookPayment.objects.get(id=purchase_id, payment_status='pending')
+                payment.delete()
+                deleted = True
+            except TextbookPayment.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Textbook payment not found'}, status=404)
+        
+        else:
+            return JsonResponse({'success': False, 'error': f'Invalid payment type: {payment_type}'}, status=400)
+        
+        if deleted:
+            return JsonResponse({'success': True, 'message': 'Pending payment cancelled successfully'})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    return JsonResponse({'success': False, 'error': 'Unknown error'}, status=500)

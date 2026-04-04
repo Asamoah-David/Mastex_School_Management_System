@@ -37,6 +37,7 @@ urlpatterns = [
     path("payments/paystack/callback/", payment_views.paystack_callback, name="paystack_callback"),
     path("payments/paystack/webhook/", payment_views.paystack_webhook, name="paystack_webhook"),
     path("payments/send-reminder/", payment_views.send_payment_reminder, name="send_payment_reminder"),
+    path("payments/cancel-pending/", payment_views.cancel_pending_payment, name="cancel_pending_payment"),
 
     # Student Attendance
     path("attendance/", views.attendance_list, name="attendance_list"),

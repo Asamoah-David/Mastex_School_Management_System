@@ -57,6 +57,7 @@
     <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.5rem;">
         <strong>{{ payment.route.name }}</strong> - {{ payment.amount }} GHS
         <br><small>Reference: {{ payment.payment_reference }}</small>
+        <button type="button" class="btn btn-danger btn-sm" style="margin-left: 0.5rem;" onclick="cancelPending('{{ payment.id }}', 'bus')">Cancel</button>
     </div>
     {% endfor %}
 </div>
@@ -149,6 +150,33 @@ function payBus(routeId, fee) {
         alert('Error initiating payment: ' + error);
         btn.disabled = false;
         btn.textContent = 'Pay with Paystack';
+    });
+}
+
+function cancelPending(paymentId, paymentType) {
+    if (!confirm('Are you sure you want to cancel this pending payment?')) {
+        return;
+    }
+    
+    fetch('{% url "operations:cancel_pending_payment" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: 'purchase_id=' + paymentId + '&payment_type=' + paymentType
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Pending payment cancelled successfully.');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error cancelling payment: ' + error);
     });
 }
 </script>
