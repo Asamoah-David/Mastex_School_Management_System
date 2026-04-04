@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-history me-2"></i>Payment History</h2>
+        <a href="{% url 'finance:fee_list' %}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Fees
+        </a>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Payments</h5>
+                    <h3>{{ total_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Completed Amount</h5>
+                    <h3>GHS {{ total_amount|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">School</h5>
+                    <h6>{{ school.name|default:"All Schools" }}</h6>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters and Search -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Status Filter</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="completed" {% if filter_status == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="search" class="form-control" placeholder="Student name, admission number, or payment reference" value="{{ search|default:'' }}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulk Delete Form -->
+    <form method="POST" action="{% url 'finance:payment_history_delete_multiple' %}" id="bulkDeleteForm">
+        {% csrf_token %}
+        
+        <!-- Payment Table -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Payment Records</h5>
+                <button type="button" class="btn btn-danger btn-sm" onclick="confirmBulkDelete()" {% if not payments %}disabled{% endif %}>
+                    <i class="fas fa-trash me-1"></i> Delete Selected
+                </button>
+            </div>
+            <div class="card-body">
+                {% if payments %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()">
+                                </th>
+                                <th>Date</th>
+                                <th>Student</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Payment Method</th>
+                                <th>Reference</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in payments %}
+                            <tr>
+                                <td>
+                                    {% if payment.status != 'completed' %}
+                                    <input type="checkbox" name="payment_ids" value="{{ payment.id }}" class="payment-checkbox">
+                                    {% endif %}
+                                </td>
+                                <td>{{ payment.created_at|date:"M d, Y H:i" }}</td>
+                                <td>
+                                    {% if payment.fee and payment.fee.student %}
+                                        {{ payment.fee.student.first_name }} {{ payment.fee.student.last_name }}
+                                        <br><small class="text-muted">{{ payment.fee.student.admission_number }}</small>
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                <td>
+                                    {% if payment.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                    {% elif payment.status == 'pending' %}
+                                    <span class="badge bg-warning">Pending</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Failed</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ payment.payment_method|default:"N/A" }}</td>
+                                <td>
+                                    <small>{{ payment.paystack_reference|default:"N/A" }}</small>
+                                </td>
+                                <td>
+                                    {% if payment.status != 'completed' %}
+                                    <a href="{% url 'finance:payment_history_delete' payment.id %}" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No payment records found.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.payment-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+}
+
+function confirmBulkDelete() {
+    const selected = document.querySelectorAll('.payment-checkbox:checked');
+    if (selected.length === 0) {
+        alert('Please select at least one payment to delete.');
+        return;
+    }
+    
+    if (confirm('Are you sure you want to delete the selected ' + selected.length + ' payment record(s)? This will only delete pending or failed payments.')) {
+        document.getElementById('bulkDeleteForm').submit();
+    }
+}
+</script>
+{% endblock %}

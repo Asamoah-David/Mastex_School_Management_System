@@ -25,7 +25,7 @@ def _user_can_manage_school(request):
 @login_required
 def parent_dashboard(request):
     try:
-        from finance.models import Fee
+        from finance.models import Fee, FeePayment
         from academics.models import Result, ExamType, Term, ExamSchedule
         
         children = Student.objects.filter(parent=request.user).select_related("school", "user")
@@ -159,6 +159,13 @@ def parent_dashboard(request):
             else []
         )
 
+        # Get recent payments for all children (last 5 payments)
+        recent_payments = (
+            FeePayment.objects.filter(fee__student_id__in=children_ids)
+            .select_related("fee", "fee__student", "fee__school")
+            .order_by("-created_at")[:5]
+        )
+
         return render(request, "students/parent_dashboard.html", {
             "children": children,
             "announcements": announcements,
@@ -172,6 +179,7 @@ def parent_dashboard(request):
             "terms": terms,
             "exam_types": exam_types,
             "exam_schedule": exam_schedule,
+            "recent_payments": recent_payments,
         })
     except Exception as e:
         # If any error, still show the page with empty data

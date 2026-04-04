@@ -7,6 +7,8 @@
     {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
     <a href="{% url 'operations:bus_create' %}" class="btn btn-primary">Add Route</a>
     <a href="{% url 'operations:bus_payments' %}" class="btn btn-secondary">View Payments</a>
+    <a href="{% url 'operations:export_bus_payments' %}?format=csv" class="btn btn-success">Export CSV</a>
+    <a href="{% url 'operations:export_bus_payments' %}?format=excel" class="btn btn-success">Export Excel</a>
     {% endif %}
 </div>
 

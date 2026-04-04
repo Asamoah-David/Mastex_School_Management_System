@@ -25,6 +25,13 @@ urlpatterns = [
     path("export/online-exams/", export_views.export_online_exams, name="export_online_exams"),
     path("export/all/", export_views.export_all_data, name="export_all_data"),
     
+    # Payment Exports with Day/Month Filtering
+    path("export/canteen-payments/", export_views.export_canteen_payments, name="export_canteen_payments"),
+    path("export/bus-payments/", export_views.export_bus_payments, name="export_bus_payments"),
+    path("export/textbook-sales/", export_views.export_textbook_sales, name="export_textbook_sales"),
+    path("export/hostel-fees/", export_views.export_hostel_fees, name="export_hostel_fees"),
+    path("export/all-payments/", export_views.export_all_payments, name="export_all_payments"),
+    
     # Payment Dashboard
     path("payments/", payment_views.payment_dashboard, name="payment_dashboard"),
     path("payments/student/<int:student_id>/", payment_views.student_payment_history, name="student_payment_history"),

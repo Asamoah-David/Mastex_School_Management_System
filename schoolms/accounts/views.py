@@ -13,7 +13,7 @@ from accounts.models import User
 from accounts.permissions import user_can_manage_school, is_school_admin
 from schools.models import School
 from students.models import Student
-from finance.models import Fee
+from finance.models import Fee, FeePayment
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
 
 # Supabase Storage for media files
@@ -318,6 +318,13 @@ def school_dashboard(request):
     all_fees = Fee.objects.filter(school=school)
     unpaid_fees = sum(max(0, float(f.amount) - float(f.amount_paid)) for f in all_fees)
     
+    # Get recent payments for the school (last 5 payments)
+    recent_payments = (
+        FeePayment.objects.filter(fee__school=school)
+        .select_related("fee", "fee__student", "fee__student__user")
+        .order_by("-created_at")[:5]
+    )
+    
     # Subscription expiry warning
     show_expiry_warning = False
     expiry_severity = "info"
@@ -369,6 +376,7 @@ def school_dashboard(request):
         "total_fees": int(total_fees),
         "paid_fees": int(paid_fees),
         "unpaid_fees": unpaid_fees,
+        "recent_payments": recent_payments,
         "show_expiry_warning": show_expiry_warning,
         "expiry_severity": expiry_severity,
         "expiry_icon": expiry_icon,

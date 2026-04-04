@@ -18,6 +18,8 @@ from accounts.models import User
 from messaging.utils import send_sms
 from schools.models import School
 from django.db import models
+import logging
+logger = logging.getLogger(__name__)
 
 
 def is_paystack_configured():
@@ -30,6 +32,7 @@ def pay_with_paystack(request, fee_id):
     Initialize Paystack payment for a fee.
     Supports partial payments - parent can pay any amount.
     Payment goes directly to school's subaccount if configured.
+    Creates a pending payment record for tracking.
     """
     # Check if Paystack is configured
     if not is_paystack_configured():
@@ -74,6 +77,16 @@ def pay_with_paystack(request, fee_id):
     if fee.school and fee.school.paystack_subaccount_code:
         school_subaccount = fee.school.paystack_subaccount_code
     
+    # Create pending payment record for tracking
+    from .models import FeePayment
+    pending_payment = FeePayment.objects.create(
+        fee=fee,
+        amount=amount,
+        paystack_reference=reference,
+        status='pending'
+    )
+    logger.info(f"Created pending payment record: payment_id={pending_payment.id}, reference={reference}")
+    
     # Initialize payment with Paystack
     response = paystack_service.initialize_payment(
         email=email,
@@ -82,6 +95,8 @@ def pay_with_paystack(request, fee_id):
         reference=reference,
         metadata={
             "fee_id": fee_id,
+            "payment_id": pending_payment.id,
+            "payment_type": "school_fee",
             "student_name": str(fee.student),
             "school_name": fee.school.name if fee.school else "",
             "school_id": fee.school.id if fee.school else None,
@@ -92,8 +107,12 @@ def pay_with_paystack(request, fee_id):
     if response.get("status") and response.get("data", {}).get("authorization_url"):
         # Store reference in session for verification
         request.session[f"paystack_ref_{fee_id}"] = reference
+        request.session[f"paystack_payment_id_{fee_id}"] = pending_payment.id
         return redirect(response["data"]["authorization_url"])
     else:
+        # Mark payment as failed if initialization failed
+        pending_payment.status = 'failed'
+        pending_payment.save()
         error_msg = response.get("message", "Could not initialize payment. Please try again.")
         messages.error(request, error_msg)
         return redirect(request.META.get("HTTP_REFERER", "/"))
@@ -140,6 +159,16 @@ def pay_with_paystack_custom_amount(request, fee_id):
             if fee.school and fee.school.paystack_subaccount_code:
                 school_subaccount = fee.school.paystack_subaccount_code
             
+            # Create pending payment record for tracking
+            from .models import FeePayment
+            pending_payment = FeePayment.objects.create(
+                fee=fee,
+                amount=amount,
+                paystack_reference=reference,
+                status='pending'
+            )
+            logger.info(f"Created pending payment record for custom amount: payment_id={pending_payment.id}, reference={reference}")
+            
             # Initialize payment
             response = paystack_service.initialize_payment(
                 email=email,
@@ -148,21 +177,28 @@ def pay_with_paystack_custom_amount(request, fee_id):
                 reference=reference,
                 metadata={
                     "fee_id": fee_id,
+                    "payment_id": pending_payment.id,
+                    "payment_type": "school_fee",
                     "student_name": str(fee.student),
                     "school_name": fee.school.name if fee.school else "",
                     "school_id": fee.school.id if fee.school else None,
                 },
-                subaccount=school_subaccount  # Pass school's subaccount for direct payment
+                subaccount=school_subaccount
             )
             
             if response.get("status") and response.get("data", {}).get("authorization_url"):
                 request.session[f"paystack_ref_{fee_id}"] = reference
+                request.session[f"paystack_payment_id_{fee_id}"] = pending_payment.id
                 request.session[f"paystack_amount_{fee_id}"] = amount
                 return redirect(response["data"]["authorization_url"])
             else:
+                # Mark payment as failed if initialization failed
+                pending_payment.status = 'failed'
+                pending_payment.save()
                 error_msg = response.get("message", "Could not initialize payment.")
                 messages.error(request, error_msg)
-                
+                return redirect(request.META.get("HTTP_REFERER", "/"))
+            
         except (ValueError, TypeError):
             messages.error(request, "Invalid amount entered.")
     
@@ -283,6 +319,7 @@ def paystack_webhook(request):
             # Handle School Fee Payments
             if payment_type == "school_fee" or payment_type == "fee":
                 fee_id = metadata.get("fee_id")
+                payment_id = metadata.get("payment_id")  # Our FeePayment record ID
                 if fee_id:
                     try:
                         fee = Fee.objects.get(id=fee_id)
@@ -291,14 +328,34 @@ def paystack_webhook(request):
                         # Check if payment already exists to avoid duplicates
                         existing = FeePayment.objects.filter(paystack_reference=reference).exists()
                         if not existing:
-                            payment = FeePayment.objects.create(
-                                fee=fee,
-                                amount=amount,
-                                paystack_payment_id=data.get("id"),
-                                paystack_reference=reference,
-                                payment_method=data.get("authorization", {}).get("channel", "card"),
-                                status="completed"
-                            )
+                            # If we have a pending payment ID, update it; otherwise create new
+                            if payment_id:
+                                try:
+                                    payment = FeePayment.objects.get(id=payment_id)
+                                    payment.status = "completed"
+                                    payment.paystack_payment_id = data.get("id")
+                                    payment.payment_method = data.get("authorization", {}).get("channel", "card")
+                                    payment.save()
+                                    logger.info(f"Updated pending payment to completed: payment_id={payment_id}")
+                                except FeePayment.DoesNotExist:
+                                    # Create new payment record
+                                    payment = FeePayment.objects.create(
+                                        fee=fee,
+                                        amount=amount,
+                                        paystack_payment_id=data.get("id"),
+                                        paystack_reference=reference,
+                                        payment_method=data.get("authorization", {}).get("channel", "card"),
+                                        status="completed"
+                                    )
+                            else:
+                                payment = FeePayment.objects.create(
+                                    fee=fee,
+                                    amount=amount,
+                                    paystack_payment_id=data.get("id"),
+                                    paystack_reference=reference,
+                                    payment_method=data.get("authorization", {}).get("channel", "card"),
+                                    status="completed"
+                                )
                             
                             fee.amount_paid = float(fee.amount_paid) + amount
                             fee.paystack_payment_id = data.get("id")
@@ -804,6 +861,193 @@ def payment_success(request):
     Show payment success page after successful payment.
     """
     return render(request, "finance/payment_success.html")
+
+
+def check_payment_status(request):
+    """
+    Allow users to check payment status using their payment reference.
+    This helps when user closes browser during payment and needs to verify
+    if their payment was recorded via webhook.
+    """
+    payment = None
+    error = None
+    
+    if request.method == "POST":
+        reference = request.POST.get("reference", "").strip()
+        
+        if not reference:
+            error = "Please enter a payment reference."
+        else:
+            # Search in FeePayment by paystack_reference
+            payment = FeePayment.objects.filter(
+                paystack_reference=reference
+            ).select_related("fee", "fee__student", "fee__school").first()
+            
+            if not payment:
+                # Also check Fee model directly for the reference
+                from .models import Fee
+                fee_with_ref = Fee.objects.filter(
+                    paystack_reference=reference
+                ).select_related("student", "school").first()
+                
+                if fee_with_ref and fee_with_ref.amount_paid > 0:
+                    # Create a virtual payment object for display
+                    class VirtualPayment:
+                        def __init__(self, fee):
+                            self.amount = fee.amount_paid
+                            self.paystack_reference = fee.paystack_reference
+                            self.status = "completed"
+                            self.created_at = fee.updated_at
+                            self.fee = fee
+                    
+                    payment = VirtualPayment(fee_with_ref)
+            
+            if not payment:
+                error = f"No payment found with reference '{reference}'. Please check and try again."
+    
+    return render(request, "finance/payment_status_check.html", {
+        "payment": payment,
+        "error": error,
+        "reference": request.POST.get("reference", "") if request.method == "POST" else ""
+    })
+
+
+# ============ Payment History Management ============
+
+@login_required
+def payment_history_list(request):
+    """
+    View for school admins to see and manage payment history.
+    Allows filtering, searching, and batch operations.
+    """
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    # Get all payments for this school
+    payments_qs = FeePayment.objects.select_related(
+        "fee", "fee__student", "fee__school"
+    )
+    
+    if not user.is_superuser and school:
+        payments_qs = payments_qs.filter(fee__school=school)
+    
+    # Filter by status
+    filter_status = request.GET.get("status")
+    if filter_status == "completed":
+        payments_qs = payments_qs.filter(status="completed")
+    elif filter_status == "pending":
+        payments_qs = payments_qs.filter(status="pending")
+    elif filter_status == "failed":
+        payments_qs = payments_qs.filter(status="failed")
+    
+    # Search by student name or payment reference
+    search = request.GET.get("search")
+    if search:
+        payments_qs = payments_qs.filter(
+            models.Q(fee__student__first_name__icontains=search) |
+            models.Q(fee__student__last_name__icontains=search) |
+            models.Q(fee__student__admission_number__icontains=search) |
+            models.Q(paystack_reference__icontains=search)
+        )
+    
+    # Order by most recent first
+    payments = payments_qs.order_by("-created_at")[:500]  # Limit to 500 most recent
+    
+    # Calculate totals
+    total_amount = sum(p.amount for p in payments if p.status == "completed")
+    total_count = payments.count()
+    
+    return render(request, "finance/payment_history_list.html", {
+        "payments": payments,
+        "total_amount": total_amount,
+        "total_count": total_count,
+        "school": school,
+        "filter_status": filter_status,
+        "search": search,
+    })
+
+
+@login_required
+def payment_history_delete(request, pk):
+    """
+    Delete a single payment record.
+    Only allows deleting pending or failed payments (not completed).
+    """
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    payment = get_object_or_404(FeePayment, pk=pk)
+    
+    # Check permissions
+    if not user.is_superuser and school:
+        if payment.fee.school != school:
+            messages.error(request, "You don't have permission to delete this payment.")
+            return redirect("finance:payment_history_list")
+    
+    # Only allow deleting pending or failed payments
+    if payment.status == "completed":
+        messages.error(request, "Cannot delete completed payments. Contact system administrator.")
+        return redirect("finance:payment_history_list")
+    
+    if request.method == "POST":
+        payment.delete()
+        messages.success(request, "Payment record deleted successfully.")
+        return redirect("finance:payment_history_list")
+    
+    return render(request, "finance/confirm_delete.html", {
+        "object": payment,
+        "type": "payment",
+        "cancel_url": "finance:payment_history_list"
+    })
+
+
+@login_required
+def payment_history_delete_multiple(request):
+    """
+    Delete multiple payment records at once.
+    Only allows deleting pending or failed payments (not completed).
+    """
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if request.method == "POST":
+        payment_ids = request.POST.getlist("payment_ids")
+        
+        if not payment_ids:
+            messages.error(request, "No payments selected.")
+            return redirect("finance:payment_history_list")
+        
+        # Filter payments to only include pending or failed
+        payments_qs = FeePayment.objects.filter(pk__in=payment_ids)
+        
+        if not user.is_superuser and school:
+            payments_qs = payments_qs.filter(fee__school=school)
+        
+        # Separate deletable from non-deletable
+        deletable = payments_qs.filter(status__in=["pending", "failed"])
+        non_deletable = payments_qs.filter(status="completed").count()
+        
+        if non_deletable > 0:
+            messages.warning(request, f"Skipped {non_deletable} completed payments (cannot be deleted).")
+        
+        deleted_count = deletable.count()
+        deletable.delete()
+        
+        messages.success(request, f"Successfully deleted {deleted_count} payment record(s).")
+    
+    return redirect("finance:payment_history_list")
 
 
 # ============ Subscription Cron Endpoint (for Railway/external cron services) ============

@@ -14,6 +14,7 @@ urlpatterns = [
     # Parent portal
     path("my-fees/", views.parent_fee_list, name="parent_fee_list"),
     path("payment-success/", views.payment_success, name="payment_success"),
+    path("check-payment-status/", views.check_payment_status, name="check_payment_status"),
     
     # Fee structure management
     path("fee-structure/", views.fee_structure_list, name="fee_structure_list"),
@@ -24,6 +25,11 @@ urlpatterns = [
     
     # School-facing fee management
     path("fees/", views.fee_list, name="fee_list"),
+    
+    # Payment history management
+    path("payment-history/", views.payment_history_list, name="payment_history_list"),
+    path("payment-history/delete/<int:pk>/", views.payment_history_delete, name="payment_history_delete"),
+    path("payment-history/delete-multiple/", views.payment_history_delete_multiple, name="payment_history_delete_multiple"),
     
     # Subscription (for schools paying YOU via Paystack)
     path("subscription/", views.subscription_view, name="subscription"),

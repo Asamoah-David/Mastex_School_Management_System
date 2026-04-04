@@ -7,6 +7,24 @@
     {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
     <a href="{% url 'operations:canteen_create' %}" class="btn btn-primary">Add Item</a>
     <a href="{% url 'operations:canteen_payments' %}" class="btn btn-secondary">View Payments</a>
+    
+    <div class="export-dropdown" style="display: inline-block; position: relative;">
+        <button class="btn btn-success dropdown-toggle" type="button">Export Payments ▼</button>
+        <div class="dropdown-menu">
+            <a href="{% url 'operations:export_canteen_payments' %}?format=csv" class="dropdown-item">Export CSV</a>
+            <a href="{% url 'operations:export_canteen_payments' %}?format=excel" class="dropdown-item">Export Excel</a>
+            <div class="dropdown-divider"></div>
+            <form method="get" action="{% url 'operations:export_canteen_payments' %}" style="display: inline;" class="d-inline">
+                <div class="px-2 py-1">
+                    <small class="text-muted">Filter by date:</small>
+                    <input type="date" name="from" class="form-control form-control-sm mb-1" placeholder="From date">
+                    <input type="date" name="to" class="form-control form-control-sm mb-1" placeholder="To date">
+                    <input type="month" name="month" class="form-control form-control-sm mb-1" placeholder="Month (YYYY-MM)">
+                    <button type="submit" class="btn btn-sm btn-outline-primary w-100">Apply Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
     {% endif %}
 </div>
 

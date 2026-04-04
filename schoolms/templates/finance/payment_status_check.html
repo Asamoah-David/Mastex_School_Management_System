@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Check Payment Status - Mastex SchoolOS{% endblock %}
+{% block page_title %}Check Payment Status{% endblock %}
+{% block page_subtitle %}Verify your payment using reference number{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width: 500px; margin: 0 auto; padding: 2rem;">
+    <form method="post" action="{% url 'finance:check_payment_status' %}">
+        {% csrf_token %}
+        
+        <div style="margin-bottom: 1.5rem;">
+            <label for="reference" style="display: block; margin-bottom: 0.5rem; font-weight: bold;">
+                Enter Payment Reference
+            </label>
+            <input type="text" 
+                   id="reference" 
+                   name="reference" 
+                   class="form-control"
+                   placeholder="e.g., SCHOOL_FEE_123_ABC12345"
+                   value="{{ reference|default:'' }}"
+                   required
+                   style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
+            <small style="color: #666; display: block; margin-top: 0.5rem;">
+                Your payment reference was sent to your email and shown during payment.
+            </small>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">
+            Check Status
+        </button>
+    </form>
+    
+    {% if payment %}
+    <div style="margin-top: 2rem; padding: 1.5rem; border-radius: 8px; {% if payment.status == 'completed' %}background: #d4edda; border: 1px solid #c3e6cb;{% else %}background: #fff3cd; border: 1px solid #ffeeba;{% endif %}">
+        <h3 style="margin: 0 0 1rem 0; {% if payment.status == 'completed' %}color: #155724;{% else %}color: #856404;{% endif %}">
+            {% if payment.status == 'completed' %}✅ Payment Confirmed{% else %}⏳ Payment Pending{% endif %}
+        </h3>
+        
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 0.5rem 0; font-weight: bold;">Reference:</td>
+                <td style="padding: 0.5rem 0;">{{ payment.paystack_reference }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.5rem 0; font-weight: bold;">Amount:</td>
+                <td style="padding: 0.5rem 0;">GHS {{ payment.amount }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.5rem 0; font-weight: bold;">Status:</td>
+                <td style="padding: 0.5rem 0; text-transform: capitalize;">{{ payment.status }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.5rem 0; font-weight: bold;">Date:</td>
+                <td style="padding: 0.5rem 0;">{{ payment.created_at|date:"F d, Y g:i A" }}</td>
+            </tr>
+            {% if payment.fee %}
+            <tr>
+                <td style="padding: 0.5rem 0; font-weight: bold;">Student:</td>
+                <td style="padding: 0.5rem 0;">{{ payment.fee.student }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.5rem 0; font-weight: bold;">School:</td>
+                <td style="padding: 0.5rem 0;">{{ payment.fee.school.name|default:"N/A" }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+    {% elif error %}
+    <div style="margin-top: 2rem; padding: 1rem; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; color: #721c24;">
+        {{ error }}
+    </div>
+    {% endif %}
+    
+    <div style="margin-top: 2rem; text-align: center;">
+        <a href="{% url 'finance:parent_fee_list' %}" style="color: #007bff;">← Back to My Fees</a>
+    </div>
+</div>
+{% endblock %}

@@ -39,7 +39,7 @@ def behavior_tracker_dashboard(request):
     # Get recent behavior records
     recent_records = BehaviorPoint.objects.filter(
         student__in=students
-    ).select_related('student', 'student__user', 'recorded_by').order_by('-created_at')[:20]
+    ).select_related('student', 'student__user', 'recorded_by').order_by('-awarded_at')[:20]
     
     context = {
         'school': school,
@@ -110,7 +110,7 @@ def get_student_behavior(request, student_id):
     
     student = get_object_or_404(Student, id=student_id, school=school)
     
-    records = BehaviorPoint.objects.filter(student=student).select_related('recorded_by').order_by('-created_at')
+    records = BehaviorPoint.objects.filter(student=student).select_related('recorded_by').order_by('-awarded_at')
     
     data = []
     for r in records:
@@ -119,7 +119,7 @@ def get_student_behavior(request, student_id):
             'points': r.points,
             'reason': r.reason,
             'recorded_by': r.recorded_by.get_full_name() or r.recorded_by.username,
-            'date': r.created_at.strftime('%Y-%m-%d %H:%i'),
+            'date': r.awarded_at.strftime('%Y-%m-%d %H:%i') if r.awarded_at else '',
         })
     
     return JsonResponse({

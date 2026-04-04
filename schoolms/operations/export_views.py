@@ -18,6 +18,7 @@ from .models import (
     Certificate, AdmissionApplication, Budget
 )
 from core.export_utils import export_to_csv, export_to_excel, export_to_zip
+from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook, TextbookSale, HostelFee, HostelAssignment
 
 
 def _get_school(request):
@@ -476,3 +477,279 @@ def export_all_data(request):
     })
     
     return export_to_zip(exports, f"{school.name.replace(' ', '_')}_export.zip")
+
+
+# ==================== PAYMENT EXPORT VIEWS ====================
+
+def _filter_by_date(queryset, request, date_field='created_at'):
+    """Apply day/month/year filtering to queryset."""
+    from django.utils.dateparse import parse_date
+    from datetime import datetime
+    
+    # Day filter (single date)
+    day = request.GET.get("day")
+    # Month filter (month number or year-month)
+    month = request.GET.get("month")
+    # Year filter
+    year = request.GET.get("year")
+    # From date
+    from_date = request.GET.get("from")
+    # To date
+    to_date = request.GET.get("to")
+    
+    # If specific day is provided
+    if day:
+        parsed = parse_date(day)
+        if parsed:
+            queryset = queryset.filter(**{f"{date_field}__date": parsed})
+    
+    # If month is provided
+    if month:
+        if '-' in str(month):
+            # Year-Month format
+            parts = month.split('-')
+            if len(parts) == 2:
+                queryset = queryset.filter(**{
+                    f"{date_field}__year": int(parts[0]),
+                    f"{date_field}__month": int(parts[1])
+                })
+        else:
+            # Just month number - need year context
+            if year:
+                queryset = queryset.filter(**{
+                    f"{date_field}__year": int(year),
+                    f"{date_field}__month": int(month)
+                })
+    
+    # If only year is provided
+    if year and not month:
+        queryset = queryset.filter(**{f"{date_field}__year": int(year)})
+    
+    # From date filter
+    if from_date:
+        parsed = parse_date(from_date)
+        if parsed:
+            queryset = queryset.filter(**{f"{date_field}__gte": parsed})
+    
+    # To date filter
+    if to_date:
+        parsed = parse_date(to_date)
+        if parsed:
+            # End of day
+            from datetime import timedelta
+            end_date = parsed + timedelta(days=1)
+            queryset = queryset.filter(**{f"{date_field}__lt": end_date})
+    
+    return queryset
+
+
+@login_required
+def export_canteen_payments(request):
+    """Export canteen payments to CSV/Excel with date filtering."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user", "item").order_by("-created_at")
+    payments = _filter_by_date(payments, request, 'created_at')
+    
+    fields = [
+        ("Date", "created_at"),
+        ("Student", "student__user__first_name"),
+        ("Admission No.", "student__admission_number"),
+        ("Item", "item__name"),
+        ("Quantity", "quantity"),
+        ("Amount (GHS)", "amount"),
+        ("Status", "status"),
+        ("Payment Ref", "payment_reference"),
+    ]
+    
+    fmt = request.GET.get("format", "csv")
+    if fmt == "excel":
+        return export_to_excel(payments, fields, "canteen_payments.xlsx")
+    return export_to_csv(payments, fields, "canteen_payments.csv")
+
+
+@login_required
+def export_bus_payments(request):
+    """Export bus/transport payments to CSV/Excel with date filtering."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route").order_by("-created_at")
+    payments = _filter_by_date(payments, request, 'created_at')
+    
+    fields = [
+        ("Date", "created_at"),
+        ("Student", "student__user__first_name"),
+        ("Admission No.", "student__admission_number"),
+        ("Route", "route__route_name"),
+        ("Amount (GHS)", "amount"),
+        ("Status", "status"),
+        ("Paid", "paid"),
+        ("Payment Ref", "payment_reference"),
+    ]
+    
+    fmt = request.GET.get("format", "csv")
+    if fmt == "excel":
+        return export_to_excel(payments, fields, "bus_payments.xlsx")
+    return export_to_csv(payments, fields, "bus_payments.csv")
+
+
+@login_required
+def export_textbook_sales(request):
+    """Export textbook sales to CSV/Excel with date filtering."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook").order_by("-created_at")
+    sales = _filter_by_date(sales, request, 'created_at')
+    
+    fields = [
+        ("Date", "created_at"),
+        ("Student", "student__user__first_name"),
+        ("Admission No.", "student__admission_number"),
+        ("Textbook", "textbook__title"),
+        ("Quantity", "quantity"),
+        ("Amount (GHS)", "amount"),
+        ("Status", "status"),
+        ("Payment Ref", "payment_reference"),
+    ]
+    
+    fmt = request.GET.get("format", "csv")
+    if fmt == "excel":
+        return export_to_excel(sales, fields, "textbook_sales.xlsx")
+    return export_to_csv(sales, fields, "textbook_sales.csv")
+
+
+@login_required
+def export_hostel_fees(request):
+    """Export hostel fees to CSV/Excel with date filtering."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    fees = HostelFee.objects.filter(school=school).select_related("student", "student__user", "hostel", "hostel__hostel").order_by("-created_at")
+    fees = _filter_by_date(fees, request, 'created_at')
+    
+    fields = [
+        ("Date", "created_at"),
+        ("Student", "student__user__first_name"),
+        ("Admission No.", "student__admission_number"),
+        ("Hostel", "hostel__hostel__name"),
+        ("Room", "hostel__room_number"),
+        ("Amount (GHS)", "amount"),
+        ("Academic Year", "academic_year"),
+        ("Term", "term"),
+        ("Status", "status"),
+        ("Paid", "paid"),
+    ]
+    
+    fmt = request.GET.get("format", "csv")
+    if fmt == "excel":
+        return export_to_excel(fees, fields, "hostel_fees.xlsx")
+    return export_to_csv(fees, fields, "hostel_fees.csv")
+
+
+@login_required
+def export_all_payments(request):
+    """Export all payment types to CSV/Excel with date filtering."""
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+    
+    from finance.models import FeePayment
+    
+    # Get all payment types
+    canteen_payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")
+    bus_payments = BusPayment.objects.filter(school=school).select_related("student", "student__user")
+    textbook_sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user")
+    hostel_fees = HostelFee.objects.filter(school=school).select_related("student", "student__user")
+    school_fees = Fee.objects.filter(school=school).select_related("student", "student__user")
+    fee_payments = FeePayment.objects.filter(fee__school=school).select_related("fee", "fee__student", "fee__student__user")
+    
+    # Apply date filtering
+    canteen_payments = _filter_by_date(canteen_payments, request, 'created_at')
+    bus_payments = _filter_by_date(bus_payments, request, 'created_at')
+    textbook_sales = _filter_by_date(textbook_sales, request, 'created_at')
+    hostel_fees = _filter_by_date(hostel_fees, request, 'created_at')
+    school_fees = _filter_by_date(school_fees, request, 'created_at')
+    fee_payments = _filter_by_date(fee_payments, request, 'created_at')
+    
+    # Combine all payments into one list with type annotation
+    all_payments = []
+    
+    for p in canteen_payments:
+        all_payments.append({
+            'date': p.created_at,
+            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+            'admission_no': p.student.admission_number if p.student else '',
+            'type': 'Canteen',
+            'description': p.item.name if p.item else '',
+            'amount': float(p.amount),
+            'status': p.status,
+        })
+    
+    for p in bus_payments:
+        all_payments.append({
+            'date': p.created_at,
+            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+            'admission_no': p.student.admission_number if p.student else '',
+            'type': 'Bus',
+            'description': p.route.route_name if p.route else '',
+            'amount': float(p.amount),
+            'status': p.status,
+        })
+    
+    for p in textbook_sales:
+        all_payments.append({
+            'date': p.created_at,
+            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+            'admission_no': p.student.admission_number if p.student else '',
+            'type': 'Textbook',
+            'description': p.textbook.title if p.textbook else '',
+            'amount': float(p.amount),
+            'status': p.status,
+        })
+    
+    for p in hostel_fees:
+        all_payments.append({
+            'date': p.created_at,
+            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+            'admission_no': p.student.admission_number if p.student else '',
+            'type': 'Hostel',
+            'description': f"{p.hostel.hostel.name} - {p.hostel.room_number}" if p.hostel else '',
+            'amount': float(p.amount),
+            'status': 'Paid' if p.paid else 'Unpaid',
+        })
+    
+    for p in fee_payments:
+        all_payments.append({
+            'date': p.created_at,
+            'student': p.fee.student.user.get_full_name() if p.fee and p.fee.student and p.fee.student.user else '',
+            'admission_no': p.fee.student.admission_number if p.fee and p.fee.student else '',
+            'type': 'School Fee',
+            'description': p.fee.fee_type if p.fee else '',
+            'amount': float(p.amount),
+            'status': 'Completed',
+        })
+    
+    # Sort by date descending
+    all_payments.sort(key=lambda x: x['date'] if x['date'] else '', reverse=True)
+    
+    fields = [
+        ("Date", "date"),
+        ("Student Name", "student"),
+        ("Admission No.", "admission_no"),
+        ("Payment Type", "type"),
+        ("Description", "description"),
+        ("Amount (GHS)", "amount"),
+        ("Status", "status"),
+    ]
+    
+    fmt = request.GET.get("format", "csv")
+    if fmt == "excel":
+        return export_to_excel(all_payments, fields, "all_payments.xlsx")
+    return export_to_csv(all_payments, fields, "all_payments.csv")

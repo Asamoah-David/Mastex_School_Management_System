@@ -22,8 +22,19 @@
         </ul>
     </div>
     
-    <div style="display: flex; gap: 1rem; justify-content: center;">
+    <div style="background: #fff3cd; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border: 1px solid #ffeeba;">
+        <p style="margin: 0; color: #856404;">
+            <strong>💡 Did you close the browser during payment?</strong><br>
+            If you didn't see this page after making payment, you can verify if your payment was successful using the link below:
+        </p>
+        <a href="{% url 'finance:check_payment_status' %}" style="color: #007bff; font-weight: bold;">
+            Check Payment Status →
+        </a>
+    </div>
+    
+    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
         <a href="{% url 'finance:parent_fee_list' %}" class="btn btn-primary">View My Fees</a>
+        <a href="{% url 'finance:check_payment_status' %}" class="btn btn-warning">Check Payment Status</a>
         <a href="{% url 'accounts:dashboard' %}" class="btn btn-secondary">Go to Dashboard</a>
     </div>
 </div>
