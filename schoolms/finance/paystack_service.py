@@ -26,7 +26,7 @@ class PaystackService:
             "Content-Type": "application/json"
         }
     
-    def initialize_payment(self, email, amount, callback_url, reference=None, metadata=None, subaccount=None, split_code=None, channels=None):
+    def initialize_payment(self, email, amount, callback_url, reference=None, metadata=None, subaccount=None, split_code=None, channels=None, currency=None):
         """
         Initialize a Paystack payment.
         
@@ -39,6 +39,7 @@ class PaystackService:
             subaccount: Paystack subaccount code for direct payment to school
             split_code: Paystack split code for payment splitting
             channels: List of payment channels (e.g., ['card'], ['mobile_money'], ['bank'])
+            currency: Currency code (e.g., 'GHS', 'NGN'). Defaults to settings.PAYSTACK_CURRENCY
             
         Returns:
             dict with status, authorization_url, reference
@@ -47,12 +48,15 @@ class PaystackService:
             import uuid
             reference = f"SCHOOL_FEE_{uuid.uuid4().hex[:12].upper()}"
         
+        # Use provided currency or fall back to default
+        currency_code = currency if currency else self.currency
+        
         data = {
             "email": email,
             "amount": int(amount * 100),  # Convert to kobo
             "reference": reference,
             "callback_url": callback_url,
-            "currency": self.currency,
+            "currency": currency_code,
             "metadata": metadata or {}
         }
         
