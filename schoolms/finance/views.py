@@ -244,7 +244,12 @@ def paystack_callback(request, fee_id):
 def paystack_webhook(request):
     """
     Handle Paystack webhook for payment notifications.
+    This ensures payments are recorded even if the user closes the browser
+    before being redirected back to the site.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if request.method != "POST":
         return HttpResponse(status=405)
     
@@ -253,47 +258,134 @@ def paystack_webhook(request):
     if signature and settings.PAYSTACK_WEBHOOK_SECRET:
         body = request.body
         if not paystack_service.verify_webhook_signature(body, signature, settings.PAYSTACK_WEBHOOK_SECRET):
+            logger.warning("Invalid Paystack webhook signature")
             return HttpResponse("Invalid signature", status=403)
     
     try:
         payload = json.loads(request.body)
     except json.JSONDecodeError:
+        logger.error("Invalid JSON in webhook payload")
         return HttpResponse(status=400)
     
     event = payload.get("event")
+    logger.info(f"Paystack webhook received: event={event}")
     
     if event == "charge.success":
         data = payload.get("data", {})
         reference = data.get("reference")
         
         if reference:
-            # Find fee by reference in metadata or payment record
             metadata = data.get("metadata", {})
-            fee_id = metadata.get("fee_id")
+            payment_type = metadata.get("payment_type")
             
-            if fee_id:
-                try:
-                    fee = Fee.objects.get(id=fee_id)
-                    amount = float(data.get("amount", 0)) / 100
-                    
-                    # Create payment record
-                    FeePayment.objects.create(
-                        fee=fee,
-                        amount=amount,
-                        paystack_payment_id=data.get("id"),
-                        paystack_reference=reference,
-                        payment_method=data.get("authorization", {}).get("channel", "card"),
-                        status="completed"
-                    )
-                    
-                    # Update fee
-                    fee.amount_paid = float(fee.amount_paid) + amount
-                    fee.paystack_payment_id = data.get("id")
-                    fee.paystack_reference = reference
-                    fee.save()
-                    
-                except Fee.DoesNotExist:
-                    pass
+            logger.info(f"Processing payment: type={payment_type}, reference={reference}")
+            
+            # Handle School Fee Payments
+            if payment_type == "school_fee" or payment_type == "fee":
+                fee_id = metadata.get("fee_id")
+                if fee_id:
+                    try:
+                        fee = Fee.objects.get(id=fee_id)
+                        amount = float(data.get("amount", 0)) / 100
+                        
+                        # Check if payment already exists to avoid duplicates
+                        existing = FeePayment.objects.filter(paystack_reference=reference).exists()
+                        if not existing:
+                            payment = FeePayment.objects.create(
+                                fee=fee,
+                                amount=amount,
+                                paystack_payment_id=data.get("id"),
+                                paystack_reference=reference,
+                                payment_method=data.get("authorization", {}).get("channel", "card"),
+                                status="completed"
+                            )
+                            
+                            fee.amount_paid = float(fee.amount_paid) + amount
+                            fee.paystack_payment_id = data.get("id")
+                            fee.paystack_reference = reference
+                            fee.save()
+                            logger.info(f"School fee payment recorded: fee_id={fee_id}, amount={amount}")
+                        else:
+                            logger.info(f"Payment already processed: reference={reference}")
+                    except Fee.DoesNotExist:
+                        logger.error(f"Fee not found: fee_id={fee_id}")
+            
+            # Handle Canteen Payments
+            elif payment_type == "canteen":
+                payment_id = metadata.get("payment_id")
+                if payment_id:
+                    try:
+                        from operations.models import CanteenPayment
+                        payment = CanteenPayment.objects.get(id=payment_id)
+                        if payment.payment_status != 'completed':
+                            payment.payment_status = 'completed'
+                            from django.utils import timezone
+                            payment.payment_date = timezone.now().date()
+                            payment.save()
+                            logger.info(f"Canteen payment completed: payment_id={payment_id}")
+                        else:
+                            logger.info(f"Canteen payment already completed: payment_id={payment_id}")
+                    except CanteenPayment.DoesNotExist:
+                        logger.error(f"Canteen payment not found: payment_id={payment_id}")
+            
+            # Handle Bus/Transport Payments
+            elif payment_type == "bus":
+                payment_id = metadata.get("payment_id")
+                if payment_id:
+                    try:
+                        from operations.models import BusPayment
+                        payment = BusPayment.objects.get(id=payment_id)
+                        if payment.payment_status != 'completed':
+                            payment.payment_status = 'completed'
+                            payment.paid = True
+                            from django.utils import timezone
+                            payment.payment_date = timezone.now().date()
+                            payment.save()
+                            logger.info(f"Bus payment completed: payment_id={payment_id}")
+                        else:
+                            logger.info(f"Bus payment already completed: payment_id={payment_id}")
+                    except BusPayment.DoesNotExist:
+                        logger.error(f"Bus payment not found: payment_id={payment_id}")
+            
+            # Handle Textbook Payments
+            elif payment_type == "textbook":
+                payment_id = metadata.get("payment_id")
+                if payment_id:
+                    try:
+                        from operations.models import TextbookSale
+                        sale = TextbookSale.objects.get(id=payment_id)
+                        if sale.payment_status != 'completed':
+                            sale.payment_status = 'completed'
+                            sale.save()
+                            # Reduce textbook stock
+                            if sale.textbook:
+                                sale.textbook.stock -= sale.quantity
+                                sale.textbook.save()
+                                logger.info(f"Textbook stock reduced: textbook_id={sale.textbook.id}, quantity={sale.quantity}")
+                            logger.info(f"Textbook sale completed: sale_id={payment_id}")
+                        else:
+                            logger.info(f"Textbook sale already completed: sale_id={payment_id}")
+                    except TextbookSale.DoesNotExist:
+                        logger.error(f"Textbook sale not found: sale_id={payment_id}")
+            
+            # Handle Hostel Payments
+            elif payment_type == "hostel":
+                payment_id = metadata.get("payment_id")
+                if payment_id:
+                    try:
+                        from operations.models import HostelFee
+                        fee = HostelFee.objects.get(id=payment_id)
+                        if fee.payment_status != 'completed':
+                            fee.payment_status = 'completed'
+                            fee.paid = True
+                            from django.utils import timezone
+                            fee.payment_date = timezone.now().date()
+                            fee.save()
+                            logger.info(f"Hostel payment completed: fee_id={payment_id}")
+                        else:
+                            logger.info(f"Hostel payment already completed: fee_id={payment_id}")
+                    except HostelFee.DoesNotExist:
+                        logger.error(f"Hostel fee not found: fee_id={payment_id}")
     
     return HttpResponse(status=200)
 
