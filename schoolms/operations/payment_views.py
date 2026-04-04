@@ -1332,7 +1332,7 @@ def cancel_pending_payment(request):
             return JsonResponse({'success': False, 'error': 'Missing purchase_id or payment_type'}, status=400)
         
         # Import models here to avoid circular imports
-        from .models import CanteenPayment, BusPayment, TextbookPayment
+        from .models import CanteenPayment, BusPayment, TextbookSale
         
         deleted = False
         
@@ -1354,10 +1354,10 @@ def cancel_pending_payment(request):
         
         elif payment_type == 'textbook':
             try:
-                payment = TextbookPayment.objects.get(id=purchase_id, payment_status='pending')
+                payment = TextbookSale.objects.get(id=purchase_id, payment_status='pending')
                 payment.delete()
                 deleted = True
-            except TextbookPayment.DoesNotExist:
+            except TextbookSale.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Textbook payment not found'}, status=404)
         
         elif payment_type == 'hostel':
