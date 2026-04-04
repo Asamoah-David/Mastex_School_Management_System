@@ -122,6 +122,7 @@ function payBus(routeId, fee) {
                     email: data.email || '{{ request.user.email }}',
                     amount: fee * 100,
                     reference: data.reference,
+                    currency: 'GHS',
                     callback: function(response) {
                         console.log('Payment callback:', response);
                         window.location.href = '{% url "operations:bus_payment_verify" %}?reference=' + response.reference;

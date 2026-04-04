@@ -103,6 +103,7 @@ function payCanteen(itemId, price) {
                     email: data.email || 'student@mastexschool.com',
                     amount: amount * 100,
                     reference: data.reference,
+                    currency: 'GHS',
                     callback: function(response) {
                         console.log('Payment callback:', response);
                         window.location.href = '{% url "operations:canteen_payment_verify" %}?reference=' + response.reference;
