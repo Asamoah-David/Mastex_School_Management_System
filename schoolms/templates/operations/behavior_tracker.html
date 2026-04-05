@@ -68,7 +68,7 @@
                             </span>
                         </td>
                         <td>{{ record.reason }}</td>
-                        <td>{{ record.recorded_by.get_full_name|default:record.recorded_by.username }}</td>
+                        <td>{{ record.awarded_by.get_full_name|default:record.awarded_by.username }}</td>
                         <td>{{ record.created_at|date:"M d, Y H:i" }}</td>
                     </tr>
                     {% endfor %}
@@ -95,7 +95,7 @@
                     <option value="">-- Select Student --</option>
                     {% for class in classes %}
                     <optgroup label="{{ class }}">
-                        {% for student in students_by_class|default:empty %}
+                        {% for student in students_by_class %}
                         {% if student.class_name == class %}
                         <option value="{{ student.id }}">{{ student.user.get_full_name }}</option>
                         {% endif %}
