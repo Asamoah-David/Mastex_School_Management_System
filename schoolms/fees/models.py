@@ -51,7 +51,7 @@ class PaymentReminder(models.Model):
     ]
     
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='payment_reminders')
-    fee_invoice = models.ForeignKey('finance.FeeInvoice', on_delete=models.CASCADE, related_name='reminders')
+    fee = models.ForeignKey('finance.Fee', on_delete=models.CASCADE, related_name='payment_reminders')
     reminder_type = models.CharField(max_length=20, choices=REMINDER_TYPE_CHOICES)
     reminder_date = models.DateTimeField()
     sent = models.BooleanField(default=False)
