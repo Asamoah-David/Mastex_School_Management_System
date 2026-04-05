@@ -412,9 +412,9 @@ def online_classes_page(request):
                 Q(class_name=student.class_name) | Q(class_name='')
             )
         else:
-            # If no student record or class, show only students + all
+            # If no student record or no class assigned, show students + all + all-class meetings (empty class_name)
             meetings = meetings.filter(
-                Q(target_audience='students') | Q(target_audience='all')
+                Q(target_audience='students') | Q(target_audience='all') | Q(class_name='')
             )
     elif user_role == 'parent':
         # Parents see student meetings + all meetings + their children's class meetings + all-class meetings
@@ -426,8 +426,9 @@ def online_classes_page(request):
                 Q(class_name__in=child_classes) | Q(class_name='')
             )
         else:
+            # If no child classes, show students + all + all-class meetings (empty class_name)
             meetings = meetings.filter(
-                Q(target_audience='students') | Q(target_audience='all')
+                Q(target_audience='students') | Q(target_audience='all') | Q(class_name='')
             )
     elif user_role in ['school_admin', 'deputy_head', 'hod', 'accountant', 'librarian', 'nurse']:
         # Staff see staff-only meetings + all meetings
