@@ -1358,7 +1358,6 @@ def performance_analytics(request):
     subject_stats.sort(key=lambda x: x['avg_score'], reverse=True)
     
     # Top performing students
-    from django.db.models import Avg
     top_students = (
         results_qs.values('student__user__first_name', 'student__user__last_name', 
                          'student__admission_number', 'student__class_name')

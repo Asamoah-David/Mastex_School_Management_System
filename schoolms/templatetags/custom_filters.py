@@ -42,6 +42,15 @@ def month_name(month_number):
 
 
 @register.filter
+def sub(value, arg):
+    """Subtracts the arg from the value."""
+    try:
+        return float(value) - float(arg)
+    except (ValueError, TypeError):
+        return value
+
+
+@register.filter
 def text_to_words(amount):
     """
     Convert a number to its words representation.
