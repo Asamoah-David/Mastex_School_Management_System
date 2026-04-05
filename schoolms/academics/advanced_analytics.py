@@ -22,6 +22,10 @@ from schools.models import School
 from academics.models import Result, Term, Homework, Quiz, Subject, OnlineMeeting, AIStudentComment
 from operations.models import StudentAttendance
 from services.sms_service import SMSService
+try:
+    from notifications.models import Notification
+except ImportError:
+    Notification = None
 from schools.features import is_feature_enabled
 from accounts.decorators import admin_required, teacher_required
 
@@ -391,12 +395,34 @@ def online_classes_page(request):
     meetings = OnlineMeeting.objects.filter(school=school)
     
     # Filter based on user role
-    if request.user.role == 'teacher':
+    user_role = getattr(request.user, 'role', None)
+    
+    if user_role == 'teacher':
+        # Teachers see their own meetings
         meetings = meetings.filter(teacher=request.user)
-    elif request.user.role == 'student':
-        meetings = meetings.filter(class_name__in=[
-            s.current_class for s in Student.objects.filter(user=request.user)
-        ])
+    elif user_role == 'student':
+        # Students see meetings for their class
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student and student.class_name:
+            meetings = meetings.filter(
+                Q(class_name=student.class_name) | Q(class_name='')
+            )
+        else:
+            meetings = meetings.none()
+    elif user_role == 'parent':
+        # Parents see meetings for their children's classes
+        children = Student.objects.filter(parent=request.user, school=school)
+        child_classes = [c.class_name for c in children if c.class_name]
+        if child_classes:
+            meetings = meetings.filter(class_name__in=child_classes)
+        else:
+            meetings = meetings.none()
+    elif user_role == 'school_admin':
+        # School admins see all meetings (no filter)
+        pass
+    else:
+        # For other roles, show all meetings in the school
+        pass
     
     upcoming_meetings = meetings.filter(status='scheduled', scheduled_time__gte=timezone.now()).order_by('scheduled_time')
     past_meetings = meetings.filter(Q(status='completed') | Q(scheduled_time__lt=timezone.now())).order_by('-scheduled_time')[:10]
@@ -454,6 +480,12 @@ def create_meeting(request):
             meeting.meeting_link = f"https://meet.jit.si/mastex-{school.id}-{meeting_id}"
             meeting.host_url = f"https://meet.jit.si/mastex-{school.id}-{meeting_id}#config.startWithVideoMuted=false&config.prejoinPageEnabled=false"
             meeting.save()
+            
+            # Create in-app notifications for students/parents in the class
+            try:
+                create_meeting_notifications(meeting)
+            except Exception as e:
+                print(f"Failed to create notifications: {e}")
             
             # Send SMS notifications if requested
             send_sms_notification = data.get('send_sms', False)
@@ -750,6 +782,61 @@ def save_comment(request):
 
 
 # ==================== SMS NOTIFICATIONS FOR ONLINE CLASSES ====================
+
+def create_meeting_notifications(meeting):
+    """
+    Create in-app notifications for students and parents when a new online class is scheduled.
+    """
+    if Notification is None:
+        return
+    
+    notifications_created = 0
+    
+    # Get students in the class
+    if meeting.class_name:
+        students = Student.objects.filter(
+            school=meeting.school,
+            current_class=meeting.class_name
+        ).select_related('user')
+    else:
+        # If no class specified, notify all students in school
+        students = Student.objects.filter(
+            school=meeting.school
+        ).select_related('user')
+    
+    # Create notification for each student
+    for student in students:
+        try:
+            Notification.objects.create(
+                user=student.user,
+                title="New Online Class Scheduled",
+                message=f"A new online class '{meeting.title}' has been scheduled for {meeting.class_name or 'all classes'} on {meeting.scheduled_time.strftime('%d %b at %H:%M')}. Subject: {meeting.subject or 'General'}",
+                notification_type="info",
+                link=f"/academics/online-classes/"
+            )
+            notifications_created += 1
+            
+            # Also notify parent if exists
+            try:
+                from students.models import StudentParent
+                parent_links = StudentParent.objects.filter(student=student)
+                for link in parent_links:
+                    if link.parent:
+                        Notification.objects.create(
+                            user=link.parent,
+                            title=f"Online Class for {student.user.get_full_name()}",
+                            message=f"A new online class '{meeting.title}' has been scheduled for {student.user.get_full_name()} (Class: {meeting.class_name or 'all'}) on {meeting.scheduled_time.strftime('%d %b at %H:%M')}. Subject: {meeting.subject or 'General'}",
+                            notification_type="info",
+                            link=f"/academics/online-classes/"
+                        )
+                        notifications_created += 1
+            except Exception:
+                pass  # Parent notification is optional
+        except Exception as e:
+            print(f"Failed to create notification for student {student.id}: {e}")
+    
+    return notifications_created
+
 
 def send_online_class_sms(meeting, user):
     """
