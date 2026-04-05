@@ -728,8 +728,11 @@ def pay_subscription(request):
     email = request.user.email or "admin@school.com"
     
     # Build callback URL
-    callback_url = request.build_absolute_uri(reverse("finance:subscription_callback"))
-    
+    # Store school_id in session for reliable lookup during callback
+    request.session['subscription_school_id'] = school.id
+    callback_url = request.build_absolute_uri(
+        reverse("finance:subscription_callback") + f"?school_id={school.id}"
+    )
     # Create a unique reference
     reference = f"SCHOOL_SUB_{school.id}_{uuid.uuid4().hex[:8].upper()}"
     
@@ -773,8 +776,11 @@ def subscription_callback(request):
     if response.get("status") and response.get("data", {}).get("status") == "success":
         data = response["data"]
         
-        # Get school ID from session
+        # Get school ID from session (primary method) or from query param (fallback)
         school_id = request.session.pop("paystack_sub_school_id", None)
+        if not school_id:
+            # Fallback to query parameter if session expired
+            school_id = request.GET.get("school_id")
         
         if school_id:
             try:
