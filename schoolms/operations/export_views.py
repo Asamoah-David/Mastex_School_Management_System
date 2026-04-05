@@ -550,17 +550,16 @@ def export_canteen_payments(request):
     if not school:
         return redirect("home")
     
-    payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user", "item").order_by("-created_at")
-    payments = _filter_by_date(payments, request, 'created_at')
+    payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user", "recorded_by").order_by("-payment_date")
+    payments = _filter_by_date(payments, request, 'payment_date')
     
     fields = [
-        ("Date", "created_at"),
+        ("Date", "payment_date"),
         ("Student", "student__user__first_name"),
         ("Admission No.", "student__admission_number"),
-        ("Item", "item__name"),
-        ("Quantity", "quantity"),
+        ("Description", "description"),
         ("Amount (GHS)", "amount"),
-        ("Status", "status"),
+        ("Status", "payment_status"),
         ("Payment Ref", "payment_reference"),
     ]
     
@@ -577,16 +576,16 @@ def export_bus_payments(request):
     if not school:
         return redirect("home")
     
-    payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route").order_by("-created_at")
+    payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route", "recorded_by").order_by("-created_at")
     payments = _filter_by_date(payments, request, 'created_at')
     
     fields = [
         ("Date", "created_at"),
         ("Student", "student__user__first_name"),
         ("Admission No.", "student__admission_number"),
-        ("Route", "route__route_name"),
+        ("Route", "route__name"),
         ("Amount (GHS)", "amount"),
-        ("Status", "status"),
+        ("Status", "payment_status"),
         ("Paid", "paid"),
         ("Payment Ref", "payment_reference"),
     ]
@@ -663,15 +662,15 @@ def export_all_payments(request):
     from finance.models import Fee, FeePayment
     
     # Get all payment types
-    canteen_payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")
-    bus_payments = BusPayment.objects.filter(school=school).select_related("student", "student__user")
-    textbook_sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user")
+    canteen_payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
+    bus_payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
+    textbook_sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
     hostel_fees = HostelFee.objects.filter(school=school).select_related("student", "student__user")
     school_fees = Fee.objects.filter(school=school).select_related("student", "student__user")
     fee_payments = FeePayment.objects.filter(fee__school=school).select_related("fee", "fee__student", "fee__student__user")
     
-    # Apply date filtering
-    canteen_payments = _filter_by_date(canteen_payments, request, 'created_at')
+    # Apply date filtering - use payment_date for canteen, created_at for others
+    canteen_payments = _filter_by_date(canteen_payments, request, 'payment_date')
     bus_payments = _filter_by_date(bus_payments, request, 'created_at')
     textbook_sales = _filter_by_date(textbook_sales, request, 'created_at')
     hostel_fees = _filter_by_date(hostel_fees, request, 'created_at')
@@ -683,13 +682,13 @@ def export_all_payments(request):
     
     for p in canteen_payments:
         all_payments.append({
-            'date': p.created_at,
+            'date': p.payment_date,
             'student': p.student.user.get_full_name() if p.student and p.student.user else '',
             'admission_no': p.student.admission_number if p.student else '',
             'type': 'Canteen',
-            'description': p.item.name if p.item else '',
+            'description': p.description,
             'amount': float(p.amount),
-            'status': p.status,
+            'status': p.payment_status,
         })
     
     for p in bus_payments:
@@ -698,9 +697,9 @@ def export_all_payments(request):
             'student': p.student.user.get_full_name() if p.student and p.student.user else '',
             'admission_no': p.student.admission_number if p.student else '',
             'type': 'Bus',
-            'description': p.route.route_name if p.route else '',
+            'description': p.route.name if p.route else '',
             'amount': float(p.amount),
-            'status': p.status,
+            'status': p.payment_status,
         })
     
     for p in textbook_sales:
