@@ -164,9 +164,6 @@ def canteen_initiate_payment(request):
     )
     
     if result.get('status'):
-        # Store Paystack's actual reference (it may differ from what we sent)
-        payment.paystack_reference = result['data']['reference']
-        payment.save()
         return JsonResponse({
             'success': True,
             'authorization_url': result['data']['authorization_url'],
