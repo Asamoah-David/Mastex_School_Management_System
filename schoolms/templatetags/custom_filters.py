@@ -39,3 +39,45 @@ def month_name(month_number):
     except (ValueError, TypeError):
         pass
     return ""
+
+
+@register.filter
+def text_to_words(amount):
+    """
+    Convert a number to its words representation.
+    Example: 100 -> "One Hundred", 1500 -> "One Thousand Five Hundred"
+    """
+    if not amount:
+        return ""
+    
+    try:
+        amount = float(amount)
+    except (ValueError, TypeError):
+        return str(amount)
+    
+    # If amount is small, just return the number as words
+    if amount < 100:
+        return str(int(amount))
+    
+    # For larger amounts, use a simpler representation
+    num = int(amount)
+    
+    ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+            "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+    tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+    
+    def convert_hundreds(n):
+        if n < 20:
+            return ones[n]
+        elif n < 100:
+            return tens[n // 10] + ("" if n % 10 == 0 else " " + ones[n % 10])
+        else:
+            return ones[n // 100] + " Hundred" + ("" if n % 100 == 0 else " " + convert_hundreds(n % 100))
+    
+    if num < 1000:
+        return convert_hundreds(num)
+    elif num < 1000000:
+        return convert_hundreds(num // 1000) + " Thousand" + ("" if num % 1000 == 0 else " " + convert_hundreds(num % 1000))
+    else:
+        # For very large amounts, just return the number
+        return str(int(amount))
