@@ -986,7 +986,7 @@ def record_payment(request):
             messages.error(request, "Invalid amount")
     
     # Get students for dropdown
-    students = Student.objects.filter(school=school, is_active=True).order_by('full_name')
+    students = Student.objects.filter(school=school, status='active').select_related('user').order_by('user__first_name')
     
     context = {
         'students': students,

@@ -660,7 +660,7 @@ def export_all_payments(request):
     if not school:
         return redirect("home")
     
-    from finance.models import FeePayment
+    from finance.models import Fee, FeePayment
     
     # Get all payment types
     canteen_payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")
