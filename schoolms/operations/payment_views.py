@@ -190,17 +190,14 @@ def canteen_payment_verify(request):
     result = paystack_service.verify_payment(reference)
     
     payment = None
-    # Try to find payment - check by reference first, then by paystack_reference
+    
+    # First try to find by payment_reference
     try:
         payment = CanteenPayment.objects.get(payment_reference=reference)
     except CanteenPayment.DoesNotExist:
-        # Try paystack_reference field if it exists
-        try:
-            payment = CanteenPayment.objects.get(paystack_reference=reference)
-        except CanteenPayment.DoesNotExist:
-            pass
+        pass
     
-    # Also try to find by payment_id from metadata if payment not found
+    # Try to find by payment_id from metadata
     if not payment:
         payment_data = result.get('data', {})
         metadata = payment_data.get('metadata', {})
@@ -212,9 +209,6 @@ def canteen_payment_verify(request):
                 pass
     
     if payment:
-        # Store Paystack's reference for future lookups
-        if hasattr(payment, 'paystack_reference') and not payment.paystack_reference:
-            payment.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             payment.payment_status = 'completed'
             payment.save()
@@ -372,17 +366,14 @@ def bus_payment_verify(request):
     result = paystack_service.verify_payment(reference)
     
     payment = None
-    # Try to find payment - check by reference first, then by paystack_reference
+    
+    # First try to find by payment_reference
     try:
         payment = BusPayment.objects.get(payment_reference=reference)
     except BusPayment.DoesNotExist:
-        # Try paystack_reference field if it exists
-        try:
-            payment = BusPayment.objects.get(paystack_reference=reference)
-        except BusPayment.DoesNotExist:
-            pass
+        pass
     
-    # Also try to find by payment_id from metadata if payment not found
+    # Try to find by payment_id from metadata
     if not payment:
         payment_data = result.get('data', {})
         metadata = payment_data.get('metadata', {})
@@ -394,9 +385,6 @@ def bus_payment_verify(request):
                 pass
     
     if payment:
-        # Store Paystack's reference for future lookups
-        if hasattr(payment, 'paystack_reference') and not payment.paystack_reference:
-            payment.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             payment.payment_status = 'completed'
             payment.paid = True
@@ -545,17 +533,14 @@ def textbook_payment_verify(request):
     result = paystack_service.verify_payment(reference)
     
     sale = None
-    # Try to find payment - check by reference first, then by paystack_reference
+    
+    # First try to find by payment_reference
     try:
         sale = TextbookSale.objects.get(payment_reference=reference)
     except TextbookSale.DoesNotExist:
-        # Try paystack_reference field if it exists
-        try:
-            sale = TextbookSale.objects.get(paystack_reference=reference)
-        except TextbookSale.DoesNotExist:
-            pass
+        pass
     
-    # Also try to find by payment_id from metadata if payment not found
+    # Try to find by payment_id from metadata
     if not sale:
         payment_data = result.get('data', {})
         metadata = payment_data.get('metadata', {})
@@ -567,9 +552,6 @@ def textbook_payment_verify(request):
                 pass
     
     if sale:
-        # Store Paystack's reference for future lookups
-        if hasattr(sale, 'paystack_reference') and not sale.paystack_reference:
-            sale.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             sale.payment_status = 'completed'
             sale.save()
@@ -716,17 +698,14 @@ def hostel_payment_verify(request):
     result = paystack_service.verify_payment(reference)
     
     fee = None
-    # Try to find payment - check by reference first, then by paystack_reference
+    
+    # First try to find by payment_reference
     try:
         fee = HostelFee.objects.get(payment_reference=reference)
     except HostelFee.DoesNotExist:
-        # Try paystack_reference field if it exists
-        try:
-            fee = HostelFee.objects.get(paystack_reference=reference)
-        except HostelFee.DoesNotExist:
-            pass
+        pass
     
-    # Also try to find by payment_id from metadata if payment not found
+    # Try to find by payment_id from metadata
     if not fee:
         payment_data = result.get('data', {})
         metadata = payment_data.get('metadata', {})
@@ -738,9 +717,6 @@ def hostel_payment_verify(request):
                 pass
     
     if fee:
-        # Store Paystack's reference for future lookups
-        if hasattr(fee, 'paystack_reference') and not fee.paystack_reference:
-            fee.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             fee.payment_status = 'completed'
             fee.paid = True
