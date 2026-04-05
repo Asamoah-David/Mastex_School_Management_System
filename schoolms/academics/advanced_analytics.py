@@ -22,7 +22,7 @@ from academics.models import Result, Term, Homework, Quiz, Subject, OnlineMeetin
 from operations.models import StudentAttendance
 from services.sms_service import SMSService
 from schools.features import is_feature_enabled
-from accounts.decorators import school_admin_required, teacher_required
+from accounts.decorators import admin_required, teacher_required
 
 
 # ==================== ROLE CHECK DECORATOR ====================
