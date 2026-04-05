@@ -250,6 +250,11 @@ def paystack_callback(request, fee_id):
             fee.amount_paid = float(fee.amount_paid) + amount
             fee.paystack_payment_id = data.get("id")
             fee.paystack_reference = reference
+            
+            # Update fee status to 'paid' if fully paid
+            if fee.amount_paid >= fee.amount:
+                fee.status = 'paid'
+            
             fee.save()
             
             # Send SMS notification to parent
@@ -264,7 +269,7 @@ def paystack_callback(request, fee_id):
                 logger.error(f"Failed to send payment SMS: {e}")
             
             messages.success(request, f"Payment of GHS {amount} received successfully!")
-            return redirect("finance:payment_success")
+            return redirect("finance:parent_fee_list")
             
         except Fee.DoesNotExist:
             messages.error(request, "Fee record not found.")

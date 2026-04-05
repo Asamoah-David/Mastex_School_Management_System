@@ -189,9 +189,32 @@ def canteen_payment_verify(request):
     # Verify with Paystack
     result = paystack_service.verify_payment(reference)
     
+    payment = None
+    # Try to find payment - check by reference first, then by paystack_reference
     try:
         payment = CanteenPayment.objects.get(payment_reference=reference)
-        
+    except CanteenPayment.DoesNotExist:
+        # Try paystack_reference field if it exists
+        try:
+            payment = CanteenPayment.objects.get(paystack_reference=reference)
+        except CanteenPayment.DoesNotExist:
+            pass
+    
+    # Also try to find by payment_id from metadata if payment not found
+    if not payment:
+        payment_data = result.get('data', {})
+        metadata = payment_data.get('metadata', {})
+        payment_id = metadata.get('payment_id')
+        if payment_id:
+            try:
+                payment = CanteenPayment.objects.get(id=payment_id)
+            except CanteenPayment.DoesNotExist:
+                pass
+    
+    if payment:
+        # Store Paystack's reference for future lookups
+        if hasattr(payment, 'paystack_reference') and not payment.paystack_reference:
+            payment.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             payment.payment_status = 'completed'
             payment.save()
@@ -200,8 +223,7 @@ def canteen_payment_verify(request):
             payment.payment_status = 'failed'
             payment.save()
             messages.error(request, "Payment failed. Please try again.")
-            
-    except CanteenPayment.DoesNotExist:
+    else:
         messages.error(request, "Payment record not found")
     
     return redirect('operations:canteen_my')
@@ -349,9 +371,32 @@ def bus_payment_verify(request):
     
     result = paystack_service.verify_payment(reference)
     
+    payment = None
+    # Try to find payment - check by reference first, then by paystack_reference
     try:
         payment = BusPayment.objects.get(payment_reference=reference)
-        
+    except BusPayment.DoesNotExist:
+        # Try paystack_reference field if it exists
+        try:
+            payment = BusPayment.objects.get(paystack_reference=reference)
+        except BusPayment.DoesNotExist:
+            pass
+    
+    # Also try to find by payment_id from metadata if payment not found
+    if not payment:
+        payment_data = result.get('data', {})
+        metadata = payment_data.get('metadata', {})
+        payment_id = metadata.get('payment_id')
+        if payment_id:
+            try:
+                payment = BusPayment.objects.get(id=payment_id)
+            except BusPayment.DoesNotExist:
+                pass
+    
+    if payment:
+        # Store Paystack's reference for future lookups
+        if hasattr(payment, 'paystack_reference') and not payment.paystack_reference:
+            payment.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             payment.payment_status = 'completed'
             payment.paid = True
@@ -362,8 +407,7 @@ def bus_payment_verify(request):
             payment.payment_status = 'failed'
             payment.save()
             messages.error(request, "Payment failed. Please try again.")
-            
-    except BusPayment.DoesNotExist:
+    else:
         messages.error(request, "Payment record not found")
     
     return redirect('operations:bus_my')
@@ -500,22 +544,45 @@ def textbook_payment_verify(request):
     
     result = paystack_service.verify_payment(reference)
     
+    sale = None
+    # Try to find payment - check by reference first, then by paystack_reference
     try:
         sale = TextbookSale.objects.get(payment_reference=reference)
-        
+    except TextbookSale.DoesNotExist:
+        # Try paystack_reference field if it exists
+        try:
+            sale = TextbookSale.objects.get(paystack_reference=reference)
+        except TextbookSale.DoesNotExist:
+            pass
+    
+    # Also try to find by payment_id from metadata if payment not found
+    if not sale:
+        payment_data = result.get('data', {})
+        metadata = payment_data.get('metadata', {})
+        payment_id = metadata.get('payment_id')
+        if payment_id:
+            try:
+                sale = TextbookSale.objects.get(id=payment_id)
+            except TextbookSale.DoesNotExist:
+                pass
+    
+    if sale:
+        # Store Paystack's reference for future lookups
+        if hasattr(sale, 'paystack_reference') and not sale.paystack_reference:
+            sale.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             sale.payment_status = 'completed'
             sale.save()
             # Reduce stock
-            sale.textbook.stock -= sale.quantity
-            sale.textbook.save()
+            if sale.textbook:
+                sale.textbook.stock -= sale.quantity
+                sale.textbook.save()
             messages.success(request, "Payment successful! Your textbook(s) have been reserved.")
         else:
             sale.payment_status = 'failed'
             sale.save()
             messages.error(request, "Payment failed. Please try again.")
-            
-    except TextbookSale.DoesNotExist:
+    else:
         messages.error(request, "Payment record not found")
     
     return redirect('operations:textbook_my')
@@ -648,9 +715,32 @@ def hostel_payment_verify(request):
     
     result = paystack_service.verify_payment(reference)
     
+    fee = None
+    # Try to find payment - check by reference first, then by paystack_reference
     try:
         fee = HostelFee.objects.get(payment_reference=reference)
-        
+    except HostelFee.DoesNotExist:
+        # Try paystack_reference field if it exists
+        try:
+            fee = HostelFee.objects.get(paystack_reference=reference)
+        except HostelFee.DoesNotExist:
+            pass
+    
+    # Also try to find by payment_id from metadata if payment not found
+    if not fee:
+        payment_data = result.get('data', {})
+        metadata = payment_data.get('metadata', {})
+        payment_id = metadata.get('payment_id')
+        if payment_id:
+            try:
+                fee = HostelFee.objects.get(id=payment_id)
+            except HostelFee.DoesNotExist:
+                pass
+    
+    if fee:
+        # Store Paystack's reference for future lookups
+        if hasattr(fee, 'paystack_reference') and not fee.paystack_reference:
+            fee.paystack_reference = reference
         if result.get('status') and result['data']['status'] == 'success':
             fee.payment_status = 'completed'
             fee.paid = True
@@ -661,8 +751,7 @@ def hostel_payment_verify(request):
             fee.payment_status = 'failed'
             fee.save()
             messages.error(request, "Payment failed. Please try again.")
-            
-    except HostelFee.DoesNotExist:
+    else:
         messages.error(request, "Payment record not found")
     
     return redirect('operations:hostel_my')
@@ -911,74 +1000,53 @@ def my_payments(request):
     from finance.models import Fee, FeePayment
     
     # Get school fees
-    fees = Fee.objects.filter(student=student).order_by('-created_at')
+    school_fees = Fee.objects.filter(student=student).order_by('-created_at')
     
-    # Get all payment records
-    all_payments = []
+    # Calculate totals for school fees
+    school_fees_total = sum(float(fee.amount) for fee in school_fees)
+    school_fees_outstanding = sum(float(fee.remaining_balance) for fee in school_fees)
     
-    # Fee payments
-    for fee in fees:
-        fee_payments = FeePayment.objects.filter(fee=fee).order_by('-created_at')
-        for payment in fee_payments:
-            all_payments.append({
-                'type': 'school_fee',
-                'description': f"School Fees",
-                'amount': float(payment.amount),
-                'status': payment.status,
-                'date': payment.created_at,
-            })
-    
-    # Canteen payments - use payment_date since created_at doesn't exist
-    canteen_payments = CanteenPayment.objects.filter(
-        student=student
+    # Get canteen payments (completed only for the summary card)
+    canteen = CanteenPayment.objects.filter(
+        student=student,
+        payment_status='completed'
     ).order_by('-payment_date')
-    for payment in canteen_payments:
-        all_payments.append({
-            'type': 'canteen',
-            'description': payment.description or "Canteen",
-            'amount': float(payment.amount),
-            'status': payment.payment_status,
-            'date': payment.payment_date,
-        })
+    canteen_total = sum(float(p.amount) for p in canteen)
     
-    # Bus payments - use payment_date since created_at doesn't exist
-    bus_payments = BusPayment.objects.filter(
-        student=student
+    # Get bus payments (completed only)
+    bus = BusPayment.objects.filter(
+        student=student,
+        payment_status='completed'
     ).order_by('-payment_date')
-    for payment in bus_payments:
-        all_payments.append({
-            'type': 'bus',
-            'description': f"Bus - {payment.route.name if payment.route else 'Transport'}",
-            'amount': float(payment.amount),
-            'status': payment.payment_status,
-            'date': payment.payment_date,
-        })
+    bus_total = sum(float(p.amount) for p in bus)
     
-    # Textbook sales - use sale_date instead of created_at
-    textbook_sales = TextbookSale.objects.filter(
-        student=student
+    # Get textbook sales (completed only)
+    textbooks = TextbookSale.objects.filter(
+        student=student,
+        payment_status='completed'
     ).order_by('-id')
-    for sale in textbook_sales:
-        all_payments.append({
-            'type': 'textbook',
-            'description': f"Textbook - {sale.textbook.title if sale.textbook else 'Textbook'}",
-            'amount': float(sale.amount),
-            'status': sale.payment_status,
-            'date': sale.sale_date,
-        })
-    
-    # Sort by date (handle None dates)
-    all_payments.sort(key=lambda x: x['date'] or timezone.now().date(), reverse=True)
+    textbook_total = sum(float(s.amount) for s in textbooks)
     
     # Calculate totals
-    total_paid = sum(p['amount'] for p in all_payments if p['status'] == 'completed')
-    total_pending = sum(p['amount'] for p in all_payments if p['status'] == 'pending')
+    total_paid = school_fees_total - school_fees_outstanding + canteen_total + bus_total + textbook_total
+    total_pending = school_fees_outstanding
+    
+    # Get student name for template
+    student_name = student.user.get_full_name() if student.user else "Student"
     
     context = {
-        'payments': all_payments,
-        'fees': fees,
+        'school_fees': school_fees,
+        'school_fees_total': school_fees_total,
+        'school_fees_outstanding': school_fees_outstanding,
+        'canteen': canteen,
+        'canteen_total': canteen_total,
+        'bus': bus,
+        'bus_total': bus_total,
+        'textbooks': textbooks,
+        'textbook_total': textbook_total,
         'total_paid': total_paid,
         'total_pending': total_pending,
+        'student_name': student_name,
         'page_title': 'My Payments',
     }
     return render(request, 'operations/my_payments.html', context)
@@ -1145,7 +1213,7 @@ def paystack_callback(request, fee_id):
     
     if not reference:
         messages.error(request, "Invalid payment reference")
-        return redirect('students:fees_list')
+        return redirect('operations:my_payments')
     
     # Verify with Paystack
     result = paystack_service.verify_payment(reference)
@@ -1168,16 +1236,22 @@ def paystack_callback(request, fee_id):
             # Update fee
             fee.amount_paid += amount
             fee.paystack_reference = reference
+            
+            # Check if fee is fully paid
+            if fee.amount_paid >= fee.amount:
+                fee.status = 'paid'
+            
             fee.save()
             
             messages.success(request, "Payment successful!")
+            return redirect('operations:my_payments')
         else:
             messages.error(request, "Payment failed. Please try again.")
+            return redirect('operations:my_payments')
             
     except Fee.DoesNotExist:
         messages.error(request, "Fee record not found")
-    
-    return redirect('students:fees_list')
+        return redirect('operations:my_payments')
 
 
 @csrf_exempt
