@@ -695,11 +695,11 @@ def export_all_payments(request):
                 queryset = queryset.filter(**{f"{date_field}__lt": end_with_time})
         return queryset
     
-    # Get all payment types based on filter
-    canteen_payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
-    bus_payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")
-    textbook_sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")
-    hostel_fees = HostelFee.objects.filter(school=school).select_related("student", "student__user")
+    # Get all payment types based on filter (only completed payments)
+    canteen_payments = CanteenPayment.objects.filter(school=school, payment_status='completed').select_related("student", "student__user", "recorded_by")
+    bus_payments = BusPayment.objects.filter(school=school, paid=True).select_related("student", "student__user", "route")
+    textbook_sales = TextbookSale.objects.filter(school=school, payment_status='completed').select_related("student", "student__user", "textbook")
+    hostel_fees = HostelFee.objects.filter(school=school, paid=True).select_related("student", "student__user")
     school_fees = Fee.objects.filter(school=school).select_related("student", "student__user")
     fee_payments = FeePayment.objects.filter(fee__school=school).select_related("fee", "fee__student", "fee__student__user")
     

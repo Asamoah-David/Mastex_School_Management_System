@@ -810,37 +810,141 @@ def payment_dashboard(request):
     total_amount = sum(float(f.amount) for f in fees)
     total_collected = sum(float(f.amount_paid) for f in fees)
     
-    # Get other payments (canteen, bus, textbook)
-    canteen_payments = CanteenPayment.objects.filter(school=school, payment_status='completed')
-    bus_payments = BusPayment.objects.filter(school=school, payment_status='completed')
-    textbook_sales = TextbookSale.objects.filter(school=school, payment_status='completed')
+    # Get other payments (canteen, bus, textbook) with date filtering
+    canteen_payments = CanteenPayment.objects.filter(school=school).select_related('student', 'student__user', 'recorded_by')
+    bus_payments = BusPayment.objects.filter(school=school).select_related('student', 'student__user', 'route')
+    textbook_sales = TextbookSale.objects.filter(school=school).select_related('student', 'student__user', 'textbook')
+    hostel_fees = HostelFee.objects.filter(school=school).select_related('student', 'student__user')
     
-    # Calculate totals by type
-    if payment_type == 'all' or payment_type == 'school_fees':
-        school_fees_total = total_collected
-    else:
-        school_fees_total = 0
+    # Apply date filtering to other payments
+    from django.utils import timezone
+    if date_filter == 'today':
+        today = timezone.now().date()
+        canteen_payments = canteen_payments.filter(payment_date=today)
+        bus_payments = bus_payments.filter(payment_date=today)
+        textbook_sales = textbook_sales.filter(sale_date=today)
+        hostel_fees = hostel_fees.filter(payment_date=today)
+    elif date_filter == 'week':
+        week_ago = timezone.now() - timezone.timedelta(days=7)
+        canteen_payments = canteen_payments.filter(payment_date__gte=week_ago)
+        bus_payments = bus_payments.filter(payment_date__gte=week_ago)
+        textbook_sales = textbook_sales.filter(sale_date__gte=week_ago)
+        hostel_fees = hostel_fees.filter(payment_date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = timezone.now() - timezone.timedelta(days=30)
+        canteen_payments = canteen_payments.filter(payment_date__gte=month_ago)
+        bus_payments = bus_payments.filter(payment_date__gte=month_ago)
+        textbook_sales = textbook_sales.filter(sale_date__gte=month_ago)
+        hostel_fees = hostel_fees.filter(payment_date__gte=month_ago)
     
-    if payment_type == 'all' or payment_type == 'canteen':
-        canteen_total = sum(float(p.amount) for p in canteen_payments)
-    else:
-        canteen_total = 0
+    if start_date:
+        canteen_payments = canteen_payments.filter(payment_date__gte=start_date)
+        bus_payments = bus_payments.filter(payment_date__gte=start_date)
+        textbook_sales = textbook_sales.filter(sale_date__gte=start_date)
+        hostel_fees = hostel_fees.filter(payment_date__gte=start_date)
+    if end_date:
+        canteen_payments = canteen_payments.filter(payment_date__lte=end_date)
+        bus_payments = bus_payments.filter(payment_date__lte=end_date)
+        textbook_sales = textbook_sales.filter(sale_date__lte=end_date)
+        hostel_fees = hostel_fees.filter(payment_date__lte=end_date)
     
-    if payment_type == 'all' or payment_type == 'bus':
-        bus_total = sum(float(p.amount) for p in bus_payments)
-    else:
-        bus_total = 0
+    # Filter by payment type if not 'all'
+    canteen_filtered = canteen_payments.filter(payment_status='completed')
+    bus_filtered = bus_payments.filter(paid=True)
+    textbook_filtered = textbook_sales.filter(payment_status='completed')
+    hostel_filtered = hostel_fees.filter(paid=True)
+    school_fees_filtered = fees.filter(paid=True)
     
-    if payment_type == 'all' or payment_type == 'textbook':
-        textbook_total = sum(float(s.amount) for s in textbook_sales)
-    else:
-        textbook_total = 0
+    # Calculate totals by type (show all totals regardless of filter for the summary cards)
+    canteen_total_all = sum(float(p.amount) for p in canteen_payments.filter(payment_status='completed'))
+    bus_total_all = sum(float(p.amount) for p in bus_payments.filter(paid=True))
+    textbook_total_all = sum(float(s.amount) for s in textbook_sales.filter(payment_status='completed'))
+    hostel_total_all = sum(float(f.amount) for f in hostel_fees.filter(paid=True))
+    school_fees_total_all = total_collected
     
-    # Recent payments
-    recent_fee_payments = fees[:20]
+    # Use totals based on filter
+    canteen_total = canteen_total_all
+    bus_total = bus_total_all
+    textbook_total = textbook_total_all
+    hostel_total = hostel_total_all
+    school_fees_total = school_fees_total_all
+    
+    # Build recent payments list combining all types
+    recent_payments = []
+    
+    if payment_type in ['all', 'school_fees']:
+        for f in school_fees_filtered[:20]:
+            recent_payments.append({
+                'student': f.student,
+                'date': f.created_at,
+                'type': 'School Fee',
+                'amount': float(f.amount_paid),
+                'description': f.term or 'School Fee',
+            })
+    
+    if payment_type in ['all', 'canteen']:
+        for p in canteen_filtered:
+            recent_payments.append({
+                'student': p.student,
+                'date': p.payment_date,
+                'type': 'Canteen',
+                'amount': float(p.amount),
+                'description': p.description,
+                'id': p.id,
+            })
+    
+    if payment_type in ['all', 'bus']:
+        for p in bus_filtered:
+            recent_payments.append({
+                'student': p.student,
+                'date': p.payment_date,
+                'type': 'Bus',
+                'amount': float(p.amount),
+                'description': p.route.name if p.route else 'Bus Fee',
+                'id': p.id,
+            })
+    
+    if payment_type in ['all', 'textbook']:
+        for s in textbook_filtered:
+            recent_payments.append({
+                'student': s.student,
+                'date': s.sale_date,
+                'type': 'Textbook',
+                'amount': float(s.amount),
+                'description': s.textbook.title if s.textbook else 'Textbook',
+                'id': s.id,
+            })
+    
+    if payment_type in ['all', 'hostel']:
+        for h in hostel_filtered:
+            recent_payments.append({
+                'student': h.student,
+                'date': h.payment_date,
+                'type': 'Hostel',
+                'amount': float(h.amount),
+                'description': f"Hostel Fee - {h.term}" if h.term else 'Hostel Fee',
+                'id': h.id,
+            })
+    
+    # Sort by date descending
+    recent_payments.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+    recent_payments = recent_payments[:50]  # Limit to 50 most recent
+    
+    # Count variables for template
+    canteen_count = canteen_filtered.count()
+    bus_count = bus_filtered.count()
+    bus_paid = bus_filtered.count()
+    bus_unpaid = bus_payments.filter(paid=False).count()
+    textbook_count = textbook_filtered.count()
     
     context = {
-        'fees': recent_fee_payments,
+        'fees': school_fees_filtered[:20],
+        'school_fees': school_fees_filtered[:20],
+        'canteen_payments': canteen_filtered,
+        'bus_payments': bus_payments,
+        'textbook_sales': textbook_filtered,
+        'hostel_payments': hostel_filtered,
+        'recent_payments': recent_payments,
         'total_fees': total_fees,
         'paid_fees': paid_fees,
         'pending_fees': pending_fees,
@@ -849,12 +953,19 @@ def payment_dashboard(request):
         'canteen_total': canteen_total,
         'bus_total': bus_total,
         'textbook_total': textbook_total,
+        'hostel_total': hostel_total,
         'school_fees_total': school_fees_total,
+        'canteen_count': canteen_count,
+        'bus_count': bus_count,
+        'bus_paid': bus_paid,
+        'bus_unpaid': bus_unpaid,
+        'textbook_count': textbook_count,
         'date_filter': date_filter,
         'payment_type': payment_type,
         'start_date': start_date,
         'end_date': end_date,
         'page_title': 'Payment Dashboard',
+        'outstanding_students': [],
     }
     return render(request, 'operations/payment_dashboard.html', context)
 
