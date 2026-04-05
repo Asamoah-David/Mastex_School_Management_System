@@ -366,6 +366,11 @@ class OnlineMeeting(models.Model):
     description = models.TextField(blank=True)
     subject = models.CharField(max_length=100, blank=True)
     class_name = models.CharField(max_length=50, blank=True)
+    target_audience = models.CharField(max_length=20, choices=[
+        ('students', 'Students Only'),
+        ('staff', 'Staff Only'),
+        ('all', 'All Users')
+    ], default='all')
     scheduled_time = models.DateTimeField()
     duration = models.PositiveIntegerField(default=60)  # minutes
     meeting_link = models.URLField(blank=True)

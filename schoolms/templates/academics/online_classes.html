@@ -43,6 +43,7 @@
                     <th>Title</th>
                     <th>Subject</th>
                     <th>Class</th>
+                    <th>For</th>
                     <th>Scheduled Time</th>
                     <th>Duration</th>
                     <th>Actions</th>
@@ -54,6 +55,12 @@
                     <td><strong>{{ meeting.title }}</strong></td>
                     <td>{{ meeting.subject|default:"General" }}</td>
                     <td>{{ meeting.class_name|default:"All" }}</td>
+                    <td>
+                        {% if meeting.target_audience == 'students' %}Students
+                        {% elif meeting.target_audience == 'staff' %}Staff
+                        {% elif meeting.target_audience == 'all' %}Everyone
+                        {% else %}Class{% endif %}
+                    </td>
                     <td>{{ meeting.scheduled_time|date:"M d, Y H:i" }}</td>
                     <td>{{ meeting.duration }} min</td>
                     <td>

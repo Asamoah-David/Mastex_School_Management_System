@@ -398,40 +398,44 @@ def online_classes_page(request):
     user_role = getattr(request.user, 'role', None)
     
     if user_role == 'teacher':
-        # Teachers see their own meetings + school_admin/staff meetings (staff meetings with no class)
-        from accounts.models import User
-        admin_users = User.objects.filter(school=school, role__in=['school_admin', 'deputy_head', 'hod']).values_list('id', flat=True)
+        # Teachers see their own meetings + staff-only meetings + all meetings
         meetings = meetings.filter(
-            Q(teacher=request.user) | Q(teacher_id__in=admin_users, class_name='', class_name__isnull=True)
+            Q(teacher=request.user) | Q(target_audience='staff') | Q(target_audience='all')
         )
     elif user_role == 'student':
-        # Students see meetings for their class or "All Classes" (empty class_name)
+        # Students see student-only meetings + all meetings + their class meetings + all-class meetings (empty class_name)
         student = Student.objects.filter(user=request.user, school=school).first()
-        if student:
-            # Allow students to see meetings for their class OR meetings for "All Classes" (empty class_name)
+        if student and student.class_name:
+            # Show: students audience, all audience, student's class, OR empty class_name (all classes)
             meetings = meetings.filter(
-                Q(class_name=student.class_name) | Q(class_name='') | Q(class_name__isnull=True)
+                Q(target_audience='students') | Q(target_audience='all') | 
+                Q(class_name=student.class_name) | Q(class_name='')
             )
         else:
-            # If no student record found, show only "All Classes" meetings
-            meetings = meetings.filter(Q(class_name='') | Q(class_name__isnull=True))
+            # If no student record or class, show only students + all
+            meetings = meetings.filter(
+                Q(target_audience='students') | Q(target_audience='all')
+            )
     elif user_role == 'parent':
-        # Parents see meetings for their children's classes OR "All Classes"
+        # Parents see student meetings + all meetings + their children's class meetings + all-class meetings
         children = Student.objects.filter(parent=request.user, school=school)
         child_classes = [c.class_name for c in children if c.class_name]
         if child_classes:
-            # Allow parents to see meetings for their children's classes OR "All Classes" (empty class_name)
             meetings = meetings.filter(
-                Q(class_name__in=child_classes) | Q(class_name='') | Q(class_name__isnull=True)
+                Q(target_audience='students') | Q(target_audience='all') | 
+                Q(class_name__in=child_classes) | Q(class_name='')
             )
         else:
-            # If no class assigned to children, show only "All Classes" meetings
-            meetings = meetings.filter(Q(class_name='') | Q(class_name__isnull=True))
-    elif user_role == 'school_admin':
-        # School admins see all meetings (no filter)
-        pass
+            meetings = meetings.filter(
+                Q(target_audience='students') | Q(target_audience='all')
+            )
+    elif user_role in ['school_admin', 'deputy_head', 'hod', 'accountant', 'librarian', 'nurse']:
+        # Staff see staff-only meetings + all meetings
+        meetings = meetings.filter(
+            Q(target_audience='staff') | Q(target_audience='all')
+        )
     else:
-        # For other roles, show all meetings in the school
+        # For other roles, show all meetings
         pass
     
     upcoming_meetings = meetings.filter(status='scheduled', scheduled_time__gte=timezone.now()).order_by('scheduled_time')
@@ -479,6 +483,9 @@ def create_meeting(request):
             else:
                 scheduled_time = scheduled_time_str
             
+            # Get target audience - default to 'all' for backward compatibility
+            target_audience = data.get('target_audience', 'all')
+            
             # Create meeting in database
             meeting = OnlineMeeting.objects.create(
                 school=school,
@@ -487,6 +494,7 @@ def create_meeting(request):
                 description=data.get('description', ''),
                 subject=data.get('subject', ''),
                 class_name=data.get('class_name', ''),
+                target_audience=target_audience,
                 scheduled_time=scheduled_time,
                 duration=int(data.get('duration', 60)),
                 status='scheduled'
