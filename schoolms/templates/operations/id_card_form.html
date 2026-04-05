@@ -22,7 +22,7 @@
         {% else %}
         <div class="form-group">
             <label for="student">Student *</label>
-            <select name="student" id="student" required class="form-control">
+            <select name="student" id="student" required class="form-control searchable-select" data-placeholder="Search for a student...">
                 <option value="">Select Student</option>
                 {% for student in students %}
                 <option value="{{ student.id }}" {% if student.id == form.student.value %}selected{% endif %}>

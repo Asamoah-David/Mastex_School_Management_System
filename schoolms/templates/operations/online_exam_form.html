@@ -36,7 +36,7 @@
             <!-- Subject -->
             <div class="form-group">
                 <label class="required">📚 Subject</label>
-                <select name="subject" id="subject" required>
+                <select name="subject" id="subject" class="searchable-select" data-placeholder="Search for a subject..." required>
                     <option value="">Select Subject</option>
                     {% for subject in subjects %}
                     <option value="{{ subject.id }}" {% if exam.subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
@@ -48,7 +48,7 @@
             <!-- Class -->
             <div class="form-group">
                 <label>🏫 Class</label>
-                <select name="class_level" id="class_level">
+                <select name="class_level" id="class_level" class="searchable-select" data-placeholder="Search for a class...">
                     <option value="">All Classes</option>
                     {% for class in school_classes %}
                     <option value="{{ class }}" {% if exam.class_level == class %}selected{% endif %}>{{ class }}</option>

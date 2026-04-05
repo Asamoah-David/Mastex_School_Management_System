@@ -28,7 +28,7 @@
                     
                     <div class="col-md-6 mb-3">
                         <label for="student" class="form-label">Student</label>
-                        <select name="student" id="student" class="form-select" required>
+                        <select name="student" id="student" class="form-select searchable-select" data-placeholder="Search for a student..." required>
                             <option value="">Select Student</option>
                             {% for student in students %}
                             <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
@@ -70,7 +70,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="textbook" class="form-label">Textbook</label>
-                            <select name="textbook" id="textbook" class="form-select">
+                            <select name="textbook" id="textbook" class="form-select searchable-select" data-placeholder="Search for a textbook...">
                                 <option value="">Select Textbook</option>
                                 <!-- Populated dynamically -->
                             </select>

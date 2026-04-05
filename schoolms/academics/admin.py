@@ -29,8 +29,8 @@ class ResultAdmin(admin.ModelAdmin):
 
 @admin.register(Timetable)
 class TimetableAdmin(admin.ModelAdmin):
-    list_display = ("class_name", "subject", "day", "start_time", "end_time", "school")
-    list_filter = ("school", "day")
+    list_display = ("class_name", "subject", "day_of_week", "start_time", "end_time", "school")
+    list_filter = ("school", "day_of_week")
 
 
 @admin.register(GradeBoundary)

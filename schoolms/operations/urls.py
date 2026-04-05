@@ -234,6 +234,7 @@ urlpatterns = [
     # Exam Halls
     path("exam-halls/", views.exam_hall_list, name="exam_hall_list"),
     path("exam-halls/create/", views.exam_hall_create, name="exam_hall_create"),
+    path("exam-halls/<int:pk>/delete/", views.exam_hall_delete, name="exam_hall_delete"),
     
     # Seating Plans
     path("seating-plans/", views.seating_plan_list, name="seating_plan_list"),
@@ -244,6 +245,7 @@ urlpatterns = [
     path("health-records/", views.health_record_list, name="health_record_list"),
     path("health-records/create/", views.health_record_create, name="health_record_create"),
     path("health-records/<int:pk>/edit/", views.health_record_edit, name="health_record_edit"),
+    path("health-records/<int:pk>/delete/", views.health_record_delete, name="health_record_delete"),
     path("health-visits/", views.health_visit_list, name="health_visit_list"),
     path("health-visits/create/", views.health_visit_create, name="health_visit_create"),
     

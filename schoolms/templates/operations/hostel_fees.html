@@ -1,43 +1,147 @@
-{% extends "base.html" %}
-{% block title %}Hostel Fees · Mastex SchoolOS{% endblock %}
-{% block page_title %}Hostel Fees{% endblock %}
-{% block page_subtitle %}Fee records for hostel students.{% endblock %}
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Hostel Fees - {{ school.name }}{% endblock %}
+
 {% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <a href="{% url 'operations:hostel_list' %}" class="text-blue-600 hover:text-blue-800 mb-2 inline-flex items-center text-sm">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Back to Hostels
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900">Hostel Fee Management</h1>
+            <p class="text-gray-600 mt-1">Manage and track hostel fee payments</p>
+        </div>
+        <a href="{% url 'operations:hostel_fee_create' %}"
+           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Create Fee Record
+        </a>
+    </div>
 
-<div class="button-row mt-sm">
-    <a class="btn btn-primary" href="{% url 'operations:hostel_fee_create' %}">Add Fee</a>
-    <a class="btn btn-secondary" href="{% url 'operations:hostel_list' %}">Back</a>
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-gray-500 text-sm">Total Fees</p>
+            <p class="text-2xl font-bold text-gray-900">{{ fees.count|default:"0" }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-gray-500 text-sm">Total Collected</p>
+            <p class="text-2xl font-bold text-green-600">{{ total_collected|default:"GHS 0.00" }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-gray-500 text-sm">Total Outstanding</p>
+            <p class="text-2xl font-bold text-red-600">{{ total_outstanding|default:"GHS 0.00" }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-gray-500 text-sm">Collection Rate</p>
+            <p class="text-2xl font-bold text-blue-600">{{ collection_rate|default:"0%" }}</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All</option>
+                    <option value="paid">Paid</option>
+                    <option value="partial">Partial</option>
+                    <option value="unpaid">Unpaid</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Term</label>
+                <select name="term" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All Terms</option>
+                    <option value="1">Term 1</option>
+                    <option value="2">Term 2</option>
+                    <option value="3">Term 3</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+                <input type="text" name="year" placeholder="e.g., 2025/2026"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 w-full">
+                    Filter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Fees Table -->
+    {% if fees %}
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hostel</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Term</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for fee in fees %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="font-medium text-gray-900">{{ fee.student.user.get_full_name|default:fee.student.user.username }}</div>
+                        <div class="text-sm text-gray-500">{{ fee.student.admission_number }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ fee.hostel.name }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ fee.term }} - {{ fee.academic_year }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-900">GHS {{ fee.amount }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-green-600">GHS {{ fee.amount_paid|default:"0.00" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-red-600">GHS {{ fee.balance|default:"0.00" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if fee.status == 'paid' %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Paid</span>
+                        {% elif fee.status == 'partial' %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Partial</span>
+                        {% else %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <a href="{% url 'operations:hostel_fee_detail' fee.pk %}" class="text-blue-600 hover:text-blue-900 mr-3">View</a>
+                        {% if fee.balance > 0 %}
+                        <a href="{% url 'operations:hostel_fee_mark_paid' fee.pk %}" class="text-green-600 hover:text-green-900">Record Payment</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-8 text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No hostel fees found</h3>
+        <p class="mt-1 text-sm text-gray-500">Get started by creating a fee record.</p>
+        <div class="mt-6">
+            <a href="{% url 'operations:hostel_fee_create' %}"
+               class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                Create Fee Record
+            </a>
+        </div>
+    </div>
+    {% endif %}
 </div>
-
-{% if fees %}
-<div class="table-card">
-    <table>
-        <thead><tr><th>Student</th><th>Hostel</th><th>Term</th><th>Amount</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-            {% for f in fees %}
-            <tr>
-                <td>{{ f.student.user.get_full_name|default:f.student.admission_number }}</td>
-                <td>{{ f.hostel.name }}</td>
-                <td>{{ f.term }}</td>
-                <td>{{ f.amount }}</td>
-                <td>{% if f.paid %}<span class="tag"><span class="tag-bullet"></span>Paid</span>{% else %}<span class="tag">Unpaid</span>{% endif %}</td>
-                <td>
-                    {% if not f.paid %}
-                    <form method="post" action="{% url 'operations:hostel_fee_mark_paid' f.id %}">
-                        {% csrf_token %}
-                        <button class="btn btn-secondary btn-sm" type="submit">Mark paid</button>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% else %}
-<div class="empty-state">No hostel fees yet.</div>
-{% endif %}
-
-<style>.btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem;}</style>
 {% endblock %}
-

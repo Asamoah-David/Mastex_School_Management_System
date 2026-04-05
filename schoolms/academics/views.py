@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from students.models import Student
 from schools.models import School
 from accounts.permissions import user_can_manage_school
-from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable, Quiz, QuizQuestion, QuizAttempt, QuizAnswer
+from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable, Quiz, QuizQuestion, QuizAttempt, AssessmentType, AssessmentScore, ExamScore, GradingPolicy, OnlineMeeting, AIStudentComment
 
 
 def _get_school(request):
@@ -1552,25 +1552,28 @@ def quiz_take(request, pk):
     
     if request.method == "POST":
         total_marks = 0
+        answers_data = []
         for question in questions:
             answer = request.POST.get(f"q_{question.pk}", "")
             is_correct = answer.upper() == question.correct_answer.upper() if answer else False
             marks = question.marks if is_correct else 0
             total_marks += marks
-            
-            QuizAnswer.objects.update_or_create(
-                attempt=attempt,
-                question=question,
-                defaults={'answer': answer, 'is_correct': is_correct, 'marks_obtained': marks}
-            )
+            answers_data.append({
+                'question_id': question.pk,
+                'answer': answer,
+                'is_correct': is_correct,
+                'marks': marks
+            })
         
         # Calculate percentage
         max_marks = sum(q.marks for q in questions)
         score = (total_marks / max_marks * 100) if max_marks > 0 else 0
         
+        # Store answers as JSON in attempt
         attempt.score = score
         attempt.is_passed = score >= quiz.passing_score
         attempt.is_completed = True
+        attempt.answers_data = answers_data  # Store as JSON if model supports it
         from django.utils import timezone
         attempt.submitted_at = timezone.now()
         attempt.save()
@@ -1600,11 +1603,16 @@ def quiz_result(request, pk):
     if role == "student" and attempt.student.user != request.user:
         return redirect("home")
 
-    answers = attempt.answers.all().select_related('question')
-
+    # Get answers from stored JSON data
+    answers_data = getattr(attempt, 'answers_data', []) or []
+    
+    # Get questions for display
+    questions = attempt.quiz.questions.all().order_by('order')
+    
     return render(request, "academics/quiz_result.html", {
         "attempt": attempt,
-        "answers": answers,
+        "questions": questions,
+        "answers_data": answers_data,
         "school": school
     })
 
@@ -2278,6 +2286,16 @@ def enhanced_report_card(request, student_id):
     late_days = attendance_qs.filter(status="late").count()
     attendance_rate = round((present_days / total_days * 100), 1) if total_days > 0 else 0
     
+    # Get AI-generated comments for this student and term
+    from .models import AIStudentComment
+    ai_comments = AIStudentComment.objects.filter(student=student)
+    if term_id:
+        ai_comments = ai_comments.filter(term_id=term_id)
+    ai_comments = ai_comments.order_by('-created_at')
+    
+    # Get the latest comment for display
+    latest_ai_comment = ai_comments.first()
+    
     return render(request, "academics/enhanced_report_card.html", {
         'student': student,
         'results': results,
@@ -2294,6 +2312,8 @@ def enhanced_report_card(request, student_id):
         'attendance_absent': absent_days,
         'attendance_late': late_days,
         'attendance_rate': attendance_rate,
+        'ai_comments': ai_comments,
+        'latest_ai_comment': latest_ai_comment,
     })
 
 

@@ -14,7 +14,7 @@
                         
                         <div class="mb-3">
                             <label>Student *</label>
-                            <select name="student" class="form-control" required>
+                            <select name="student" class="form-control searchable-select" data-placeholder="Search for a student..." required>
                                 <option value="">Select Student</option>
                                 {% for student in students %}
                                 <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>

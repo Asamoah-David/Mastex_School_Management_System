@@ -16,7 +16,7 @@
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label>Subject</label>
-                <select name="subject" class="form-control" required>
+                <select name="subject" class="form-control searchable-select" data-placeholder="Search for a subject..." required>
                     {% for subject in subjects %}
                     <option value="{{ subject.id }}">{{ subject.name }}</option>
                     {% endfor %}
@@ -35,7 +35,7 @@
         <div class="row">
             <div class="col-md-4 mb-3">
                 <label>Class</label>
-                <select name="class_name" class="form-control" required>
+                <select name="class_name" class="form-control searchable-select" data-placeholder="Search for a class..." required>
                     {% for class in classes %}
                     <option value="{{ class }}">{{ class }}</option>
                     {% endfor %}

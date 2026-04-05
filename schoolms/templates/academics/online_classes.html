@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Online Classes - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-title">📹 Online Classes</h1>
+            <p class="page-subtitle">Host and join virtual classroom sessions</p>
+        </div>
+        {% if request.user.role == 'teacher' or request.user.role == 'school_admin' %}
+        <button class="btn btn-primary" onclick="showCreateModal()">➕ Schedule Class</button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="content-grid" style="margin-top: 1rem;">
+    <div class="metric">
+        <div class="metric-label">Total Classes</div>
+        <div class="metric-value">{{ total_meetings }}</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Upcoming</div>
+        <div class="metric-value">{{ upcoming_meetings.count }}</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Completed</div>
+        <div class="metric-value">{{ past_meetings.count }}</div>
+    </div>
+</div>
+
+<!-- Upcoming Meetings -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h2 class="page-subtitle">📅 Upcoming Classes</h2>
+    {% if upcoming_meetings %}
+    <div class="table-card" style="margin-top: 0.75rem;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Subject</th>
+                    <th>Class</th>
+                    <th>Scheduled Time</th>
+                    <th>Duration</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for meeting in upcoming_meetings %}
+                <tr>
+                    <td><strong>{{ meeting.title }}</strong></td>
+                    <td>{{ meeting.subject|default:"General" }}</td>
+                    <td>{{ meeting.class_name|default:"All" }}</td>
+                    <td>{{ meeting.scheduled_time|date:"M d, Y H:i" }}</td>
+                    <td>{{ meeting.duration }} min</td>
+                    <td>
+                        <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                            🎥 Join
+                        </a>
+                        {% if meeting.teacher == request.user %}
+                        <button class="btn btn-secondary" onclick="deleteMeeting({{ meeting.id }})" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                            ✕
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No upcoming classes scheduled.</div>
+    {% endif %}
+</div>
+
+<!-- Past Meetings -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h2 class="page-subtitle">✅ Past Classes</h2>
+    {% if past_meetings %}
+    <div class="table-card" style="margin-top: 0.75rem;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Subject</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for meeting in past_meetings %}
+                <tr>
+                    <td><strong>{{ meeting.title }}</strong></td>
+                    <td>{{ meeting.subject|default:"General" }}</td>
+                    <td>{{ meeting.scheduled_time|date:"M d, Y H:i" }}</td>
+                    <td>
+                        <span class="tag {% if meeting.status == 'completed' %}tag-success{% else %}tag-muted{% endif %}">
+                            {{ meeting.get_status_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No past classes found.</div>
+    {% endif %}
+</div>
+
+<!-- Create Meeting Modal -->
+<div id="createModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: #0b1120; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 1rem; padding: 1.5rem; width: 90%; max-width: 500px;">
+        <h3 style="margin-bottom: 1rem;">📹 Schedule Online Class</h3>
+        <form id="createMeetingForm">
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Title *</label>
+                <input type="text" name="title" required style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Subject</label>
+                <select name="subject" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="">Select Subject</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.name }}">{{ subject.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Class</label>
+                <select name="class_name" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="">All Classes</option>
+                    {% for cls in classes %}
+                    <option value="{{ cls.name }}">{{ cls.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Date & Time *</label>
+                <input type="datetime-local" name="scheduled_time" required style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Duration (minutes)</label>
+                <input type="number" name="duration" value="60" min="15" max="240" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Description</label>
+                <textarea name="description" rows="3" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
+            </div>
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 0.5rem; border: 1px solid rgba(59, 130, 246, 0.3);">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="send_sms" value="true" style="width: 18px; height: 18px; accent-color: #3b82f6;">
+                    <span style="font-size: 0.9rem;">
+                        {% if request.user.role == 'school_admin' or request.user.role == 'deputy_head' %}
+                        📱 <strong>Send SMS notification</strong> to all staff
+                        {% else %}
+                        📱 <strong>Send SMS notification</strong> to students & parents
+                        {% endif %}
+                    </span>
+                </label>
+                <p style="font-size: 0.75rem; color: var(--text-soft); margin-top: 0.25rem; margin-left: 1.75rem;">
+                    {% if request.user.role == 'school_admin' or request.user.role == 'deputy_head' %}
+                    Teachers, HODs, Accountants, Librarians, Nurses and other staff will receive meeting details via SMS
+                    {% else %}
+                    Students and their parents will receive an SMS with class details and meeting link
+                    {% endif %}
+                </p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Class</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showCreateModal() {
+    document.getElementById('createModal').style.display = 'flex';
+}
+
+function hideCreateModal() {
+    document.getElementById('createModal').style.display = 'none';
+}
+
+document.getElementById('createMeetingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    fetch('{% url "academics:create_meeting" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Class scheduled successfully!');
+            hideCreateModal();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to create class');
+    });
+});
+
+function deleteMeeting(meetingId) {
+    if (confirm('Are you sure you want to delete this class?')) {
+        fetch(`/academics/online-classes/delete/${meetingId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

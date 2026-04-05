@@ -9,7 +9,7 @@
         <form method="get" class="form-grid" style="align-items:end;">
             <div class="form-group full-width">
                 <label>Child</label>
-                <select name="student" class="form-control" onchange="this.form.submit()">
+                <select name="student" class="form-control searchable-select" data-placeholder="Search for your child..." onchange="this.form.submit()">
                     {% for c in children %}
                     <option value="{{ c.id }}" {% if selected and selected.id == c.id %}selected{% endif %}>{{ c.user.get_full_name|default:c.admission_number }} · {{ c.class_name|default:"—" }}</option>
                     {% endfor %}

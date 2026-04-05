@@ -78,6 +78,13 @@ urlpatterns = [
     path("online-classes/", advanced_analytics.online_classes_page, name="online_classes"),
     path("online-classes/create/", advanced_analytics.create_meeting, name="create_meeting"),
     path("online-classes/join/<int:meeting_id>/", advanced_analytics.join_meeting, name="join_meeting"),
+    path("online-classes/end/<int:meeting_id>/", advanced_analytics.end_meeting, name="end_meeting"),
+    path("online-classes/delete/<int:meeting_id>/", advanced_analytics.delete_meeting, name="delete_meeting"),
+    
+    # AI Student Comments
+    path("ai-comment/", advanced_analytics.ai_comment_page, name="ai_comment_page"),
+    path("ai-comment/generate/", advanced_analytics.generate_ai_comment, name="generate_ai_comment"),
+    path("ai-comment/save/", advanced_analytics.save_comment, name="save_comment"),
     
     # Course Management (LMS)
     path("courses/", timetable_generator.course_list, name="course_list"),
@@ -91,6 +98,4 @@ urlpatterns = [
     # Auto Timetable
     path("auto-timetable/", timetable_generator.auto_timetable_generator, name="auto_timetable"),
     
-    # Course List View
-    path("course-list/", timetable_generator.course_list, name="course_list_view"),
 ]

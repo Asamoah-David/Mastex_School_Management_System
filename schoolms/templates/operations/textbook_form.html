@@ -1,62 +1,110 @@
-{% extends "base.html" %}
-{% block title %}Add Textbook · Mastex SchoolOS{% endblock %}
-{% block page_title %}Add Textbook{% endblock %}
-{% block page_subtitle %}{{ school.name }}{% endblock %}
-{% block content %}
-<form method="post" class="form-card">
-    {% csrf_token %}
-    <div class="form-group">
-        <label for="title">Title</label>
-        <input type="text" name="title" id="title" required class="form-control" placeholder="e.g., Mathematics for Primary 6">
-    </div>
-    <div class="form-group">
-        <label for="price">Price (GHS)</label>
-        <input type="number" name="price" id="price" required class="form-control" step="0.01" min="0" placeholder="e.g., 25.00">
-    </div>
-    <div class="form-group">
-        <label for="stock">Stock Quantity</label>
-        <input type="number" name="stock" id="stock" class="form-control" min="0" value="0" placeholder="e.g., 100">
-    </div>
-    <div class="form-group">
-        <label for="isbn">ISBN (optional)</label>
-        <input type="text" name="isbn" id="isbn" class="form-control" placeholder="e.g., 978-3-16-148410-0">
-    </div>
-    <div class="button-row">
-        <button type="submit" class="btn btn-primary">Create Textbook</button>
-        <a href="{% url 'operations:textbook_list' %}" class="btn btn-secondary">Cancel</a>
-    </div>
-</form>
+{% extends 'base.html' %}
+{% load static %}
 
-<style>
-.form-card {
-    max-width: 500px;
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 0.75rem;
-    padding: 2rem;
-}
-.form-group {
-    margin-bottom: 1.5rem;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: #e5e7eb;
-    font-weight: 500;
-}
-.form-control {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: 0.5rem;
-    background: rgba(30, 41, 59, 0.8);
-    color: #e5e7eb;
-    font-size: 1rem;
-}
-.form-control:focus {
-    outline: none;
-    border-color: #22c55e;
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
-}
-</style>
+{% block title %}{{ form_title|default:'Add Textbook' }} - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-2xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <a href="{% url 'operations:textbook_list' %}" class="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Back to Textbooks
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900">{{ form_title|default:'Add Textbook' }}</h1>
+        </div>
+
+        <!-- Form Card -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                <!-- Title -->
+                <div>
+                    <label for="id_title" class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                    <input type="text" name="title" id="id_title" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., Mathematics for JHS 1">
+                </div>
+
+                <!-- Author -->
+                <div>
+                    <label for="id_author" class="block text-sm font-medium text-gray-700 mb-1">Author *</label>
+                    <input type="text" name="author" id="id_author" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., John Smith">
+                </div>
+
+                <!-- ISBN -->
+                <div>
+                    <label for="id_isbn" class="block text-sm font-medium text-gray-700 mb-1">ISBN</label>
+                    <input type="text" name="isbn" id="id_isbn"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., 978-3-16-148410-0">
+                </div>
+
+                <!-- Subject and Class Row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Subject -->
+                    <div>
+                        <label for="id_subject" class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                        <input type="text" name="subject" id="id_subject"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="e.g., Mathematics">
+                    </div>
+
+                    <!-- Class Level -->
+                    <div>
+                        <label for="id_class_level" class="block text-sm font-medium text-gray-700 mb-1">Class Level</label>
+                        <input type="text" name="class_level" id="id_class_level"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="e.g., JHS 1">
+                    </div>
+                </div>
+
+                <!-- Price and Stock Row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Price -->
+                    <div>
+                        <label for="id_price" class="block text-sm font-medium text-gray-700 mb-1">Price *</label>
+                        <input type="number" name="price" id="id_price" step="0.01" min="0" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="0.00">
+                    </div>
+
+                    <!-- Stock -->
+                    <div>
+                        <label for="id_stock" class="block text-sm font-medium text-gray-700 mb-1">Stock Quantity *</label>
+                        <input type="number" name="stock" id="id_stock" min="0" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="100">
+                    </div>
+                </div>
+
+                <!-- Publisher -->
+                <div>
+                    <label for="id_publisher" class="block text-sm font-medium text-gray-700 mb-1">Publisher</label>
+                    <input type="text" name="publisher" id="id_publisher"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., Ghana Publishing House">
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <a href="{% url 'operations:textbook_list' %}"
+                       class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        {{ submit_text|default:'Save Textbook' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

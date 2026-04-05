@@ -27,7 +27,7 @@
             <!-- Student Selection -->
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label class="required">👨‍🎓 Student</label>
-                <select name="student" id="student" required>
+                <select name="student" id="student" class="searchable-select" data-placeholder="Search for a student..." required>
                     <option value="">Select Student</option>
                     {% for student in students %}
                     <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.class_name }})</option>

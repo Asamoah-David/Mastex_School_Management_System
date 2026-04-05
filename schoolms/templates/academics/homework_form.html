@@ -11,7 +11,7 @@
         
         <div class="form-group">
             <label for="subject">Subject *</label>
-            <select name="subject" id="subject" required class="form-control">
+            <select name="subject" id="subject" required class="form-control searchable-select" data-placeholder="Search for a subject...">
                 <option value="">Select Subject</option>
                 {% for subject in subjects %}
                 <option value="{{ subject.id }}">{{ subject.name }}</option>

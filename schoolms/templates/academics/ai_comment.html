@@ -1,25 +1,213 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}AI Performance Comment · Mastex SchoolOS{% endblock %}
-{% block page_title %}AI-generated performance insight{% endblock %}
-{% block page_subtitle %}Contextual feedback generated from student assessment data.{% endblock %}
+{% block title %}AI Student Comments - {{ school.name }}{% endblock %}
 
 {% block content %}
-<div class="content-grid">
-    <section class="metric">
-        <div class="metric-label">Summary comment</div>
-        <div class="metric-value" style="font-size:0.9rem; font-weight:500;">
-            {{ comment }}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-title">🤖 AI Student Comments</h1>
+            <p class="page-subtitle">Generate professional comments for student reports</p>
         </div>
-        <div class="metric-caption">
-            Share this with parents or attach it to term reports as a professional narrative.
-        </div>
-    </section>
+    </div>
 </div>
 
-<div class="button-row mt-sm">
-    <button class="btn btn-secondary" type="button">
-        Generate another variation
-    </button>
+<!-- Generate Comment Form -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 1rem;">✨ Generate New Comment</h3>
+    <form id="generateForm">
+        <div class="content-grid">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Student *</label>
+                <select name="student_id" id="studentSelect" required style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="">Select Student</option>
+                    {% for student in students %}
+                    <option value="{{ student.id }}">{{ student.user.get_full_name|default:student.user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Term *</label>
+                <select name="term" id="termSelect" required style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="">Select Term</option>
+                    {% for term in terms %}
+                    <option value="{{ term.name }}">{{ term.name }}</option>
+                    {% endfor %}
+                    <option value="Term 1">Term 1</option>
+                    <option value="Term 2">Term 2</option>
+                    <option value="Term 3">Term 3</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Comment Type</label>
+                <select name="comment_type" id="commentType" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="overall">Overall Summary</option>
+                    <option value="academic">Academic Performance</option>
+                    <option value="behavioral">Behavioral</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Tone</label>
+                <select name="tone" id="toneSelect" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="professional">Professional</option>
+                    <option value="encouraging">Encouraging</option>
+                    <option value="detailed">Detailed</option>
+                    <option value="concise">Concise</option>
+                </select>
+            </div>
+        </div>
+        <div style="margin-top: 1rem;">
+            <button type="submit" class="btn btn-primary">🚀 Generate Comment</button>
+        </div>
+    </form>
 </div>
+
+<!-- Generated Comment Display -->
+<div id="commentResult" style="display: none; margin-top: 1rem;" class="content-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+        <div>
+            <h3 style="margin-bottom: 0.25rem;">📝 Generated Comment</h3>
+            <p style="font-size: 0.85rem; color: var(--text-soft);">
+                For: <strong id="studentName"></strong> | Avg Score: <strong id="avgScore"></strong>% | Attendance: <strong id="attendance"></strong>%
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary" onclick="copyComment()">📋 Copy</button>
+            <button class="btn btn-secondary" onclick="regenerateComment()">🔄 Regenerate</button>
+        </div>
+    </div>
+    <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 0.75rem; padding: 1rem;">
+        <textarea id="commentText" rows="4" style="width: 100%; background: transparent; border: none; color: var(--text-main); font-size: 0.9rem; line-height: 1.6;"></textarea>
+    </div>
+    <div style="margin-top: 1rem;">
+        <button class="btn btn-primary" onclick="saveComment()">💾 Save Comment</button>
+    </div>
+</div>
+
+<!-- Recent Comments -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 1rem;">📋 Recent Comments</h3>
+    {% if recent_comments %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Term</th>
+                    <th>Type</th>
+                    <th>Tone</th>
+                    <th>Comment</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for comment in recent_comments %}
+                <tr>
+                    <td>{{ comment.student.user.get_full_name|default:comment.student.user.username }}</td>
+                    <td>{{ comment.term }}</td>
+                    <td>{{ comment.get_comment_type_display }}</td>
+                    <td>{{ comment.get_tone_display }}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ comment.content|truncatechars:50 }}
+                    </td>
+                    <td>{{ comment.created_at|date:"M d, Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No comments generated yet.</div>
+    {% endif %}
+</div>
+
+<script>
+let currentCommentId = null;
+
+document.getElementById('generateForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    generateComment();
+});
+
+function generateComment() {
+    const formData = {
+        student_id: document.getElementById('studentSelect').value,
+        term: document.getElementById('termSelect').value,
+        comment_type: document.getElementById('commentType').value,
+        tone: document.getElementById('toneSelect').value
+    };
+    
+    if (!formData.student_id || !formData.term) {
+        alert('Please select a student and term');
+        return;
+    }
+    
+    fetch('{% url "academics:generate_ai_comment" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            currentCommentId = data.comment.id;
+            document.getElementById('studentName').textContent = data.comment.student;
+            document.getElementById('avgScore').textContent = data.comment.avg_score;
+            document.getElementById('attendance').textContent = data.comment.attendance_rate;
+            document.getElementById('commentText').value = data.comment.content;
+            document.getElementById('commentResult').style.display = 'block';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to generate comment');
+    });
+}
+
+function regenerateComment() {
+    generateComment();
+}
+
+function copyComment() {
+    const text = document.getElementById('commentText').value;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Comment copied to clipboard!');
+    });
+}
+
+function saveComment() {
+    const content = document.getElementById('commentText').value;
+    
+    fetch('{% url "academics:save_comment" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            comment_id: currentCommentId,
+            content: content
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Comment saved successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to save comment');
+    });
+}
+</script>
 {% endblock %}

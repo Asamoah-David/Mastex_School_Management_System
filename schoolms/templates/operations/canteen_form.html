@@ -1,71 +1,93 @@
-{% extends "base.html" %}
-{% block title %}Add Canteen Item · Mastex SchoolOS{% endblock %}
-{% block page_title %}Add Canteen Item{% endblock %}
-{% block page_subtitle %}{{ school.name }}{% endblock %}
-{% block content %}
-<form method="post" class="form-card">
-    {% csrf_token %}
-    <div class="form-group">
-        <label for="name">Item Name</label>
-        <input type="text" name="name" id="name" required class="form-control" placeholder="e.g., Rice & Stew">
-    </div>
-    <div class="form-group">
-        <label for="price">Price (GHS)</label>
-        <input type="number" name="price" id="price" required class="form-control" step="0.01" min="0" placeholder="e.g., 5.00">
-    </div>
-    <div class="form-group">
-        <label class="checkbox-label">
-            <input type="checkbox" name="is_available" checked>
-            <span>Available for purchase</span>
-        </label>
-    </div>
-    <div class="button-row">
-        <button type="submit" class="btn btn-primary">Create Item</button>
-        <a href="{% url 'operations:canteen_list' %}" class="btn btn-secondary">Cancel</a>
-    </div>
-</form>
+{% extends 'base.html' %}
+{% load static %}
 
-<style>
-.form-card {
-    max-width: 500px;
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 0.75rem;
-    padding: 2rem;
-}
-.form-group {
-    margin-bottom: 1.5rem;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: #e5e7eb;
-    font-weight: 500;
-}
-.form-control {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: 0.5rem;
-    background: rgba(30, 41, 59, 0.8);
-    color: #e5e7eb;
-    font-size: 1rem;
-}
-.form-control:focus {
-    outline: none;
-    border-color: #22c55e;
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
-}
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    color: #e5e7eb;
-}
-.checkbox-label input {
-    width: 18px;
-    height: 18px;
-}
-</style>
+{% block title %}{{ form_title|default:'Add Canteen Item' }} - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-2xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <a href="{% url 'operations:canteen_list' %}" class="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Back to Canteen List
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900">{{ form_title|default:'Add Canteen Item' }}</h1>
+        </div>
+
+        <!-- Form Card -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                <!-- Name -->
+                <div>
+                    <label for="id_name" class="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                    <input type="text" name="name" id="id_name" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., Rice and Stew">
+                    {% if form.name.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="id_description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea name="description" id="id_description" rows="3"
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Brief description of the item"></textarea>
+                </div>
+
+                <!-- Price and Category Row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Price -->
+                    <div>
+                        <label for="id_price" class="block text-sm font-medium text-gray-700 mb-1">Price *</label>
+                        <input type="number" name="price" id="id_price" step="0.01" min="0" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="0.00">
+                    </div>
+
+                    <!-- Category -->
+                    <div>
+                        <label for="id_category" class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select name="category" id="id_category"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select Category</option>
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="snacks">Snacks</option>
+                            <option value="beverages">Beverages</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Available Toggle -->
+                <div class="flex items-center">
+                    <input type="checkbox" name="is_available" id="id_is_available" checked
+                           class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="id_is_available" class="ml-2 block text-sm text-gray-700">
+                        Item is currently available
+                    </label>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <a href="{% url 'operations:canteen_list' %}"
+                       class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        {{ submit_text|default:'Save Item' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

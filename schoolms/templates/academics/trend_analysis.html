@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Trend Analysis - {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-title">📈 Trend Analysis</h1>
+            <p class="page-subtitle">Performance trends and insights</p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <select id="chartType" class="form-control" style="padding: 0.5rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+                <option value="term">By Term</option>
+                <option value="monthly">Monthly</option>
+                <option value="class">By Class</option>
+                <option value="subject">By Subject</option>
+            </select>
+            <button class="btn btn-primary" onclick="loadChart()">🔄 Refresh</button>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Overview -->
+<div class="content-grid" style="margin-top: 1rem;">
+    <div class="metric">
+        <div class="metric-label">Average Score</div>
+        <div class="metric-value">
+            {% if term_scores.0.avg_score %}{{ term_scores.0.avg_score }}%{% else %}--{% endif %}
+        </div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Pass Rate</div>
+        <div class="metric-value">
+            {% if term_scores.0.pass_rate %}{{ term_scores.0.pass_rate }}%{% else %}--{% endif %}
+        </div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Total Records</div>
+        <div class="metric-value">{{ term_scores.0.total_results|default:0 }}</div>
+    </div>
+</div>
+
+<!-- Chart Section -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 1rem;">📊 Performance Chart</h3>
+    <div style="height: 300px; position: relative;">
+        <canvas id="trendChart"></canvas>
+    </div>
+</div>
+
+<!-- Term Performance Table -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 1rem;">📅 Term Performance</h3>
+    {% if term_scores %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Term</th>
+                    <th>Average Score</th>
+                    <th>Total Results</th>
+                    <th>Pass Rate</th>
+                    <th>Trend</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for term in term_scores %}
+                <tr>
+                    <td><strong>{{ term.term }}</strong></td>
+                    <td>
+                        <span class="badge-pill" style="background: {% if term.avg_score >= 60 %}rgba(34, 197, 94, 0.2){% else %}rgba(249, 115, 115, 0.2){% endif %}; color: {% if term.avg_score >= 60 %}var(--success){% else %}var(--danger){% endif %};">
+                            {{ term.avg_score }}%
+                        </span>
+                    </td>
+                    <td>{{ term.total_results }}</td>
+                    <td>{{ term.pass_rate }}%</td>
+                    <td>
+                        {% if forloop.first %}
+                            <span class="tag">Latest</span>
+                        {% else %}
+                            {% with prev_score=term_scores|slice:forloop.counter0|last %}
+                            {% if term.avg_score > prev_score.avg_score %}
+                                <span style="color: var(--success);">📈 +{{ term.avg_score|sub:prev_score.avg_score|floatformat:1 }}%</span>
+                            {% elif term.avg_score < prev_score.avg_score %}
+                                <span style="color: var(--danger);">📉 {{ term.avg_score|sub:prev_score.avg_score|floatformat:1 }}%</span>
+                            {% else %}
+                                <span style="color: var(--text-soft);">➡️ 0%</span>
+                            {% endif %}
+                            {% endwith %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No term performance data available.</div>
+    {% endif %}
+</div>
+
+<!-- Subject Performance -->
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 1rem;">📚 Subject Performance</h3>
+    {% if subject_trends %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Average Score</th>
+                    <th>Performance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for subject in subject_trends %}
+                <tr>
+                    <td><strong>{{ subject.subject }}</strong></td>
+                    <td>{{ subject.avg_score }}%</td>
+                    <td>
+                        <div style="width: 100px; height: 8px; background: rgba(148, 163, 184, 0.2); border-radius: 4px; overflow: hidden;">
+                            <div style="width: {{ subject.avg_score }}%; height: 100%; background: {% if subject.avg_score >= 60 %}var(--success){% else %}var(--danger){% endif %};"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No subject performance data available.</div>
+    {% endif %}
+</div>
+
+<!-- Class Comparison -->
+{% if class_comparison %}
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 1rem;">🏫 Class Comparison</h3>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Class</th>
+                    <th>Students</th>
+                    <th>Average Score</th>
+                    <th>Performance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cls in class_comparison %}
+                <tr>
+                    <td><strong>{{ cls.class }}</strong></td>
+                    <td>{{ cls.student_count }}</td>
+                    <td>{{ cls.avg_score }}%</td>
+                    <td>
+                        <div style="width: 100px; height: 8px; background: rgba(148, 163, 184, 0.2); border-radius: 4px; overflow: hidden;">
+                            <div style="width: {{ cls.avg_score }}%; height: 100%; background: {% if cls.avg_score >= 60 %}var(--success){% else %}var(--danger){% endif %};"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Monthly Trend -->
+{% if monthly_data %}
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 1rem;">📆 Monthly Trend</h3>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Average Score</th>
+                    <th>Records</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for month in monthly_data %}
+                <tr>
+                    <td><strong>{{ month.month }}</strong></td>
+                    <td>{{ month.avg_score }}%</td>
+                    <td>{{ month.count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<script>
+let trendChart = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadChart();
+});
+
+function loadChart() {
+    const chartType = document.getElementById('chartType').value;
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    
+    fetch(`/academics/trend-data/?type=${chartType}`)
+        .then(response => response.json())
+        .then(data => {
+            if (trendChart) {
+                trendChart.destroy();
+            }
+            
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: data.title,
+                        data: data.scores,
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: '#e5e7eb' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(148, 163, 184, 0.2)' }
+                        },
+                        x: {
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(148, 163, 184, 0.2)' }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => console.error('Error loading chart:', error));
+}
+</script>
+{% endblock %}

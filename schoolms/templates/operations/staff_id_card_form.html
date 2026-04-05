@@ -19,7 +19,7 @@
             <!-- Staff Member -->
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label class="required">👤 Staff Member</label>
-                <select name="staff" id="staff" required>
+                <select name="staff" id="staff" class="searchable-select" data-placeholder="Search for a staff member..." required>
                     <option value="">Select Staff Member</option>
                     {% for member in staff_members %}
                     <option value="{{ member.id }}" {% if member.id == id_card.staff.id %}selected{% endif %}>

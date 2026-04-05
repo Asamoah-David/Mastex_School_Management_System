@@ -30,6 +30,7 @@
                     <th>Rows × Seats</th>
                     <th>Total Capacity</th>
                     <th>Description</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -39,6 +40,9 @@
                 <td>{{ hall.rows }} × {{ hall.seats_per_row }}</td>
                 <td>{{ hall.total_seats }}</td>
                 <td>{{ hall.description|default:"—" }}</td>
+                <td>
+                    <a href="{% url 'operations:exam_hall_delete' hall.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this exam hall?');">🗑️ Delete</a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

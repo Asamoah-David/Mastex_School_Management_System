@@ -3,10 +3,11 @@
 {% block title %}Health Records - {{ school.name }}{% endblock %}
 {% block page_title %}Health Records{% endblock %}
 {% block content %}
-<div class="content-card">
+    <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>🏥 Health Records</h2>
         <div class="gap-2 d-flex">
+            <a href="{% url 'operations:export_health_records' %}?format=pdf" class="btn btn-danger">📄 PDF</a>
             <a href="{% url 'operations:export_health_records' %}?format=csv" class="btn btn-success">📥 CSV</a>
             <a href="{% url 'operations:export_health_records' %}?format=excel" class="btn btn-success">📊 Excel</a>
             <a href="{% url 'operations:health_record_create' %}" class="btn btn-primary">➕ Add Record</a>
@@ -35,6 +36,7 @@
             <td>{{ record.emergency_contact|default:"N/A" }}</td>
             <td>
                 <a href="{% url 'operations:health_record_edit' record.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{% url 'operations:health_record_delete' record.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this record?')">🗑️ Delete</a>
             </td>
         </tr>
         {% endfor %}

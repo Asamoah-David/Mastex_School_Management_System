@@ -3864,6 +3864,27 @@ def exam_hall_create(request):
 
 
 @login_required
+def exam_hall_delete(request, pk):
+    """Delete an exam hall."""
+    from accounts.permissions import is_school_admin
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect('operations:exam_hall_list')
+    
+    hall = get_object_or_404(ExamHall, pk=pk, school=school)
+    
+    if request.method == 'POST':
+        hall.delete()
+        from django.contrib import messages
+        messages.success(request, 'Exam hall deleted successfully!')
+        return redirect('operations:exam_hall_list')
+    
+    return render(request, 'operations/confirm_delete.html', {
+        'object': hall, 'type': 'exam hall'
+    })
+
+
+@login_required
 def seating_plan_list(request):
     """List seating plans."""
     from accounts.permissions import user_can_manage_school
@@ -4225,6 +4246,22 @@ def health_record_create(request):
         'school': school,
         'students': students
     })
+
+
+@login_required
+def health_record_delete(request, pk):
+    """Delete a health record."""
+    from accounts.permissions import user_can_manage_school
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+    
+    record = get_object_or_404(StudentHealth, pk=pk, school=school)
+    record.delete()
+    
+    from django.contrib import messages
+    messages.success(request, 'Health record deleted successfully!')
+    return redirect('operations:health_record_list')
 
 
 @login_required
