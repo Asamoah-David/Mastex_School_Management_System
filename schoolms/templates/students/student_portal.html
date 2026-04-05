@@ -30,6 +30,10 @@
             <span class="quick-action-icon">⏰</span>
             <span class="quick-action-label">Timetable</span>
         </a>
+        <a href="{% url 'academics:online_classes' %}" class="quick-action-btn">
+            <span class="quick-action-icon">📹</span>
+            <span class="quick-action-label">Online Classes</span>
+        </a>
         <a href="{% url 'academics:quiz_list' %}" class="quick-action-btn">
             <span class="quick-action-icon">🧠</span>
             <span class="quick-action-label">Quizzes</span>
@@ -305,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
         Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
         
         const score = {{ stats.average|default:0 }};
-        const position = {{ stats.position|default:0 }};
+        const studentPosition = {{ stats.position|default:0 }};
         
         new Chart(studentChartCtx, {
             type: 'doughnut',

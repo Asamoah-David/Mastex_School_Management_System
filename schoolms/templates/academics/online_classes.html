@@ -57,7 +57,7 @@
                     <td>{{ meeting.scheduled_time|date:"M d, Y H:i" }}</td>
                     <td>{{ meeting.duration }} min</td>
                     <td>
-                        {% if meeting.teacher == request.user %}
+                        {% if meeting.teacher == request.user or request.user.role == 'school_admin' %}
                         <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-success" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
                             🎤 Start
                         </a>
