@@ -730,8 +730,10 @@ def export_all_payments(request):
     # Add bus payments if 'all' or 'bus' is selected
     if payment_type in ['all', 'bus']:
         for p in bus_payments:
+            # Use payment_date if available, otherwise try created_at as fallback
+            payment_date = p.payment_date if p.payment_date else getattr(p, 'created_at', None)
             all_payments.append({
-                'date': p.payment_date,
+                'date': payment_date,
                 'student': p.student.user.get_full_name() if p.student and p.student.user else '',
                 'admission_no': p.student.admission_number if p.student else '',
                 'type': 'Bus',
@@ -743,8 +745,10 @@ def export_all_payments(request):
     # Add textbook sales if 'all' or 'textbook' is selected
     if payment_type in ['all', 'textbook']:
         for p in textbook_sales:
+            # Use sale_date if available, otherwise try created_at as fallback
+            sale_date = p.sale_date if p.sale_date else getattr(p, 'created_at', None)
             all_payments.append({
-                'date': p.sale_date,
+                'date': sale_date,
                 'student': p.student.user.get_full_name() if p.student and p.student.user else '',
                 'admission_no': p.student.admission_number if p.student else '',
                 'type': 'Textbook',
@@ -756,8 +760,10 @@ def export_all_payments(request):
     # Add hostel fees if 'all' or 'hostel' is selected
     if payment_type in ['all', 'hostel']:
         for p in hostel_fees:
+            # Use payment_date if available, otherwise try created_at as fallback
+            payment_date = p.payment_date if p.payment_date else getattr(p, 'created_at', None)
             all_payments.append({
-                'date': p.payment_date,
+                'date': payment_date,
                 'student': p.student.user.get_full_name() if p.student and p.student.user else '',
                 'admission_no': p.student.admission_number if p.student else '',
                 'type': 'Hostel',
@@ -769,8 +775,10 @@ def export_all_payments(request):
     # Add school fee payments if 'all' or 'school_fees' is selected
     if payment_type in ['all', 'school_fees']:
         for p in fee_payments:
+            # Use created_at for FeePayment (this is the correct field)
+            payment_date = p.created_at if hasattr(p, 'created_at') and p.created_at else None
             all_payments.append({
-                'date': p.created_at,
+                'date': payment_date,
                 'student': p.fee.student.user.get_full_name() if p.fee and p.fee.student and p.fee.student.user else '',
                 'admission_no': p.fee.student.admission_number if p.fee and p.fee.student else '',
                 'type': 'School Fee',
