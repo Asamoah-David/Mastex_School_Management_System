@@ -129,8 +129,10 @@ def canteen_initiate_payment(request):
     if not parent_email and request.user.email:
         parent_email = request.user.email
     
-    # Build callback URL
-    callback_url = request.build_absolute_uri(reverse('operations:canteen_payment_verify'))
+    # Build callback URL with payment_id for reliable lookup
+    callback_url = request.build_absolute_uri(
+        reverse('operations:canteen_payment_verify') + f"?payment_id={payment.id}"
+    )
     
     # Initialize Paystack payment
     metadata = {
@@ -162,6 +164,8 @@ def canteen_initiate_payment(request):
     )
     
     if result.get('status'):
+        # Store Paystack's actual reference (it may differ from what we sent)
+        payment.paystack_reference = result['data']['reference']
         payment.save()
         return JsonResponse({
             'success': True,
@@ -180,36 +184,39 @@ def canteen_initiate_payment(request):
 
 def canteen_payment_verify(request):
     """Verify Paystack payment for canteen."""
+    # First try to find by payment_id from query parameter (most reliable)
+    payment_id = request.GET.get('payment_id')
+    
+    if payment_id:
+        try:
+            payment = CanteenPayment.objects.get(id=payment_id)
+            if payment.payment_status == 'completed':
+                messages.info(request, "Payment already confirmed.")
+                return redirect('operations:canteen_my')
+        except CanteenPayment.DoesNotExist:
+            pass
+    
     reference = request.GET.get('reference')
-    
-    if not reference:
-        messages.error(request, "Invalid payment reference")
-        return redirect('operations:canteen_my')
-    
-    # Verify with Paystack
-    result = paystack_service.verify_payment(reference)
+    result = paystack_service.verify_payment(reference) if reference else None
     
     payment = None
     
-    # First try to find by payment_reference
-    try:
-        payment = CanteenPayment.objects.get(payment_reference=reference)
-    except CanteenPayment.DoesNotExist:
-        pass
+    # Try to find by payment_id
+    if payment_id:
+        try:
+            payment = CanteenPayment.objects.get(id=payment_id)
+        except CanteenPayment.DoesNotExist:
+            pass
     
-    # Try to find by payment_id from metadata
-    if not payment:
-        payment_data = result.get('data', {})
-        metadata = payment_data.get('metadata', {})
-        payment_id = metadata.get('payment_id')
-        if payment_id:
-            try:
-                payment = CanteenPayment.objects.get(id=payment_id)
-            except CanteenPayment.DoesNotExist:
-                pass
+    # Fallback: try to find by payment_reference
+    if not payment and reference:
+        try:
+            payment = CanteenPayment.objects.get(payment_reference=reference)
+        except CanteenPayment.DoesNotExist:
+            pass
     
     if payment:
-        if result.get('status') and result['data']['status'] == 'success':
+        if result and result.get('status') and result['data']['status'] == 'success':
             payment.payment_status = 'completed'
             payment.save()
             messages.success(request, "Payment successful! Your order has been placed.")
@@ -330,6 +337,11 @@ def bus_initiate_payment(request):
     from django.conf import settings
     currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
     
+    # Build callback URL with payment_id as query parameter for reliable lookup
+    callback_url = request.build_absolute_uri(
+        reverse('operations:bus_payment_verify') + f"?payment_id={payment.id}"
+    )
+    
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
         amount=amount,
@@ -357,35 +369,39 @@ def bus_initiate_payment(request):
 
 def bus_payment_verify(request):
     """Verify Paystack payment for bus."""
+    # First try to find by payment_id from query parameter (most reliable)
+    payment_id = request.GET.get('payment_id')
+    
+    if payment_id:
+        try:
+            payment = BusPayment.objects.get(id=payment_id)
+            if payment.payment_status == 'completed':
+                messages.info(request, "Payment already confirmed.")
+                return redirect('operations:bus_my')
+        except BusPayment.DoesNotExist:
+            pass
+    
     reference = request.GET.get('reference')
-    
-    if not reference:
-        messages.error(request, "Invalid payment reference")
-        return redirect('operations:bus_my')
-    
-    result = paystack_service.verify_payment(reference)
+    result = paystack_service.verify_payment(reference) if reference else None
     
     payment = None
     
-    # First try to find by payment_reference
-    try:
-        payment = BusPayment.objects.get(payment_reference=reference)
-    except BusPayment.DoesNotExist:
-        pass
+    # Try to find by payment_id
+    if payment_id:
+        try:
+            payment = BusPayment.objects.get(id=payment_id)
+        except BusPayment.DoesNotExist:
+            pass
     
-    # Try to find by payment_id from metadata
-    if not payment:
-        payment_data = result.get('data', {})
-        metadata = payment_data.get('metadata', {})
-        payment_id = metadata.get('payment_id')
-        if payment_id:
-            try:
-                payment = BusPayment.objects.get(id=payment_id)
-            except BusPayment.DoesNotExist:
-                pass
+    # Fallback: try to find by payment_reference
+    if not payment and reference:
+        try:
+            payment = BusPayment.objects.get(payment_reference=reference)
+        except BusPayment.DoesNotExist:
+            pass
     
     if payment:
-        if result.get('status') and result['data']['status'] == 'success':
+        if result and result.get('status') and result['data']['status'] == 'success':
             payment.payment_status = 'completed'
             payment.paid = True
             payment.payment_date = timezone.now().date()
@@ -476,8 +492,10 @@ def textbook_initiate_payment(request):
     if not parent_email and request.user.email:
         parent_email = request.user.email
     
-    # Build callback URL
-    callback_url = request.build_absolute_uri(reverse('operations:textbook_payment_verify'))
+    # Build callback URL with payment_id for reliable lookup
+    callback_url = request.build_absolute_uri(
+        reverse('operations:textbook_payment_verify') + f"?payment_id={sale.id}"
+    )
     
     metadata = {
         'payment_type': 'textbook',
@@ -524,35 +542,39 @@ def textbook_initiate_payment(request):
 
 def textbook_payment_verify(request):
     """Verify Paystack payment for textbooks."""
+    # First try to find by payment_id from query parameter (most reliable)
+    payment_id = request.GET.get('payment_id')
+    
+    if payment_id:
+        try:
+            sale = TextbookSale.objects.get(id=payment_id)
+            if sale.payment_status == 'completed':
+                messages.info(request, "Payment already confirmed.")
+                return redirect('operations:textbook_my')
+        except TextbookSale.DoesNotExist:
+            pass
+    
     reference = request.GET.get('reference')
-    
-    if not reference:
-        messages.error(request, "Invalid payment reference")
-        return redirect('operations:textbook_my')
-    
-    result = paystack_service.verify_payment(reference)
+    result = paystack_service.verify_payment(reference) if reference else None
     
     sale = None
     
-    # First try to find by payment_reference
-    try:
-        sale = TextbookSale.objects.get(payment_reference=reference)
-    except TextbookSale.DoesNotExist:
-        pass
+    # Try to find by payment_id
+    if payment_id:
+        try:
+            sale = TextbookSale.objects.get(id=payment_id)
+        except TextbookSale.DoesNotExist:
+            pass
     
-    # Try to find by payment_id from metadata
-    if not sale:
-        payment_data = result.get('data', {})
-        metadata = payment_data.get('metadata', {})
-        payment_id = metadata.get('payment_id')
-        if payment_id:
-            try:
-                sale = TextbookSale.objects.get(id=payment_id)
-            except TextbookSale.DoesNotExist:
-                pass
+    # Fallback: try to find by payment_reference
+    if not sale and reference:
+        try:
+            sale = TextbookSale.objects.get(payment_reference=reference)
+        except TextbookSale.DoesNotExist:
+            pass
     
     if sale:
-        if result.get('status') and result['data']['status'] == 'success':
+        if result and result.get('status') and result['data']['status'] == 'success':
             sale.payment_status = 'completed'
             sale.save()
             # Reduce stock
@@ -641,8 +663,10 @@ def hostel_initiate_payment(request):
     if not parent_email and request.user.email:
         parent_email = request.user.email
     
-    # Build callback URL
-    callback_url = request.build_absolute_uri(reverse('operations:hostel_payment_verify'))
+    # Build callback URL with payment_id for reliable lookup
+    callback_url = request.build_absolute_uri(
+        reverse('operations:hostel_payment_verify') + f"?payment_id={fee.id}"
+    )
     
     metadata = {
         'payment_type': 'hostel',
@@ -689,35 +713,39 @@ def hostel_initiate_payment(request):
 
 def hostel_payment_verify(request):
     """Verify Paystack payment for hostel fees."""
+    # First try to find by payment_id from query parameter (most reliable)
+    payment_id = request.GET.get('payment_id')
+    
+    if payment_id:
+        try:
+            fee = HostelFee.objects.get(id=payment_id)
+            if fee.payment_status == 'completed':
+                messages.info(request, "Payment already confirmed.")
+                return redirect('operations:hostel_my')
+        except HostelFee.DoesNotExist:
+            pass
+    
     reference = request.GET.get('reference')
-    
-    if not reference:
-        messages.error(request, "Invalid payment reference")
-        return redirect('operations:hostel_my')
-    
-    result = paystack_service.verify_payment(reference)
+    result = paystack_service.verify_payment(reference) if reference else None
     
     fee = None
     
-    # First try to find by payment_reference
-    try:
-        fee = HostelFee.objects.get(payment_reference=reference)
-    except HostelFee.DoesNotExist:
-        pass
+    # Try to find by payment_id
+    if payment_id:
+        try:
+            fee = HostelFee.objects.get(id=payment_id)
+        except HostelFee.DoesNotExist:
+            pass
     
-    # Try to find by payment_id from metadata
-    if not fee:
-        payment_data = result.get('data', {})
-        metadata = payment_data.get('metadata', {})
-        payment_id = metadata.get('payment_id')
-        if payment_id:
-            try:
-                fee = HostelFee.objects.get(id=payment_id)
-            except HostelFee.DoesNotExist:
-                pass
+    # Fallback: try to find by payment_reference
+    if not fee and reference:
+        try:
+            fee = HostelFee.objects.get(payment_reference=reference)
+        except HostelFee.DoesNotExist:
+            pass
     
     if fee:
-        if result.get('status') and result['data']['status'] == 'success':
+        if result and result.get('status') and result['data']['status'] == 'success':
             fee.payment_status = 'completed'
             fee.paid = True
             fee.payment_date = timezone.now().date()
