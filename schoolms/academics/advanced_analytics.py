@@ -11,8 +11,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg as DB_Avg, Count, Q
 from datetime import timedelta, datetime
+from datetime import datetime as dt
 import random
 import uuid
 
@@ -98,7 +99,7 @@ def predictive_analytics(request):
         
         # Get average score
         results = Result.objects.filter(student=student)
-        avg_score = results.aggregate(avg=Avg('score'))['avg'] or 0
+        avg_score = results.aggregate(avg=DB_Avg('score'))['avg'] or 0
         
         # Calculate risk (lower attendance + lower grades = higher risk)
         risk_score = 0
@@ -221,7 +222,7 @@ def trend_analysis(request):
     term_scores = []
     for term in terms:
         results = Result.objects.filter(student__school=school, term=term)
-        avg = results.aggregate(avg=Avg('score'))['avg'] or 0
+        avg = results.aggregate(avg=DB_Avg('score'))['avg'] or 0
         total = results.count()
         pass_count = results.filter(score__gte=50).count()
         pass_rate = round((pass_count / total * 100), 1) if total > 0 else 0
@@ -237,7 +238,7 @@ def trend_analysis(request):
     subjects = Subject.objects.filter(school=school)
     subject_trends = []
     for subject in subjects:
-        avg = Result.objects.filter(student__school=school, subject=subject).aggregate(avg=Avg('score'))['avg'] or 0
+        avg = Result.objects.filter(student__school=school, subject=subject).aggregate(avg=DB_Avg('score'))['avg'] or 0
         subject_trends.append({
             'subject': subject.name,
             'avg_score': round(avg, 1)
@@ -276,7 +277,7 @@ def get_monthly_trends(school):
             created_at__gte=month_start,
             created_at__lt=month_end
         )
-        avg = results.aggregate(avg=Avg('score'))['avg'] or 0
+        avg = results.aggregate(avg=DB_Avg('score'))['avg'] or 0
         
         monthly_data.append({
             'month': month_start.strftime('%b %Y'),
@@ -297,7 +298,7 @@ def get_class_comparison(school):
     for cls in classes:
         students = Student.objects.filter(school=school, current_class=cls.name)
         if students.exists():
-            avg = Result.objects.filter(student__in=students).aggregate(avg=Avg('score'))['avg'] or 0
+            avg = Result.objects.filter(student__in=students).aggregate(avg=DB_Avg('score'))['avg'] or 0
             class_data.append({
                 'class': cls.name,
                 'avg_score': round(avg, 1),
@@ -329,7 +330,7 @@ def get_trend_data(request):
         
         for term in terms:
             labels.append(term.name)
-            avg = Result.objects.filter(student__school=school, term=term).aggregate(avg=Avg('score'))['avg'] or 0
+            avg = Result.objects.filter(student__school=school, term=term).aggregate(avg=DB_Avg('score'))['avg'] or 0
             scores.append(round(avg, 1))
         
         return JsonResponse({
@@ -359,7 +360,7 @@ def get_trend_data(request):
         labels = [s.name for s in subjects]
         scores = []
         for subject in subjects:
-            avg = Result.objects.filter(student__school=school, subject=subject).aggregate(avg=Avg('score'))['avg'] or 0
+            avg = Result.objects.filter(student__school=school, subject=subject).aggregate(avg=DB_Avg('score'))['avg'] or 0
             scores.append(round(avg, 1))
         
         return JsonResponse({
@@ -423,6 +424,16 @@ def create_meeting(request):
         try:
             data = json.loads(request.body)
             
+            # Parse the scheduled_time - it comes as a string from JSON
+            scheduled_time_str = data.get('scheduled_time')
+            if isinstance(scheduled_time_str, str):
+                # Convert string to datetime object
+                # Format: YYYY-MM-DDTHH:MM or YYYY-MM-DD HH:MM
+                scheduled_time_str = scheduled_time_str.replace('T', ' ')
+                scheduled_time = dt.strptime(scheduled_time_str, '%Y-%m-%d %H:%M')
+            else:
+                scheduled_time = scheduled_time_str
+            
             # Create meeting in database
             meeting = OnlineMeeting.objects.create(
                 school=school,
@@ -431,7 +442,7 @@ def create_meeting(request):
                 description=data.get('description', ''),
                 subject=data.get('subject', ''),
                 class_name=data.get('class_name', ''),
-                scheduled_time=data.get('scheduled_time'),
+                scheduled_time=scheduled_time,
                 duration=int(data.get('duration', 60)),
                 status='scheduled'
             )
@@ -625,7 +636,7 @@ def generate_ai_comment(request):
         
         # Get student data for comment generation
         results = Result.objects.filter(student=student).order_by('-created_at')
-        avg_score = results.aggregate(avg=Avg('score'))['avg'] or 0
+        avg_score = results.aggregate(avg=DB_Avg('score'))['avg'] or 0
         
         # Get attendance
         attendance_records = StudentAttendance.objects.filter(student=student)
