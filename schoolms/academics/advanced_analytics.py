@@ -289,9 +289,9 @@ def get_monthly_trends(school):
 
 def get_class_comparison(school):
     """Get performance comparison by class."""
-    from operations.models import StudentClass
+    from students.models import SchoolClass
     
-    classes = StudentClass.objects.filter(school=school)
+    classes = SchoolClass.objects.filter(school=school)
     class_data = []
     
     for cls in classes:
