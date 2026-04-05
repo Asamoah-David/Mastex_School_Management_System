@@ -15,7 +15,7 @@ def export_to_csv(queryset, fields, filename=None):
     Export queryset to CSV file.
     
     Args:
-        queryset: Django queryset to export
+        queryset: Django queryset to export (can also be a list of dicts)
         fields: List of field names or (header, field_path) tuples
         filename: Optional filename (defaults to export_timestamp.csv)
     
@@ -48,14 +48,18 @@ def export_to_csv(queryset, fields, filename=None):
             else:
                 field_path = field
             
-            # Handle nested fields (e.g., 'student__user__first_name')
-            value = obj
-            for part in field_path.split('__'):
-                if hasattr(value, part):
-                    value = getattr(value, part)
-                else:
-                    value = ''
-                    break
+            # Handle dict-based data (e.g., from combined payment lists)
+            if isinstance(obj, dict):
+                value = obj.get(field_path, '')
+            else:
+                # Handle nested fields (e.g., 'student__user__first_name') for Django model objects
+                value = obj
+                for part in field_path.split('__'):
+                    if hasattr(value, part):
+                        value = getattr(value, part)
+                    else:
+                        value = ''
+                        break
             
             # Format value
             if value is None:
@@ -78,7 +82,7 @@ def export_to_excel(queryset, fields, filename=None, sheet_name='Data'):
     Requires openpyxl to be installed.
     
     Args:
-        queryset: Django queryset to export
+        queryset: Django queryset to export (can also be a list of dicts)
         fields: List of field names or (header, field_path) tuples
         filename: Optional filename
         sheet_name: Name of the Excel sheet
@@ -117,14 +121,18 @@ def export_to_excel(queryset, fields, filename=None, sheet_name='Data'):
             else:
                 field_path = field
             
-            # Handle nested fields
-            value = obj
-            for part in field_path.split('__'):
-                if hasattr(value, part):
-                    value = getattr(value, part)
-                else:
-                    value = ''
-                    break
+            # Handle dict-based data (e.g., from combined payment lists)
+            if isinstance(obj, dict):
+                value = obj.get(field_path, '')
+            else:
+                # Handle nested fields for Django model objects
+                value = obj
+                for part in field_path.split('__'):
+                    if hasattr(value, part):
+                        value = getattr(value, part)
+                    else:
+                        value = ''
+                        break
             
             # Format value
             if value is None:
