@@ -661,7 +661,41 @@ def export_all_payments(request):
     
     from finance.models import Fee, FeePayment
     
-    # Get all payment types
+    # Get payment type filter
+    payment_type = request.GET.get('payment_type', 'all')
+    
+    # Get date filter (for compatibility with payment dashboard)
+    date_filter = request.GET.get('date_filter', 'all')
+    start_date = request.GET.get('start_date') or request.GET.get('from')
+    end_date = request.GET.get('end_date') or request.GET.get('to')
+    
+    # Helper function to apply date filter
+    def apply_date_filter(queryset, date_field):
+        from django.utils import timezone
+        if date_filter == 'today':
+            today = timezone.now().date()
+            return queryset.filter(**{f"{date_field}__date": today})
+        elif date_filter == 'week':
+            week_ago = timezone.now() - timezone.timedelta(days=7)
+            return queryset.filter(**{f"{date_field}__gte": week_ago})
+        elif date_filter == 'month':
+            month_ago = timezone.now() - timezone.timedelta(days=30)
+            return queryset.filter(**{f"{date_field}__gte": month_ago})
+        elif start_date:
+            from django.utils.dateparse import parse_date
+            parsed = parse_date(start_date)
+            if parsed:
+                queryset = queryset.filter(**{f"{date_field}__date__gte": parsed})
+        if end_date:
+            from django.utils.dateparse import parse_date
+            from datetime import timedelta
+            parsed = parse_date(end_date)
+            if parsed:
+                end_with_time = parsed + timedelta(days=1)
+                queryset = queryset.filter(**{f"{date_field}__lt": end_with_time})
+        return queryset
+    
+    # Get all payment types based on filter
     canteen_payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
     bus_payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")
     textbook_sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")
@@ -670,70 +704,80 @@ def export_all_payments(request):
     fee_payments = FeePayment.objects.filter(fee__school=school).select_related("fee", "fee__student", "fee__student__user")
     
     # Apply date filtering - use appropriate date fields for each payment type
-    canteen_payments = _filter_by_date(canteen_payments, request, 'payment_date')
-    bus_payments = _filter_by_date(bus_payments, request, 'payment_date')
-    textbook_sales = _filter_by_date(textbook_sales, request, 'sale_date')
-    hostel_fees = _filter_by_date(hostel_fees, request, 'payment_date')
-    school_fees = _filter_by_date(school_fees, request, 'created_at')
-    fee_payments = _filter_by_date(fee_payments, request, 'created_at')
+    canteen_payments = apply_date_filter(canteen_payments, 'payment_date')
+    bus_payments = apply_date_filter(bus_payments, 'payment_date')
+    textbook_sales = apply_date_filter(textbook_sales, 'sale_date')
+    hostel_fees = apply_date_filter(hostel_fees, 'payment_date')
+    school_fees = apply_date_filter(school_fees, 'created_at')
+    fee_payments = apply_date_filter(fee_payments, 'created_at')
     
     # Combine all payments into one list with type annotation
     all_payments = []
     
-    for p in canteen_payments:
-        all_payments.append({
-            'date': p.payment_date,
-            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
-            'admission_no': p.student.admission_number if p.student else '',
-            'type': 'Canteen',
-            'description': p.description,
-            'amount': float(p.amount),
-            'status': p.payment_status,
-        })
+    # Add canteen payments if 'all' or 'canteen' is selected
+    if payment_type in ['all', 'canteen']:
+        for p in canteen_payments:
+            all_payments.append({
+                'date': p.payment_date,
+                'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+                'admission_no': p.student.admission_number if p.student else '',
+                'type': 'Canteen',
+                'description': p.description,
+                'amount': float(p.amount),
+                'status': p.payment_status,
+            })
     
-    for p in bus_payments:
-        all_payments.append({
-            'date': p.payment_date,
-            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
-            'admission_no': p.student.admission_number if p.student else '',
-            'type': 'Bus',
-            'description': p.route.name if p.route else '',
-            'amount': float(p.amount),
-            'status': p.payment_status,
-        })
+    # Add bus payments if 'all' or 'bus' is selected
+    if payment_type in ['all', 'bus']:
+        for p in bus_payments:
+            all_payments.append({
+                'date': p.payment_date,
+                'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+                'admission_no': p.student.admission_number if p.student else '',
+                'type': 'Bus',
+                'description': p.route.name if p.route else '',
+                'amount': float(p.amount),
+                'status': p.payment_status,
+            })
     
-    for p in textbook_sales:
-        all_payments.append({
-            'date': p.sale_date,
-            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
-            'admission_no': p.student.admission_number if p.student else '',
-            'type': 'Textbook',
-            'description': p.textbook.title if p.textbook else '',
-            'amount': float(p.amount),
-            'status': p.payment_status,
-        })
+    # Add textbook sales if 'all' or 'textbook' is selected
+    if payment_type in ['all', 'textbook']:
+        for p in textbook_sales:
+            all_payments.append({
+                'date': p.sale_date,
+                'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+                'admission_no': p.student.admission_number if p.student else '',
+                'type': 'Textbook',
+                'description': p.textbook.title if p.textbook else '',
+                'amount': float(p.amount),
+                'status': p.payment_status,
+            })
     
-    for p in hostel_fees:
-        all_payments.append({
-            'date': p.payment_date,
-            'student': p.student.user.get_full_name() if p.student and p.student.user else '',
-            'admission_no': p.student.admission_number if p.student else '',
-            'type': 'Hostel',
-            'description': f"{p.hostel.hostel.name} - {p.hostel.room_number}" if p.hostel else '',
-            'amount': float(p.amount),
-            'status': 'Paid' if p.paid else 'Unpaid',
-        })
+    # Add hostel fees if 'all' or 'hostel' is selected
+    if payment_type in ['all', 'hostel']:
+        for p in hostel_fees:
+            all_payments.append({
+                'date': p.payment_date,
+                'student': p.student.user.get_full_name() if p.student and p.student.user else '',
+                'admission_no': p.student.admission_number if p.student else '',
+                'type': 'Hostel',
+                'description': f"{p.hostel.hostel.name} - {p.hostel.room_number}" if p.hostel else '',
+                'amount': float(p.amount),
+                'status': 'Paid' if p.paid else 'Unpaid',
+            })
     
-    for p in fee_payments:
-        all_payments.append({
-            'date': p.created_at,
-            'student': p.fee.student.user.get_full_name() if p.fee and p.fee.student and p.fee.student.user else '',
-            'admission_no': p.fee.student.admission_number if p.fee and p.fee.student else '',
-            'type': 'School Fee',
-            'description': p.fee.fee_type if p.fee else '',
-            'amount': float(p.amount),
-            'status': 'Completed',
-        })
+    # Add school fee payments if 'all' or 'school_fees' is selected
+    if payment_type in ['all', 'school_fees']:
+        for p in fee_payments:
+            all_payments.append({
+                'date': p.created_at,
+                'student': p.fee.student.user.get_full_name() if p.fee and p.fee.student and p.fee.student.user else '',
+                'admission_no': p.fee.student.admission_number if p.fee and p.fee.student else '',
+                'type': 'School Fee',
+                'description': p.fee.fee_type if p.fee else '',
+                'amount': float(p.amount),
+                'status': 'Completed',
+            })
     
     # Sort by date descending
     all_payments.sort(key=lambda x: x['date'] if x['date'] else '', reverse=True)

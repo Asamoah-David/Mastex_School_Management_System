@@ -9,10 +9,10 @@
             <a href="{% url 'operations:record_payment' %}" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Record Payment
             </a>
-            <a href="{% url 'operations:export_all_payments' %}?format=csv" class="btn btn-success">
+            <a href="{% url 'operations:export_all_payments' %}?format=csv{% if payment_type and payment_type != 'all' %}&payment_type={{ payment_type }}{% endif %}{% if date_filter %}&date_filter={{ date_filter }}{% endif %}{% if start_date %}&from={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&to={{ end_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">
                 <i class="bi bi-download"></i> Export CSV
             </a>
-            <a href="{% url 'operations:export_all_payments' %}?format=excel" class="btn btn-success">
+            <a href="{% url 'operations:export_all_payments' %}?format=excel{% if payment_type and payment_type != 'all' %}&payment_type={{ payment_type }}{% endif %}{% if date_filter %}&date_filter={{ date_filter }}{% endif %}{% if start_date %}&from={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&to={{ end_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">
                 <i class="bi bi-file-earmark-excel"></i> Export Excel
             </a>
         </div>
