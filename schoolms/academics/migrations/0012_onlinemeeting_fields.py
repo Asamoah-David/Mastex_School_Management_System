@@ -1,7 +1,6 @@
-# Generated manually to add missing OnlineMeeting fields
+# Generated manually to add missing target_audience field to OnlineMeeting
 
 from django.db import migrations, models
-import django.utils.timezone
 
 
 class Migration(migrations.Migration):
@@ -11,15 +10,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Add target_audience and class_name fields to OnlineMeeting
+        # Add target_audience field to OnlineMeeting (class_name already exists in some databases)
         migrations.AddField(
             model_name='onlinemeeting',
             name='target_audience',
             field=models.CharField(choices=[('students', 'Students Only'), ('staff', 'Staff Only'), ('all', 'All Users')], default='all', max_length=20),
-        ),
-        migrations.AddField(
-            model_name='onlinemeeting',
-            name='class_name',
-            field=models.CharField(blank=True, default='', max_length=50),
         ),
     ]
