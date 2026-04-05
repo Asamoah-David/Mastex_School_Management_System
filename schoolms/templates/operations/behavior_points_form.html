@@ -13,10 +13,10 @@
         
         <div class="form-group">
             <label for="student">Student</label>
-            <select name="student" id="student" class="form-control" required>
+            <select name="student" id="student" class="form-control searchable-select" required data-placeholder="Search for a student...">
                 <option value="">Select a student</option>
-                {% for student in students %}
-                <option value="{{ student.id }}">{{ student.get_full_name }} - {{ student.student_id }}</option>
+                {% for s in students %}
+                <option value="{{ s.id }}">{{ s.user.get_full_name }} - {{ s.admission_number }}</option>
                 {% endfor %}
             </select>
         </div>
