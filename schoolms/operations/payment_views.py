@@ -168,6 +168,7 @@ def canteen_initiate_payment(request):
             'success': True,
             'authorization_url': result['data']['authorization_url'],
             'reference': reference,
+            'payment_id': payment.id,  # Return payment_id for reliable lookup
             'email': parent_email or student.user.email
         })
     else:
@@ -353,7 +354,8 @@ def bus_initiate_payment(request):
         return JsonResponse({
             'success': True,
             'authorization_url': result['data']['authorization_url'],
-            'reference': reference
+            'reference': reference,
+            'payment_id': payment.id  # Return payment_id for reliable lookup
         })
     else:
         payment.payment_status = 'failed'
@@ -526,7 +528,8 @@ def textbook_initiate_payment(request):
         return JsonResponse({
             'success': True,
             'authorization_url': result['data']['authorization_url'],
-            'reference': reference
+            'reference': reference,
+            'payment_id': sale.id  # Return payment_id for reliable lookup
         })
     else:
         sale.payment_status = 'failed'
@@ -697,7 +700,8 @@ def hostel_initiate_payment(request):
         return JsonResponse({
             'success': True,
             'authorization_url': result['data']['authorization_url'],
-            'reference': reference
+            'reference': reference,
+            'payment_id': fee.id  # Return payment_id for reliable lookup
         })
     else:
         fee.payment_status = 'failed'

@@ -101,13 +101,14 @@ function payCanteen(itemId, price) {
             if (typeof PaystackPop !== 'undefined') {
                 const handler = PaystackPop.setup({
                     key: '{{ paystack_public_key }}',
-                    email: data.email || 'student@mastexschool.com',
+                    email: data.email || '{{ request.user.email }}',
                     amount: amount * 100,
                     reference: data.reference,
                     currency: 'GHS',
                     callback: function(response) {
                         console.log('Payment callback:', response);
-                        window.location.href = '{% url "operations:canteen_payment_verify" %}?reference=' + response.reference;
+                        // Pass both Paystack reference and internal payment_id for reliable lookup
+                        window.location.href = '{% url "operations:canteen_payment_verify" %}?reference=' + response.reference + '&payment_id=' + data.payment_id;
                     },
                     onClose: function() {
                         btn.disabled = false;
@@ -118,6 +119,7 @@ function payCanteen(itemId, price) {
                 handler.openIframe();
             } else {
                 // Fallback: use redirect if PaystackPop not available
+                // The callback URL already includes payment_id
                 console.log('PaystackPop not available, redirecting to:', data.authorization_url);
                 window.location.href = data.authorization_url;
             }

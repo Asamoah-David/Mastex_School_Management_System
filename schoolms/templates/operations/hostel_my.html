@@ -180,7 +180,8 @@ function payHostel(feeId, amount) {
                     currency: 'GHS',
                     callback: function(response) {
                         console.log('Payment callback:', response);
-                        window.location.href = '{% url "operations:hostel_payment_verify" %}?reference=' + response.reference;
+                        // Pass both Paystack reference and internal payment_id for reliable lookup
+                        window.location.href = '{% url "operations:hostel_payment_verify" %}?reference=' + response.reference + '&payment_id=' + data.payment_id;
                     },
                     onClose: function() {
                         btn.disabled = false;
@@ -191,6 +192,7 @@ function payHostel(feeId, amount) {
                 handler.openIframe();
             } else {
                 // Fallback: use redirect if PaystackPop not available
+                // The callback URL already includes payment_id
                 console.log('PaystackPop not available, redirecting to:', data.authorization_url);
                 window.location.href = data.authorization_url;
             }
