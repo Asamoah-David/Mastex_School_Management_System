@@ -57,9 +57,15 @@
                     <td>{{ meeting.scheduled_time|date:"M d, Y H:i" }}</td>
                     <td>{{ meeting.duration }} min</td>
                     <td>
+                        {% if meeting.teacher == request.user %}
+                        <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-success" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                            🎤 Start
+                        </a>
+                        {% else %}
                         <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
                             🎥 Join
                         </a>
+                        {% endif %}
                         {% if meeting.teacher == request.user %}
                         <button class="btn btn-secondary" onclick="deleteMeeting({{ meeting.id }})" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
                             ✕
@@ -100,6 +106,20 @@
                         <span class="tag {% if meeting.status == 'completed' %}tag-success{% else %}tag-muted{% endif %}">
                             {{ meeting.get_status_display }}
                         </span>
+                    </td>
+                    <td>
+                        {% if meeting.teacher == request.user %}
+                        <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-info" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                            👁 View
+                        </a>
+                        <button class="btn btn-secondary" onclick="deleteMeeting({{ meeting.id }})" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                            ✕
+                        </button>
+                        {% else %}
+                        <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-info" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                            👁 View
+                        </a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

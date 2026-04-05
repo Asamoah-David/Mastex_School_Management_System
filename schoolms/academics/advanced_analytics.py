@@ -401,22 +401,28 @@ def online_classes_page(request):
         # Teachers see their own meetings
         meetings = meetings.filter(teacher=request.user)
     elif user_role == 'student':
-        # Students see meetings for their class
+        # Students see meetings for their class or "All Classes" (empty class_name)
         student = Student.objects.filter(user=request.user, school=school).first()
-        if student and student.class_name:
+        if student:
+            # Allow students to see meetings for their class OR meetings for "All Classes" (empty class_name)
             meetings = meetings.filter(
-                Q(class_name=student.class_name) | Q(class_name='')
+                Q(class_name=student.class_name) | Q(class_name='') | Q(class_name__isnull=True)
             )
         else:
-            meetings = meetings.none()
+            # If no student record found, show only "All Classes" meetings
+            meetings = meetings.filter(Q(class_name='') | Q(class_name__isnull=True))
     elif user_role == 'parent':
-        # Parents see meetings for their children's classes
+        # Parents see meetings for their children's classes OR "All Classes"
         children = Student.objects.filter(parent=request.user, school=school)
         child_classes = [c.class_name for c in children if c.class_name]
         if child_classes:
-            meetings = meetings.filter(class_name__in=child_classes)
+            # Allow parents to see meetings for their children's classes OR "All Classes" (empty class_name)
+            meetings = meetings.filter(
+                Q(class_name__in=child_classes) | Q(class_name='') | Q(class_name__isnull=True)
+            )
         else:
-            meetings = meetings.none()
+            # If no class assigned to children, show only "All Classes" meetings
+            meetings = meetings.filter(Q(class_name='') | Q(class_name__isnull=True))
     elif user_role == 'school_admin':
         # School admins see all meetings (no filter)
         pass
