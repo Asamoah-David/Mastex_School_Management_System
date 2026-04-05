@@ -576,7 +576,7 @@ def export_bus_payments(request):
     if not school:
         return redirect("home")
     
-    payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route", "recorded_by").order_by("-created_at")
+    payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route").order_by("-created_at")
     payments = _filter_by_date(payments, request, 'created_at')
     
     fields = [
@@ -663,8 +663,8 @@ def export_all_payments(request):
     
     # Get all payment types
     canteen_payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
-    bus_payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
-    textbook_sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "recorded_by")
+    bus_payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")
+    textbook_sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")
     hostel_fees = HostelFee.objects.filter(school=school).select_related("student", "student__user")
     school_fees = Fee.objects.filter(school=school).select_related("student", "student__user")
     fee_payments = FeePayment.objects.filter(fee__school=school).select_related("fee", "fee__student", "fee__student__user")
