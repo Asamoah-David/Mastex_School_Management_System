@@ -398,8 +398,12 @@ def online_classes_page(request):
     user_role = getattr(request.user, 'role', None)
     
     if user_role == 'teacher':
-        # Teachers see their own meetings
-        meetings = meetings.filter(teacher=request.user)
+        # Teachers see their own meetings + school_admin/staff meetings (staff meetings with no class)
+        from accounts.models import User
+        admin_users = User.objects.filter(school=school, role__in=['school_admin', 'deputy_head', 'hod']).values_list('id', flat=True)
+        meetings = meetings.filter(
+            Q(teacher=request.user) | Q(teacher_id__in=admin_users, class_name='', class_name__isnull=True)
+        )
     elif user_role == 'student':
         # Students see meetings for their class or "All Classes" (empty class_name)
         student = Student.objects.filter(user=request.user, school=school).first()
@@ -433,11 +437,20 @@ def online_classes_page(request):
     upcoming_meetings = meetings.filter(status='scheduled', scheduled_time__gte=timezone.now()).order_by('scheduled_time')
     past_meetings = meetings.filter(Q(status='completed') | Q(scheduled_time__lt=timezone.now())).order_by('-scheduled_time')[:10]
     
+    # Get classes for dropdown (from students)
+    classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
+    classes = [c for c in classes if c]
+    
+    # Get subjects for dropdown
+    subjects = Subject.objects.filter(school=school).order_by('name')
+    
     context = {
         'school': school,
         'upcoming_meetings': upcoming_meetings,
         'past_meetings': past_meetings,
         'total_meetings': meetings.count(),
+        'classes': classes,
+        'subjects': subjects,
     }
     return render(request, 'academics/online_classes.html', context)
 

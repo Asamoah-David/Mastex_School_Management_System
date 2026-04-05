@@ -154,7 +154,7 @@
                 <select name="class_name" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
                     <option value="">All Classes</option>
                     {% for cls in classes %}
-                    <option value="{{ cls.name }}">{{ cls.name }}</option>
+                    <option value="{{ cls }}">{{ cls }}</option>
                     {% endfor %}
                 </select>
             </div>
