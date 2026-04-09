@@ -2,9 +2,11 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
+from django.db.models import Q
 
 from accounts.models import User
 from .models import School
+from core.pagination import paginate
 import uuid
 import logging
 
@@ -18,8 +20,31 @@ def school_list(request):
     """
     if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
         return redirect("accounts:dashboard")
+
+    if request.method == "POST":
+        action = request.POST.get("bulk_action", "")
+        selected_ids = request.POST.getlist("selected_schools")
+        if selected_ids and action:
+            qs = School.objects.filter(id__in=selected_ids)
+            if action == "activate":
+                count = qs.update(is_active=True)
+                messages.success(request, f"Activated {count} school(s).")
+            elif action == "deactivate":
+                count = qs.update(is_active=False)
+                messages.success(request, f"Deactivated {count} school(s).")
+        return redirect("schools:school_list")
+
     schools = School.objects.all().order_by("-is_active", "name")
-    return render(request, "schools/school_list.html", {"schools": schools})
+
+    q = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
+    if q:
+        schools = schools.filter(Q(name__icontains=q) | Q(email__icontains=q) | Q(phone__icontains=q))
+    if status:
+        schools = schools.filter(subscription_status=status)
+
+    page_obj = paginate(request, schools, per_page=25)
+    return render(request, "schools/school_list.html", {"schools": page_obj, "page_obj": page_obj, "q": q, "status": status})
 
 
 @login_required
@@ -120,7 +145,7 @@ def school_register(request):
                 first_name=admin_first_name,
                 last_name=admin_last_name,
                 password=password,
-                role="admin",
+                role="school_admin",
                 school=school,
                 phone=admin_phone
             )
@@ -135,7 +160,7 @@ def school_register(request):
             
         except Exception as e:
             logger.error(f"Error during school registration: {e}")
-            messages.error(request, f"An error occurred during registration. Please try again. Error: {str(e)}")
+            messages.error(request, "An error occurred during registration. Please try again.")
             return render(request, "schools/register.html")
 
     return render(request, "schools/register.html")

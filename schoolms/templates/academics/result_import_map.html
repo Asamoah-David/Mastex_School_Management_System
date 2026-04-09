@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Import Results · Step 2{% endblock %}
+{% block page_title %}Map Columns{% endblock %}
+{% block page_subtitle %}Step 2 of 4 — Tell us which columns contain what{% endblock %}
+{% block content %}
+<div class="content-card" style="max-width:700px;">
+    <p style="margin-bottom:1rem;font-size:.875rem;color:var(--text-secondary);">We found <strong>{{ headers|length }}</strong> columns. Map them to the right fields. At minimum, <strong>Score</strong> and either <strong>Admission No.</strong> or <strong>Student Name</strong> are needed.</p>
+
+    <div style="margin-bottom:1rem;overflow-x:auto;">
+        <table style="font-size:.8rem;">
+            <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+            <tbody>{% for row in preview_rows %}<tr>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="content-grid" style="grid-template-columns:1fr 1fr;gap:.75rem;">
+            <div class="form-group">
+                <label>Admission No. Column</label>
+                <select name="admno_col" class="form-input">
+                    <option value="">— Not mapped —</option>
+                    {% for h in headers %}<option value="{{ forloop.counter0 }}" {% if auto.admno_col == forloop.counter0|stringformat:"s" %}selected{% endif %}>{{ h }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Student Name Column</label>
+                <select name="name_col" class="form-input">
+                    <option value="">— Not mapped —</option>
+                    {% for h in headers %}<option value="{{ forloop.counter0 }}" {% if auto.name_col == forloop.counter0|stringformat:"s" %}selected{% endif %}>{{ h }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Score Column *</label>
+                <select name="score_col" required class="form-input">
+                    <option value="">— Select —</option>
+                    {% for h in headers %}<option value="{{ forloop.counter0 }}" {% if auto.score_col == forloop.counter0|stringformat:"s" %}selected{% endif %}>{{ h }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Remarks Column</label>
+                <select name="remarks_col" class="form-input">
+                    <option value="">— Not mapped —</option>
+                    {% for h in headers %}<option value="{{ forloop.counter0 }}" {% if auto.remarks_col == forloop.counter0|stringformat:"s" %}selected{% endif %}>{{ h }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="button-row" style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary">Preview Import</button>
+            <a href="{% url 'academics:result_import_upload' %}" class="btn btn-secondary">Back</a>
+        </div>
+    </form>
+</div>
+<style>.form-input{width:100%;padding:.5rem .6rem;border-radius:.5rem;border:1px solid rgba(148,163,184,.5);background:rgba(15,23,42,.9);color:var(--text-main);}.form-group{margin-bottom:.75rem;}.form-group label{display:block;font-size:.8rem;color:var(--text-soft);margin-bottom:.25rem;}</style>
+{% endblock %}

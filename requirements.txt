@@ -1,19 +1,39 @@
-Django
-djangorestframework
-djangorestframework-simplejwt
-requests
-reportlab
-matplotlib
-python-dotenv
-gunicorn
-whitenoise
-dj-database-url
-psycopg2-binary
-google-generativeai
-groq
-paystack
-openpyxl
-qrcode
-Pillow
-sentry-sdk
-drf-spectacular
+# Core
+Django>=5.1,<5.3
+gunicorn>=22.0,<24.0
+
+# REST API
+djangorestframework>=3.15,<4.0
+djangorestframework-simplejwt>=5.5,<6.0
+drf-spectacular>=0.27,<1.0
+django-cors-headers>=4.4,<5.0
+
+# Database
+dj-database-url>=2.1,<4.0
+psycopg2-binary>=2.9,<3.0
+
+# Static files & storage
+whitenoise>=6.7,<7.0
+Pillow>=10.0,<12.0
+
+# Monitoring & error tracking
+sentry-sdk>=2.0,<3.0
+
+# Environment
+python-dotenv>=1.0,<2.0
+
+# PDF / Excel / QR
+reportlab>=4.0,<5.0
+matplotlib>=3.9,<4.0
+openpyxl>=3.1,<4.0
+qrcode>=7.4,<9.0
+
+# HTTP client
+requests>=2.32,<3.0
+
+# Redis cache (required only if REDIS_URL is set — Django RedisCache backend)
+redis>=5.0,<6.0
+
+# AI integrations
+groq>=0.9,<2.0
+google-generativeai>=0.8,<1.0

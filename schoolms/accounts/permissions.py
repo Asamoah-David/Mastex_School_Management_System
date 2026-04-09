@@ -1,380 +1,335 @@
 """
 Role-Based Access Control for Mastex School Management System
+==============================================================
 
-School Hierarchy:
-- Headteacher / School Admin → Full school management
-- Deputy Headteacher → Monitor teachers, view reports, academic oversight
-- Head of Department (HOD) → Department management, view department results
-- Class Teacher → ONE assigned class - attendance, homework, results for their class
-- Subject Teacher → MULTIPLE subjects - results for assigned subjects only
-- Administration Staff → Specific department (Finance, Library, Admissions, Health)
-- Students → Own data only
-- Parents → Children's data only
+Role Hierarchy (highest → lowest):
+    super_admin          Platform owner — unrestricted
+    school_admin         Headteacher — full school management
+    deputy_head          Deputy — academic & operational oversight
+    hod                  Head of Department — department scope
+    teacher              Class/Subject teacher — classroom scope
+    accountant           Finance management
+    librarian            Library management
+    admission_officer    Admissions management
+    school_nurse         Health records
+    admin_assistant      General admin / inventory / hostel / transport
+    staff                Generic staff — limited access
+    student              Own data only
+    parent               Children's data only
+
+Every capability function follows the pattern:
+    1. Deny unauthenticated users.
+    2. Allow super_admin unconditionally.
+    3. Check primary role **and** secondary roles via ``has_role()``.
+
+School scoping is orthogonal — it is enforced by decorators and middleware,
+*not* inside these predicate functions (they only answer "does the user have
+this capability?").
 """
 
-from functools import wraps
+from accounts.models import STAFF_ROLES, MANAGEMENT_ROLES, ACADEMIC_ROLES
+
+# ---------------------------------------------------------------------------
+#  Tier constants — exported for use in decorators, templates, and views
+# ---------------------------------------------------------------------------
+
+PLATFORM_ROLES = ("super_admin",)
+
+SCHOOL_MANAGEMENT_ROLES = MANAGEMENT_ROLES  # school_admin, deputy_head, hod
+
+TEACHING_ROLES = ACADEMIC_ROLES  # school_admin, deputy_head, hod, teacher
+
+ALL_STAFF_ROLES = STAFF_ROLES
+
+PORTAL_ROLES = ("student", "parent")
+
+# ---------------------------------------------------------------------------
+#  Low-level role predicates
+# ---------------------------------------------------------------------------
+
+def _has(user, role_value):
+    """Check primary **or** secondary role."""
+    if hasattr(user, "has_role"):
+        return user.has_role(role_value)
+    return getattr(user, "role", None) == role_value
+
+
+def _has_any(user, *role_values):
+    """Return True if the user holds **any** of the listed roles."""
+    return any(_has(user, r) for r in role_values)
+
+
+def _is_authenticated(user):
+    return getattr(user, "is_authenticated", False)
+
+
+# ---------------------------------------------------------------------------
+#  Identity predicates
+# ---------------------------------------------------------------------------
+
+def is_super_admin(user):
+    """Platform Super Admin — full system access."""
+    return _is_authenticated(user) and (
+        getattr(user, "is_superuser", False) or _has(user, "super_admin")
+    )
 
 
 def is_school_admin(user):
-    """Headteacher/School Admin - Full management access"""
-    if getattr(user, "role", None) == "school_admin":
-        return True
-    # Check secondary roles (for users with school_admin as a secondary role)
-    if hasattr(user, 'has_role'):
-        return user.has_role("school_admin")
-    return False
+    """Headteacher / School Admin — full school management."""
+    return _is_authenticated(user) and _has(user, "school_admin")
 
 
 def is_deputy_head(user):
-    """Deputy Headteacher - Monitor teachers, view reports"""
-    return getattr(user, "role", None) == "deputy_head"
+    return _is_authenticated(user) and _has(user, "deputy_head")
 
 
 def is_hod(user):
-    """Head of Department - Department management"""
-    return getattr(user, "role", None) == "hod"
+    return _is_authenticated(user) and _has(user, "hod")
 
 
 def is_teacher(user):
-    """Any teacher role"""
-    return getattr(user, "role", None) == "teacher"
+    return _is_authenticated(user) and _has(user, "teacher")
 
 
 def is_class_teacher(user):
-    """Class Teacher - Has assigned class"""
     if not is_teacher(user):
         return False
-    # Check if user has classes_taught relationship
-    if hasattr(user, 'classes_taught'):
-        return user.classes_taught.exists()
-    return False
+    return hasattr(user, "classes_taught") and user.classes_taught.exists()
 
 
 def is_subject_teacher(user):
-    """Subject Teacher - Has assigned subjects but no class"""
     if not is_teacher(user):
         return False
-    if hasattr(user, 'assigned_subjects') and user.assigned_subjects.exists():
-        return True
-    # Check if no class assigned
-    if hasattr(user, 'classes_taught') and not user.classes_taught.exists():
-        return True
-    return False
+    return hasattr(user, "assigned_subjects") and user.assigned_subjects.exists()
 
 
 def is_admin_staff(user):
-    """Administration staff (Accountant, Librarian, Nurse, etc.)"""
-    return getattr(user, "role", None) in (
-        "accountant", "librarian", "admission_officer",
-        "school_nurse", "admin_assistant", "staff"
+    """Non-teaching admin staff (accountant, librarian, nurse …)."""
+    return _is_authenticated(user) and _has_any(
+        user, "accountant", "librarian", "admission_officer",
+        "school_nurse", "admin_assistant", "staff",
     )
 
 
 def is_parent(user):
-    """Parent - Access children's data only"""
-    return getattr(user, "role", None) == "parent"
+    return _is_authenticated(user) and _has(user, "parent")
 
 
 def is_student(user):
-    """Student - Own data only"""
-    return getattr(user, "role", None) == "student"
+    return _is_authenticated(user) and _has(user, "student")
 
 
-def is_super_admin(user):
-    """Platform Super Admin - Full system access"""
-    return getattr(user, "role", None) == "super_admin" or getattr(user, "is_superuser", False)
+def is_staff_member(user):
+    """Any school staff (teaching + admin)."""
+    return _is_authenticated(user) and (
+        is_super_admin(user) or _has_any(user, *ALL_STAFF_ROLES)
+    )
 
+
+# ---------------------------------------------------------------------------
+#  Capability predicates
+# ---------------------------------------------------------------------------
 
 def can_manage_school(user):
     """
-    Can manage school features (create, edit, delete).
-    Includes: Headteacher, Deputy, HOD, Class Teachers
-    Excludes: Subject Teachers (can only upload own results), Admin Staff
+    Can perform school-wide CRUD — Headteacher, Deputy, HOD, class teachers.
+    Does NOT include admin-only staff (accountant, nurse, etc.).
     """
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
     if is_super_admin(user):
         return True
-    if is_school_admin(user):
-        return True
-    if is_deputy_head(user):
-        return True
-    if is_hod(user):
-        return True
-    # Class teachers can manage their class
-    if is_class_teacher(user):
-        return True
-    return False
-
-
-def can_create_academic_content(user):
-    """
-    Can create academic content (homework, exams, etc.)
-    Includes: Headteacher, Deputy, HOD, Teachers with subjects
-    Excludes: Admin staff, Class-only teachers
-    """
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user):
-        return True
-    if is_school_admin(user):
-        return True
-    if is_deputy_head(user):
-        return True
-    if is_hod(user):
-        return True
-    # Subject teachers can create for their subjects
-    if is_subject_teacher(user):
-        return True
-    # Class teachers can create homework for their class
-    if is_class_teacher(user):
-        return True
-    return False
-
-
-def can_upload_results(user):
-    """
-    Can upload student results.
-    Subject teachers: own subjects only
-    Class teachers: own class only
-    Admins: all
-    """
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user) or is_deputy_head(user) or is_hod(user):
-        return True
-    if is_teacher(user):
-        # Teachers can upload results for their assigned subjects or class
-        if hasattr(user, 'assigned_subjects') and user.assigned_subjects.exists():
-            return True
-        if is_class_teacher(user):
-            return True
-    return False
-
-
-def can_mark_attendance(user):
-    """
-    Can mark student attendance.
-    Class teachers: their class only
-    Subject teachers: their classes
-    """
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user):
-        return True
-    if is_deputy_head(user):
-        return True
-    if is_teacher(user):
-        return True
-    return False
-
-
-def can_view_reports(user):
-    """
-    Can view academic reports and analytics.
-    Includes: All academic staff + Admin staff (for monitoring)
-    """
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user):
-        return True
-    if is_deputy_head(user):
-        return True
-    if is_hod(user):
-        return True
-    if is_teacher(user):
-        return True
-    if is_admin_staff(user):
-        return True  # Admin can monitor academic performance
-    return False
-
-
-def can_manage_finance(user):
-    """Can manage finances - Accountant, Bursar, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user):
-        return True
-    if getattr(user, "role", None) in ("accountant",):
-        return True
-    # Check secondary roles
-    if hasattr(user, 'has_role') and user.has_role("accountant"):
-        return True
-    return False
-
-
-def can_manage_library(user):
-    """Can manage library - Librarian, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user):
-        return True
-    if getattr(user, "role", None) in ("librarian",):
-        return True
-    # Check secondary roles
-    if hasattr(user, 'has_role') and user.has_role("librarian"):
-        return True
-    return False
-
-
-def can_manage_admissions(user):
-    """Can manage admissions - Admission Officer, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user):
-        return True
-    if getattr(user, "role", None) in ("admission_officer",):
-        return True
-    # Check secondary roles
-    if hasattr(user, 'has_role') and user.has_role("admission_officer"):
-        return True
-    return False
-
-
-def can_manage_health(user):
-    """Can manage health records - School Nurse, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user):
-        return True
-    if getattr(user, "role", None) in ("school_nurse",):
-        return True
-    # Check secondary roles
-    if hasattr(user, 'has_role') and user.has_role("school_nurse"):
-        return True
-    return False
-
-
-def can_manage_inventory(user):
-    """Can manage inventory - Admin Assistant, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if is_super_admin(user) or is_school_admin(user):
-        return True
-    if getattr(user, "role", None) in ("admin_assistant",):
-        return True
-    # Check secondary roles
-    if hasattr(user, 'has_role') and user.has_role("admin_assistant"):
-        return True
-    return False
+    return _has_any(user, "school_admin", "deputy_head", "hod") or is_class_teacher(user)
 
 
 def user_can_manage_school(user):
     """
-    Legacy function - for backward compatibility.
-    Treats teachers as school managers.
+    Legacy wide-net helper kept for backward compatibility.
+    Returns True for any staff member attached to a school.
+    Prefer the narrower ``can_manage_school`` for new code.
     """
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
     if is_super_admin(user):
         return True
-    return getattr(user, "role", None) in (
-        "school_admin", "deputy_head", "hod",
-        "teacher", "accountant", "librarian",
-        "admission_officer", "school_nurse", "admin_assistant", "staff"
-    ) and bool(getattr(user, "school_id", None))
+    return _has_any(user, *ALL_STAFF_ROLES) and bool(getattr(user, "school_id", None))
+
+
+# --- Academic content -------------------------------------------------
+
+def can_create_academic_content(user):
+    """Create homework, exams, online meetings, etc."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user):
+        return True
+    return _has_any(user, *TEACHING_ROLES)
+
+
+def can_upload_results(user):
+    """Upload / edit student results."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user):
+        return True
+    if _has_any(user, "school_admin", "deputy_head", "hod"):
+        return True
+    if is_teacher(user):
+        return (
+            (hasattr(user, "assigned_subjects") and user.assigned_subjects.exists())
+            or is_class_teacher(user)
+        )
+    return False
+
+
+def can_mark_attendance(user):
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "teacher")
+
+
+def can_view_reports(user):
+    """View academic analytics / reports."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user):
+        return True
+    return _has_any(user, *ALL_STAFF_ROLES)
+
+
+# --- Department-specific capabilities --------------------------------
+
+def can_manage_finance(user):
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    return _has(user, "accountant")
+
+
+def can_manage_library(user):
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    return _has(user, "librarian")
+
+
+def can_manage_admissions(user):
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    return _has(user, "admission_officer")
+
+
+def can_manage_health(user):
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    return _has(user, "school_nurse")
+
+
+def can_manage_inventory(user):
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or is_school_admin(user):
+        return True
+    return _has(user, "admin_assistant")
 
 
 def can_manage_hostel(user):
-    """Can manage hostel - Admin Assistant, Headteacher, Deputy"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
     if is_super_admin(user) or is_school_admin(user):
         return True
-    if is_deputy_head(user):
-        return True
-    if getattr(user, "role", None) in ("admin_assistant",):
-        return True
-    return False
+    return _has_any(user, "deputy_head", "admin_assistant")
 
 
 def can_manage_transport(user):
-    """Can manage transport/bus - Admin Assistant, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
     if is_super_admin(user) or is_school_admin(user):
         return True
-    if is_deputy_head(user):
-        return True
-    if getattr(user, "role", None) in ("admin_assistant",):
-        return True
-    return False
+    return _has_any(user, "deputy_head", "admin_assistant")
 
 
 def can_manage_sports(user):
-    """Can manage sports activities - PE Teacher, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user):
         return True
-    if is_deputy_head(user):
-        return True
-    if is_hod(user):
-        return True
-    # Teachers can manage sports if assigned
-    if is_teacher(user):
-        return True
-    return False
+    return _has_any(user, "school_admin", "deputy_head", "hod", "teacher")
 
 
 def can_manage_clubs(user):
-    """Can manage clubs and activities - Teachers, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user):
         return True
-    if is_deputy_head(user):
-        return True
-    if is_hod(user):
-        return True
-    if is_teacher(user):
-        return True
-    return False
+    return _has_any(user, "school_admin", "deputy_head", "hod", "teacher")
 
 
 def can_manage_exam_halls(user):
-    """Can manage exam halls and seating plans - Admin, Deputy, HOD"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user):
         return True
-    if is_deputy_head(user):
-        return True
-    if is_hod(user):
-        return True
-    return False
+    return _has_any(user, "school_admin", "deputy_head", "hod")
 
 
 def can_manage_id_cards(user):
-    """Can manage ID cards - Admin Assistant, Admission Officer, Headteacher"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
     if is_super_admin(user) or is_school_admin(user):
         return True
-    if is_deputy_head(user):
-        return True
-    if getattr(user, "role", None) in ("admin_assistant", "admission_officer"):
-        return True
-    return False
+    return _has_any(user, "deputy_head", "admin_assistant", "admission_officer")
 
 
 def can_view_all_departments(user):
-    """Can view all department data - School Admin, Deputy Head"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user):
         return True
-    if is_deputy_head(user):
-        return True
-    return False
+    return _has_any(user, "school_admin", "deputy_head")
 
 
 def can_approve_admissions(user):
-    """Can approve admission applications - School Admin, Admission Officer"""
-    if not getattr(user, "is_authenticated", False):
+    if not _is_authenticated(user):
         return False
     if is_super_admin(user) or is_school_admin(user):
         return True
-    if getattr(user, "role", None) in ("admission_officer",):
+    return _has(user, "admission_officer")
+
+
+def can_export_data(user):
+    """Can export school data (CSV, Excel, PDF)."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user):
         return True
-    return False
+    return _has_any(user, *SCHOOL_MANAGEMENT_ROLES, "accountant")
+
+
+# ---------------------------------------------------------------------------
+#  School scoping helpers
+# ---------------------------------------------------------------------------
+
+def get_user_school(user):
+    """Return the user's school or None. Safe for unauthenticated users."""
+    if not _is_authenticated(user):
+        return None
+    return getattr(user, "school", None)
+
+
+def belongs_to_school(user, school):
+    """True if the user belongs to the given school (or is a super admin)."""
+    if is_super_admin(user):
+        return True
+    user_school = get_user_school(user)
+    if user_school is None or school is None:
+        return False
+    return user_school.pk == (school.pk if hasattr(school, "pk") else school)

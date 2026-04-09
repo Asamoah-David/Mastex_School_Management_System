@@ -1,535 +1,518 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}School Dashboard - {{ school.name }}{% endblock %}
-
-{% block page_title %}School Dashboard{% endblock %}
-{% block page_subtitle %}Overview and statistics for {{ school.name }}{% endblock %}
+{% block title %}{{ school.name }} - Dashboard{% endblock %}
+{% block page_title %}{{ school.name }}{% endblock %}
+{% block page_subtitle %}School administration dashboard{% endblock %}
 
 {% block content %}
 
 {% if show_expiry_warning %}
-<!-- Subscription Expiry Warning Banner -->
-<div class="alert alert-{% if expiry_severity == 'critical' %}error{% elif expiry_severity == 'warning' %}warning{% else %}info{% endif %}" style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; background: rgba(249, 115, 115, 0.15); border: 1px solid rgba(249, 115, 115, 0.4);">
-    <div style="display: flex; align-items: center; gap: 0.75rem;">
-        <span style="font-size: 1.5rem;">⚠️</span>
-        <div>
-            <strong style="color: #f87171;">{{ expiry_title }}</strong>
-            <p style="margin: 0.25rem 0 0; font-size: 0.9rem; color: #e5e7eb;">{{ expiry_message }}</p>
-        </div>
+<div class="alert alert-{% if expiry_severity == 'critical' %}error{% elif expiry_severity == 'warning' %}warning{% else %}info{% endif %}" style="margin-bottom:1rem;">
+    <span class="alert-icon">&#x26A0;</span>
+    <div class="alert-body">
+        <strong>{{ expiry_title }}</strong><br>
+        <span style="font-size:0.85rem;">{{ expiry_message }}</span>
     </div>
-    <a href="{% url 'finance:subscription' %}" class="btn btn-secondary" style="white-space: nowrap; border-color: #f87171; color: #f87171;">
-        {{ expiry_button_text }}
-    </a>
+    <a href="{% url 'finance:subscription' %}" class="btn btn-sm btn-primary" style="white-space:nowrap;">{{ expiry_button_text }}</a>
 </div>
 {% endif %}
 
-<!-- Statistics Cards Grid with Icons -->
-<div class="content-grid">
-    <!-- Total Students -->
-    <section class="metric">
-        <span class="metric-icon">🎓</span>
-        <div class="metric-label">Total Students</div>
-        <div class="metric-value" data-count="{{ total_students }}">{{ total_students }}</div>
-    </section>
+<!-- Quick Actions -->
+{% if quick_actions %}
+<div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
+    {% for qa in quick_actions %}
+    <a href="{{ qa.url }}" class="content-card" style="flex:1;min-width:140px;text-align:center;padding:1rem;text-decoration:none;transition:transform .15s;">
+        <div style="font-size:1.5rem;margin-bottom:.25rem;">{{ qa.icon }}</div>
+        <div style="font-size:.85rem;font-weight:600;color:var(--text-primary);">{{ qa.label }}</div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
 
-    <!-- Male Students -->
-    <section class="metric">
-        <span class="metric-icon">👦</span>
-        <div class="metric-label">Male Students</div>
-        <div class="metric-value" data-count="{{ male_students }}">{{ male_students }}</div>
-    </section>
+<!-- Attention Center -->
+{% if pending_admissions or overdue_books or absent_today %}
+<div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
+    {% if pending_admissions %}
+    <a href="{% url 'operations:admission_list' %}" class="content-card" style="flex:1;min-width:200px;border-left:4px solid var(--warning,#f59e0b);padding:.75rem 1rem;text-decoration:none;">
+        <div style="font-size:1.25rem;font-weight:700;color:var(--warning,#f59e0b);">{{ pending_admissions }}</div>
+        <div style="font-size:.8rem;color:var(--text-secondary);">Pending Admissions</div>
+    </a>
+    {% endif %}
+    {% if overdue_books %}
+    <a href="{% url 'operations:library_catalog' %}" class="content-card" style="flex:1;min-width:200px;border-left:4px solid var(--danger,#ef4444);padding:.75rem 1rem;text-decoration:none;">
+        <div style="font-size:1.25rem;font-weight:700;color:var(--danger,#ef4444);">{{ overdue_books }}</div>
+        <div style="font-size:.8rem;color:var(--text-secondary);">Overdue Library Books</div>
+    </a>
+    {% endif %}
+    {% if absent_today %}
+    <a href="{% url 'operations:attendance_list' %}" class="content-card" style="flex:1;min-width:200px;border-left:4px solid var(--info,#6366f1);padding:.75rem 1rem;text-decoration:none;">
+        <div style="font-size:1.25rem;font-weight:700;color:var(--info,#6366f1);">{{ absent_today }}</div>
+        <div style="font-size:.8rem;color:var(--text-secondary);">Students Absent Today</div>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
 
-    <!-- Female Students -->
-    <section class="metric">
-        <span class="metric-icon">👧</span>
-        <div class="metric-label">Female Students</div>
-        <div class="metric-value" data-count="{{ female_students }}">{{ female_students }}</div>
-    </section>
-
-    <!-- Total Staff -->
-    <section class="metric">
-        <span class="metric-icon">👥</span>
-        <div class="metric-label">Total Staff</div>
-        <div class="metric-value" data-count="{{ total_staff }}">{{ total_staff }}</div>
-    </section>
-
-    <!-- Teachers -->
-    <section class="metric">
-        <span class="metric-icon">👨‍🏫</span>
-        <div class="metric-label">Teachers</div>
-        <div class="metric-value" data-count="{{ teachers_count }}">{{ teachers_count }}</div>
-    </section>
-
-    <!-- Present Today -->
-    <section class="metric">
-        <span class="metric-icon">✅</span>
-        <div class="metric-label">Present Today</div>
-        <div class="metric-value" data-count="{{ present_today }}">{{ present_today }}</div>
-    </section>
-
-    <!-- Fees Collected -->
-    <section class="metric">
-        <span class="metric-icon">💚</span>
-        <div class="metric-label">Fees Collected (GHS)</div>
-        <div class="metric-value" data-count="{{ paid_fees }}">{{ paid_fees }}</div>
-    </section>
-
-    <!-- Unpaid Fees -->
-    <section class="metric">
-        <span class="metric-icon">💔</span>
-        <div class="metric-label">Unpaid Fees</div>
-        <div class="metric-value" data-count="{{ unpaid_fees }}">{{ unpaid_fees }}</div>
-    </section>
+<!-- Key Metrics -->
+<div class="metric-grid" style="margin-bottom:1rem;">
+    <div class="metric-card">
+        <div class="metric-card-icon green">&#x1F393;</div>
+        <div class="metric-card-label">Total Students</div>
+        <div class="metric-card-value" data-count="{{ total_students }}">{{ total_students }}</div>
+        <div class="metric-card-trend flat">{{ male_students }} male &middot; {{ female_students }} female</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card-icon blue">&#x1F468;&#x200D;&#x1F3EB;</div>
+        <div class="metric-card-label">Staff / Teachers</div>
+        <div class="metric-card-value" data-count="{{ total_staff }}">{{ total_staff }}</div>
+        <div class="metric-card-trend flat">{{ teachers_count }} teacher{{ teachers_count|pluralize }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card-icon green">&#x2705;</div>
+        <div class="metric-card-label">Present Today</div>
+        <div class="metric-card-value" data-count="{{ present_today }}">{{ present_today }}</div>
+        {% if absent_today or late_today or excused_today %}
+        <div class="metric-card-trend {% if absent_today %}down{% else %}flat{% endif %}">
+            {{ absent_today }} absent &middot; {{ late_today }} late{% if excused_today %} &middot; {{ excused_today }} excused{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="metric-card">
+        <div class="metric-card-icon amber">&#x1F4B0;</div>
+        <div class="metric-card-label">Fees Collected</div>
+        <div class="metric-card-value" data-count="{{ paid_fees }}">GHS {{ paid_fees }}</div>
+        {% if unpaid_fees %}<div class="metric-card-trend down">GHS {{ unpaid_fees }} outstanding</div>{% endif %}
+    </div>
 </div>
 
-<!-- Charts Section -->
-<div class="charts-grid" style="margin-top: 1.2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem;">
-    
-    <!-- Gender Distribution - Doughnut Chart -->
-    <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">🎓 Student Gender Distribution</h3>
-        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+{{ attendance_trend_chart|json_script:"school-attendance-trend-json" }}
+{{ subject_perf_chart|json_script:"school-subject-perf-json" }}
+
+<!-- Insights: academics, finance KPIs, attendance trend, notifications -->
+<div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Academic performance</span>
+            <a href="{% url 'academics:results_management' %}" class="card-header-action">Manage results</a>
+        </div>
+        <div class="card-body">
+            {% if academic_insights.has_data %}
+            <p style="margin:0 0 .75rem;font-size:.9rem;color:var(--text-secondary);">
+                Based on <strong>{{ academic_insights.result_count }}</strong> result record{{ academic_insights.result_count|pluralize }} for <strong>{{ academic_insights.term_label }}</strong>.
+            </p>
+            <div class="stat-row">
+                <span class="stat-row-label">School average score</span>
+                <span class="stat-row-value" style="color:#4ade80;">{{ academic_insights.avg_pct }}%</span>
+            </div>
+            {% if academic_insights.below_threshold %}
+            <div style="margin:.5rem 0;padding:.5rem .75rem;border-radius:8px;background:rgba(239,68,68,.12);font-size:.85rem;">
+                <strong>{{ academic_insights.below_threshold }}</strong> result{{ academic_insights.below_threshold|pluralize }} below 50% — prioritize support or follow-up.
+                <a href="{% url 'academics:result_list' %}" style="margin-left:.35rem;">View results</a>
+            </div>
+            {% endif %}
+            {% if subject_perf_chart.labels %}
+            <div style="height:180px;margin-top:.75rem;">
+                <canvas id="subjectPerfChart"></canvas>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="empty-state" style="padding:1rem 0;">
+                <div class="empty-state-desc">No graded results for the current term yet. Upload scores to unlock averages and subject breakdown.</div>
+                <a href="{% url 'academics:result_upload' %}" class="btn btn-sm btn-primary" style="margin-top:.75rem;">Upload results</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Fee collection insights</span>
+            <a href="{% url 'finance:fee_list' %}" class="card-header-action">Fees</a>
+        </div>
+        <div class="card-body">
+            <div class="stat-row">
+                <span class="stat-row-label">Unpaid fee records</span>
+                <span class="stat-row-value" style="color:#f87171;">{{ finance_insights.unpaid_invoices }}</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-row-label">Partial payments (still open)</span>
+                <span class="stat-row-value" style="color:#fbbf24;">{{ finance_insights.partial_invoices }}</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-row-label">Outstanding balance (unpaid lines)</span>
+                <span class="stat-row-value">GHS {{ finance_insights.outstanding_balance|floatformat:2 }}</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-row-label">Collected last 7 days</span>
+                <span class="stat-row-value" style="color:#4ade80;">GHS {{ finance_insights.week_collection|floatformat:2 }}</span>
+            </div>
+            <p style="margin:.5rem 0 0;font-size:.8rem;color:var(--text-secondary);">
+                {% if finance_insights.collection_rate_pct is not None %}
+                Overall collection vs billed: <strong>{{ finance_insights.collection_rate_pct }}%</strong>
+                (GHS {{ paid_fees }} of {{ total_fees }} recorded on fee lines).
+                {% else %}
+                Set fee amounts on student records to track collection rate.
+                {% endif %}
+                {% if finance_insights.week_payment_count %}
+                · {{ finance_insights.week_payment_count }} payment{{ finance_insights.week_payment_count|pluralize }} this week.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Attendance trend (14 days)</span>
+            <a href="{% url 'operations:attendance_list' %}" class="card-header-action">History</a>
+        </div>
+        <div class="card-body" style="height:220px;">
+            {% if attendance_trend_chart.has_data %}
+            <canvas id="attendanceTrendChart"></canvas>
+            {% else %}
+            <div class="empty-state" style="padding:2rem 1rem;">
+                <div class="empty-state-desc">No attendance marks in the last two weeks. Mark attendance daily to see trends.</div>
+                <a href="{% url 'operations:attendance_mark' %}" class="btn btn-sm btn-primary" style="margin-top:.75rem;">Mark attendance</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Notifications</span>
+            {% if unread_notification_count %}
+            <span class="badge badge-warning" style="margin-right:.5rem;">{{ unread_notification_count }} unread</span>
+            {% endif %}
+            <a href="{% url 'notifications:list' %}" class="card-header-action">All</a>
+        </div>
+        <div class="card-body" style="max-height:260px;overflow-y:auto;">
+            {% if recent_notifications %}
+            <ul class="activity-list" style="margin:0;">
+                {% for n in recent_notifications %}
+                <li class="activity-item" style="align-items:flex-start;">
+                    <div class="activity-icon school" style="flex-shrink:0;">&#x1F514;</div>
+                    <div class="activity-content" style="min-width:0;">
+                        {% if n.link %}
+                        <a href="{{ n.link }}" class="activity-text" style="font-weight:600;color:inherit;text-decoration:none;">{{ n.title }}</a>
+                        {% else %}
+                        <div class="activity-text" style="font-weight:600;">{{ n.title }}</div>
+                        {% endif %}
+                        <div class="activity-time" style="font-size:.78rem;">{{ n.created_at|timesince }} ago{% if not n.is_read %} · <span style="color:var(--primary,#6366f1);">Unread</span>{% endif %}</div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state" style="padding:1rem;">
+                <div class="empty-state-desc">No notifications yet. Alerts for payments, attendance, and messages will show here.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="dashboard-grid dashboard-grid-3" style="margin-bottom:1rem;">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Gender Distribution</span>
+        </div>
+        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
             <canvas id="genderChart"></canvas>
         </div>
     </div>
-
-    <!-- Attendance Overview - Bar Chart -->
-    <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">✅ Today's Attendance Overview</h3>
-        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Attendance Today</span>
+        </div>
+        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
             <canvas id="attendanceChart"></canvas>
         </div>
     </div>
-
-    <!-- Fee Collection - Doughnut Chart -->
-    <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">💰 Fee Collection Status</h3>
-        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Fee Collection</span>
+        </div>
+        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
             <canvas id="feeChart"></canvas>
         </div>
     </div>
 </div>
 
-<!-- Recent Payments Section -->
-{% if recent_payments %}
-<div class="content-card" style="margin-top: 1.2rem;">
-    <h3 class="section-title">💳 Recent Payments</h3>
-    <table class="table" style="margin-top: 0.5rem;">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Student</th>
-                <th>Fee Type</th>
-                <th>Amount (GHS)</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for payment in recent_payments %}
-            <tr>
-                <td>{{ payment.created_at|date:"M d, Y" }}</td>
-                <td>
-                    {% if payment.fee.student %}
-                        {{ payment.fee.student.user.get_full_name|default:payment.fee.student.user.username }}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>{{ payment.fee.fee_type|default:"General" }}</td>
-                <td>{{ payment.amount }}</td>
-                <td>
-                    <span class="badge badge-success">Completed</span>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <div style="margin-top: 1rem; text-align: center;">
-        <a href="{% url 'finance:payment_status_check' %}" class="btn btn-sm btn-primary">
-            🔍 Check Payment Status
-        </a>
-        <a href="{% url 'operations:student_payment_history' %}" class="btn btn-sm btn-secondary" style="margin-left: 0.5rem;">
-            📋 View All Payments
-        </a>
+<!-- Quick Actions -->
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+        <span class="card-header-title">Quick Actions</span>
     </div>
-</div>
-{% endif %}
-
-<!-- Quick Actions Section - Organized by Category -->
-<div class="content-card" style="margin-top: 1.2rem;">
-    <h3 class="section-title">⚡ Quick Actions</h3>
-    
-    <!-- Category: User Management -->
-    <div style="margin-bottom: 1.25rem;">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
-            <span style="font-size: 0.95rem;">👥</span>
-            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">User Management</span>
-        </div>
+    <div class="card-body">
         <div class="quick-actions">
-            {% if user.role in "admin school_admin" %}
+            {% if user.role == "school_admin" or user.is_superuser %}
             <a href="{% url 'students:student_register' %}" class="quick-action-btn">
-                <span class="quick-action-icon">👨‍🎓</span>
+                <span class="quick-action-icon">&#x1F393;</span>
                 <span class="quick-action-label">Add Student</span>
             </a>
             <a href="{% url 'accounts:staff_register' %}" class="quick-action-btn">
-                <span class="quick-action-icon">👔</span>
+                <span class="quick-action-icon">&#x1F464;</span>
                 <span class="quick-action-label">Add Staff</span>
             </a>
-            <a href="{% url 'accounts:parent_list' %}" class="quick-action-btn">
-                <span class="quick-action-icon">👨‍👩‍👧</span>
-                <span class="quick-action-label">Parents</span>
-            </a>
             {% endif %}
-        </div>
-    </div>
-    
-    <!-- Category: Student Operations -->
-    <div style="margin-bottom: 1.25rem;">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
-            <span style="font-size: 0.95rem;">🎓</span>
-            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Student Operations</span>
-        </div>
-        <div class="quick-actions">
-            <a href="{% url 'students:graduate_class' %}" class="quick-action-btn">
-                <span class="quick-action-icon">🎓</span>
-                <span class="quick-action-label">Graduate Class</span>
-            </a>
-            <a href="{% url 'students:bulk_student_status' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📊</span>
-                <span class="quick-action-label">Bulk Status</span>
-            </a>
-            <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📈</span>
-                <span class="quick-action-label">Promote</span>
-            </a>
-            {% if user.is_school_admin %}
-            <a href="{% url 'operations:teacher_attendance_mark' %}" class="quick-action-btn">
-                <span class="quick-action-icon">✅</span>
-                <span class="quick-action-label">Teacher Attendance</span>
-            </a>
-            {% else %}
-            <a href="{% url 'operations:attendance_mark' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📋</span>
-                <span class="quick-action-label">Mark Attendance</span>
-            </a>
-            {% endif %}
-        </div>
-    </div>
-    
-    <!-- Category: Academics -->
-    <div style="margin-bottom: 1.25rem;">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
-            <span style="font-size: 0.95rem;">📖</span>
-            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Academics</span>
-        </div>
-        <div class="quick-actions">
             <a href="{% url 'academics:result_upload' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📊</span>
+                <span class="quick-action-icon">&#x1F4CA;</span>
                 <span class="quick-action-label">Upload Results</span>
             </a>
-        </div>
-    </div>
-    
-    <!-- Category: Finance -->
-    <div style="margin-bottom: 1.25rem;">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
-            <span style="font-size: 0.95rem;">💰</span>
-            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Finance</span>
-        </div>
-        <div class="quick-actions">
+            <a href="{% url 'operations:attendance_mark' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x2705;</span>
+                <span class="quick-action-label">Attendance</span>
+            </a>
             <a href="{% url 'finance:fee_list' %}" class="quick-action-btn">
-                <span class="quick-action-icon">💰</span>
+                <span class="quick-action-icon">&#x1F4B5;</span>
                 <span class="quick-action-label">Manage Fees</span>
             </a>
-            <a href="{% url 'operations:expense_list' %}" class="quick-action-btn">
-                <span class="quick-action-icon">💸</span>
-                <span class="quick-action-label">Expenses</span>
-            </a>
-            <a href="{% url 'operations:budget_list' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📊</span>
-                <span class="quick-action-label">Budgets</span>
-            </a>
-            <a href="{% url 'finance:subscription' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📋</span>
-                <span class="quick-action-label">Subscription</span>
-            </a>
-        </div>
-    </div>
-    
-    <!-- Category: General -->
-    <div>
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(148, 163, 184, 0.25);">
-            <span style="font-size: 0.95rem;">📢</span>
-            <span style="font-size: 0.78rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">General</span>
-        </div>
-        <div class="quick-actions">
-            <a href="{% url 'operations:announcement_list' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📢</span>
-                <span class="quick-action-label">Announcements</span>
+            <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4C8;</span>
+                <span class="quick-action-label">Promotions</span>
             </a>
             <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
-                <span class="quick-action-icon">💬</span>
-                <span class="quick-action-label">Messages</span>
+                <span class="quick-action-icon">&#x1F4AC;</span>
+                <span class="quick-action-label">Send Message</span>
             </a>
             <a href="{% url 'operations:calendar' %}" class="quick-action-btn">
-                <span class="quick-action-icon">📅</span>
+                <span class="quick-action-icon">&#x1F4C5;</span>
                 <span class="quick-action-label">Calendar</span>
             </a>
         </div>
     </div>
 </div>
 
-<!-- Bottom Section: Upcoming Events & Fee Overview - Two Column -->
-<div class="two-col-grid" style="margin-top: 1.2rem;">
-    <!-- Upcoming Events -->
-    <div class="content-card">
-        <h3 class="section-title">🎉 Upcoming Events</h3>
-        {% if upcoming_events %}
-        <ul class="activity-list">
-            {% for event in upcoming_events %}
-            <li class="activity-item">
-                <div class="activity-icon" style="background: rgba(34, 197, 94, 0.2);">📅</div>
-                <div class="activity-content">
-                    <div class="activity-text">{{ event.title }}</div>
-                    <div class="activity-time">{{ event.start_date|date:"M d, Y" }} - {{ event.get_event_type_display }}</div>
+<!-- Two-Column: Recent Payments + Events/Fee Overview -->
+<div class="dashboard-grid dashboard-grid-2">
+    <!-- Recent Payments -->
+    <div class="card card-flush">
+        <div class="card-header">
+            <span class="card-header-title">Recent Payments</span>
+            <a href="{% url 'operations:student_payment_history' %}" class="card-header-action">View All</a>
+        </div>
+        <div class="card-body">
+            {% if recent_payments %}
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in recent_payments %}
+                        <tr>
+                            <td>{{ payment.created_at|date:"M d" }}</td>
+                            <td class="truncate" style="max-width:140px;">{% if payment.fee.student %}{{ payment.fee.student.user.get_full_name|default:payment.fee.student.user.username }}{% else %}N/A{% endif %}</td>
+                            <td>GHS {{ payment.amount }}</td>
+                            <td><span class="badge badge-success">Paid</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">&#x1F4B3;</div>
+                <div class="empty-state-title">No Recent Payments</div>
+                <div class="empty-state-desc">Payments will appear here once students make fee payments.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right Column: Events + Fee Breakdown -->
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+        <!-- Fee Overview -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-header-title">Fee Overview</span>
+                <a href="{% url 'operations:payment_dashboard' %}" class="card-header-action">Details</a>
+            </div>
+            <div class="card-body">
+                <div class="stat-row">
+                    <span class="stat-row-label">Collected</span>
+                    <span class="stat-row-value" style="color:#4ade80;">GHS {{ paid_fees }}</span>
                 </div>
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <div class="empty-state">
-            <div class="empty-state-icon">📅</div>
-            <div class="empty-state-title">No Upcoming Events</div>
-            <div class="empty-state-desc">Add events from the school calendar.</div>
+                <div style="margin:0.5rem 0;">
+                    <div class="progress">
+                        {% with bar_total=paid_fees|add:unpaid_fees %}
+                        <div class="progress-bar progress-bar-green" style="width:{% if bar_total %} {% widthratio paid_fees bar_total 100 %}%{% else %}0%{% endif %};"></div>
+                        {% endwith %}
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-row-label">Outstanding</span>
+                    <span class="stat-row-value" style="color:#f87171;">GHS {{ unpaid_fees }}</span>
+                </div>
+            </div>
         </div>
-        {% endif %}
-    </div>
 
-    <!-- Fee Overview -->
-    <div class="content-card">
-        <h3 class="section-title">💰 Fee Overview</h3>
-        
-        <!-- Collected -->
-        <div style="margin-bottom: 1.25rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <span style="color: #4ade80; font-weight: 600;">Collected</span>
-                <span style="color: #e5e7eb; font-weight: 600;">GHS {{ paid_fees }}</span>
+        <!-- Upcoming Events -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-header-title">Upcoming Events</span>
+                <a href="{% url 'operations:calendar' %}" class="card-header-action">Calendar</a>
             </div>
-            <div style="background: rgba(15, 23, 42, 0.9); border-radius: 999px; height: 10px; overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.3);">
-                <div style="background: linear-gradient(90deg, #22c55e, #4ade80); height: 100%; width: 75%; border-radius: 999px; transition: width 1s ease;"></div>
-            </div>
-        </div>
-        
-        <!-- Outstanding -->
-        <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <span style="color: #f87171; font-weight: 600;">Outstanding</span>
-                <span style="color: #e5e7eb; font-weight: 600;">GHS {{ unpaid_fees }}</span>
-            </div>
-            <div style="background: rgba(15, 23, 42, 0.9); border-radius: 999px; height: 10px; overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.3);">
-                <div style="background: linear-gradient(90deg, #ef4444, #f87171); height: 100%; width: 25%; border-radius: 999px; transition: width 1s ease;"></div>
+            <div class="card-body">
+                {% if upcoming_events %}
+                <ul class="activity-list">
+                    {% for event in upcoming_events %}
+                    <li class="activity-item">
+                        <div class="activity-icon school">&#x1F4C5;</div>
+                        <div class="activity-content">
+                            <div class="activity-text">{{ event.title }}</div>
+                            <div class="activity-time">{{ event.start_date|date:"M d, Y" }} &middot; {{ event.get_event_type_display }}</div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="empty-state" style="padding:1.5rem;">
+                    <div class="empty-state-desc">No upcoming events</div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Credentials & Support Information -->
-<div class="content-card" style="margin-top: 1.2rem;">
-    <h3 class="section-title">🔐 Login Credentials & Support</h3>
-    <p style="font-size: 0.9rem; color: #9ca3af;">
-        All users (staff, parents, and students) access Mastex SchoolOS with
-        usernames and passwords that <strong>you or your admin team assign</strong>
-        when registering them. There is no public registration or automatic
-        account creation.
-    </p>
-    <ul style="font-size: 0.9rem; color: #e5e7eb; padding-left: 1.2rem; margin-top: 0.5rem;">
-        <li>Use <strong>"Add Staff"</strong>, <strong>"Manage Parents"</strong>, and
-            <strong>"Add Student"</strong> to create and update user accounts.</li>
-        <li>If a user forgets their username or password, they should contact the school
-            office. You can then look up their account and change their password safely.</li>
-        <li>For new schools joining the platform, the platform super admin creates the
-            first school admin account and shares the login credentials securely.</li>
-    </ul>
-</div>
-
-<!-- Animated Counters Script -->
+<!-- Charts Script -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Animated Counters
-    const counters = document.querySelectorAll('.metric-value[data-count]');
-    
-    counters.forEach(counter => {
-        const target = parseInt(counter.getAttribute('data-count')) || 0;
-        if (target > 0) {
-            counter.classList.add('animated');
-            animateCounter(counter, target);
-        }
+    var counters = document.querySelectorAll('.metric-card-value[data-count]');
+    counters.forEach(function(el) {
+        var target = parseInt(el.getAttribute('data-count')) || 0;
+        if (target <= 0) return;
+        var current = 0, step = target / 40, interval = setInterval(function() {
+            current += step;
+            if (current >= target) { el.textContent = el.textContent.indexOf('GHS') >= 0 ? 'GHS ' + target.toLocaleString() : target.toLocaleString(); clearInterval(interval); }
+            else { el.textContent = el.textContent.indexOf('GHS') >= 0 ? 'GHS ' + Math.floor(current).toLocaleString() : Math.floor(current).toLocaleString(); }
+        }, 25);
     });
-    
-    function animateCounter(element, target) {
-        let current = 0;
-        const increment = target / 50;
-        const duration = 1000;
-        const stepTime = duration / 50;
-        
-        const timer = setInterval(() => {
-            current += increment;
-            if (current >= target) {
-                element.textContent = target.toLocaleString();
-                clearInterval(timer);
-            } else {
-                element.textContent = Math.floor(current).toLocaleString();
-            }
-        }, stepTime);
-    }
-    
-    // =====================
-    // Chart.js Charts
-    // =====================
-    
-    // Chart.defaults configuration for dark theme
+
     Chart.defaults.color = '#9ca3af';
-    Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
-    Chart.defaults.font.family = 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif';
-    
-    // Gender Distribution - Doughnut Chart
-    const genderCtx = document.getElementById('genderChart');
+    Chart.defaults.borderColor = 'rgba(148,163,184,0.15)';
+    Chart.defaults.font.family = 'system-ui, -apple-system, sans-serif';
+
+    var genderCtx = document.getElementById('genderChart');
     if (genderCtx) {
         new Chart(genderCtx, {
             type: 'doughnut',
             data: {
                 labels: ['Male', 'Female'],
-                datasets: [{
-                    data: [{{ male_students|default:0 }}, {{ female_students|default:0 }}],
-                    backgroundColor: [
-                        'rgba(34, 197, 94, 0.85)',  // Green for male
-                        'rgba(236, 72, 153, 0.85)' // Pink for female
-                    ],
-                    borderColor: [
-                        '#22c55e',
-                        '#ec4899'
-                    ],
-                    borderWidth: 2,
-                    hoverOffset: 8
-                }]
+                datasets: [{ data: [{{ male_students|default:0 }}, {{ female_students|default:0 }}], backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(236,72,153,0.8)'], borderWidth: 0, hoverOffset: 6 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '65%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            usePointStyle: true,
-                            pointStyle: 'circle'
-                        }
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } } } }
         });
     }
-    
-    // Attendance Overview - Bar Chart
-    const attendanceCtx = document.getElementById('attendanceChart');
+
+    var attendanceCtx = document.getElementById('attendanceChart');
     if (attendanceCtx) {
         new Chart(attendanceCtx, {
             type: 'bar',
             data: {
                 labels: ['Present', 'Absent', 'Late'],
-                datasets: [{
-                    label: 'Students',
-                    data: [
-                        {{ present_today|default:0 }},
-                        {{ absent_today|default:0 }},
-                        {{ late_today|default:0 }}
-                    ],
-                    backgroundColor: [
-                        'rgba(34, 197, 94, 0.85)',   // Green for present
-                        'rgba(239, 68, 68, 0.85)',  // Red for absent
-                        'rgba(251, 191, 36, 0.85)'  // Yellow for late
-                    ],
-                    borderColor: [
-                        'rgba(34, 197, 94, 1)',
-                        'rgba(239, 68, 68, 1)',
-                        'rgba(251, 191, 36, 1)'
-                    ],
-                    borderWidth: 1,
-                    borderRadius: 6,
-                    barThickness: 50
-                }]
+                datasets: [{ data: [{{ present_today|default:0 }}, {{ absent_today|default:0 }}, {{ late_today|default:0 }}], backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(239,68,68,0.8)', 'rgba(251,191,36,0.8)'], borderWidth: 0, borderRadius: 6, barThickness: 40 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    x: {
-                        grid: { display: false }
-                    },
-                    y: {
-                        grid: { display: false }
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
         });
     }
-    
-    // Fee Collection - Doughnut Chart
-    const feeCtx = document.getElementById('feeChart');
+
+    var trendEl = document.getElementById('school-attendance-trend-json');
+    var trendCanvas = document.getElementById('attendanceTrendChart');
+    if (trendEl && trendCanvas) {
+        var trend = JSON.parse(trendEl.textContent);
+        if (trend.has_data) {
+            new Chart(trendCanvas, {
+                type: 'line',
+                data: {
+                    labels: trend.labels,
+                    datasets: [
+                        {
+                            label: 'Present (count)',
+                            data: trend.present,
+                            borderColor: 'rgba(34,197,94,0.9)',
+                            backgroundColor: 'rgba(34,197,94,0.12)',
+                            fill: true,
+                            tension: 0.25,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Absent (count)',
+                            data: trend.absent,
+                            borderColor: 'rgba(239,68,68,0.85)',
+                            backgroundColor: 'transparent',
+                            tension: 0.25,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Attendance rate %',
+                            data: trend.rates,
+                            borderColor: 'rgba(99,102,241,0.9)',
+                            borderDash: [4, 4],
+                            tension: 0.25,
+                            yAxisID: 'y1',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8 } } },
+                    scales: {
+                        y: { type: 'linear', position: 'left', title: { display: true, text: 'Students' }, grid: { color: 'rgba(148,163,184,0.1)' } },
+                        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, min: 0, max: 100, title: { display: true, text: '% present' } }
+                    }
+                }
+            });
+        }
+    }
+
+    var subjEl = document.getElementById('school-subject-perf-json');
+    var subjCanvas = document.getElementById('subjectPerfChart');
+    if (subjEl && subjCanvas) {
+        var sp = JSON.parse(subjEl.textContent);
+        if (sp.labels && sp.labels.length) {
+            new Chart(subjCanvas, {
+                type: 'bar',
+                data: {
+                    labels: sp.labels,
+                    datasets: [{ label: 'Avg %', data: sp.values, backgroundColor: 'rgba(99,102,241,0.75)', borderRadius: 6 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { min: 0, max: 100, grid: { display: false } }, y: { grid: { display: false } } }
+                }
+            });
+        }
+    }
+
+    var feeCtx = document.getElementById('feeChart');
     if (feeCtx) {
-        const totalFees = {{ paid_fees|default:0 }} + {{ unpaid_fees|default:0 }};
-        const collectedPercent = totalFees > 0 ? Math.round(({{ paid_fees|default:0 }} / totalFees) * 100) : 0;
-        
+        var total = {{ paid_fees|default:0 }} + {{ unpaid_fees|default:0 }};
+        var pct = total > 0 ? Math.round({{ paid_fees|default:0 }} / total * 100) : 0;
         new Chart(feeCtx, {
             type: 'doughnut',
             data: {
                 labels: ['Collected', 'Outstanding'],
-                datasets: [{
-                    data: [{{ paid_fees|default:0 }}, {{ unpaid_fees|default:0 }}],
-                    backgroundColor: [
-                        'rgba(34, 197, 94, 0.85)',   // Green for collected
-                        'rgba(239, 68, 68, 0.85)'   // Red for outstanding
-                    ],
-                    borderColor: [
-                        'rgba(34, 197, 94, 1)',
-                        'rgba(239, 68, 68, 1)'
-                    ],
-                    borderWidth: 2,
-                    hoverOffset: 8
-                }]
+                datasets: [{ data: [{{ paid_fees|default:0 }}, {{ unpaid_fees|default:0 }}], backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(239,68,68,0.8)'], borderWidth: 0, hoverOffset: 6 }]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '65%',
+                responsive: true, maintainAspectRatio: false, cutout: '68%',
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            usePointStyle: true,
-                            pointStyle: 'circle'
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let value = context.raw;
-                                let label = context.label || '';
-                                if (label === 'Collected') {
-                                    return label + ': GHS ' + value.toLocaleString() + ' (' + collectedPercent + '%)';
-                                } else {
-                                    return label + ': GHS ' + value.toLocaleString() + ' (' + (100 - collectedPercent) + '%)';
-                                }
-                            }
-                        }
-                    }
+                    legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+                    tooltip: { callbacks: { label: function(c) { return c.label + ': GHS ' + c.raw.toLocaleString() + ' (' + (c.label === 'Collected' ? pct : 100 - pct) + '%)'; } } }
                 }
             }
         });

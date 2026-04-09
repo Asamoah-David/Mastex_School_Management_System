@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -5,71 +6,95 @@ from .models import School
 
 
 class SchoolMiddleware:
+    _skip_paths = frozenset([
+        "/", "/accounts/login/", "/accounts/logout/", "/accounts/dashboard/",
+        "/accounts/school-dashboard/", "/login/", "/logout/", "/register/",
+        "/admin/login/", "/portal/",
+    ])
+    _skip_prefixes = ("/static/", "/media/", "/admin/jsi18n/", "/portal")
+    _subscription_paths = (
+        "/finance/subscription/", "/finance/pay-subscription/",
+        "/finance/subscription-callback/", "/finance/subscription-expired/",
+        "/accounts/login/", "/accounts/logout/",
+    )
+
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Skip all middleware processing for these paths (no redirects on login/dashboard)
-        skip_paths = [
-            "/", "/accounts/login/", "/accounts/logout/", "/accounts/dashboard/", "/accounts/school-dashboard/",
-            "/login/", "/logout/", "/register/", "/admin/login/", "/portal/",
-        ]
-        # Allow subscription and payment related paths for expired schools
-        subscription_paths = [
-            "/finance/subscription/", "/finance/pay-subscription/", "/finance/subscription-callback/",
-            "/finance/subscription-expired/", "/accounts/login/", "/accounts/logout/",
-        ]
-        
-        if request.path in skip_paths:
+        path = request.path
+        if path in self._skip_paths:
             return self.get_response(request)
-        if any(request.path.startswith(p) for p in ["/static/", "/media/", "/admin/jsi18n/", "/portal"]):
+        if any(path.startswith(p) for p in self._skip_prefixes):
             return self.get_response(request)
-        
-        # Try to get school from subdomain only for non-base domains
-        host = request.get_host().split(":")[0]
-        
-        # Only try subdomain lookup for actual subdomains (not localhost or render)
-        if "." in host and "localhost" not in host and "onrender" not in host:
-            subdomain = host.split(".")[0]
-            try:
-                request.school = School.objects.get(subdomain=subdomain)
-            except School.DoesNotExist:
-                request.school = None
-        else:
-            request.school = None
-        
-        # Block non-superadmins from accessing Django admin
-        if request.path.startswith("/admin/"):
+
+        request.school = self._resolve_school_from_host(request)
+
+        if path.startswith("/admin/"):
             if not request.user.is_authenticated:
                 return redirect(reverse("accounts:login"))
-            if not request.user.is_superuser and request.user.role != "super_admin":
+            if not request.user.is_superuser and getattr(request.user, "role", "") != "super_admin":
                 return redirect(reverse("accounts:school_dashboard"))
-        
-        # Check if user's school is active (allow superusers/super_admins to always access)
+
         if request.user.is_authenticated:
-            user_school = getattr(request.user, 'school', None)
-            if user_school and not getattr(request.user, 'is_superuser', False) and getattr(request.user, 'role', None) != 'super_admin':
-                if not user_school.is_active:
-                    # Logout and redirect to login with message
-                    from django.contrib.auth import logout
-                    logout(request)
-                    return redirect(f"{reverse('accounts:login')}?inactive=1")
-                
-                # Check subscription status
-                if user_school.subscription_status == 'expired':
-                    # Allow access to subscription-related pages only
-                    allowed = any(request.path.startswith(p) for p in subscription_paths)
-                    if not allowed:
-                        return render(request, 'finance/subscription_expired.html', {'school': user_school})
-                
-                # Check if subscription has expired based on end date (even if status is 'active')
-                elif user_school.subscription_status == 'active' and user_school.subscription_end_date:
-                    if user_school.subscription_end_date < timezone.now():
-                        # Update status to expired
-                        user_school.subscription_status = 'expired'
-                        user_school.save(update_fields=['subscription_status'])
-                        allowed = any(request.path.startswith(p) for p in subscription_paths)
-                        if not allowed:
-                            return render(request, 'finance/subscription_expired.html', {'school': user_school})
-        
+            resp = self._enforce_school_access(request)
+            if resp:
+                return resp
+
         return self.get_response(request)
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _resolve_school_from_host(request):
+        host = request.get_host().split(":")[0]
+        if "." not in host or "localhost" in host or "onrender" in host:
+            return None
+        subdomain = host.split(".")[0]
+        cache_key = f"school_subdomain:{subdomain}"
+        school = cache.get(cache_key)
+        if school is None:
+            try:
+                school = School.objects.get(subdomain=subdomain)
+            except School.DoesNotExist:
+                school = False
+            cache.set(cache_key, school, 300)
+        return school if school else None
+
+    def _enforce_school_access(self, request):
+        user = request.user
+        if getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin":
+            return None
+        user_school = getattr(user, "school", None)
+        if not user_school:
+            return None
+
+        # Cross-tenant protection: if a subdomain-based school was resolved
+        # and it differs from the user's school, deny access.
+        subdomain_school = request.school
+        if subdomain_school and user_school.pk != subdomain_school.pk:
+            from django.contrib.auth import logout
+            logout(request)
+            return redirect(reverse("accounts:login"))
+
+        if not user_school.is_active:
+            from django.contrib.auth import logout
+            logout(request)
+            return redirect(f"{reverse('accounts:login')}?inactive=1")
+
+        if user_school.subscription_status == "expired":
+            if not any(request.path.startswith(p) for p in self._subscription_paths):
+                return render(request, "finance/subscription_expired.html", {"school": user_school})
+
+        if (
+            user_school.subscription_status == "active"
+            and user_school.subscription_end_date
+            and user_school.subscription_end_date < timezone.now()
+        ):
+            School.objects.filter(id=user_school.id, subscription_status="active").update(
+                subscription_status="expired"
+            )
+            user_school.subscription_status = "expired"
+            if not any(request.path.startswith(p) for p in self._subscription_paths):
+                return render(request, "finance/subscription_expired.html", {"school": user_school})
+
+        return None

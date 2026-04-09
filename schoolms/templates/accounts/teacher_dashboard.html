@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Teacher Dashboard · Mastex SchoolOS{% endblock %}
+{% block page_title %}Welcome, {{ user.first_name|default:user.username }}{% endblock %}
+{% block page_subtitle %}{{ school.name }} — {{ today|date:"l, F j, Y" }}{% endblock %}
+
+{% block content %}
+<div class="content-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    <div class="content-card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ my_classes|length }}</div>
+        <div style="font-size:.85rem;color:var(--text-secondary);">My Classes</div>
+    </div>
+    <div class="content-card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ my_subjects|length }}</div>
+        <div style="font-size:.85rem;color:var(--text-secondary);">My Subjects</div>
+    </div>
+    <div class="content-card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ recent_results_count }}</div>
+        <div style="font-size:.85rem;color:var(--text-secondary);">Results This Term</div>
+    </div>
+    {% if teacher_academic.has_data %}
+    <div class="content-card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ teacher_academic.avg_pct }}%</div>
+        <div style="font-size:.85rem;color:var(--text-secondary);">Avg score (your subjects)</div>
+        {% if teacher_academic.below_threshold %}
+        <div style="font-size:.75rem;color:#f87171;margin-top:.35rem;">{{ teacher_academic.below_threshold }} below 50%</div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{{ teacher_attendance_trend|json_script:"teacher-attendance-trend-json" }}
+{{ teacher_subject_chart|json_script:"teacher-subject-perf-json" }}
+
+<div class="content-grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    <div class="content-card">
+        <h3 style="margin-bottom:.75rem;">Your students: attendance trend</h3>
+        <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 .75rem;">Last 14 days for students in your <strong>homeroom</strong> classes, on your <strong>timetable</strong>, or in classes where you assigned <strong>homework</strong> or <strong>quizzes</strong>.</p>
+        {% if teacher_attendance_trend.has_data %}
+        <div style="height:200px;">
+            <canvas id="teacherAttendanceTrendChart"></canvas>
+        </div>
+        {% else %}
+        <p style="font-size:.9rem;color:var(--text-secondary);">No attendance data yet for these classes in this window.</p>
+        {% endif %}
+    </div>
+    <div class="content-card">
+        <h3 style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+            Notifications
+            {% if teacher_unread_notifications %}
+            <span class="tag tag-warning" style="font-size:.7rem;">{{ teacher_unread_notifications }} unread</span>
+            {% endif %}
+        </h3>
+        {% if teacher_notifications %}
+        <ul style="list-style:none;padding:0;margin:0;max-height:220px;overflow-y:auto;">
+            {% for n in teacher_notifications %}
+            <li style="padding:.5rem 0;border-bottom:1px solid var(--border-color,#334155);font-size:.88rem;">
+                {% if n.link %}<a href="{{ n.link }}" style="font-weight:600;color:inherit;text-decoration:none;">{{ n.title }}</a>
+                {% else %}<strong>{{ n.title }}</strong>{% endif %}
+                <div style="font-size:.75rem;color:var(--text-secondary);">{{ n.created_at|timesince }} ago{% if not n.is_read %} · unread{% endif %}</div>
+            </li>
+            {% endfor %}
+        </ul>
+        <a href="{% url 'notifications:list' %}" style="font-size:.85rem;margin-top:.75rem;display:inline-block;">View all notifications</a>
+        {% else %}
+        <p style="font-size:.9rem;color:var(--text-secondary);">No notifications yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if teacher_academic.has_data and teacher_subject_chart.labels %}
+<div class="content-card" style="margin-bottom:1.5rem;">
+    <h3 style="margin-bottom:.75rem;">Subject averages ({{ current_term.name }})</h3>
+    <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 .75rem;">Subjects from your assignments, timetable, homework, and quizzes.</p>
+    <div style="height:200px;max-width:520px;">
+        <canvas id="teacherSubjectPerfChart"></canvas>
+    </div>
+</div>
+{% endif %}
+
+{% if classes_attendance %}
+<div class="content-card" style="margin-bottom:1.5rem;">
+    <h3 style="margin-bottom:.75rem;">Today's Attendance Status</h3>
+    <div class="table-responsive">
+        <table>
+            <thead><tr><th>Class</th><th>Students</th><th>Marked</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            {% for ca in classes_attendance %}
+            <tr>
+                <td><strong>{{ ca.class.name }}</strong></td>
+                <td>{{ ca.student_count }}</td>
+                <td>{{ ca.marked_count }} / {{ ca.student_count }}</td>
+                <td>
+                    {% if ca.marked %}<span class="tag tag-success">Done</span>
+                    {% else %}<span class="tag tag-warning">Pending</span>{% endif %}
+                </td>
+                <td><a href="{% url 'operations:attendance_mark' %}?class={{ ca.class.name }}" class="btn btn-sm btn-primary">{% if ca.marked %}Review{% else %}Mark Now{% endif %}</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="content-grid" style="grid-template-columns:1fr 1fr;gap:1rem;">
+    {% if my_subjects %}
+    <div class="content-card">
+        <h3 style="margin-bottom:.75rem;">My Subjects</h3>
+        <ul style="list-style:none;padding:0;margin:0;">
+        {% for subj in my_subjects %}
+            <li style="padding:.5rem 0;border-bottom:1px solid var(--border-color,#334155);display:flex;justify-content:space-between;align-items:center;">
+                <span>{{ subj.name }}</span>
+                <a href="{% url 'academics:result_upload' %}?subject={{ subj.id }}" class="btn btn-sm btn-primary">Upload Results</a>
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if pending_homework %}
+    <div class="content-card">
+        <h3 style="margin-bottom:.75rem;">Upcoming Homework</h3>
+        <ul style="list-style:none;padding:0;margin:0;">
+        {% for hw in pending_homework %}
+            <li style="padding:.5rem 0;border-bottom:1px solid var(--border-color,#334155);">
+                <div style="font-weight:600;">{{ hw.title }}</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">{{ hw.class_name }} · Due {{ hw.due_date|date:"M j" }}</div>
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+
+<div class="content-card" style="margin-top:1.5rem;">
+    <h3 style="margin-bottom:.75rem;">Quick Actions</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:.75rem;">
+        <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">Mark Attendance</a>
+        <a href="{% url 'academics:result_upload' %}" class="btn btn-primary">Upload Results</a>
+        <a href="{% url 'academics:homework_list' %}" class="btn btn-secondary">View Homework</a>
+        <a href="{% url 'operations:attendance_list' %}" class="btn btn-secondary">Attendance History</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof Chart === 'undefined') return;
+    var tEl = document.getElementById('teacher-attendance-trend-json');
+    var tCan = document.getElementById('teacherAttendanceTrendChart');
+    if (tEl && tCan) {
+        var t = JSON.parse(tEl.textContent);
+        if (t.has_data) {
+            new Chart(tCan, {
+                type: 'line',
+                data: {
+                    labels: t.labels,
+                    datasets: [
+                        { label: 'Present', data: t.present, borderColor: 'rgba(34,197,94,0.9)', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.25 },
+                        { label: 'Absent', data: t.absent, borderColor: 'rgba(239,68,68,0.85)', tension: 0.25, fill: false }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+    }
+    var sEl = document.getElementById('teacher-subject-perf-json');
+    var sCan = document.getElementById('teacherSubjectPerfChart');
+    if (sEl && sCan) {
+        var sp = JSON.parse(sEl.textContent);
+        if (sp.labels && sp.labels.length) {
+            new Chart(sCan, {
+                type: 'bar',
+                data: { labels: sp.labels, datasets: [{ label: 'Avg %', data: sp.values, backgroundColor: 'rgba(34,197,94,0.75)', borderRadius: 6 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { min: 0, max: 100 } }
+                }
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

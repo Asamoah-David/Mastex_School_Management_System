@@ -10,7 +10,7 @@ class SchoolClass(models.Model):
     capacity = models.PositiveIntegerField(default=40, blank=True, null=True)
     class_teacher = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="classes_taught", limit_choices_to={"role__in": ["admin", "teacher"]}
+        related_name="classes_taught", limit_choices_to={"role__in": ["school_admin", "teacher"]}
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -40,7 +40,11 @@ class Student(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     admission_number = models.CharField(max_length=50)
-    class_name = models.CharField(max_length=50, blank=True)  # e.g. "Primary 3A", "Form 2"
+    class_name = models.CharField(max_length=50, blank=True)
+    school_class = models.ForeignKey(
+        SchoolClass, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="students",
+    )
     parent = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -82,6 +86,15 @@ class Student(models.Model):
     doctor_phone = models.CharField(max_length=20, blank=True, null=True)
     last_medical_checkup = models.DateField(null=True, blank=True)
     medical_notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Student"
+        verbose_name_plural = "Students"
+        indexes = [
+            models.Index(fields=["school", "class_name"], name="idx_student_school_class"),
+            models.Index(fields=["school", "status"], name="idx_student_school_status"),
+            models.Index(fields=["parent"], name="idx_student_parent"),
+        ]
 
     def __str__(self):
         return f"{self.user.get_full_name()} ({self.admission_number})"

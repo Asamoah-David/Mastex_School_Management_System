@@ -35,6 +35,8 @@ class School(models.Model):
 
     class Meta:
         ordering = ["name"]
+        verbose_name = "School"
+        verbose_name_plural = "Schools"
 
     def __str__(self):
         return self.name
@@ -117,6 +119,8 @@ class SchoolFeature(models.Model):
     class Meta:
         unique_together = ("school", "key")
         ordering = ["key"]
+        verbose_name = "School Feature"
+        verbose_name_plural = "School Features"
 
     def __str__(self):
         return f"{self.school.name}: {self.key}={'on' if self.enabled else 'off'}"

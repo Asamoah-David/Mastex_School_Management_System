@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import import_views
 from . import analytics_views
 from . import advanced_analytics
 from . import pdf_report
@@ -12,7 +13,12 @@ urlpatterns = [
     path("results/manage/", views.results_management, name="results_management"),
     
     path("results/upload/", views.result_upload, name="result_upload"),
+    path("results/import/", import_views.result_import_upload, name="result_import_upload"),
+    path("results/import/map/", import_views.result_import_map, name="result_import_map"),
+    path("results/import/preview/", import_views.result_import_preview, name="result_import_preview"),
+    path("results/import/confirm/", import_views.result_import_confirm, name="result_import_confirm"),
     path("results/", views.result_list, name="result_list"),
+    path("results/autosave/", views.result_autosave, name="result_autosave"),
     path("results/<int:pk>/edit/", views.result_edit, name="result_edit"),
     path("results/<int:pk>/delete/", views.result_delete, name="result_delete"),
     path("report-cards/", views.report_card_generator, name="report_card_generator"),

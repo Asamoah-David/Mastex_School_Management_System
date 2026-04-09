@@ -1,13 +1,5 @@
-/* Mastex SchoolOS - Enhanced Form Styles */
-
-/* ===== FORM CONTAINER ===== */
-.content-card {
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: 12px;
-    padding: 2rem;
-    margin: 1.5rem;
-}
+/* Mastex SchoolOS — forms & page-specific patterns
+   Tokens, typography, buttons, .content-card: design-system.css (load first) */
 
 .form-styled {
     max-width: 700px;
@@ -21,9 +13,9 @@
 
 .form-group label {
     display: block;
-    font-size: 0.875rem;
+    font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: #e5e7eb;
+    color: var(--text-primary, #e5e7eb);
     margin-bottom: 0.6rem;
     letter-spacing: 0.01em;
 }
@@ -54,10 +46,10 @@ textarea,
 .form-group textarea {
     width: 100%;
     padding: 0.85rem 1.1rem;
-    border-radius: 8px;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    background: rgba(15, 23, 42, 0.98);
-    color: #f3f4f6;
+    border-radius: var(--radius-md, 8px);
+    border: 1px solid var(--border-strong, rgba(148, 163, 184, 0.5));
+    background: var(--surface-input, rgba(15, 23, 42, 0.98));
+    color: var(--text-primary, #f3f4f6);
     font-family: inherit;
     font-size: 0.95rem;
     box-sizing: border-box;
@@ -67,7 +59,7 @@ textarea,
 /* Placeholder styling */
 input::placeholder,
 textarea::placeholder {
-    color: #6b7280;
+    color: var(--text-muted, #6b7280);
     opacity: 1;
 }
 
@@ -80,8 +72,8 @@ textarea:focus,
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: #22c55e;
-    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2), 0 2px 8px rgba(0, 0, 0, 0.2);
+    border-color: var(--color-brand-500, #22c55e);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22), 0 2px 8px rgba(0, 0, 0, 0.2);
     background: rgba(15, 23, 42, 1);
 }
 
@@ -232,88 +224,8 @@ small {
     color: #f87171;
 }
 
-/* ===== FORM ACTIONS ===== */
-.form-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-/* ===== BUTTONS ===== */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    font-family: inherit;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-}
-
-.btn:active {
-    transform: translateY(0);
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: white;
-    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-}
-
-.btn-primary:hover {
-    background: linear-gradient(135deg, #16a34a, #15803d);
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-}
-
-.btn-secondary {
-    background: rgba(148, 163, 184, 0.2);
-    color: #e5e7eb;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-}
-
-.btn-secondary:hover {
-    background: rgba(148, 163, 184, 0.3);
-    border-color: rgba(148, 163, 184, 0.5);
-}
-
-.btn-danger {
-    background: linear-gradient(135deg, #f87171, #ef4444);
-    color: white;
-    box-shadow: 0 2px 8px rgba(248, 113, 113, 0.3);
-}
-
-.btn-danger:hover {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.4);
-}
-
-.btn-warning {
-    background: linear-gradient(135deg, #fbbf24, #f59e0b);
-    color: #1f2937;
-    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
-}
-
-.btn-sm {
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
-}
-
-.btn-lg {
-    padding: 1rem 2rem;
-    font-size: 1rem;
-}
+/* Form action bar: design-system.css (.form-actions) */
+/* Buttons: design-system.css */
 
 /* ===== UTILITY CLASSES ===== */
 .mt-sm { margin-top: 0.6rem; }
@@ -340,12 +252,7 @@ small {
     .form-grid-3 {
         grid-template-columns: 1fr;
     }
-    
-    .form-actions {
-        flex-direction: column;
-    }
-    
-    .btn {
+    .form-actions .btn {
         width: 100%;
         justify-content: center;
     }

@@ -63,6 +63,7 @@ urlpatterns = [
     # Teacher Attendance
     path("teacher-attendance/", views.teacher_attendance_list, name="teacher_attendance_list"),
     path("teacher-attendance/mark/", views.teacher_attendance_mark, name="teacher_attendance_mark"),
+    path("teacher-attendance/edit/<int:pk>/", views.teacher_attendance_edit, name="teacher_attendance_edit"),
     
     # Academic Calendar
     path("calendar/", views.calendar_list, name="calendar"),
@@ -130,11 +131,13 @@ urlpatterns = [
     path("hostels/create/", views.hostel_create, name="hostel_create"),
     path("hostels/<int:pk>/rooms/", views.hostel_rooms, name="hostel_rooms"),
     path("hostels/<int:pk>/rooms/create/", views.hostel_room_create, name="hostel_room_create"),
+    path("hostels/rooms/<int:pk>/edit/", views.hostel_room_edit, name="hostel_room_edit"),
     path("hostels/assignments/", views.hostel_assignments, name="hostel_assignments"),
     path("hostels/assignments/create/", views.hostel_assignment_create, name="hostel_assignment_create"),
     path("hostels/assignments/<int:pk>/end/", views.hostel_assignment_end, name="hostel_assignment_end"),
     path("hostels/fees/", views.hostel_fees, name="hostel_fees"),
     path("hostels/fees/create/", views.hostel_fee_create, name="hostel_fee_create"),
+    path("hostels/fees/detail/<int:pk>/", views.hostel_fee_detail, name="hostel_fee_detail"),
     path("hostels/fees/<int:pk>/mark-paid/", views.hostel_fee_mark_paid, name="hostel_fee_mark_paid"),
     path("hostels/my/", views.hostel_my, name="hostel_my"),
     
@@ -144,6 +147,7 @@ urlpatterns = [
     path("admission/<int:pk>/", views.admission_detail, name="admission_detail"),
     path("admission/<int:pk>/approve/", views.admission_approve, name="admission_approve"),
     path("admission/<int:pk>/reject/", views.admission_reject, name="admission_reject"),
+    path("admission/track/", views.admission_track, name="admission_track"),
     
     # Certificates
     path("certificates/", views.certificate_list, name="certificate_list"),

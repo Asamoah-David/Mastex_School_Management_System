@@ -38,13 +38,13 @@ def _get_user_student(request):
 
 
 def _get_school(request):
-    """Get the school for the current user."""
-    if hasattr(request.user, 'school'):
-        return request.user.school
+    """Get the school for the current user, falling back to student's school."""
+    from core.utils import get_school
+    school = get_school(request)
+    if school:
+        return school
     student = _get_user_student(request)
-    if student:
-        return student.school
-    return None
+    return student.school if student else None
 
 
 def _get_parent_email(student, request):
@@ -1321,6 +1321,7 @@ def initiate_online_payment(request):
         })
 
 
+@login_required
 def paystack_callback(request, fee_id):
     """Handle Paystack payment callback for school fees."""
     from finance.models import Fee, FeePayment
@@ -1380,16 +1381,30 @@ def paystack_webhook(request):
     """
     import json
     import logging
-    
+    from django.conf import settings as _settings
+
     logger = logging.getLogger(__name__)
-    
+
+    secret = getattr(_settings, "PAYSTACK_WEBHOOK_SECRET", "") or getattr(_settings, "PAYSTACK_SECRET_KEY", "")
+    if not secret:
+        logger.error("Paystack webhook secret not configured")
+        return JsonResponse({"error": "Server misconfigured"}, status=500)
+
+    signature = request.headers.get("X-Paystack-Signature", "")
+    if not signature:
+        return JsonResponse({"error": "Missing signature"}, status=400)
+
+    from finance.paystack_service import paystack_service
+    if not paystack_service.verify_webhook_signature(request.body, signature, secret):
+        logger.warning("Paystack webhook: invalid HMAC signature")
+        return JsonResponse({"error": "Invalid signature"}, status=403)
+
     try:
-        # Get raw request body
         body = request.body
         data = json.loads(body)
         
         event = data.get('event')
-        logger.info(f"Paystack webhook received: event={event}")
+        logger.info("Paystack webhook received: event=%s", event)
         
         if event == 'charge.success':
             # Get payment reference from metadata
@@ -1566,27 +1581,29 @@ def send_payment_reminder(request):
     return render(request, 'operations/payment_dashboard.html', context)
 
 
-@csrf_exempt
+@login_required
+@require_POST
 def cancel_pending_payment(request):
-    """API endpoint to cancel/delete pending payments"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'Only POST method allowed'}, status=405)
-    
+    """Cancel/delete a pending payment owned by the requesting user's school."""
     try:
         purchase_id = request.POST.get('purchase_id')
-        payment_type = request.POST.get('payment_type')  # canteen, bus, textbook
+        payment_type = request.POST.get('payment_type')
         
         if not purchase_id or not payment_type:
             return JsonResponse({'success': False, 'error': 'Missing purchase_id or payment_type'}, status=400)
         
-        # Import models here to avoid circular imports
+        school = getattr(request.user, 'school', None)
+        if not school and not request.user.is_superuser:
+            return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+
         from .models import CanteenPayment, BusPayment, TextbookSale
         
         deleted = False
+        school_filter = {} if request.user.is_superuser else {"school": school}
         
         if payment_type == 'canteen':
             try:
-                payment = CanteenPayment.objects.get(id=purchase_id, payment_status='pending')
+                payment = CanteenPayment.objects.get(id=purchase_id, payment_status='pending', **school_filter)
                 payment.delete()
                 deleted = True
             except CanteenPayment.DoesNotExist:
@@ -1594,7 +1611,7 @@ def cancel_pending_payment(request):
         
         elif payment_type == 'bus':
             try:
-                payment = BusPayment.objects.get(id=purchase_id, payment_status='pending')
+                payment = BusPayment.objects.get(id=purchase_id, payment_status='pending', **school_filter)
                 payment.delete()
                 deleted = True
             except BusPayment.DoesNotExist:
@@ -1602,7 +1619,7 @@ def cancel_pending_payment(request):
         
         elif payment_type == 'textbook':
             try:
-                payment = TextbookSale.objects.get(id=purchase_id, payment_status='pending')
+                payment = TextbookSale.objects.get(id=purchase_id, payment_status='pending', **school_filter)
                 payment.delete()
                 deleted = True
             except TextbookSale.DoesNotExist:

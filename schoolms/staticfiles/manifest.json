@@ -1,6 +1,6 @@
 {
-  "name": "Mastex SchoolOS",
-  "short_name": "SchoolOS",
+  "name": "MastexEDU",
+  "short_name": "MastexEDU",
   "description": "Modern school management platform",
   "start_url": "/",
   "display": "standalone",
@@ -9,16 +9,22 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%2322c55e'/><text x='50%' y='58%' text-anchor='middle' dominant-baseline='middle' font-size='280' font-weight='bold' fill='%23022c22'>MS</text></svg>",
+      "src": "/static/favicon.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%2322c55e'/><text x='50%' y='58%' text-anchor='middle' dominant-baseline='middle' font-size='100' font-weight='bold' fill='%23022c22'>MS</text></svg>",
+      "src": "/static/favicon_192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/favicon_180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "apple-touch-icon"
     }
   ],
   "categories": ["education", "business"],

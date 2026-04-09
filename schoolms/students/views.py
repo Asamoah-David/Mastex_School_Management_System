@@ -1,8 +1,12 @@
+import json
+
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
 from django.utils import timezone
+from django.utils.crypto import get_random_string
+from django.utils.safestring import mark_safe
 
 from .models import (
     Student,
@@ -15,6 +19,8 @@ from .models import (
 from accounts.models import User
 from accounts.permissions import user_can_manage_school, is_school_admin
 from schools.models import School
+from core.pagination import paginate
+from core.pagination import paginate
 
 
 def _user_can_manage_school(request):
@@ -80,23 +86,28 @@ def parent_dashboard(request):
                 results_by_child[child_id] = []
             results_by_child[child_id].append(result)
         
-        # Calculate average and position for each child
         stats_by_child = {}
         for child in children:
             child_results = results_by_child.get(child.id, [])
             if child_results:
                 total = sum(r.score for r in child_results)
                 avg = total / len(child_results)
-                # Calculate position
-                all_students_in_class = Student.objects.filter(school=child.school, class_name=child.class_name).values_list('id', flat=True)
-                scores = []
-                for sid in all_students_in_class:
-                    rlist = Result.objects.filter(student_id=sid)
-                    if rlist:
-                        avg_score = sum(r.score for r in rlist) / len(rlist)
-                        scores.append((sid, avg_score))
-                scores.sort(key=lambda x: x[1], reverse=True)
-                position = next((i+1 for i, (sid, _) in enumerate(scores) if sid == child.id), None)
+                # Single aggregation query instead of per-student loop
+                from django.db.models import Avg
+                class_averages = (
+                    Result.objects.filter(
+                        student__school=child.school,
+                        student__class_name=child.class_name,
+                    )
+                    .values("student_id")
+                    .annotate(avg_score=Avg("score"))
+                    .order_by("-avg_score")
+                )
+                position = None
+                for i, row in enumerate(class_averages, 1):
+                    if row["student_id"] == child.id:
+                        position = i
+                        break
                 stats_by_child[child.id] = {"average": round(avg, 1), "position": position, "total_subjects": len(child_results)}
             else:
                 stats_by_child[child.id] = {"average": None, "position": None, "total_subjects": 0}
@@ -140,13 +151,20 @@ def parent_dashboard(request):
             target_audience__in=["all", "parents"]
         ).select_related("school", "created_by").order_by("-is_pinned", "-created_at")[:10] if schools else []
 
-        # Attendance summary per child (recent 14 days)
+        # Attendance summary per child (recent 14 days) — single query
         attendance_by_child = {}
-        for child in children:
-            recent = StudentAttendance.objects.filter(
-                student=child, date__gte=timezone.now().date() - timezone.timedelta(days=14)
-            ).order_by("-date")
-            attendance_by_child[child.id] = list(recent[:14])
+        cutoff_date = timezone.now().date() - timezone.timedelta(days=14)
+        all_attendance = (
+            StudentAttendance.objects.filter(
+                student_id__in=children_ids,
+                date__gte=cutoff_date,
+            )
+            .order_by("-date")
+        )
+        for att in all_attendance:
+            attendance_by_child.setdefault(att.student_id, [])
+            if len(attendance_by_child[att.student_id]) < 14:
+                attendance_by_child[att.student_id].append(att)
 
         # Get available terms, exam types, and exam schedule (per school)
         terms = Term.objects.filter(school__in=schools).order_by("-is_current", "-id") if schools else []
@@ -182,7 +200,8 @@ def parent_dashboard(request):
             "recent_payments": recent_payments,
         })
     except Exception as e:
-        # If any error, still show the page with empty data
+        import logging
+        logging.getLogger(__name__).exception("Error loading parent dashboard")
         return render(request, "students/parent_dashboard.html", {
             "children": [],
             "fees_by_child": {},
@@ -212,21 +231,31 @@ def portal(request):
 
             results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("-id")
 
-            # Calculate average and position
             stats = {}
             if results:
                 total = sum(r.score for r in results)
                 avg = total / len(results)
-                # Calculate position in class
-                all_students = Student.objects.filter(school=student.school, class_name=student.class_name).values_list('id', flat=True)
-                scores = []
-                for sid in all_students:
-                    rlist = Result.objects.filter(student_id=sid)
-                    if rlist:
-                        avg_score = sum(r.score for r in rlist) / len(rlist)
-                        scores.append((sid, avg_score))
-                scores.sort(key=lambda x: x[1], reverse=True)
-                position = next((i+1 for i, (sid, _) in enumerate(scores) if sid == student.id), None)
+                from django.db.models import Avg
+                from django.core.cache import cache as _cache
+
+                cache_key = f"class_pos_{student.school_id}_{student.class_name}_{student.id}"
+                position = _cache.get(cache_key)
+                if position is None:
+                    class_averages = list(
+                        Result.objects.filter(
+                            student__school=student.school,
+                            student__class_name=student.class_name,
+                        )
+                        .values("student_id")
+                        .annotate(avg_score=Avg("score"))
+                        .order_by("-avg_score")
+                    )
+                    for i, row in enumerate(class_averages, 1):
+                        if row["student_id"] == student.id:
+                            position = i
+                            break
+                    if position is not None:
+                        _cache.set(cache_key, position, 600)
                 stats = {"average": round(avg, 1), "position": position, "total_subjects": len(results)}
             else:
                 stats = {"average": None, "position": None, "total_subjects": 0}
@@ -252,6 +281,37 @@ def portal(request):
                 ).order_by("-date")[:14]
             )
 
+            # Term-over-term averages for progress chart
+            from django.db.models import Avg
+            term_averages = list(
+                Result.objects.filter(student=student)
+                .values("term__name", "term_id")
+                .annotate(avg=Avg("score"))
+                .order_by("term_id")
+            )
+            chart_labels = [t["term__name"] or f"Term {t['term_id']}" for t in term_averages]
+            chart_data = [round(t["avg"], 1) for t in term_averages]
+
+            # Class average per term for comparison
+            class_term_averages = list(
+                Result.objects.filter(
+                    student__school=student.school,
+                    student__class_name=student.class_name,
+                )
+                .values("term__name", "term_id")
+                .annotate(avg=Avg("score"))
+                .order_by("term_id")
+            )
+            class_chart_data = [round(t["avg"], 1) for t in class_term_averages]
+
+            # Quiz attempts for unified results view
+            from academics.models import QuizAttempt
+            quiz_attempts = (
+                QuizAttempt.objects.filter(student=student, is_completed=True)
+                .select_related("quiz", "quiz__subject", "quiz__term")
+                .order_by("-submitted_at")
+            )
+
             # Enrich portal with achievements, activities, and discipline records
             achievements = (
                 StudentAchievement.objects.filter(student=student)
@@ -267,6 +327,9 @@ def portal(request):
                 .order_by("-incident_date")
             )
 
+            from academics.models import bulk_annotate_grades
+            bulk_annotate_grades(results, student.school)
+
             return render(request, "students/student_portal.html", {
                 "student": student,
                 "results": results,
@@ -278,6 +341,10 @@ def portal(request):
                 "discipline_records": discipline_records,
                 "announcements": announcements,
                 "recent_attendance": recent_attendance,
+                "chart_labels": chart_labels,
+                "chart_data": chart_data,
+                "class_chart_data": class_chart_data,
+                "quiz_attempts": quiz_attempts,
             })
         except Student.DoesNotExist:
             return render(request, "students/student_portal.html", {"student": None})
@@ -453,6 +520,8 @@ def parent_child_detail(request, pk):
         results_qs = results_qs.filter(exam_type_id=exam_type_id)
 
     fees_qs = Fee.objects.filter(student=child).order_by("-created_at")
+    fees_list = list(fees_qs[:200])
+    first_unpaid_fee = next((f for f in fees_list if not f.is_fully_paid), None)
     attendance_qs = StudentAttendance.objects.filter(student=child).order_by("-date")[:30]
     absence_qs = AbsenceRequest.objects.filter(student=child).select_related("decided_by").order_by("-created_at")[:50]
 
@@ -465,7 +534,8 @@ def parent_child_detail(request, pk):
         {
             "child": child,
             "results": results_qs[:200],
-            "fees": fees_qs[:200],
+            "fees": fees_list,
+            "first_unpaid_fee": first_unpaid_fee,
             "attendance": attendance_qs,
             "absence_requests": absence_qs,
             "terms": terms,
@@ -528,16 +598,17 @@ def student_list(request):
     # Group students by class for display
     students_by_class = {}
     for student in students:
-        class_name = student.class_name or "Unassigned"
-        if class_name not in students_by_class:
-            students_by_class[class_name] = []
-        students_by_class[class_name].append(student)
+        cls = student.class_name or "Unassigned"
+        if cls not in students_by_class:
+            students_by_class[cls] = []
+        students_by_class[cls].append(student)
 
-    # For a global (super admin) view, pass school=None; template handles this.
+    page_obj = paginate(request, students, per_page=30)
+
     return render(
         request,
         "students/student_list.html",
-        {"students": students, "students_by_class": students_by_class, "school": school},
+        {"students": page_obj, "students_by_class": students_by_class, "school": school, "page_obj": page_obj},
     )
 
 
@@ -548,7 +619,9 @@ def student_detail(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    student = get_object_or_404(Student, pk=pk, school=school)
+    student = get_object_or_404(
+        Student.objects.select_related("user", "parent", "school"), pk=pk, school=school
+    )
     return render(request, "students/student_detail.html", {"student": student})
 
 
@@ -564,20 +637,18 @@ def student_edit(request, pk):
     student = get_object_or_404(Student, pk=pk, school=school)
     
     if request.method == "POST":
-        # Update student fields
         student.admission_number = request.POST.get("admission_number", "").strip()
         student.class_name = request.POST.get("class_name", "").strip()
         
-        # Update user phone number
         phone = request.POST.get("phone", "").strip()
-        student.user.phone = phone if phone else ""
-        student.user.save()
-        
-        # Update user gender
         gender = request.POST.get("gender", "").strip()
+        
+        user = student.user
+        user.phone = phone if phone else ""
         if gender in ["male", "female"]:
-            student.user.gender = gender
-            student.user.save()
+            user.gender = gender
+        user.save()
+        
         student.status = request.POST.get("status", "active")
         
         # Update parent link
@@ -625,6 +696,37 @@ def student_register(request):
         parent_id = request.POST.get("parent") or None
         phone = request.POST.get("phone", "").strip() or None
         date_enrolled_str = request.POST.get("date_enrolled", "").strip()
+
+        create_parent = request.POST.get("create_parent") == "on"
+        if create_parent:
+            p_first = request.POST.get("parent_first_name", "").strip()
+            p_last = request.POST.get("parent_last_name", "").strip()
+            p_phone = request.POST.get("parent_phone", "").strip()
+            p_email = request.POST.get("parent_email", "").strip()
+            if p_first and p_last and p_phone:
+                import uuid as _uuid
+                p_username = f"parent_{p_phone.replace(' ', '').replace('+', '')[-8:]}"
+                if User.objects.filter(username=p_username).exists():
+                    p_username = f"parent_{_uuid.uuid4().hex[:8]}"
+                _parent_pw = get_random_string(12)
+                parent_user = User.objects.create(
+                    username=p_username,
+                    first_name=p_first,
+                    last_name=p_last,
+                    email=p_email or f"{p_username}@school.local",
+                    phone=p_phone,
+                    role="parent",
+                    school=school,
+                    password=make_password(_parent_pw),
+                    must_change_password=True,
+                )
+                parent_id = parent_user.id
+            else:
+                messages.error(request, "Parent first name, last name, and phone are required when creating a new parent.")
+                parents = User.objects.filter(school=school, role="parent").order_by("username")
+                classes = SchoolClass.objects.filter(school=school).order_by("name")
+                return render(request, "students/student_register.html", {"school": school, "parents": parents, "classes": classes})
+
         if username and admission_number and password:
             if User.objects.filter(username=username).exists():
                 messages.error(request, "That username is already taken.")
@@ -659,7 +761,7 @@ def student_register(request):
                     parent_id=parent_id or None,
                     date_enrolled=date_enrolled,
                 )
-                messages.success(request, "Student registered.")
+                messages.success(request, "Student registered successfully.")
                 return redirect("students:student_list")
         else:
             messages.error(request, "Please fill all required fields.")
@@ -822,10 +924,10 @@ def promote_students(request):
         new_class = request.POST.get("new_class", "").strip()
         
         if current_class and new_class:
-            # Update all students in the current class to the new class
             updated_count = Student.objects.filter(
                 school=school, 
-                class_name=current_class
+                class_name=current_class,
+                status="active",
             ).update(class_name=new_class)
             
             messages.success(request, f"Successfully promoted {updated_count} students from {current_class} to {new_class}.")
@@ -848,7 +950,18 @@ def class_list(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("accounts:dashboard")
-    classes = SchoolClass.objects.filter(school=school).select_related("class_teacher").order_by("name")
+    from django.db.models import Count, Q
+    classes = (
+        SchoolClass.objects.filter(school=school)
+        .select_related("class_teacher")
+        .annotate(
+            student_count=Count(
+                "school__student",
+                filter=Q(school__student__class_name=models.F("name")),
+            )
+        )
+        .order_by("name")
+    )
     return render(request, "students/class_list.html", {"classes": classes, "school": school})
 
 
@@ -872,7 +985,7 @@ def class_create(request):
                 return redirect("students:class_list")
             except (User.DoesNotExist, ValueError):
                 pass
-    teachers = User.objects.filter(school=school, role__in=["admin", "teacher"]).order_by("first_name", "last_name")
+    teachers = User.objects.filter(school=school, role__in=["school_admin", "teacher"]).order_by("first_name", "last_name")
     return render(request, "students/class_form.html", {"school": school, "teachers": teachers})
 
 
@@ -1107,31 +1220,37 @@ def bulk_student_status(request):
             messages.error(request, "Please select a valid class and status.")
             return redirect("students:bulk_student_status")
         
-        # Get all active students in this class
-        students = Student.objects.filter(school=school, class_name=class_name, status="active")
+        is_reactivation = new_status == "active"
+        
+        if is_reactivation:
+            students = Student.objects.filter(school=school, class_name=class_name).exclude(status="active")
+        else:
+            students = Student.objects.filter(school=school, class_name=class_name, status="active")
         
         if not students.exists():
-            messages.warning(request, f"No active students found in class {class_name}.")
+            label = "non-active" if is_reactivation else "active"
+            messages.warning(request, f"No {label} students found in class {class_name}.")
             return redirect("students:student_list")
         
         updated_count = 0
         parents_deactivated = 0
         
         for student in students:
-            # Update student status
             student.status = new_status
-            student.exit_date = timezone.now().date()
-            student.save()
+            if is_reactivation:
+                student.save()
+                if student.user:
+                    student.user.is_active = True
+                    student.user.save(update_fields=["is_active"])
+            else:
+                student.exit_date = timezone.now().date()
+                student.save()
+                if student.user:
+                    student.user.is_active = False
+                    student.user.save(update_fields=["is_active"])
             
-            # Deactivate student user account
-            if student.user:
-                student.user.is_active = False
-                student.user.save(update_fields=["is_active"])
-            
-            # Optionally deactivate linked parent
-            if deactivate_parent and student.parent:
+            if not is_reactivation and deactivate_parent and student.parent:
                 parent = student.parent
-                # Check if this parent has other active students
                 other_active = Student.objects.filter(
                     parent=parent, 
                     status="active",
@@ -1147,7 +1266,7 @@ def bulk_student_status(request):
         
         status_display = dict(Student.STATUS_CHOICES).get(new_status, new_status)
         msg = f"Successfully updated {updated_count} students in {class_name} to '{status_display}'."
-        if deactivate_parent and parents_deactivated > 0:
+        if not is_reactivation and deactivate_parent and parents_deactivated > 0:
             msg += f" Also deactivated {parents_deactivated} parent account(s)."
         
         messages.success(request, msg)

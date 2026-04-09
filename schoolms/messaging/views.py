@@ -9,9 +9,7 @@ from schools.models import School
 from .utils import send_sms
 
 
-def _user_can_manage_school(request):
-    """Use shared permission helper for school-scoped messaging."""
-    return user_can_manage_school(request.user)
+from core.utils import can_manage as _user_can_manage_school, get_school
 
 
 def _send_email(to_email, subject, message):
@@ -59,21 +57,20 @@ def send_message(request):
     """Send SMS or Email to parents or students with recipient preview."""
     import logging
     logger = logging.getLogger(__name__)
-    logger.error(f"[DEBUG] send_message called by user: {request.user}")
-    
+
     if not _user_can_manage_school(request):
-        logger.error(f"[DEBUG] User {request.user} not authorized")
+        logger.debug("send_message: user not authorized: %s", request.user)
         return redirect("home")
-    
-    school = getattr(request.user, "school", None)
-    logger.error(f"[DEBUG] School: {school}")
+
+    school = get_school(request)
+    if not school and request.user.is_superuser:
+        sid = request.session.get("current_school_id")
+        if sid:
+            school = School.objects.filter(pk=sid).first()
     if not school:
         return redirect("home")
-    
-    logger.error(f"[DEBUG] Counting parents...")
     # Get recipient counts for preview
     parents_count = User.objects.filter(school=school, role="parent").count()
-    logger.error(f"[DEBUG] Parents count: {parents_count}")
     parents_with_phone = User.objects.filter(school=school, role="parent").exclude(phone__isnull=True).exclude(phone="").count()
     parents_with_email = User.objects.filter(school=school, role="parent").exclude(email__isnull=True).exclude(email="").count()
     
@@ -341,26 +338,122 @@ def message_history(request):
     """View message history (placeholder - could be extended to store in DB)."""
     if not _user_can_manage_school(request):
         return redirect("home")
-    
-    school = getattr(request.user, "school", None)
+
+    school = get_school(request)
+    if not school and request.user.is_superuser:
+        sid = request.session.get("current_school_id")
+        if sid:
+            school = School.objects.filter(pk=sid).first()
     if not school:
         return redirect("home")
-    
+
     return render(request, "messaging/message_history.html", {"school": school})
 
 
 @login_required
 def chat_view(request):
-    """Parent-Teacher chat interface (placeholder - uses timetable_generator functions)."""
-    from academics.timetable_generator import chat_page
-    return chat_page(request)
+    """Parent-Teacher chat interface with real DB persistence."""
+    from .models import Conversation, Message as ChatMessage
+
+    user = request.user
+    school = get_school(request)
+    if not school and user.is_superuser:
+        sid = request.session.get("current_school_id")
+        if sid:
+            school = School.objects.filter(pk=sid).first()
+    if not school:
+        return redirect("home")
+
+    conversations = Conversation.objects.filter(participants=user).prefetch_related("participants")
+    active_conv_id = request.GET.get("conv")
+    active_conv = None
+    chat_messages = []
+    contact = None
+
+    if active_conv_id:
+        active_conv = Conversation.objects.filter(id=active_conv_id, participants=user).first()
+        if active_conv:
+            chat_messages = list(
+                ChatMessage.objects.filter(conversation=active_conv)
+                .select_related("sender")
+                .order_by("created_at")[:200]
+            )
+            ChatMessage.objects.filter(conversation=active_conv, recipient=user, is_read=False).update(is_read=True)
+            contact = active_conv.participants.exclude(id=user.id).first()
+
+    if request.method == "POST" and active_conv:
+        body = request.POST.get("body", "").strip()
+        if body and contact:
+            ChatMessage.objects.create(
+                conversation=active_conv,
+                sender=user,
+                recipient=contact,
+                body=body,
+            )
+            return redirect(f"/messaging/chat/?conv={active_conv.id}")
+
+    if request.method == "POST" and not active_conv:
+        recipient_id = request.POST.get("recipient")
+        body = request.POST.get("body", "").strip()
+        if recipient_id and body:
+            from accounts.models import User as _User
+            try:
+                recipient = _User.objects.get(id=recipient_id, school=school)
+            except _User.DoesNotExist:
+                recipient = None
+            if recipient:
+                conv = Conversation.objects.create(subject="", school=school)
+                conv.participants.add(user, recipient)
+                ChatMessage.objects.create(
+                    conversation=conv, sender=user, recipient=recipient, body=body,
+                )
+                return redirect(f"/messaging/chat/?conv={conv.id}")
+
+    contacts = []
+    role = getattr(user, "role", None)
+    if role == "parent":
+        contacts = list(User.objects.filter(school=school, role="teacher").order_by("first_name")[:50])
+    elif role == "teacher":
+        contacts = list(User.objects.filter(school=school, role="parent").order_by("first_name")[:50])
+    elif role in ("school_admin", "super_admin") or user.is_superuser:
+        contacts = list(
+            User.objects.filter(school=school)
+            .exclude(pk=user.pk)
+            .filter(role__in=["teacher", "parent", "school_admin"])
+            .order_by("first_name", "last_name")[:100]
+        )
+
+    return render(request, "messaging/chat.html", {
+        "conversations": conversations,
+        "active_conv": active_conv,
+        "chat_messages": chat_messages,
+        "contact": contact,
+        "contacts": contacts,
+        "school": school,
+    })
 
 
 @login_required
 def get_messages(request, contact_id):
-    """Get messages with a contact."""
-    from academics.timetable_generator import get_messages as _get_messages
-    return _get_messages(request, contact_id)
+    """Get messages with a contact as JSON for AJAX."""
+    from django.http import JsonResponse
+    from .models import Conversation, Message as ChatMessage
+
+    user = request.user
+    try:
+        target = User.objects.get(id=contact_id)
+    except User.DoesNotExist:
+        return JsonResponse({"messages": []})
+
+    conv = Conversation.objects.filter(participants=user).filter(participants=target).first()
+    if not conv:
+        return JsonResponse({"messages": []})
+
+    msgs = ChatMessage.objects.filter(conversation=conv).order_by("created_at").values(
+        "id", "sender__first_name", "sender__last_name", "body", "created_at", "is_read"
+    )[:200]
+
+    return JsonResponse({"messages": list(msgs)}, json_dumps_params={"default": str})
 
 
 @login_required
@@ -417,39 +510,33 @@ def superuser_send_message(request):
                     "selected_school_id": selected_school_id
                 })
         
-        # Send to school admins only in each school
         for target in schools_to_send:
-            # Get school admins (role=school_admin or admin)
-            school_admins = User.objects.filter(school=target, role__in=("school_admin", "admin"))
+            school_admins = User.objects.filter(school=target, role="school_admin")
             
-            # If no school_admin role, try is_school_admin attribute or any admin users
-            if not school_admins.exists():
-                school_admins = User.objects.filter(school=target, role="admin")
-            
-            logger.error(f"[DEBUG] Sending to {school_admins.count()} admins in {target.name}")
-            
+            logger.debug("Sending to %s admins in %s", school_admins.count(), target.name)
+
             for admin in school_admins:
                 if message_type == "sms" and admin.phone:
                     try:
                         send_sms(admin.phone, message)
                         sent_count += 1
-                        logger.error(f"[DEBUG] SMS sent to {admin.username} ({admin.phone})")
+                        logger.debug("SMS sent to %s", admin.username)
                     except Exception as e:
                         failed_count += 1
                         error_msg = f"SMS failed for {admin.username}: {str(e)}"
                         errors.append(error_msg)
-                        logger.error(f"[DEBUG] {error_msg}")
-                        
+                        logger.warning("%s", error_msg)
+
                 elif message_type == "email" and admin.email:
                     success, error = _send_email(admin.email, subject, message)
                     if success:
                         sent_count += 1
-                        logger.error(f"[DEBUG] Email sent to {admin.username} ({admin.email})")
+                        logger.debug("Email sent to %s", admin.username)
                     else:
                         failed_count += 1
                         error_msg = f"Email failed for {admin.username}: {error}"
                         errors.append(error_msg)
-                        logger.error(f"[DEBUG] {error_msg}")
+                        logger.warning("%s", error_msg)
         
         msg_type = "SMS" if message_type == "sms" else "Email"
         

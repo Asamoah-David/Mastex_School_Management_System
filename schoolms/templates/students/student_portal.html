@@ -1,210 +1,234 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}My Portal · Mastex SchoolOS{% endblock %}
+{% block title %}My Portal - Mastex SchoolOS{% endblock %}
 {% block page_title %}My Portal{% endblock %}
 {% block page_subtitle %}Welcome, {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
 
 {% block content %}
 
-<!-- Welcome & Quick Actions -->
-<div class="content-card" style="margin-bottom: 1.2rem;">
-    <h3 class="section-title">⚡ Quick Actions</h3>
-    <div class="quick-actions">
-        <a href="{% url 'academics:enhanced_report_card' student.id %}" class="quick-action-btn">
-            <span class="quick-action-icon">📄</span>
-            <span class="quick-action-label">Report Card</span>
-        </a>
-        <a href="{% url 'operations:homework_for_student' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📝</span>
-            <span class="quick-action-label">Homework</span>
-        </a>
-        <a href="{% url 'students:fees_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">💰</span>
-            <span class="quick-action-label">My Fees</span>
-        </a>
-        <a href="{% url 'operations:online_exam_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">💻</span>
-            <span class="quick-action-label">Exams</span>
-        </a>
-        <a href="{% url 'academics:timetable_my' %}" class="quick-action-btn">
-            <span class="quick-action-icon">⏰</span>
-            <span class="quick-action-label">Timetable</span>
-        </a>
-        <a href="{% url 'academics:online_classes' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📹</span>
-            <span class="quick-action-label">Online Classes</span>
-        </a>
-        <a href="{% url 'academics:quiz_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">🧠</span>
-            <span class="quick-action-label">Quizzes</span>
-        </a>
-        <a href="{% url 'operations:canteen_my' %}" class="quick-action-btn">
-            <span class="quick-action-icon">🍱</span>
-            <span class="quick-action-label">Canteen</span>
-        </a>
-        <a href="{% url 'operations:bus_my' %}" class="quick-action-btn">
-            <span class="quick-action-icon">🚌</span>
-            <span class="quick-action-label">Transport</span>
-        </a>
-        <a href="{% url 'operations:textbook_my' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📕</span>
-            <span class="quick-action-label">Textbooks</span>
-        </a>
-        <a href="{% url 'operations:my_payments' %}" class="quick-action-btn">
-            <span class="quick-action-icon">💳</span>
-            <span class="quick-action-label">My Payments</span>
-        </a>
-    </div>
-</div>
+{% if student %}
 
 {% if announcements %}
-<div class="content-card" style="margin-bottom:1rem;">
-    <h3 class="section-title">📢 Announcements</h3>
-    {% for a in announcements %}
-    <div style="margin-bottom:0.75rem; padding:0.8rem; background:rgba(15,23,42,0.9); border-radius:0.6rem; border: 1px solid rgba(34, 197, 94, 0.3); transition: transform 0.2s ease;">
-        <strong style="color: #e5e7eb;">{{ a.title }}</strong> <span class="text-muted" style="font-size:0.8rem;">{{ a.created_at|date:"M d, Y" }}</span>
-        <p style="margin:0.35rem 0 0 0; font-size:0.9rem; color: #9ca3af;">{{ a.content|truncatewords:40 }}</p>
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+        <span class="card-header-title">Announcements</span>
+        <a href="{% url 'students:announcements_list' %}" class="card-header-action">View All</a>
     </div>
-    {% endfor %}
-</div>
-{% endif %}
-
-{% if student %}
-<!-- Student Info Cards -->
-<div class="content-grid">
-    <section class="metric">
-        <span class="metric-icon">🎓</span>
-        <div class="metric-label">Admission Number</div>
-        <div class="metric-value">{{ student.admission_number }}</div>
-    </section>
-    <section class="metric">
-        <span class="metric-icon">📚</span>
-        <div class="metric-label">Class</div>
-        <div class="metric-value">{{ student.class_name|default:"—" }}</div>
-    </section>
-    <section class="metric">
-        <span class="metric-icon">🏫</span>
-        <div class="metric-label">School</div>
-        <div class="metric-value">{{ student.school.name }}</div>
-    </section>
-</div>
-
-{% if recent_attendance %}
-<h3 class="section-title">✅ Recent Attendance</h3>
-<div class="content-card">
-    <table style="font-size:0.85rem; width: 100%;">
-        <thead>
-            <tr>
-                <th style="text-align: left; padding: 0.6rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); color: #9ca3af;">Date</th>
-                <th style="text-align: left; padding: 0.6rem; border-bottom: 1px solid rgba(148, 163, 184, 0.3); color: #9ca3af;">Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for a in recent_attendance %}
-            <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.15);">
-                <td style="padding: 0.6rem;">{{ a.date|date:"M d, Y" }}</td>
-                <td style="padding: 0.6rem;">
-                    <span class="tag" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4);">{{ a.get_status_display }}</span>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endif %}
-
-<!-- Academic Performance -->
-<h3 class="section-title">📊 Academic Performance</h3>
-
-{% if stats.average %}
-<div class="content-grid">
-    <section class="metric">
-        <span class="metric-icon">📈</span>
-        <div class="metric-label">Average Score</div>
-        <div class="metric-value" data-count="{{ stats.average|floatformat:0 }}">{{ stats.average }}%</div>
-    </section>
-    <section class="metric">
-        <span class="metric-icon">🏆</span>
-        <div class="metric-label">Position in Class</div>
-        <div class="metric-value">{{ stats.position|default:"—" }}</div>
-    </section>
-    <section class="metric">
-        <span class="metric-icon">📖</span>
-        <div class="metric-label">Subjects</div>
-        <div class="metric-value" data-count="{{ stats.total_subjects }}">{{ stats.total_subjects }}</div>
-    </section>
-</div>
-
-<!-- Student Performance Chart -->
-<div class="content-card" style="margin-top: 1rem;">
-    <h3 class="section-title">📊 My Performance</h3>
-    <div style="position: relative; height: 200px;">
-        <canvas id="studentPerformanceChart"></canvas>
+    <div class="card-body">
+        {% for a in announcements %}
+        <div class="alert alert-info" style="margin-bottom:{% if forloop.last %}0{% else %}0.5rem{% endif %};">
+            <span class="alert-icon">&#x1F4E2;</span>
+            <div class="alert-body">
+                <strong>{{ a.title }}</strong> <span class="text-xs text-muted">{{ a.created_at|date:"M d, Y" }}</span>
+                <p style="margin:0.25rem 0 0;font-size:0.85rem;color:var(--text-main);">{{ a.content|truncatewords:30 }}</p>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 </div>
-
-<div class="button-row">
-    <a href="{% url 'academics:enhanced_report_card' student.id %}" class="btn btn-primary">📄 View Enhanced Report Card</a>
-</div>
 {% endif %}
 
-<!-- Results by Term/Exam -->
-{% if terms or exam_types %}
-<div class="filter-row">
-    {% if terms %}
-    <div class="filter-item">
-        <label for="term_filter">Filter by Term:</label>
-        <select id="term_filter" onchange="filterResults(this.value, 'term')">
-            <option value="">All Terms</option>
-            {% for term in terms %}
-            <option value="{{ term.id }}">{{ term.name }}</option>
-            {% endfor %}
-        </select>
+<!-- Student Info + Performance Metrics -->
+<div class="metric-grid" style="margin-bottom:1rem;">
+    <div class="metric-card">
+        <div class="metric-card-icon green">&#x1F393;</div>
+        <div class="metric-card-label">Class</div>
+        <div class="metric-card-value" style="font-size:1.1rem;">{{ student.class_name|default:"--" }}</div>
+        <div class="metric-card-trend flat">{{ student.admission_number }}</div>
+    </div>
+    {% if stats.average %}
+    <div class="metric-card">
+        <div class="metric-card-icon blue">&#x1F4C8;</div>
+        <div class="metric-card-label">Average Score</div>
+        <div class="metric-card-value">{{ stats.average }}%</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card-icon amber">&#x1F3C6;</div>
+        <div class="metric-card-label">Position</div>
+        <div class="metric-card-value">{{ stats.position|default:"--" }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card-icon purple">&#x1F4D6;</div>
+        <div class="metric-card-label">Subjects</div>
+        <div class="metric-card-value">{{ stats.total_subjects|default:0 }}</div>
     </div>
     {% endif %}
-    {% if exam_types %}
-    <div class="filter-item">
-        <label for="exam_filter">Filter by Exam:</label>
-        <select id="exam_filter" onchange="filterResults(this.value, 'exam')">
-            <option value="">All Exams</option>
-            {% for exam in exam_types %}
-            <option value="{{ exam.id }}">{{ exam.name }}</option>
-            {% endfor %}
-        </select>
+</div>
+
+<!-- Quick Actions -->
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+        <span class="card-header-title">Quick Actions</span>
     </div>
+    <div class="card-body">
+        <div class="quick-actions">
+            <a href="{% url 'academics:enhanced_report_card' student.id %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4C4;</span>
+                <span class="quick-action-label">Report Card</span>
+            </a>
+            <a href="{% url 'academics:report_card_pdf' student.id %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4E5;</span>
+                <span class="quick-action-label">Download PDF</span>
+            </a>
+            <a href="{% url 'operations:homework_for_student' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4DD;</span>
+                <span class="quick-action-label">Homework</span>
+            </a>
+            <a href="{% url 'students:fees_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4B0;</span>
+                <span class="quick-action-label">My Fees</span>
+            </a>
+            <a href="{% url 'operations:online_exam_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4BB;</span>
+                <span class="quick-action-label">Online Exams</span>
+            </a>
+            <a href="{% url 'academics:timetable_my' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x23F0;</span>
+                <span class="quick-action-label">Timetable</span>
+            </a>
+            <a href="{% url 'academics:quiz_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x2753;</span>
+                <span class="quick-action-label">Quizzes</span>
+            </a>
+            <a href="{% url 'operations:my_payments' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4B3;</span>
+                <span class="quick-action-label">Payments</span>
+            </a>
+            <a href="{% url 'operations:library_my_issues' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4DA;</span>
+                <span class="quick-action-label">Library</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+    <!-- Performance Doughnut -->
+    {% if stats.average %}
+    <div class="card">
+        <div class="card-header"><span class="card-header-title">Overall Average</span></div>
+        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
+            <canvas id="studentPerformanceChart"></canvas>
+        </div>
+        <div class="card-footer" style="text-align:center;">
+            <a href="{% url 'academics:enhanced_report_card' student.id %}" class="btn btn-sm btn-primary">View Full Report Card</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Term-over-Term Progress Chart -->
+    {% if chart_labels %}
+    <div class="card">
+        <div class="card-header"><span class="card-header-title">Term-over-Term Progress</span></div>
+        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
+            <canvas id="termProgressChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+    <!-- Recent Attendance -->
+    {% if recent_attendance %}
+    <div class="card card-flush">
+        <div class="card-header">
+            <span class="card-header-title">Recent Attendance</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table>
+                    <thead><tr><th>Date</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for a in recent_attendance %}
+                        <tr>
+                            <td>{{ a.date|date:"M d, Y" }}</td>
+                            <td>
+                                {% if a.status == 'present' %}<span class="badge badge-success">Present</span>
+                                {% elif a.status == 'absent' %}<span class="badge badge-danger">Absent</span>
+                                {% elif a.status == 'late' %}<span class="badge badge-warning">Late</span>
+                                {% else %}<span class="badge badge-muted">{{ a.get_status_display }}</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quiz Results (Unified Academic Record) -->
+    {% if quiz_attempts %}
+    <div class="card card-flush">
+        <div class="card-header"><span class="card-header-title">Quiz Results</span></div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table>
+                    <thead><tr><th>Quiz</th><th>Subject</th><th>Score</th><th>Date</th></tr></thead>
+                    <tbody>
+                        {% for qa in quiz_attempts %}
+                        <tr>
+                            <td>{{ qa.quiz.title }}</td>
+                            <td class="text-muted">{{ qa.quiz.subject.name }}</td>
+                            <td><strong>{{ qa.score|floatformat:1 }}%</strong></td>
+                            <td class="text-muted">{{ qa.submitted_at|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Results Table -->
+{% if terms or exam_types %}
+<div class="filter-bar">
+    {% if terms %}
+    <select id="term_filter" onchange="filterResults(this.value, 'term')">
+        <option value="">All Terms</option>
+        {% for term in terms %}<option value="{{ term.id }}">{{ term.name }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    {% if exam_types %}
+    <select id="exam_filter" onchange="filterResults(this.value, 'exam')">
+        <option value="">All Exam Types</option>
+        {% for exam in exam_types %}<option value="{{ exam.id }}">{{ exam.name }}</option>{% endfor %}
+    </select>
     {% endif %}
 </div>
 {% endif %}
 
 {% if results %}
-<div class="table-card">
-    <table>
-        <thead>
-            <tr>
-                <th>Subject</th>
-                <th>Exam Type</th>
-                <th>Term</th>
-                <th>Score</th>
-                <th>Grade</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for r in results %}
-            <tr>
-                <td>{{ r.subject.name }}</td>
-                <td>{{ r.exam_type.name|default:"—" }}</td>
-                <td>{{ r.term.name|default:"—" }}</td>
-                <td>{{ r.score }}</td>
-                <td><span class="tag tag-success">{{ r.grade }}</span></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="card card-flush" style="margin-bottom:1rem;">
+    <div class="card-header">
+        <span class="card-header-title">My Results</span>
+        <span class="badge badge-muted">{{ results|length }} subject{{ results|length|pluralize }}</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>Subject</th><th>Exam Type</th><th>Term</th><th>Score</th><th>Grade</th></tr></thead>
+                <tbody>
+                    {% for r in results %}
+                    <tr>
+                        <td>{{ r.subject.name }}</td>
+                        <td class="text-muted">{{ r.exam_type.name|default:"--" }}</td>
+                        <td class="text-muted">{{ r.term.name|default:"--" }}</td>
+                        <td><strong>{{ r.score }}</strong></td>
+                        <td><span class="badge badge-success">{{ r.grade }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
-{% else %}
-<div class="content-card">
+{% elif not stats.average %}
+<div class="card" style="margin-bottom:1rem;">
     <div class="empty-state">
-        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-icon">&#x1F4CA;</div>
         <div class="empty-state-title">No Results Yet</div>
         <div class="empty-state-desc">Results will appear here after teachers upload them.</div>
     </div>
@@ -213,186 +237,151 @@
 
 <!-- Achievements & Activities -->
 {% if achievements or activities %}
-<h3 class="section-title">🌟 Beyond the Classroom</h3>
-
-<div class="two-col-grid">
-{% if achievements %}
-    <div class="content-card">
-        <h4 style="font-size: 0.95rem; color: #e5e7eb; margin-bottom: 0.75rem;">🏅 Achievements & Awards</h4>
-        <ul class="activity-list">
-            {% for a in achievements %}
-            <li class="activity-item">
-                <div class="activity-icon" style="background: rgba(251, 191, 36, 0.2);">🏅</div>
-                <div class="activity-content">
-                    <div class="activity-text"><strong>{{ a.title }}</strong></div>
-                    <div class="activity-time">{{ a.get_achievement_type_display }} · {{ a.date_achieved }}</div>
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
+<div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+    {% if achievements %}
+    <div class="card">
+        <div class="card-header"><span class="card-header-title">Achievements</span></div>
+        <div class="card-body">
+            <ul class="activity-list">
+                {% for a in achievements %}
+                <li class="activity-item">
+                    <div class="activity-icon finance">&#x1F3C5;</div>
+                    <div class="activity-content">
+                        <div class="activity-text"><strong>{{ a.title }}</strong></div>
+                        <div class="activity-time">{{ a.get_achievement_type_display }} &middot; {{ a.date_achieved }}</div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
     </div>
-{% endif %}
-
-{% if activities %}
-    <div class="content-card">
-        <h4 style="font-size: 0.95rem; color: #e5e7eb; margin-bottom: 0.75rem;">⚽ Activities & Clubs</h4>
-        <ul class="activity-list">
-            {% for act in activities %}
-            <li class="activity-item">
-                <div class="activity-icon" style="background: rgba(59, 130, 246, 0.2);">🎯</div>
-                <div class="activity-content">
-                    <div class="activity-text"><strong>{{ act.activity_name }}</strong></div>
-                    <div class="activity-time">{{ act.get_activity_type_display }}{% if act.position %} · {{ act.position }}{% endif %}</div>
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
+    {% endif %}
+    {% if activities %}
+    <div class="card">
+        <div class="card-header"><span class="card-header-title">Activities &amp; Clubs</span></div>
+        <div class="card-body">
+            <ul class="activity-list">
+                {% for act in activities %}
+                <li class="activity-item">
+                    <div class="activity-icon student">&#x1F3AF;</div>
+                    <div class="activity-content">
+                        <div class="activity-text"><strong>{{ act.activity_name }}</strong></div>
+                        <div class="activity-time">{{ act.get_activity_type_display }}{% if act.position %} &middot; {{ act.position }}{% endif %}</div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
     </div>
-{% endif %}
+    {% endif %}
 </div>
 {% endif %}
 
-<!-- Discipline & Behavior -->
 {% if discipline_records %}
-<h3 class="section-title">⚖️ Behavior & Discipline</h3>
-<div class="content-card">
-    <ul class="activity-list">
-        {% for rec in discipline_records %}
-        <li class="activity-item">
-            <div class="activity-icon" style="background: rgba(248, 113, 113, 0.2);">⚠️</div>
-            <div class="activity-content">
-                <div class="activity-text"><strong>{{ rec.get_incident_type_display }}</strong> – {{ rec.title }}</div>
-                <div class="activity-time">{{ rec.incident_date }}</div>
-            </div>
-        </li>
-        {% endfor %}
-    </ul>
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-header"><span class="card-header-title">Behavior &amp; Discipline</span></div>
+    <div class="card-body">
+        <ul class="activity-list">
+            {% for rec in discipline_records %}
+            <li class="activity-item">
+                <div class="activity-icon" style="background:rgba(248,113,113,0.2);">&#x26A0;</div>
+                <div class="activity-content">
+                    <div class="activity-text"><strong>{{ rec.get_incident_type_display }}</strong> &ndash; {{ rec.title }}</div>
+                    <div class="activity-time">{{ rec.incident_date }}</div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
 </div>
 {% endif %}
-
-<script>
-function filterResults(value, type) {
-    const url = new URL(window.location.href);
-    if (value) {
-        url.searchParams.set(type + '_id', value);
-    } else {
-        url.searchParams.delete(type + '_id');
-    }
-    window.location.href = url;
-}
-
-// Animated counters and Student Performance Chart
-document.addEventListener('DOMContentLoaded', function() {
-    const counters = document.querySelectorAll('.metric-value[data-count]');
-    counters.forEach(counter => {
-        const target = parseInt(counter.getAttribute('data-count')) || 0;
-        if (target > 0) {
-            counter.classList.add('animated');
-            let current = 0;
-            const increment = target / 30;
-            const timer = setInterval(() => {
-                current += increment;
-                if (current >= target) {
-                    counter.textContent = target + '%';
-                    clearInterval(timer);
-                } else {
-                    counter.textContent = Math.floor(current);
-                }
-            }, 30);
-        }
-    });
-    
-    // Student Performance Chart
-    const studentChartCtx = document.getElementById('studentPerformanceChart');
-    if (studentChartCtx) {
-        Chart.defaults.color = '#9ca3af';
-        Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
-        
-        const score = {{ stats.average|default:0 }};
-        const studentPosition = {{ stats.position|default:0 }};
-        
-        new Chart(studentChartCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['My Score', 'Remaining'],
-                datasets: [{
-                    data: [score, Math.max(0, 100 - score)],
-                    backgroundColor: [
-                        'rgba(34, 197, 94, 0.85)',
-                        'rgba(148, 163, 184, 0.3)'
-                    ],
-                    borderColor: ['#22c55e', '#9ca3af'],
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '70%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { padding: 15, usePointStyle: true }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Overall Average: ' + score + '%',
-                        color: '#22c55e',
-                        font: { size: 14, weight: 'bold' }
-                    }
-                }
-            }
-        });
-    }
-});
-</script>
 
 {% else %}
-<div class="content-card">
+<div class="card">
     <div class="empty-state">
-        <div class="empty-state-icon">👤</div>
+        <div class="empty-state-icon">&#x1F464;</div>
         <div class="empty-state-title">No Student Record</div>
         <div class="empty-state-desc">No student record linked to your account. Please contact your school.</div>
     </div>
 </div>
 {% endif %}
 
-<style>
-.section-title {
-    margin-top: 1.5rem;
-    margin-bottom: 1rem;
-    color: #e5e7eb;
-    font-weight: 600;
+<script>
+function filterResults(value, type) {
+    var url = new URL(window.location.href);
+    if (value) { url.searchParams.set(type + '_id', value); }
+    else { url.searchParams.delete(type + '_id'); }
+    window.location.href = url;
 }
-.filter-row {
-    margin: 1rem 0;
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-.filter-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-.filter-item label {
-    font-size: 0.8rem;
-    color: #9ca3af;
-}
-.filter-item select {
-    padding: 0.4rem 0.6rem;
-    background: #0f172a;
-    color: #fff;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    border-radius: 0.4rem;
-}
-.tag-success {
-    background: rgba(34,197,94,0.2);
-    color: #22c55e;
-    border: 1px solid #22c55e;
-}
-.text-muted {
-    color: #9ca3af;
-}
-</style>
+
+document.addEventListener('DOMContentLoaded', function() {
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(148,163,184,0.15)';
+
+    var chartCtx = document.getElementById('studentPerformanceChart');
+    if (chartCtx) {
+        var score = {{ stats.average|default:0 }};
+        new Chart(chartCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['My Score', 'Remaining'],
+                datasets: [{ data: [score, Math.max(0, 100 - score)], backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(148,163,184,0.15)'], borderWidth: 0 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '72%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } },
+                    title: { display: true, text: 'Average: ' + score + '%', color: '#22c55e', font: { size: 14, weight: 'bold' } }
+                }
+            }
+        });
+    }
+
+    {{ chart_labels|json_script:"chart-labels" }}
+    {{ chart_data|json_script:"chart-data" }}
+    {{ class_chart_data|json_script:"chart-class-data" }}
+    var termCtx = document.getElementById('termProgressChart');
+    if (termCtx) {
+        var labels = JSON.parse(document.getElementById('chart-labels').textContent);
+        var myData = JSON.parse(document.getElementById('chart-data').textContent);
+        var classData = JSON.parse(document.getElementById('chart-class-data').textContent);
+        new Chart(termCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'My Average',
+                        data: myData,
+                        borderColor: 'rgba(59,130,246,1)',
+                        backgroundColor: 'rgba(59,130,246,0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    },
+                    {
+                        label: 'Class Average',
+                        data: classData,
+                        borderColor: 'rgba(148,163,184,0.6)',
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5],
+                        tension: 0.3,
+                        pointRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: false, suggestedMin: 0, suggestedMax: 100, ticks: { callback: function(v){ return v+'%'; } } }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true } }
+                }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

@@ -6,9 +6,13 @@ from schools.models import School
 class FeeStructure(models.Model):
     """Defines fee types and amounts per class or school-wide."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)  # e.g. "Tuition", "Development Levy"
+    name = models.CharField(max_length=100)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    class_name = models.CharField(max_length=100, blank=True)  # Empty = applies to all classes
+    class_name = models.CharField(max_length=100, blank=True)
+    school_class = models.ForeignKey(
+        "students.SchoolClass", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="fee_structures",
+    )
     term = models.CharField(max_length=50, blank=True)  # e.g. "Term 1 2025" or empty for any
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -25,9 +29,17 @@ class Fee(models.Model):
     """Individual student fee with partial payment support."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)  # Total fee amount
-    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # Amount paid so far
-    paid = models.BooleanField(default=False)  # Legacy field - kept for compatibility
+    fee_structure = models.ForeignKey(
+        FeeStructure, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="fees", help_text="Fee type this charge originated from",
+    )
+    term = models.ForeignKey(
+        "academics.Term", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="fees", help_text="Academic term this fee belongs to",
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    paid = models.BooleanField(default=False)
     paystack_payment_id = models.CharField(max_length=255, blank=True, null=True)
     paystack_reference = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -35,6 +47,13 @@ class Fee(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        verbose_name = "Fee"
+        verbose_name_plural = "Fees"
+        indexes = [
+            models.Index(fields=["school", "student"], name="idx_fee_school_student"),
+            models.Index(fields=["school", "paid"], name="idx_fee_school_paid"),
+            models.Index(fields=["student", "paid"], name="idx_fee_student_paid"),
+        ]
 
     @property
     def remaining_balance(self):
@@ -66,15 +85,28 @@ class Fee(models.Model):
 class FeePayment(models.Model):
     """Track individual payments for partial payments."""
     fee = models.ForeignKey(Fee, on_delete=models.CASCADE, related_name="payments")
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Net amount credited to the fee balance (excluding processing uplift).",
+    )
+    gross_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total charged on Paystack (includes uplift when pass-fee-to-payer is on).",
+    )
     paystack_payment_id = models.CharField(max_length=255, blank=True, null=True)
-    paystack_reference = models.CharField(max_length=255, blank=True, null=True)
-    payment_method = models.CharField(max_length=50, blank=True)  # e.g., "card", "mobile_money", "bank_transfer"
-    status = models.CharField(max_length=20, default="pending")  # pending, completed, failed
+    paystack_reference = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    payment_method = models.CharField(max_length=50, blank=True)
+    status = models.CharField(max_length=20, default="pending", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+        verbose_name = "Fee Payment"
+        verbose_name_plural = "Fee Payments"
 
     def __str__(self):
         return f"Payment of GHS {self.amount} for {self.fee.student}"

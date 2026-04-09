@@ -2,8 +2,9 @@
 Advanced Features for Mastex SchoolOS
 - Auto Timetable Generator
 - Course Management (LMS)
-- Parent-Teacher Chat
 - Exam Seating Plans
+
+(Parent–teacher chat lives in the messaging app.)
 """
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -11,14 +12,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Q
-from datetime import timedelta
 import random
 
 from students.models import Student
 from schools.models import School
-from academics.models import Subject, Result, Term, Homework, Quiz
-from operations.models import OnlineExam, TimetableSlot, StudentAttendance
+from academics.models import Subject, Homework, Quiz
 
 
 # ==================== AUTO TIMETABLE GENERATOR ====================
@@ -185,97 +183,6 @@ def add_lesson(request, subject_id):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-# ==================== PARENT-TEACHER CHAT ====================
-
-@login_required
-def chat_page(request):
-    """Parent-Teacher chat interface."""
-    school = getattr(request.user, 'school', None)
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
-    
-    if not school:
-        messages.error(request, 'No school associated with your account.')
-        return redirect('home')
-    
-    # Get teachers and parents
-    from accounts.models import User
-    
-    if request.user.role in ['admin', 'teacher']:
-        # Teachers see their students' parents
-        students = Student.objects.filter(school=school)
-        if request.user.role == 'teacher':
-            students = students.filter(assigned_subjects__teacher=request.user)
-        
-        parents = []
-        for student in students.select_related('parent'):
-            if student.parent:
-                parents.append(student.parent)
-        parents = list(set(parents))
-    else:
-        # Parents see their children's teachers
-        students = Student.objects.filter(school=school, parent=request.user)
-        teachers = []
-        for student in students:
-            teachers.extend(list(student.assigned_subjects.values_list('teacher', flat=True)))
-        teachers = User.objects.filter(id__in=teachers)
-    
-    context = {
-        'school': school,
-        'contacts': parents if request.user.role in ['admin', 'teacher'] else teachers,
-    }
-    return render(request, 'messaging/chat.html', context)
-
-
-@login_required
-def send_message(request):
-    """Send a chat message."""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid method'}, status=400)
-    
-    import json
-    try:
-        data = json.loads(request.body)
-        recipient_id = data.get('recipient_id')
-        message_text = data.get('message', '').strip()
-        
-        if not message_text:
-            return JsonResponse({'success': False, 'error': 'Message cannot be empty'}, status=400)
-        
-        # In production, you'd save to a Message model
-        message = {
-            'id': random.randint(1000, 9999),
-            'sender': request.user.id,
-            'sender_name': request.user.get_full_name() or request.user.username,
-            'recipient': recipient_id,
-            'message': message_text,
-            'timestamp': timezone.now().strftime('%Y-%m-%d %H:%M'),
-            'read': False
-        }
-        
-        return JsonResponse({
-            'success': True,
-            'message': message
-        })
-        
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-@login_required
-def get_messages(request, contact_id):
-    """Get messages with a contact."""
-    # In production, you'd fetch from Message model
-    messages = [
-        {'id': 1, 'sender': request.user.id, 'message': 'Hello!', 'timestamp': '2024-01-01 10:00'},
-        {'id': 2, 'sender': contact_id, 'message': 'Hi there!', 'timestamp': '2024-01-01 10:05'},
-    ]
-    
-    return JsonResponse({'messages': messages})
 
 
 # ==================== EXAM SEATING PLANS ====================

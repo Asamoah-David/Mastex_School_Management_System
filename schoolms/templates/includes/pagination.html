@@ -1,0 +1,42 @@
+{% if page_obj.has_other_pages %}
+<nav class="pagination-nav" aria-label="Page navigation">
+    <div class="pagination-info">
+        Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+    </div>
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+        <li><a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" class="page-link">&laquo; Prev</a></li>
+        {% else %}
+        <li><span class="page-link disabled">&laquo; Prev</span></li>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li><span class="page-link active">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+            <li><a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ num }}" class="page-link">{{ num }}</a></li>
+            {% elif num == 1 or num == page_obj.paginator.num_pages %}
+            <li><a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ num }}" class="page-link">{{ num }}</a></li>
+            {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+            <li><span class="page-link ellipsis">&hellip;</span></li>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <li><a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" class="page-link">Next &raquo;</a></li>
+        {% else %}
+        <li><span class="page-link disabled">Next &raquo;</span></li>
+        {% endif %}
+    </ul>
+</nav>
+<style>
+.pagination-nav { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin:1.5rem 0; }
+.pagination-info { font-size:.875rem; color:var(--text-secondary, #6b7280); }
+.pagination { display:flex; list-style:none; padding:0; margin:0; gap:.25rem; flex-wrap:wrap; }
+.pagination .page-link { display:inline-flex; align-items:center; justify-content:center; min-width:2.25rem; height:2.25rem; padding:0 .625rem; border:1px solid var(--border-color, #d1d5db); border-radius:.375rem; font-size:.875rem; color:var(--text-primary, #374151); background:var(--bg-surface, #fff); text-decoration:none; cursor:pointer; transition:all .15s; }
+.pagination .page-link:hover:not(.disabled):not(.active) { background:var(--bg-hover, #f3f4f6); border-color:var(--primary, #3b82f6); color:var(--primary, #3b82f6); }
+.pagination .page-link.active { background:var(--primary, #3b82f6); color:#fff; border-color:var(--primary, #3b82f6); font-weight:600; }
+.pagination .page-link.disabled { opacity:.5; cursor:default; }
+.pagination .page-link.ellipsis { border:none; background:transparent; cursor:default; }
+</style>
+{% endif %}

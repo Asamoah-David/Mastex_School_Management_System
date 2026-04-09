@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Search — Mastex SchoolOS{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:900px;margin:0 auto;">
+    <h2 style="margin-bottom:1rem;">Search Results</h2>
+    <form method="get" style="margin-bottom:1.5rem;">
+        <div style="display:flex;gap:.5rem;">
+            <input type="search" name="q" value="{{ q }}" placeholder="Search students, staff, parents, fees..." style="flex:1;padding:.625rem .875rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.9rem;background:var(--bg-surface,#fff);color:var(--text-primary);" autofocus>
+            <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Search</button>
+        </div>
+    </form>
+
+    {% if q %}
+    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:.875rem;">
+        Found <strong>{{ total }}</strong> result{{ total|pluralize }} for "<strong>{{ q }}</strong>"
+    </p>
+
+    {% if results.students %}
+    <div class="search-section" style="margin-bottom:1.5rem;">
+        <h3 style="font-size:1rem;margin-bottom:.5rem;color:var(--primary);">Students ({{ results.students|length }})</h3>
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>Name</th><th>Admission No.</th><th>Class</th><th></th></tr></thead>
+                <tbody>
+                {% for s in results.students %}
+                <tr>
+                    <td>{{ s.user.get_full_name }}</td>
+                    <td>{{ s.admission_number }}</td>
+                    <td>{{ s.class_name|default:"—" }}</td>
+                    <td><a href="{% url 'students:student_detail' s.pk %}" class="btn btn-sm btn-primary">View</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if results.staff %}
+    <div class="search-section" style="margin-bottom:1.5rem;">
+        <h3 style="font-size:1rem;margin-bottom:.5rem;color:var(--primary);">Staff ({{ results.staff|length }})</h3>
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>Name</th><th>Role</th><th>Email</th><th></th></tr></thead>
+                <tbody>
+                {% for s in results.staff %}
+                <tr>
+                    <td>{{ s.get_full_name }}</td>
+                    <td>{{ s.get_role_display }}</td>
+                    <td>{{ s.email }}</td>
+                    <td><a href="{% url 'accounts:staff_detail' s.pk %}" class="btn btn-sm btn-primary">View</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if results.parents %}
+    <div class="search-section" style="margin-bottom:1.5rem;">
+        <h3 style="font-size:1rem;margin-bottom:.5rem;color:var(--primary);">Parents ({{ results.parents|length }})</h3>
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr></thead>
+                <tbody>
+                {% for p in results.parents %}
+                <tr>
+                    <td>{{ p.get_full_name }}</td>
+                    <td>{{ p.phone|default:"—" }}</td>
+                    <td>{{ p.email }}</td>
+                    <td><a href="{% url 'accounts:parent_detail' p.pk %}" class="btn btn-sm btn-primary">View</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if results.fees %}
+    <div class="search-section" style="margin-bottom:1.5rem;">
+        <h3 style="font-size:1rem;margin-bottom:.5rem;color:var(--primary);">Fees ({{ results.fees|length }})</h3>
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>Student</th><th>Amount</th><th>Paid</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for f in results.fees %}
+                <tr>
+                    <td>{{ f.student.user.get_full_name }}</td>
+                    <td>GHS {{ f.amount }}</td>
+                    <td>GHS {{ f.amount_paid }}</td>
+                    <td>{% if f.paid %}<span class="tag tag-success">Paid</span>{% else %}<span class="tag tag-warning">Unpaid</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if total == 0 %}
+    <div style="text-align:center;padding:3rem 1rem;color:var(--text-secondary);">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🔍</div>
+        <p>No results found for "<strong>{{ q }}</strong>"</p>
+        <p style="font-size:.875rem;">Try a different search term or check the spelling.</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div style="text-align:center;padding:3rem 1rem;color:var(--text-secondary);">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🔍</div>
+        <p>Enter a search term to find students, staff, parents, or fees.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

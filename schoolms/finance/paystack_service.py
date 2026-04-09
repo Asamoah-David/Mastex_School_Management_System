@@ -2,11 +2,45 @@
 Paystack Payment Service for School Fees
 Handles payment initialization, verification, and webhook processing
 """
-import requests
+from __future__ import annotations
+
 import hashlib
 import hmac
+from decimal import Decimal, ROUND_UP
+
+import requests
 from django.conf import settings
-from django.utils import timezone
+
+
+def pass_processing_fee_to_payer() -> bool:
+    """When True, customer pays a uplift so settlement approximates full net to school/platform."""
+    return getattr(settings, "PAYSTACK_PASS_FEE_TO_PAYER", True)
+
+
+def processing_fee_percent_decimal() -> Decimal:
+    """Estimated Paystack % deducted from settlement; used only for gross-up (tune per Paystack pricing)."""
+    return Decimal(str(getattr(settings, "PAYSTACK_PROCESSING_FEE_PERCENT", 1.95)))
+
+
+def compute_paystack_gross_from_net(net: Decimal) -> tuple[Decimal, Decimal]:
+    """
+    Return (net, gross) amounts in major currency units.
+    If pass-through is off, gross == net.
+    Gross is rounded up to 2 dp so the school-side net is not under-funded vs estimate.
+    """
+    net = Decimal(str(net)).quantize(Decimal("0.01"))
+    if not pass_processing_fee_to_payer():
+        return net, net
+    p = processing_fee_percent_decimal()
+    if p <= 0:
+        return net, net
+    denom = Decimal("1") - (p / Decimal("100"))
+    if denom <= 0:
+        return net, net
+    gross = (net / denom).quantize(Decimal("0.01"), rounding=ROUND_UP)
+    if gross < net:
+        gross = net
+    return net, gross
 
 
 class PaystackService:
@@ -195,7 +229,7 @@ class PaystackService:
         Returns:
             bool indicating if signature is valid
         """
-        expected_signature = hmac.new(
+        expected_signature = hmac.HMAC(
             secret_key.encode('utf-8'),
             request_body,
             hashlib.sha512

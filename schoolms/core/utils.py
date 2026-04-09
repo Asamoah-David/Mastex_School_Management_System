@@ -1,26 +1,32 @@
-"""Shared utilities including activity logging."""
+"""Shared utilities including activity logging and common view helpers."""
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def get_effective_school(request):
+def get_school(request):
+    """Return the school for the current request.
+
+    Priority: ``request.user.school`` → ``request.school`` (set by
+    SchoolMiddleware from the subdomain).  Returns *None* for
+    unauthenticated users or platform admins without a school.
     """
-    Get the effective school for the current request.
-    Returns the school from request.user.school if available,
-    otherwise tries to get from subdomain via middleware.
-    """
-    if not request:
-        return None
-    
-    # First try to get from authenticated user
     if hasattr(request, "user") and request.user.is_authenticated:
         school = getattr(request.user, "school", None)
         if school:
             return school
-    
-    # Try to get from request attribute set by middleware
-    return getattr(request, "_school", None)
+    return getattr(request, "school", None)
+
+
+def can_manage(request):
+    """Check if the requesting user can manage school data."""
+    from accounts.permissions import user_can_manage_school
+    return request.user.is_superuser or user_can_manage_school(request.user)
+
+
+def get_effective_school(request):
+    """Alias for ``get_school`` — kept for backward compatibility."""
+    return get_school(request)
 
 
 def log_activity(user, action, details="", school=None, request=None):

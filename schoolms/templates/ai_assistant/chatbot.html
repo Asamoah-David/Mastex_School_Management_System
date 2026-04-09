@@ -47,38 +47,49 @@ function askQuestion(question) {
     sendMessage();
 }
 
-function sendMessage() {
-    const input = document.getElementById('chatInput');
-    const message = input.value.trim();
-    
-    if (!message) return;
-    
-    // Add user message
-    const chatMessages = document.getElementById('chatMessages');
-    chatMessages.innerHTML += `
-        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; justify-content: flex-end;">
-            <div style="flex: 1; background: #4F46E5; color: white; padding: 1rem; border-radius: 12px; text-align: right;">
-                <p style="margin: 0;">${message}</p>
-            </div>
-        </div>
-    `;
-    
-    input.value = '';
-    
-    // Show typing indicator
-    chatMessages.innerHTML += `
-        <div id="typingIndicator" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-            <div style="width: 40px; height: 40px; background: #4F46E5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">🤖</div>
-            <div style="flex: 1; background: white; padding: 1rem; border-radius: 12px;">
-                <p style="margin: 0; color: #6b7280;">Typing...</p>
-            </div>
-        </div>
-    `;
-    
-    // Scroll to bottom
+function escapeHtml(text) {
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(text));
+    return d.innerHTML;
+}
+
+function addBubble(html, isRight, icon, bgColor) {
+    var chatMessages = document.getElementById('chatMessages');
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;gap:1rem;margin-bottom:1rem;' + (isRight ? 'justify-content:flex-end;' : '');
+    if (!isRight) {
+        var av = document.createElement('div');
+        av.style.cssText = 'width:40px;height:40px;background:' + bgColor + ';border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;';
+        av.textContent = icon;
+        wrapper.appendChild(av);
+    }
+    var bubble = document.createElement('div');
+    bubble.style.cssText = 'flex:1;padding:1rem;border-radius:12px;' + (isRight ? 'background:#4F46E5;color:white;text-align:right;' : 'background:white;box-shadow:0 1px 3px rgba(0,0,0,0.1);');
+    var p = document.createElement('p');
+    p.style.margin = '0';
+    p.textContent = html;
+    bubble.appendChild(p);
+    wrapper.appendChild(bubble);
+    chatMessages.appendChild(wrapper);
     document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
-    
-    // Send to server
+}
+
+function sendMessage() {
+    var input = document.getElementById('chatInput');
+    var message = input.value.trim();
+    if (!message) return;
+
+    addBubble(message, true, '', '#4F46E5');
+    input.value = '';
+
+    var chatMessages = document.getElementById('chatMessages');
+    var typing = document.createElement('div');
+    typing.id = 'typingIndicator';
+    typing.style.cssText = 'display:flex;gap:1rem;margin-bottom:1rem;';
+    typing.innerHTML = '<div style="width:40px;height:40px;background:#4F46E5;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">&#129302;</div><div style="flex:1;background:white;padding:1rem;border-radius:12px;"><p style="margin:0;color:#6b7280;">Typing...</p></div>';
+    chatMessages.appendChild(typing);
+    document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
+
     fetch('/ai/chatbot/respond/', {
         method: 'POST',
         headers: {
@@ -87,43 +98,20 @@ function sendMessage() {
         },
         body: JSON.stringify({ message: message })
     })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('typingIndicator').remove();
-        
-        // Check if there's an error in the response
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var ti = document.getElementById('typingIndicator');
+        if (ti) ti.remove();
         if (data.error) {
-            chatMessages.innerHTML += `
-                <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div style="width: 40px; height: 40px; background: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">❌</div>
-                    <div style="flex: 1; background: white; padding: 1rem; border-radius: 12px;">
-                        <p style="margin: 0; color: #ef4444;">${data.error}</p>
-                    </div>
-                </div>
-            `;
+            addBubble(data.error, false, '\u274C', '#ef4444');
         } else {
-            chatMessages.innerHTML += `
-                <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div style="width: 40px; height: 40px; background: #4F46E5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">🤖</div>
-                    <div style="flex: 1; background: white; padding: 1rem; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <p style="margin: 0; color: #1f2937; font-size: 1rem; line-height: 1.5;">${data.response || 'No response received.'}</p>
-                    </div>
-                </div>
-            `;
+            addBubble(data.response || 'No response received.', false, '\uD83E\uDD16', '#4F46E5');
         }
-        
-        document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
     })
-    .catch(error => {
-        document.getElementById('typingIndicator').remove();
-        chatMessages.innerHTML += `
-            <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                <div style="width: 40px; height: 40px; background: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">❌</div>
-                <div style="flex: 1; background: white; padding: 1rem; border-radius: 12px;">
-                    <p style="margin: 0; color: #ef4444;">Sorry, something went wrong. Please try again.</p>
-                </div>
-            </div>
-        `;
+    .catch(function() {
+        var ti = document.getElementById('typingIndicator');
+        if (ti) ti.remove();
+        addBubble('Sorry, something went wrong. Please try again.', false, '\u274C', '#ef4444');
     });
 }
 

@@ -3,6 +3,8 @@ PDF Report Card Generator for Mastex SchoolOS
 Generates professional PDF report cards for students
 """
 
+import logging
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -11,6 +13,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from io import BytesIO
 from django.http import HttpResponse
+
+logger = logging.getLogger(__name__)
 
 
 def generate_report_card_pdf(student, results, attendance_data, school, term, academic_year):
@@ -318,8 +322,12 @@ def generate_bulk_report_cards(students, school, term, academic_year):
                 filename = f"Report_{student.admission_number}.pdf"
                 zip_file.writestr(filename, pdf_buffer.getvalue())
                 
-            except Exception as e:
-                print(f"Error generating report for {student}: {e}")
+            except Exception:
+                logger.warning(
+                    "Error generating report card PDF for student",
+                    extra={"student_id": getattr(student, "id", None)},
+                    exc_info=True,
+                )
                 continue
     
     buffer.seek(0)

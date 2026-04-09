@@ -37,7 +37,8 @@
                     <td>{{ h.class_name }}</td>
                     <td>{{ h.due_date|date:"M d, Y" }}</td>
                     {% if not read_only %}
-                    <td>
+                    <td style="display:flex;gap:.35rem;flex-wrap:wrap;">
+                        <a href="{% url 'operations:assignment_submission_list' %}?homework={{ h.pk }}" class="btn btn-secondary btn-sm" title="View student submissions">Submissions</a>
                         <a href="{% url 'academics:homework_edit' h.pk %}" class="btn btn-secondary btn-sm">Edit</a>
                         <a href="{% url 'academics:homework_delete' h.pk %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this homework?');">Delete</a>
                     </td>
@@ -62,4 +63,5 @@
     color: #ffffff !important;
 }
 </style>
+{% include 'includes/pagination.html' %}
 {% endblock %}

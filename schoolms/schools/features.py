@@ -58,8 +58,16 @@ def is_feature_enabled(request, key: str) -> bool:
     school = get_effective_school(request)
     if not school:
         return True
-    obj = SchoolFeature.objects.filter(school=school, key=key).first()
-    return True if obj is None else bool(obj.enabled)
+
+    flags = getattr(request, "_feature_flags_cache", None)
+    if flags is None:
+        flags = dict(
+            SchoolFeature.objects.filter(school=school).values_list("key", "enabled")
+        )
+        request._feature_flags_cache = flags
+
+    enabled = flags.get(key)
+    return True if enabled is None else bool(enabled)
 
 
 def require_feature(request, key: str, fallback_url_name: str = "home"):

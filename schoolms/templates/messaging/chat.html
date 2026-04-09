@@ -1,147 +1,80 @@
 {% extends "base.html" %}
-
-{% block title %}Messages - {{ school.name }}{% endblock %}
+{% block title %}Messages · Mastex SchoolOS{% endblock %}
+{% block page_title %}Parent-Teacher Messages{% endblock %}
+{% block page_subtitle %}Direct communication between parents and teachers{% endblock %}
 
 {% block content %}
-<div class="content-card">
-    <div class="page-heading">
-        <div>
-            <h2>💬 Parent-Teacher Messages</h2>
-            <p class="page-subtitle">Direct communication between parents and teachers</p>
-        </div>
-    </div>
-    
-    <div class="form-grid-2" style="margin-top: 1.5rem; gap: 2rem;">
-        <!-- Contacts List -->
-        <div class="content-card" style="height: 500px;">
-            <h3 style="margin-top: 0;">👥 Contacts</h3>
-            
-            <div style="overflow-y: auto; height: 400px;">
-                {% if contacts %}
-                    {% for contact in contacts %}
-                    <div class="contact-item" onclick="selectContact({{ contact.id }}, '{{ contact.get_full_name|default:contact.username }}')" 
-                         style="padding: 1rem; border-bottom: 1px solid #e5e7eb; cursor: pointer; display: flex; align-items: center; gap: 1rem;">
-                        <div style="width: 40px; height: 40px; background: #4F46E5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                            {{ contact.get_full_name|default:contact.username|slice:":1"|upper }}
-                        </div>
-                        <div>
-                            <strong>{{ contact.get_full_name|default:contact.username }}</strong>
-                            <p style="margin: 0; font-size: 0.85rem; color: #6b7280;">Click to message</p>
-                        </div>
-                    </div>
+<div style="display:grid;grid-template-columns:280px 1fr;gap:1rem;min-height:500px;">
+    <!-- Sidebar: Conversations + New Chat -->
+    <div class="content-card" style="overflow-y:auto;max-height:600px;">
+        <h3 style="margin-bottom:.75rem;font-size:.95rem;">Conversations</h3>
+        {% for conv in conversations %}
+        <a href="?conv={{ conv.id }}" style="display:flex;align-items:center;gap:.75rem;padding:.65rem .5rem;border-bottom:1px solid var(--border-color,#334155);text-decoration:none;color:var(--text-primary);{% if active_conv.id == conv.id %}background:rgba(99,102,241,.1);border-radius:.375rem;{% endif %}">
+            <div style="width:36px;height:36px;background:var(--primary,#6366f1);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;flex-shrink:0;">
+                {% for p in conv.participants.all %}{% if p.id != request.user.id %}{{ p.first_name|default:p.username|slice:":1"|upper }}{% endif %}{% endfor %}
+            </div>
+            <div style="overflow:hidden;">
+                <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    {% for p in conv.participants.all %}{% if p.id != request.user.id %}{{ p.get_full_name|default:p.username }}{% endif %}{% endfor %}
+                </div>
+                <div style="font-size:.75rem;color:var(--text-secondary);">{{ conv.updated_at|timesince }} ago</div>
+            </div>
+        </a>
+        {% empty %}
+        <p style="text-align:center;color:var(--text-secondary);font-size:.85rem;padding:1rem;">No conversations yet.</p>
+        {% endfor %}
+
+        {% if contacts %}
+        <details style="margin-top:1rem;">
+            <summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:var(--primary);">Start New Chat</summary>
+            <form method="post" style="margin-top:.5rem;">
+                {% csrf_token %}
+                <select name="recipient" required style="width:100%;padding:.4rem;border-radius:.375rem;border:1px solid var(--border-color);margin-bottom:.5rem;font-size:.8rem;">
+                    <option value="">— Select —</option>
+                    {% for c in contacts %}
+                    <option value="{{ c.id }}">{{ c.get_full_name|default:c.username }} ({{ c.get_role_display }})</option>
                     {% endfor %}
-                {% else %}
-                    <p style="text-align: center; padding: 2rem; color: #6b7280;">No contacts available</p>
-                {% endif %}
-            </div>
+                </select>
+                <textarea name="body" required placeholder="Type your first message…" rows="2" style="width:100%;padding:.4rem;border-radius:.375rem;border:1px solid var(--border-color);font-size:.8rem;margin-bottom:.5rem;resize:vertical;"></textarea>
+                <button type="submit" class="btn btn-sm btn-primary" style="width:100%;">Send</button>
+            </form>
+        </details>
+        {% endif %}
+    </div>
+
+    <!-- Chat Area -->
+    <div class="content-card" style="display:flex;flex-direction:column;">
+        {% if active_conv %}
+        <div style="border-bottom:1px solid var(--border-color,#334155);padding-bottom:.5rem;margin-bottom:.75rem;">
+            <strong>{% if contact %}{{ contact.get_full_name|default:contact.username }}{% else %}Conversation{% endif %}</strong>
         </div>
-        
-        <!-- Chat Area -->
-        <div class="content-card" style="height: 500px; display: flex; flex-direction: column;">
-            <h3 id="chatTitle" style="margin-top: 0;">💬 Select a contact to start chatting</h3>
-            
-            <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 1rem; background: #f9fafb; border-radius: 8px;">
-                <p style="text-align: center; color: #6b7280; margin-top: 2rem;">
-                    Select a contact from the left to start a conversation
-                </p>
-            </div>
-            
-            <div id="messageInput" style="margin-top: 1rem; display: none;">
-                <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" id="messageText" class="form-control" placeholder="Type your message..." style="flex: 1;">
-                    <button onclick="sendChatMessage()" class="btn btn-primary">Send</button>
+        <div style="flex:1;overflow-y:auto;padding:.5rem;max-height:400px;" id="chatArea">
+            {% for msg in chat_messages %}
+            <div style="display:flex;justify-content:{% if msg.sender_id == request.user.id %}flex-end{% else %}flex-start{% endif %};margin-bottom:.5rem;">
+                <div style="max-width:70%;padding:.65rem .85rem;border-radius:.75rem;font-size:.875rem;
+                    {% if msg.sender_id == request.user.id %}background:var(--primary,#6366f1);color:#fff;{% else %}background:var(--bg-hover,#f3f4f6);color:var(--text-primary);{% endif %}">
+                    <div>{{ msg.body }}</div>
+                    <div style="font-size:.7rem;opacity:.7;margin-top:.2rem;">{{ msg.created_at|date:"M j, g:i A" }}</div>
                 </div>
             </div>
+            {% empty %}
+            <p style="text-align:center;color:var(--text-secondary);margin-top:2rem;">No messages yet. Say hello!</p>
+            {% endfor %}
         </div>
+        <form method="post" style="margin-top:.75rem;display:flex;gap:.5rem;">
+            {% csrf_token %}
+            <input type="text" name="body" placeholder="Type a message…" required autocomplete="off" style="flex:1;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.875rem;background:var(--bg-surface);color:var(--text-primary);">
+            <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+        <script>var ca=document.getElementById('chatArea');if(ca)ca.scrollTop=ca.scrollHeight;</script>
+        {% else %}
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);">
+            <div style="text-align:center;">
+                <div style="font-size:2.5rem;margin-bottom:.5rem;">💬</div>
+                <p>Select a conversation or start a new chat.</p>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
-
-<script>
-let currentContactId = null;
-let currentContactName = null;
-
-function selectContact(id, name) {
-    currentContactId = id;
-    currentContactName = name;
-    
-    document.getElementById('chatTitle').textContent = '💬 Chat with ' + name;
-    document.getElementById('messageInput').style.display = 'block';
-    
-    // Load messages
-    loadMessages(id);
-}
-
-function loadMessages(contactId) {
-    fetch(`/messaging/messages/${contactId}/`)
-        .then(response => response.json())
-        .then(data => {
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.innerHTML = '';
-            
-            if (data.messages && data.messages.length > 0) {
-                data.messages.forEach(msg => {
-                    const isMe = msg.sender === {{ request.user.id }};
-                    chatMessages.innerHTML += `
-                        <div style="display: flex; justify-content: ${isMe ? 'flex-end' : 'flex-start'}; margin-bottom: 0.5rem;">
-                            <div style="max-width: 70%; background: ${isMe ? '#4F46E5' : 'white'}; color: ${isMe ? 'white' : 'black'}; padding: 0.75rem; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                <p style="margin: 0;">${msg.message}</p>
-                                <small style="opacity: 0.7;">${msg.timestamp}</small>
-                            </div>
-                        </div>
-                    `;
-                });
-            } else {
-                chatMessages.innerHTML = '<p style="text-align: center; color: #6b7280;">No messages yet. Start the conversation!</p>';
-            }
-            
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        });
-}
-
-function sendChatMessage() {
-    const messageText = document.getElementById('messageText').value.trim();
-    
-    if (!messageText || !currentContactId) return;
-    
-    fetch('/messaging/send/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({
-            recipient_id: currentContactId,
-            message: messageText
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById('messageText').value = '';
-            loadMessages(currentContactId);
-        }
-    });
-}
-
-document.getElementById('messageText').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        sendChatMessage();
-    }
-});
-
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-</script>
 {% endblock %}

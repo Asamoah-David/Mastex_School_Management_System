@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Track Admission Application{% endblock %}
+{% block page_title %}Track Your Application{% endblock %}
+{% block page_subtitle %}Check the status of your admission application{% endblock %}
+{% block content %}
+<div class="content-card" style="max-width:500px;margin:0 auto;">
+    <form method="get">
+        <div class="form-group" style="margin-bottom:.75rem;">
+            <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">Parent/Guardian Phone</label>
+            <input type="text" name="phone" value="{{ request.GET.phone }}" placeholder="e.g. 0241234567" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.9rem;background:var(--bg-surface,#fff);color:var(--text-primary);">
+        </div>
+        <div class="form-group" style="margin-bottom:.75rem;">
+            <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">Applicant Name</label>
+            <input type="text" name="name" value="{{ request.GET.name }}" placeholder="First or last name" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.9rem;background:var(--bg-surface,#fff);color:var(--text-primary);">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Check Status</button>
+    </form>
+
+    {% if searched %}
+    <div style="margin-top:1.5rem;">
+        {% if application %}
+        <div style="border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;padding:1rem;">
+            <h3 style="margin-bottom:.5rem;">{{ application.first_name }} {{ application.last_name }}</h3>
+            <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:.75rem;">Applied to {{ application.school.name|default:"—" }} for {{ application.class_applied_for }}</p>
+            <div style="display:inline-block;padding:.35rem .75rem;border-radius:.25rem;font-weight:600;font-size:.85rem;
+                {% if application.status == 'approved' %}background:rgba(34,197,94,.15);color:#16a34a;
+                {% elif application.status == 'rejected' %}background:rgba(239,68,68,.15);color:#dc2626;
+                {% else %}background:rgba(234,179,8,.15);color:#ca8a04;{% endif %}">
+                {{ application.get_status_display }}
+            </div>
+            <p style="font-size:.8rem;color:var(--text-secondary);margin-top:.5rem;">Applied {{ application.applied_at|date:"F j, Y" }}</p>
+            {% if application.status == 'rejected' and application.rejection_reason %}
+            <p style="margin-top:.5rem;font-size:.85rem;"><strong>Reason:</strong> {{ application.rejection_reason }}</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:1.5rem;color:var(--text-secondary);">
+            <p>No application found with those details. Please check and try again.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

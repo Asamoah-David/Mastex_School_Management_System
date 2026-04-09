@@ -7,19 +7,10 @@ from django.http import HttpResponse
 from students.models import Student
 from schools.models import School
 from accounts.permissions import user_can_manage_school
-from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable, Quiz, QuizQuestion, QuizAttempt, AssessmentType, AssessmentScore, ExamScore, GradingPolicy, OnlineMeeting, AIStudentComment
+from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable, Quiz, QuizQuestion, QuizAttempt, AssessmentType, AssessmentScore, ExamScore, GradingPolicy, OnlineMeeting, AIStudentComment, bulk_annotate_grades
+from core.pagination import paginate
 
-
-def _get_school(request):
-    """Get current user's school."""
-    if not request.user.is_authenticated:
-        return None
-    return getattr(request.user, "school", None)
-
-
-def _user_can_manage_school(request):
-    """Delegate to central permission helper for consistency."""
-    return user_can_manage_school(request.user)
+from core.utils import get_school as _get_school, can_manage as _user_can_manage_school
 
 def _can_view_student_record(user, student):
     if not getattr(user, "is_authenticated", False):
@@ -423,38 +414,46 @@ def result_upload(request):
                 exam_type = ExamType.objects.get(id=exam_type_id, school=school)
                 term = Term.objects.get(id=term_id, school=school)
                 
-                saved_count = 0
-                # Loop through all POST data to find score inputs
+                score_entries = {}
                 for key, value in request.POST.items():
                     if key.startswith("score_student_") and value.strip():
-                        student_id = key.replace("score_student_", "")
                         try:
-                            score = float(value)
-                            if 0 <= score <= 100:
-                                student = Student.objects.get(id=student_id, school=school)
-                                
-                                # Check if result already exists
-                                existing = Result.objects.filter(
-                                    student=student,
-                                    subject=subject,
-                                    exam_type=exam_type,
-                                    term=term
-                                ).first()
-                                
-                                if existing:
-                                    existing.score = score
-                                    existing.save()
-                                else:
-                                    Result.objects.create(
-                                        student=student,
-                                        subject=subject,
-                                        exam_type=exam_type,
-                                        term=term,
-                                        score=score
-                                    )
-                                saved_count += 1
-                        except (Student.DoesNotExist, ValueError):
+                            sid = int(key.replace("score_student_", ""))
+                            s = float(value)
+                            if 0 <= s <= 100:
+                                score_entries[sid] = s
+                        except (ValueError, TypeError):
                             continue
+
+                students_by_id = {
+                    s.id: s
+                    for s in Student.objects.filter(id__in=score_entries.keys(), school=school)
+                }
+                existing_results = {
+                    r.student_id: r
+                    for r in Result.objects.filter(
+                        student_id__in=students_by_id.keys(),
+                        subject=subject, exam_type=exam_type, term=term,
+                    )
+                }
+                saved_count = 0
+                to_create = []
+                for sid, score_val in score_entries.items():
+                    student = students_by_id.get(sid)
+                    if not student:
+                        continue
+                    existing = existing_results.get(sid)
+                    if existing:
+                        existing.score = score_val
+                        existing.save(update_fields=["score", "updated_at"])
+                    else:
+                        to_create.append(Result(
+                            student=student, subject=subject,
+                            exam_type=exam_type, term=term, score=score_val,
+                        ))
+                    saved_count += 1
+                if to_create:
+                    Result.objects.bulk_create(to_create)
                 
                 if saved_count > 0:
                     messages.success(request, f"Successfully saved {saved_count} score(s)")
@@ -476,6 +475,10 @@ def result_upload(request):
         )
         existing_results = {r.student_id: r.score for r in results}
     
+    current_term = terms.filter(is_current=True).first()
+    if not term_id and current_term:
+        term_id = str(current_term.id)
+
     context = {
         "school": school,
         "classes": classes,
@@ -487,6 +490,7 @@ def result_upload(request):
         "selected_subject": subject_id,
         "selected_exam_type": exam_type_id,
         "selected_term": term_id,
+        "current_term_id": str(current_term.id) if current_term else None,
         "existing_results": existing_results,
         "selected_subject_name": subjects.filter(id=subject_id).first().name if subject_id else "",
         "all_results": _get_all_results_summary(school, class_name, term_id) if school and class_name and term_id else [],
@@ -518,6 +522,50 @@ def _get_all_results_summary(school, class_name, term_id):
 
 
 @login_required
+def result_autosave(request):
+    """AJAX endpoint for auto-saving individual result scores."""
+    from django.http import JsonResponse
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    school = _get_school(request)
+    if not school:
+        return JsonResponse({"error": "No school"}, status=403)
+    if not _user_can_manage_school(request):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    student_id = request.POST.get("student_id")
+    subject_id = request.POST.get("subject_id")
+    exam_type_id = request.POST.get("exam_type_id")
+    term_id = request.POST.get("term_id")
+    score_raw = request.POST.get("score", "").strip()
+
+    if not all([student_id, subject_id, exam_type_id, term_id, score_raw]):
+        return JsonResponse({"error": "Missing fields"}, status=400)
+
+    try:
+        score = float(score_raw)
+        if not (0 <= score <= 100):
+            return JsonResponse({"error": "Score out of range"}, status=400)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "Invalid score"}, status=400)
+
+    try:
+        student = Student.objects.get(id=student_id, school=school)
+        subject = Subject.objects.get(id=subject_id, school=school)
+        exam_type = ExamType.objects.get(id=exam_type_id, school=school)
+        term = Term.objects.get(id=term_id, school=school)
+    except (Student.DoesNotExist, Subject.DoesNotExist, ExamType.DoesNotExist, Term.DoesNotExist):
+        return JsonResponse({"error": "Invalid selection"}, status=400)
+
+    Result.objects.update_or_create(
+        student=student, subject=subject, exam_type=exam_type, term=term,
+        defaults={"score": score},
+    )
+    return JsonResponse({"ok": True, "saved_score": score})
+
+
+@login_required
 def result_list(request):
     """View all results with filtering."""
     school = _get_school(request)
@@ -545,26 +593,28 @@ def result_list(request):
     if term_id:
         results = results.filter(term_id=term_id)
     
-    # Order by student and term
     results = results.order_by("student__admission_number", "term__name", "subject__name")
-    
-    # Get filter options
+
     classes = Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
     classes = [c for c in classes if c]
     subjects = Subject.objects.filter(school=school).order_by("name")
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
-    
+
+    page_obj = paginate(request, results, per_page=30)
+    bulk_annotate_grades(page_obj.object_list, school)
+
     context = {
         "school": school,
-        "results": results,
+        "results": page_obj,
         "classes": classes,
         "subjects": subjects,
         "terms": terms,
         "selected_class": class_name,
         "selected_subject": subject_id,
         "selected_term": term_id,
+        "page_obj": page_obj,
     }
-    
+
     return render(request, "academics/result_list.html", context)
 
 
@@ -575,7 +625,13 @@ def result_edit(request, pk):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("home")
-    result = get_object_or_404(Result, pk=pk, student__school=school)
+    result = get_object_or_404(
+        Result.objects.select_related(
+            "student", "student__user", "subject", "exam_type", "term"
+        ),
+        pk=pk,
+        student__school=school,
+    )
     if request.method == "POST":
         score = request.POST.get("score")
         if score:
@@ -596,7 +652,11 @@ def result_delete(request, pk):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("home")
-    result = get_object_or_404(Result, pk=pk, student__school=school)
+    result = get_object_or_404(
+        Result.objects.select_related("student", "student__user", "subject", "exam_type", "term"),
+        pk=pk,
+        student__school=school,
+    )
     if request.method == "POST":
         result.delete()
         messages.success(request, "Result deleted successfully!")
@@ -737,12 +797,12 @@ def homework_list(request):
             )
         return redirect("home")
 
-    # Staff view: optionally filter by class.
     if class_filter:
         qs = qs.filter(class_name=class_filter)
     classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
     classes = [c for c in classes if c]
-    return render(request, "academics/homework_list.html", {"homework": qs, "school": school, "classes": classes, "read_only": False})
+    page_obj = paginate(request, qs, per_page=25)
+    return render(request, "academics/homework_list.html", {"homework": page_obj, "school": school, "classes": classes, "read_only": False, "page_obj": page_obj})
 
 
 @login_required
@@ -1007,7 +1067,9 @@ def report_card_view(request, student_id):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
-    student = get_object_or_404(Student, id=student_id, school=school)
+    student = get_object_or_404(
+        Student.objects.select_related("user"), id=student_id, school=school
+    )
     if not _can_view_student_record(request.user, student):
         return redirect("home")
     term_id = request.GET.get("term")
@@ -1058,7 +1120,9 @@ def report_card_pdf(request, student_id):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
-    student = get_object_or_404(Student, id=student_id, school=school)
+    student = get_object_or_404(
+        Student.objects.select_related("user"), id=student_id, school=school
+    )
     if not _can_view_student_record(request.user, student):
         return redirect("home")
 

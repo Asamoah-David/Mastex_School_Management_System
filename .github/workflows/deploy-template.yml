@@ -1,0 +1,23 @@
+# Optional: wire this to your registry and platform (Railway, Render, Fly, etc.).
+# Copy to deploy.yml and add secrets: REGISTRY_USER, REGISTRY_PASSWORD, or use
+# platform-specific actions (e.g. railway deploy, render deploy hook).
+
+name: Deploy (template)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment name"
+        required: true
+        default: production
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Document next steps
+        run: |
+          echo "Replace this workflow with your deploy pipeline."
+          echo "Typical steps: build image -> push -> trigger platform deploy -> smoke /health/"
+          echo "Set GIT_COMMIT_SHA in the runtime env for Sentry release tracking."

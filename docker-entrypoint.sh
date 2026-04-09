@@ -1,21 +1,34 @@
 #!/bin/bash
 set -e
 
-# Render sets PORT; default for local Docker
 export PORT="${PORT:-8000}"
 
-echo "Starting Django Docker container..."
+# Dynamic worker count: 2 * CPU cores + 1, capped at 4 for small containers
+CORES=$(nproc 2>/dev/null || echo 1)
+WORKERS=$(( CORES * 2 + 1 ))
+if [ "$WORKERS" -gt 4 ]; then WORKERS=4; fi
+export WEB_CONCURRENCY="${WEB_CONCURRENCY:-$WORKERS}"
 
-# Apply database migrations (required for Render; runs on every container start)
-echo "Applying migrations..."
-python manage.py migrate --noinput || { echo "Migration failed."; exit 1; }
+echo "==> Running migrations..."
+python manage.py migrate --noinput || { echo "Migration failed!"; exit 1; }
 
-# Collect static files
-echo "Collecting static files..."
+echo "==> Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Create admin superuser if none exists (optional; do not fail deploy if this fails)
-echo "Checking for admin superuser..."
+echo "==> Creating cache table if needed..."
+python manage.py createcachetable 2>/dev/null || true
+
+if [ "${RUN_PREFLIGHT:-}" = "1" ]; then
+  echo "==> Running production preflight..."
+  python manage.py preflight
+fi
+
+if [ "${RUN_PREFLIGHT:-0}" = "1" ] || [ "${RUN_PREFLIGHT:-0}" = "true" ]; then
+  echo "==> Running production preflight..."
+  python manage.py preflight || { echo "Preflight failed — set SKIP_PREFLIGHT=1 only for debugging."; exit 1; }
+fi
+
+echo "==> Checking for admin superuser..."
 python manage.py shell -c "
 import os
 from accounts.models import User
@@ -24,9 +37,18 @@ if not User.objects.filter(is_superuser=True).exists() and pwd:
     User.objects.create_superuser('admin', 'admin@example.com', password=pwd)
     print('Superuser created.')
 else:
-    print('Superuser already exists or no password set.')
+    print('Superuser check passed.')
 " || true
 
-# Start Gunicorn (Render expects app to listen on 0.0.0.0:PORT)
-echo "Starting Gunicorn on port $PORT..."
-exec gunicorn schoolms.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 2
+echo "==> Starting Gunicorn on :$PORT with $WEB_CONCURRENCY workers..."
+exec gunicorn schoolms.wsgi:application \
+    --bind 0.0.0.0:$PORT \
+    --workers $WEB_CONCURRENCY \
+    --threads 2 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --access-logfile - \
+    --error-logfile -

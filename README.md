@@ -189,18 +189,14 @@ ADMIN_PHONE=
 
 ---
 
-## Deployment (Render)
+## Deployment
 
-The project deploys on **Render** with **Docker**. You do **not** need to run migrations manually in a Render shell.
+**Full guide:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (environment variables, CI/CD, logging, Sentry, backups).  
+**Env template:** copy [.env.example](.env.example) to `.env` (never commit secrets).
 
-- **Migrations run automatically** on every deploy: the container entrypoint runs `python manage.py migrate --noinput` before starting the app.
-- Use a **Web Service**, connect your repo, and select **Docker**.
-- Add a **PostgreSQL** database in Render and link it to the service (Render sets `DATABASE_URL` automatically).
-- Set these **environment variables** in the Render dashboard:
-  - `SECRET_KEY` (required)
-  - `DJANGO_SUPERUSER_PASSWORD` (optional; creates an admin user on first deploy if set)
-  - Any of: `FLW_PUBLIC_KEY`, `FLW_SECRET_KEY`, `MNOTIFY_*`, `OPENAI_API_KEY`, etc., as needed.
-- Deploy; the build runs the Dockerfile and on start the entrypoint runs migrations, then Gunicorn.
+**CI:** GitHub Actions runs `check --deploy`, migration checks, `collectstatic`, and a Docker build (see `.github/workflows/ci.yml`).
+
+**Docker / Render / Railway:** Migrations and `collectstatic` run on container start (`docker-entrypoint.sh`). Set `DATABASE_URL`, `SECRET_KEY`, `ALLOWED_HOSTS`, and `CSRF_TRUSTED_ORIGINS`. Optional: `RUN_PREFLIGHT=1` to run `manage.py preflight` before Gunicorn.
 
 If you use **Native Environment** (no Docker) on Render, set the **Start Command** to:
 `python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn schoolms.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 2`

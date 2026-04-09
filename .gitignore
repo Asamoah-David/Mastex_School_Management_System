@@ -1,5 +1,50 @@
+# Environment & secrets
 .env
-__pycache__/
-*.pyc
-db.sqlite3
 .env.*
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+schoolms/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Local DB dumps (see scripts/backup_postgres.sh)
+backups/
+
+# Coverage & testing
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.tox/
+nosetests.xml
+coverage.xml
+
+# OS
+*.log

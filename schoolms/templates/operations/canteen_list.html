@@ -4,7 +4,7 @@
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
 <div class="button-row">
-    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
+    {% if user.is_superuser or user.is_staff_member %}
     <a href="{% url 'operations:canteen_create' %}" class="btn btn-primary">Add Item</a>
     <a href="{% url 'operations:canteen_payments' %}" class="btn btn-secondary">View Payments</a>
     
@@ -41,7 +41,7 @@
                 <td>{{ i.price }}</td>
                 <td>{{ i.is_available|yesno:"Yes,No" }}</td>
                 <td>
-                    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
+                    {% if user.is_superuser or user.is_staff_member %}
                         <a href="{% url 'operations:canteen_item_delete' i.pk %}" class="btn btn-danger btn-sm">Delete</a>
                     {% endif %}
                 </td>
@@ -64,4 +64,5 @@
     color: #ffffff !important;
 }
 </style>
+{% include 'includes/pagination.html' %}
 {% endblock %}

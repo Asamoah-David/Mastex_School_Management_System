@@ -2,8 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.contrib.messages.storage import default_storage
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from django.utils.crypto import get_random_string
@@ -15,6 +14,14 @@ from schools.models import School
 from students.models import Student
 from finance.models import Fee, FeePayment
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
+from core.pagination import paginate
+from accounts.dashboard_insights import (
+    build_academic_insights,
+    build_attendance_trend,
+    build_finance_insights,
+    build_teacher_academic_insights,
+    build_teacher_attendance_trend,
+)
 
 # Supabase Storage for media files
 try:
@@ -50,11 +57,19 @@ def home(request):
         role = getattr(request.user, "role", None)
         if role in ["parent", "student"]:
             return redirect("portal")
-        if role in ["admin", "school_admin", "teacher", "staff"]:
+        if role in ("school_admin", "deputy_head", "hod", "teacher", "accountant",
+                    "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
             return redirect("accounts:school_dashboard")
         if getattr(request.user, "is_superuser", False) or role == "super_admin":
             return redirect("accounts:dashboard")
     return login_view(request)
+
+def _login_rate_limit_key(request):
+    """Return a cache key based on client IP for login rate limiting."""
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    ip = xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR", "unknown")
+    return f"login_ratelimit:{ip}"
+
 
 def login_view(request):
     # If already logged in, send to the right place once (no loop)
@@ -62,7 +77,8 @@ def login_view(request):
         role = getattr(request.user, "role", None)
         if role in ["parent", "student"]:
             return redirect("portal")
-        if role in ["admin", "school_admin", "teacher", "staff"]:
+        if role in ("school_admin", "deputy_head", "hod", "teacher", "accountant",
+                    "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
             return redirect("accounts:school_dashboard")
         if getattr(request.user, "is_superuser", False) or role == "super_admin":
             return redirect("accounts:dashboard")
@@ -74,63 +90,65 @@ def login_view(request):
     
     # Process login form
     if request.method == "POST":
+        from django.core.cache import cache
+        rl_key = _login_rate_limit_key(request)
+        ip_attempts = cache.get(rl_key, 0)
+        if ip_attempts >= 20:
+            messages.error(request, "Too many login attempts from this address. Please try again later.")
+            return render(request, "accounts/login.html")
+        cache.set(rl_key, ip_attempts + 1, 900)
+
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
-        
+
         if not username or not password:
             messages.error(request, "Please enter both username and password.")
             return render(request, "accounts/login.html")
-        
-        # First check if user exists (to check for lockout before authenticating)
-        try:
-            user_obj = User.objects.get(username=username)
-            # Check if user is locked out
-            if user_obj.is_locked_out():
-                remaining = user_obj.get_lockout_remaining_seconds()
-                minutes = remaining // 60
-                seconds = remaining % 60
-                messages.error(request, f"Account temporarily locked. Please try again in {minutes} minute(s) {seconds} second(s).")
-                return render(request, "accounts/login.html")
-        except User.DoesNotExist:
-            pass  # User doesn't exist, will handle below
-        
+
+        import time, hashlib
+        _generic_fail = "Invalid username or password."
+
+        user_obj = User.objects.filter(username=username).first()
+
+        if user_obj and user_obj.is_locked_out():
+            remaining = user_obj.get_lockout_remaining_seconds()
+            minutes = remaining // 60
+            seconds = remaining % 60
+            messages.error(
+                request,
+                f"Too many failed attempts. Please try again in {minutes}m {seconds}s.",
+            )
+            return render(request, "accounts/login.html")
+
         user = authenticate(request, username=username, password=password)
-        
+
         if user is not None:
-            # Check if user's school is active (skip for superusers/super_admins)
             user_school = getattr(user, 'school', None)
             if user_school and not getattr(user, 'is_superuser', False) and getattr(user, 'role', None) != 'super_admin':
                 if not user_school.is_active:
-                    messages.error(request, "Your school's account is currently inactive. Please contact the administrator.")
+                    messages.error(request, _generic_fail)
                     return render(request, "accounts/login.html")
-            
-            # Reset failed login counter on successful login
+
             if hasattr(user, 'reset_failed_logins'):
                 user.reset_failed_logins()
-            
+
             login(request, user)
             role = getattr(user, "role", None)
             if role in ["parent", "student"]:
                 return redirect("portal")
-            if role in ["admin", "school_admin", "teacher", "staff"]:
+            if role in ("school_admin", "deputy_head", "hod", "teacher", "accountant",
+                        "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
                 return redirect("accounts:school_dashboard")
             if user.is_superuser or role == "super_admin":
                 return redirect("accounts:dashboard")
             return redirect("accounts:dashboard")
-        
-        # Login failed - track attempts
-        messages.error(request, "Invalid username or password.")
-        
-        # Try to find user and increment failed attempts
-        try:
-            user_obj = User.objects.get(username=username)
-            if hasattr(user_obj, 'increment_failed_login'):
-                user_obj.increment_failed_login()
-                remaining_attempts = 5 - user_obj.failed_login_attempts
-                if remaining_attempts > 0 and remaining_attempts <= 3:
-                    messages.warning(request, f"Invalid login. {remaining_attempts} attempt(s) remaining before account lockout.")
-        except User.DoesNotExist:
-            pass  # No user found, nothing to track
+
+        messages.error(request, _generic_fail)
+
+        if user_obj and hasattr(user_obj, 'increment_failed_login'):
+            user_obj.increment_failed_login()
+        else:
+            hashlib.pbkdf2_hmac("sha256", password.encode(), b"timing-pad", 260000)
     
     return render(request, "accounts/login.html")
 
@@ -144,6 +162,30 @@ def profile(request):
     if getattr(request.user, "role", None) == "student":
         student = Student.objects.filter(user=request.user).select_related("school", "parent").first()
     return render(request, "accounts/profile.html", {"student": student})
+
+
+@login_required
+def force_password_change(request):
+    """Force users with must_change_password=True to set a new password."""
+    user = request.user
+    if not getattr(user, "must_change_password", False):
+        return redirect("home")
+    if request.method == "POST":
+        new_pw = request.POST.get("new_password", "")
+        confirm = request.POST.get("confirm_password", "")
+        if len(new_pw) < 8:
+            messages.error(request, "Password must be at least 8 characters.")
+        elif new_pw != confirm:
+            messages.error(request, "Passwords do not match.")
+        else:
+            user.set_password(new_pw)
+            user.must_change_password = False
+            user.save(update_fields=["password", "must_change_password"])
+            from django.contrib.auth import update_session_auth_hash
+            update_session_auth_hash(request, user)
+            messages.success(request, "Password changed successfully.")
+            return redirect("home")
+    return render(request, "accounts/force_password_change.html")
 
 
 @login_required
@@ -207,9 +249,11 @@ def edit_profile(request):
 
 @login_required
 def dashboard(request):
-    # Redirect parents and students to their unified portal
     if getattr(request.user, "role", None) in ["parent", "student"]:
         return redirect("portal")
+
+    if getattr(request.user, "role", None) == "teacher" and getattr(request.user, "school", None):
+        return redirect("accounts:teacher_dashboard")
 
     # Super admins and superusers get the main dashboard
     if (
@@ -257,7 +301,10 @@ def dashboard(request):
 def school_dashboard(request):
     """Custom dashboard for school admins, teachers, and staff."""
     # Only school staff can access. Avoid redirect loops by checking roles first.
-    allowed_roles = {"admin", "school_admin", "teacher", "staff"}
+    allowed_roles = {
+        "school_admin", "deputy_head", "hod", "teacher", "accountant",
+        "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff",
+    }
     is_allowed_role = getattr(request.user, "role", None) in allowed_roles
     is_staff_flag = getattr(request.user, "is_staff_member", False)
     is_school_admin_flag = getattr(request.user, "is_school_admin", False)
@@ -280,43 +327,45 @@ def school_dashboard(request):
     # from finance.models import Fee
     # from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
     
-    # Get school statistics
-    total_students = Student.objects.filter(school=school).count()
+    from django.db.models import Count, Q
 
-    # Get gender distribution defensively; fall back to zeros if the field does not exist.
-    try:
-        field_names = [f.name for f in Student._meta.get_fields()]
-        if "user" in field_names:
-            male_students = Student.objects.filter(
-                school=school, user__gender="male"
-            ).count()
-            female_students = Student.objects.filter(
-                school=school, user__gender="female"
-            ).count()
-        else:
-            male_students = 0
-            female_students = 0
-    except Exception:
-        male_students = 0
-        female_students = 0
-    
-    total_staff = User.objects.filter(school=school, role__in=("school_admin", "teacher", "staff")).count()
-    teachers_count = User.objects.filter(school=school, role="teacher").count()
-    
-    # Get recent attendance
     today = timezone.now().date()
-    present_today = StudentAttendance.objects.filter(school=school, date=today, status="present").count()
-    
-    # Get upcoming calendar events
+
+    student_stats = Student.objects.filter(school=school).aggregate(
+        total=Count("id"),
+        male=Count("id", filter=Q(user__gender="male")),
+        female=Count("id", filter=Q(user__gender="female")),
+    )
+    total_students = student_stats["total"]
+    male_students = student_stats["male"]
+    female_students = student_stats["female"]
+
+    user_stats = User.objects.filter(school=school).aggregate(
+        total_staff=Count("id", filter=Q(role__in=("school_admin", "teacher", "staff"))),
+        teachers_count=Count("id", filter=Q(role="teacher")),
+    )
+    total_staff = user_stats["total_staff"]
+    teachers_count = user_stats["teachers_count"]
+
+    attendance_stats = StudentAttendance.objects.filter(school=school, date=today).aggregate(
+        present=Count("id", filter=Q(status="present")),
+        absent=Count("id", filter=Q(status="absent")),
+        late=Count("id", filter=Q(status="late")),
+        excused=Count("id", filter=Q(status="excused")),
+    )
+    present_today = attendance_stats["present"]
+    late_today = attendance_stats["late"]
+    excused_today = attendance_stats["excused"]
+
     upcoming_events = AcademicCalendar.objects.filter(school=school, start_date__gte=today)[:5]
-    
-    # Fee statistics - Calculate actual amounts paid and outstanding
-    total_fees = Fee.objects.filter(school=school).aggregate(total=Sum("amount"))["total"] or 0
-    # Sum amount_paid for fees that have been partially or fully paid
-    paid_fees = Fee.objects.filter(school=school).aggregate(total=Sum("amount_paid"))["total"] or 0
-    # Calculate actual outstanding (total amount - amount paid)
-    all_fees = Fee.objects.filter(school=school)
-    unpaid_fees = sum(max(0, float(f.amount) - float(f.amount_paid)) for f in all_fees)
+
+    fee_stats = Fee.objects.filter(school=school).aggregate(
+        total=Sum("amount"),
+        total_paid=Sum("amount_paid"),
+    )
+    total_fees = fee_stats["total"] or 0
+    paid_fees = fee_stats["total_paid"] or 0
+    unpaid_fees = max(0, float(total_fees) - float(paid_fees))
     
     # Get recent payments for the school (last 5 payments)
     recent_payments = (
@@ -364,6 +413,33 @@ def school_dashboard(request):
             expiry_message = "Your subscription is coming up for renewal. Consider renewing soon."
             expiry_button_text = "Renew Now"
     
+    from operations.models import AdmissionApplication, LibraryIssue
+    pending_admissions = AdmissionApplication.objects.filter(school=school, status="pending").count()
+    overdue_books = LibraryIssue.objects.filter(school=school, return_date__isnull=True, due_date__lt=today).count()
+    absent_today = attendance_stats["absent"]
+
+    attendance_trend_chart = build_attendance_trend(school, days=14)
+    academic_insights = build_academic_insights(school)
+    finance_insights = build_finance_insights(school, float(total_fees), float(paid_fees))
+    subject_perf_chart = {
+        "labels": [r["name"] for r in academic_insights.get("subject_avgs", [])],
+        "values": [r["avg_pct"] for r in academic_insights.get("subject_avgs", [])],
+    }
+
+    from notifications.models import Notification
+
+    recent_notifications = list(
+        Notification.objects.filter(user=request.user).order_by("-created_at")[:8]
+    )
+    unread_notification_count = Notification.get_unread_count(request.user)
+
+    quick_actions = [
+        {"label": "Add Student", "url": reverse("students:student_register"), "icon": "👤"},
+        {"label": "Record Payment", "url": reverse("finance:fee_list"), "icon": "💰"},
+        {"label": "Mark Attendance", "url": reverse("operations:attendance_mark"), "icon": "📋"},
+        {"label": "Send Announcement", "url": reverse("messaging:send_message"), "icon": "📢"},
+    ]
+
     context = {
         "school": school,
         "total_students": total_students,
@@ -383,8 +459,132 @@ def school_dashboard(request):
         "expiry_title": expiry_title,
         "expiry_message": expiry_message,
         "expiry_button_text": expiry_button_text,
+        "pending_admissions": pending_admissions,
+        "overdue_books": overdue_books,
+        "absent_today": absent_today,
+        "late_today": late_today,
+        "excused_today": excused_today,
+        "attendance_trend_chart": attendance_trend_chart,
+        "academic_insights": academic_insights,
+        "finance_insights": finance_insights,
+        "subject_perf_chart": subject_perf_chart,
+        "recent_notifications": recent_notifications,
+        "unread_notification_count": unread_notification_count,
+        "quick_actions": quick_actions,
     }
     return render(request, "accounts/school_dashboard.html", context)
+
+
+@login_required
+def teacher_dashboard(request):
+    """Dedicated dashboard for teachers showing their classes, attendance, and results."""
+    from students.models import SchoolClass
+    from academics.models import Subject, Term, Result, Homework, Timetable, Quiz
+
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    today = timezone.now().date()
+    my_classes = SchoolClass.objects.filter(school=school, class_teacher=request.user).order_by("name")
+    assigned_ids = list(
+        request.user.assigned_subjects.filter(school=school).values_list("id", flat=True)
+    )
+    timetable_subject_ids = list(
+        Timetable.objects.filter(school=school, teacher=request.user)
+        .values_list("subject_id", flat=True)
+        .distinct()
+    )
+    homework_subject_ids = list(
+        Homework.objects.filter(school=school, created_by=request.user)
+        .values_list("subject_id", flat=True)
+        .distinct()
+    )
+    quiz_subject_ids = list(
+        Quiz.objects.filter(school=school, created_by=request.user)
+        .values_list("subject_id", flat=True)
+        .distinct()
+    )
+    subject_id_set = (
+        set(assigned_ids)
+        | set(timetable_subject_ids)
+        | set(homework_subject_ids)
+        | set(quiz_subject_ids)
+    )
+    my_subjects = Subject.objects.filter(school=school, id__in=subject_id_set).order_by("name")
+    current_term = Term.objects.filter(school=school, is_current=True).first()
+
+    from django.db.models import Count, Q, Subquery, OuterRef, IntegerField
+    from django.db.models.functions import Coalesce
+
+    class_names = list(my_classes.values_list("name", flat=True))
+    student_counts = dict(
+        Student.objects.filter(school=school, class_name__in=class_names)
+        .values("class_name")
+        .annotate(cnt=Count("id"))
+        .values_list("class_name", "cnt")
+    )
+    marked_counts = dict(
+        StudentAttendance.objects.filter(
+            school=school, date=today, student__class_name__in=class_names
+        )
+        .values("student__class_name")
+        .annotate(cnt=Count("id"))
+        .values_list("student__class_name", "cnt")
+    )
+    classes_attendance = []
+    for cls in my_classes:
+        sc = student_counts.get(cls.name, 0)
+        mc = marked_counts.get(cls.name, 0)
+        classes_attendance.append({
+            "class": cls,
+            "student_count": sc,
+            "marked": mc >= sc and sc > 0,
+            "marked_count": mc,
+        })
+
+    pending_homework = Homework.objects.filter(
+        school=school, created_by=request.user, due_date__gte=today
+    ).order_by("due_date")[:5]
+
+    recent_results_count = 0
+    if current_term:
+        recent_results_count = Result.objects.filter(
+            student__school=school, term=current_term,
+            subject__in=my_subjects,
+        ).count()
+
+    subject_ids = list(my_subjects.values_list("id", flat=True))
+    teacher_academic = build_teacher_academic_insights(school, subject_ids, current_term)
+    teacher_subject_chart = {
+        "labels": [r["name"] for r in teacher_academic.get("subject_avgs", [])],
+        "values": [r["avg_pct"] for r in teacher_academic.get("subject_avgs", [])],
+    }
+    teacher_attendance_trend = build_teacher_attendance_trend(school, request.user, days=14)
+
+    from notifications.models import Notification
+
+    teacher_notifications = list(
+        Notification.objects.filter(user=request.user).order_by("-created_at")[:6]
+    )
+    teacher_unread_notifications = Notification.get_unread_count(request.user)
+
+    context = {
+        "school": school,
+        "my_classes": my_classes,
+        "my_subjects": my_subjects,
+        "current_term": current_term,
+        "classes_attendance": classes_attendance,
+        "pending_homework": pending_homework,
+        "recent_results_count": recent_results_count,
+        "today": today,
+        "teacher_academic": teacher_academic,
+        "teacher_subject_chart": teacher_subject_chart,
+        "teacher_attendance_trend": teacher_attendance_trend,
+        "teacher_notifications": teacher_notifications,
+        "teacher_unread_notifications": teacher_unread_notifications,
+    }
+    return render(request, "accounts/teacher_dashboard.html", context)
 
 
 def _user_can_manage_school(request):
@@ -443,10 +643,12 @@ def staff_list(request):
         staff = []
         staff_by_role = {}
 
+    page_obj = paginate(request, staff, per_page=30)
+
     return render(
         request,
         "accounts/staff_list.html",
-        {"staff_list": staff, "staff_by_role": staff_by_role, "school": school},
+        {"staff_list": page_obj, "staff_by_role": staff_by_role, "school": school, "page_obj": page_obj},
     )
 
 
@@ -456,9 +658,11 @@ def staff_detail(request, pk):
         return redirect("home")
     school = getattr(request.user, "school", None)
     # Include all staff roles
-    all_staff_roles = ("admin", "school_admin", "deputy_head", "hod", "teacher", 
-                      "accountant", "librarian", "admission_officer", "school_nurse", 
-                      "admin_assistant", "staff")
+    all_staff_roles = (
+        "school_admin", "deputy_head", "hod", "teacher",
+        "accountant", "librarian", "admission_officer", "school_nurse",
+        "admin_assistant", "staff",
+    )
     qs = User.objects.filter(role__in=all_staff_roles)
     if school:
         qs = qs.filter(school=school)
@@ -482,7 +686,12 @@ def staff_register(request):
         password = request.POST.get("password", "")
         role = request.POST.get("role", "teacher")
         phone = request.POST.get("phone", "").strip() or None
-        if username and email and password and role in ("admin", "teacher"):
+        valid_staff_roles = (
+            "school_admin", "deputy_head", "hod", "teacher",
+            "accountant", "librarian", "admission_officer",
+            "school_nurse", "admin_assistant", "staff",
+        )
+        if username and email and password and role in valid_staff_roles:
             if User.objects.filter(username=username).exists():
                 messages.error(request, "That username is already taken.")
             elif User.objects.filter(email=email).exists():
@@ -501,7 +710,7 @@ def staff_register(request):
                 messages.success(request, "Staff account created.")
                 return redirect("accounts:staff_list")
         elif request.method == "POST":
-            messages.error(request, "Please fill all required fields.")
+            messages.error(request, "Please fill all required fields or select a valid role.")
     return render(request, "accounts/staff_register.html", {"school": school})
 
 
@@ -515,7 +724,8 @@ def parent_list(request):
     if not school:
         return redirect("home")
     parents = User.objects.filter(school=school, role="parent").order_by("username")
-    return render(request, "accounts/parent_list.html", {"parents": parents, "school": school})
+    page_obj = paginate(request, parents, per_page=30)
+    return render(request, "accounts/parent_list.html", {"parents": page_obj, "school": school, "page_obj": page_obj})
 
 
 @login_required
@@ -616,16 +826,21 @@ def user_management(request):
     if not school:
         return redirect("home")
     
-    # Get counts
-    staff_count = User.objects.filter(school=school, role__in=("admin", "teacher")).count()
-    parent_count = User.objects.filter(school=school, role="parent").count()
-    # from students.models import Student # Moved to top
+    from django.db.models import Count, Q
+    counts = User.objects.filter(school=school).aggregate(
+        staff_count=Count("id", filter=Q(role__in=(
+            "school_admin", "deputy_head", "hod", "teacher",
+            "accountant", "librarian", "admission_officer", "school_nurse",
+            "admin_assistant", "staff",
+        ))),
+        parent_count=Count("id", filter=Q(role="parent")),
+    )
     student_count = Student.objects.filter(school=school).count()
-    
+
     context = {
         "school": school,
-        "staff_count": staff_count,
-        "parent_count": parent_count,
+        "staff_count": counts["staff_count"],
+        "parent_count": counts["parent_count"],
         "student_count": student_count,
     }
     return render(request, "accounts/user_management.html", context)
@@ -715,9 +930,11 @@ def staff_change_role(request, pk):
         User, 
         pk=pk, 
         school=school, 
-        role__in=("admin", "school_admin", "deputy_head", "hod", "teacher", 
-                  "accountant", "librarian", "admission_officer", "school_nurse", 
-                  "admin_assistant", "staff")
+        role__in=(
+            "school_admin", "deputy_head", "hod", "teacher",
+            "accountant", "librarian", "admission_officer", "school_nurse",
+            "admin_assistant", "staff",
+        )
     )
 
     # Prevent self-demotion
@@ -765,9 +982,11 @@ def staff_manage_secondary_roles(request, pk):
         User, 
         pk=pk, 
         school=school, 
-        role__in=("admin", "school_admin", "deputy_head", "hod", "teacher", 
-                  "accountant", "librarian", "admission_officer", "school_nurse", 
-                  "admin_assistant", "staff")
+        role__in=(
+            "school_admin", "deputy_head", "hod", "teacher",
+            "accountant", "librarian", "admission_officer", "school_nurse",
+            "admin_assistant", "staff",
+        )
     )
 
     if request.method == "POST":
@@ -889,18 +1108,23 @@ def reset_user_password(request, pk):
         target_user.set_password(new_password)
         target_user.save()
 
+        # Show the password once on the next page via a dedicated context variable
+        # instead of Django messages (which may be logged or cached).
+        request.session['_temp_reset_password'] = new_password
+        request.session['_temp_reset_username'] = target_user.username
+
         messages.success(
             request,
             f"Password for user '{target_user.username}' has been reset. "
-            f"New password: {new_password}",
+            "The new password is shown below. Please share it securely with the user.",
         )
 
-        # Redirect back to an appropriate detail page if possible
-        next_url = request.GET.get("next")
-        if next_url:
+        # Only allow internal redirects to prevent open redirect attacks
+        next_url = request.GET.get("next", "")
+        if next_url and next_url.startswith("/") and not next_url.startswith("//"):
             return redirect(next_url)
 
-        if target_user.role in ("admin", "teacher"):
+        if target_user.role in ("school_admin", "teacher", "staff"):
             return redirect("accounts:staff_detail", pk=target_user.pk)
         if target_user.role == "parent":
             return redirect("accounts:parent_detail", pk=target_user.pk)
@@ -954,11 +1178,11 @@ def superuser_edit_credentials(request, pk):
         target_user.save()
         messages.success(request, f"Login credentials for '{target_user.username}' have been updated.")
 
-        next_url = request.GET.get("next")
-        if next_url:
+        next_url = request.GET.get("next", "")
+        if next_url and next_url.startswith("/") and not next_url.startswith("//"):
             return redirect(next_url)
 
-        if target_user.role in ("admin", "teacher"):
+        if target_user.role in ("school_admin", "teacher", "staff"):
             return redirect("accounts:staff_detail", pk=target_user.pk)
         if target_user.role == "parent":
             return redirect("accounts:parent_detail", pk=target_user.pk)
@@ -970,3 +1194,86 @@ def superuser_edit_credentials(request, pk):
         "accounts/staff_login_edit.html",
         {"target_user": target_user},
     )
+
+
+@login_required
+def global_search(request):
+    """Search across students, staff, parents, and fees in one place."""
+    q = request.GET.get("q", "").strip()
+    school = getattr(request.user, "school", None)
+    results = {
+        "students": [],
+        "staff": [],
+        "parents": [],
+        "fees": [],
+    }
+    total = 0
+
+    if q and len(q) >= 2:
+        if school:
+            results["students"] = list(
+                Student.objects.filter(school=school)
+                .filter(
+                    Q(user__first_name__icontains=q)
+                    | Q(user__last_name__icontains=q)
+                    | Q(admission_number__icontains=q)
+                )
+                .select_related("user")[:10]
+            )
+            staff_roles = (
+                "school_admin", "deputy_head", "hod", "teacher",
+                "accountant", "librarian", "admission_officer",
+                "school_nurse", "admin_assistant", "staff",
+            )
+            results["staff"] = list(
+                User.objects.filter(school=school, role__in=staff_roles)
+                .filter(
+                    Q(first_name__icontains=q)
+                    | Q(last_name__icontains=q)
+                    | Q(username__icontains=q)
+                )[:10]
+            )
+            results["parents"] = list(
+                User.objects.filter(school=school, role="parent")
+                .filter(
+                    Q(first_name__icontains=q)
+                    | Q(last_name__icontains=q)
+                    | Q(phone__icontains=q)
+                )[:10]
+            )
+            results["fees"] = list(
+                Fee.objects.filter(school=school)
+                .filter(
+                    Q(student__user__first_name__icontains=q)
+                    | Q(student__user__last_name__icontains=q)
+                    | Q(student__admission_number__icontains=q)
+                )
+                .select_related("student", "student__user")[:10]
+            )
+        elif request.user.is_superuser:
+            results["students"] = list(
+                Student.objects.filter(
+                    Q(user__first_name__icontains=q)
+                    | Q(user__last_name__icontains=q)
+                    | Q(admission_number__icontains=q)
+                )
+                .select_related("user", "school")[:10]
+            )
+            results["staff"] = list(
+                User.objects.filter(role__in=("school_admin", "teacher", "staff"))
+                .filter(
+                    Q(first_name__icontains=q)
+                    | Q(last_name__icontains=q)
+                    | Q(username__icontains=q)
+                )
+                .select_related("school")[:10]
+            )
+
+        total = sum(len(v) for v in results.values())
+
+    return render(request, "accounts/global_search.html", {
+        "q": q,
+        "results": results,
+        "total": total,
+        "school": school,
+    })

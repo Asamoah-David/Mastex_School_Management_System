@@ -4,7 +4,7 @@
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
 <div class="button-row">
-    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
+    {% if user.is_superuser or user.is_staff_member %}
     <a href="{% url 'operations:bus_create' %}" class="btn btn-primary">Add Route</a>
     <a href="{% url 'operations:bus_payments' %}" class="btn btn-secondary">View Payments</a>
     <a href="{% url 'operations:export_bus_payments' %}?format=csv" class="btn btn-success">Export CSV</a>
@@ -24,7 +24,7 @@
                 <td>{{ r.name }}</td>
                 <td>{{ r.fee_per_term }}</td>
                 <td>
-                    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
+                    {% if user.is_superuser or user.is_staff_member %}
                         <a href="{% url 'operations:bus_route_delete' r.pk %}" class="btn btn-danger btn-sm">Delete</a>
                     {% endif %}
                 </td>

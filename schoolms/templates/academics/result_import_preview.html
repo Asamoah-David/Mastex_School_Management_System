@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Import Results · Step 3{% endblock %}
+{% block page_title %}Preview Import{% endblock %}
+{% block page_subtitle %}Step 3 of 4 — Review before saving{% endblock %}
+{% block content %}
+<div class="content-card" style="max-width:800px;">
+    <div style="display:flex;gap:1rem;margin-bottom:1rem;">
+        <div style="flex:1;padding:.75rem;border-radius:.5rem;background:rgba(34,197,94,.1);text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--success,#22c55e);">{{ valid_count }}</div>
+            <div style="font-size:.8rem;">Ready to import</div>
+        </div>
+        <div style="flex:1;padding:.75rem;border-radius:.5rem;background:rgba(239,68,68,.1);text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--danger,#ef4444);">{{ error_count }}</div>
+            <div style="font-size:.8rem;">Errors (will be skipped)</div>
+        </div>
+    </div>
+
+    <div class="table-responsive" style="max-height:400px;overflow:auto;">
+        <table style="font-size:.8rem;">
+            <thead><tr><th>#</th><th>Student</th><th>Score</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for p in preview %}
+            <tr style="{% if p.error %}background:rgba(239,68,68,.05);{% endif %}">
+                <td>{{ forloop.counter }}</td>
+                <td>{% if p.student %}{{ p.student.user.get_full_name }} ({{ p.student.admission_number }}){% else %}<em style="color:var(--text-secondary);">{{ p.raw|join:", "|truncatechars:40 }}</em>{% endif %}</td>
+                <td>{% if p.score is not None %}{{ p.score }}{% else %}—{% endif %}</td>
+                <td>{% if p.error %}<span class="tag tag-danger">{{ p.error }}</span>{% else %}<span class="tag tag-success">OK</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if valid_count > 0 %}
+    <form method="post" action="{% url 'academics:result_import_confirm' %}" style="margin-top:1rem;">
+        {% csrf_token %}
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Confirm Import ({{ valid_count }} results)</button>
+            <a href="{% url 'academics:result_import_map' %}" class="btn btn-secondary">Back</a>
+        </div>
+    </form>
+    {% else %}
+    <p style="margin-top:1rem;color:var(--danger);">No valid rows to import. Please fix the file and try again.</p>
+    <a href="{% url 'academics:result_import_upload' %}" class="btn btn-secondary">Start Over</a>
+    {% endif %}
+</div>
+{% endblock %}

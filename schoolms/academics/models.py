@@ -1,14 +1,22 @@
 from django.db import models
+from django.core.validators import FileExtensionValidator
 from students.models import Student
 from schools.models import School
 from accounts.models import User
+
+_DOCUMENT_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "jpg", "jpeg", "png", "gif"]
 
 
 class ExamType(models.Model):
     """Exam types like Class Test, Term Exam, Mid-Term, etc."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)  # e.g., "Class Test", "Term Exam"
-    
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = "Exam Type"
+        verbose_name_plural = "Exam Types"
+        ordering = ["name"]
+
     def __str__(self):
         return self.name
 
@@ -16,27 +24,40 @@ class ExamType(models.Model):
 class Term(models.Model):
     """Academic terms like Term 1, Term 2, Term 3."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)  # e.g., "Term 1", "Term 2"
+    name = models.CharField(max_length=100)
     is_current = models.BooleanField(default=False)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    
+
+    class Meta:
+        ordering = ["-is_current", "-id"]
+        verbose_name = "Term"
+        verbose_name_plural = "Terms"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school"],
+                condition=models.Q(is_current=True),
+                name="unique_current_term_per_school",
+            ),
+        ]
+
     def __str__(self):
         return self.name
-    
+
     def save(self, *args, **kwargs):
-        # If this term is being set as current, uncheck all other terms for this school
         if self.is_current:
             Term.objects.filter(school=self.school, is_current=True).exclude(pk=self.pk).update(is_current=False)
         super().save(*args, **kwargs)
-    
-    class Meta:
-        ordering = ["-is_current", "-id"]
 
 
 class Subject(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = "Subject"
+        verbose_name_plural = "Subjects"
+        ordering = ["name"]
 
     def __str__(self):
         return self.name
@@ -58,13 +79,29 @@ class GradeBoundary(models.Model):
         return f"{self.grade} ({self.min_score}-{self.max_score})"
 
 
-def get_grade_for_score(school, score):
-    """Return grade from school's boundaries, or default if none configured."""
-    boundaries = GradeBoundary.objects.filter(school=school).order_by("-min_score")
+def get_grade_for_score(school, score, _boundaries=None):
+    """Return grade from school's boundaries, or default if none configured.
+
+    Uses Django's cache framework so the lookup is safe across multiple
+    Gunicorn/ASGI workers (unlike a module-level dict).
+    Accepts an optional pre-fetched list of boundaries to avoid repeated
+    queries when grading many students in a loop.
+    """
+    if _boundaries is None:
+        from django.core.cache import cache as _cache
+        cache_key = f"grade_boundaries_{getattr(school, 'pk', school)}"
+        boundaries = _cache.get(cache_key)
+        if boundaries is None:
+            boundaries = list(
+                GradeBoundary.objects.filter(school=school).order_by("-min_score")
+            )
+            _cache.set(cache_key, boundaries, 300)
+    else:
+        boundaries = _boundaries
+
     for gb in boundaries:
         if gb.min_score <= score <= gb.max_score:
             return gb.grade
-    # Default fallback
     if score >= 80:
         return "A"
     elif score >= 70:
@@ -74,6 +111,35 @@ def get_grade_for_score(school, score):
     elif score >= 50:
         return "D"
     return "F"
+
+
+def clear_grade_cache(school=None):
+    """Clear the grade boundary cache (call after grade config changes)."""
+    from django.core.cache import cache as _cache
+    if school:
+        _cache.delete(f"grade_boundaries_{getattr(school, 'pk', school)}")
+    else:
+        _cache.clear()
+
+
+def bulk_annotate_grades(results, school):
+    """Pre-compute ``.grade_cached`` on a list/queryset of Result objects.
+
+    Uses a single boundary cache lookup for the school, then applies it to
+    every result.  Templates can then use ``{{ r.grade_cached }}`` (or the
+    existing ``{{ r.grade }}`` property still works as a fallback).
+    """
+    from django.core.cache import cache as _cache
+    cache_key = f"grade_boundaries_{getattr(school, 'pk', school)}"
+    boundaries = _cache.get(cache_key)
+    if boundaries is None:
+        boundaries = list(
+            GradeBoundary.objects.filter(school=school).order_by("-min_score")
+        )
+        _cache.set(cache_key, boundaries, 300)
+    for r in results:
+        r.grade_cached = get_grade_for_score(school, r.percentage, _boundaries=boundaries)
+    return results
 
 
 # ==========================================
@@ -99,14 +165,15 @@ class AssessmentType(models.Model):
 
 
 class StudentClass(models.Model):
-    """Student class/grade levels."""
+    """DEPRECATED: Use students.SchoolClass instead. Kept for migration compatibility."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)  # e.g., "JHS 1", "Primary 6"
-    level = models.PositiveIntegerField()  # Numeric level for sorting
+    name = models.CharField(max_length=100)
+    level = models.PositiveIntegerField()
     
     class Meta:
         ordering = ["level"]
         unique_together = ("school", "name")
+        managed = True
     
     def __str__(self):
         return self.name
@@ -118,25 +185,39 @@ class Homework(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     description = models.TextField()
-    class_name = models.CharField(max_length=50, blank=True)  # Added for admin compatibility
+    class_name = models.CharField(max_length=50, blank=True)
+    school_class = models.ForeignKey(
+        "students.SchoolClass", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="homework_set",
+    )
     due_date = models.DateTimeField()
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='homework_created')
     created_at = models.DateTimeField(auto_now_add=True)
-    attachment = models.FileField(upload_to='homework/', null=True, blank=True)
-    
+    attachment = models.FileField(
+        upload_to='homework/', null=True, blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=_DOCUMENT_EXTENSIONS)],
+    )
+
     class Meta:
         ordering = ['-due_date']
+        indexes = [
+            models.Index(fields=["school", "class_name"], name="idx_hw_school_class"),
+            models.Index(fields=["school", "due_date"], name="idx_hw_school_due"),
+        ]
     
     def __str__(self):
         return f"{self.title} - {self.subject.name}"
 
 
 class HomeworkSubmission(models.Model):
-    """Homework submission model (for academics app)."""
+    """DEPRECATED: Use operations.AssignmentSubmission instead. Kept for migration compat."""
     homework = models.ForeignKey(Homework, on_delete=models.CASCADE, related_name='academic_submissions')
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='homework_submissions')
     submission_text = models.TextField(blank=True)
-    attachment = models.FileField(upload_to='submissions/', null=True, blank=True)
+    attachment = models.FileField(
+        upload_to='submissions/', null=True, blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=_DOCUMENT_EXTENSIONS)],
+    )
     submitted_at = models.DateTimeField(auto_now_add=True)
     grade = models.CharField(max_length=10, blank=True)
     feedback = models.TextField(blank=True)
@@ -161,10 +242,21 @@ class Result(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['-created_at']
+        verbose_name = "Result"
         verbose_name_plural = "Results"
+        indexes = [
+            models.Index(fields=["student", "term"], name="idx_result_student_term"),
+            models.Index(fields=["student", "subject", "term"], name="idx_result_stu_subj_term"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "subject", "exam_type", "term"],
+                name="uniq_result_stu_sub_exam_term",
+            ),
+        ]
     
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.total_score}"
@@ -177,6 +269,8 @@ class Result(models.Model):
     
     @property
     def grade(self):
+        if hasattr(self, "grade_cached"):
+            return self.grade_cached
         return get_grade_for_score(self.student.school, self.percentage)
 
 
@@ -186,12 +280,16 @@ class ExamSchedule(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     term = models.ForeignKey(Term, on_delete=models.CASCADE, null=True, blank=True)
     class_name = models.CharField(max_length=50, blank=True, default='')
+    school_class = models.ForeignKey(
+        "students.SchoolClass", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="exam_schedules",
+    )
     exam_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
     venue = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
-    
+
     class Meta:
         ordering = ['exam_date', 'start_time']
     
@@ -202,7 +300,11 @@ class ExamSchedule(models.Model):
 class Timetable(models.Model):
     """Weekly timetable."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
-    class_name = models.CharField(max_length=50)  # e.g., "JHS 1"
+    class_name = models.CharField(max_length=50)
+    school_class = models.ForeignKey(
+        "students.SchoolClass", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="timetable_entries",
+    )
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     teacher = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='timetable_subjects')
     day_of_week = models.CharField(max_length=10)  # Monday, Tuesday, etc.
@@ -212,8 +314,8 @@ class Timetable(models.Model):
     
     class Meta:
         ordering = ['day_of_week', 'start_time']
-        unique_together = ("class_name", "day_of_week", "start_time")
-    
+        unique_together = ("school", "class_name", "day_of_week", "start_time")
+
     def __str__(self):
         return f"{self.class_name} - {self.subject} - {self.day_of_week}"
 
@@ -224,6 +326,10 @@ class Quiz(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     class_name = models.CharField(max_length=50)
+    school_class = models.ForeignKey(
+        "students.SchoolClass", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="quizzes",
+    )
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     term = models.ForeignKey(Term, on_delete=models.SET_NULL, null=True, blank=True)
     duration_minutes = models.PositiveIntegerField(default=30)
@@ -288,6 +394,9 @@ class QuizAttempt(models.Model):
     
     class Meta:
         ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=["student", "is_completed"], name="idx_quizatt_stu_done"),
+        ]
     
     def __str__(self):
         return f"{self.student} - {self.quiz.title}"
@@ -328,6 +437,9 @@ class AssessmentScore(models.Model):
         ordering = ['-date']
         verbose_name = 'Assessment Score'
         verbose_name_plural = 'Assessment Scores'
+        indexes = [
+            models.Index(fields=["student", "subject", "term"], name="idx_ascore_stu_sub_term"),
+        ]
     
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.max_score}"
@@ -366,6 +478,10 @@ class OnlineMeeting(models.Model):
     description = models.TextField(blank=True)
     subject = models.CharField(max_length=100, blank=True)
     class_name = models.CharField(max_length=50, blank=True)
+    school_class = models.ForeignKey(
+        "students.SchoolClass", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="online_meetings",
+    )
     target_audience = models.CharField(max_length=20, choices=[
         ('students', 'Students Only'),
         ('staff', 'Staff Only'),
@@ -388,6 +504,9 @@ class OnlineMeeting(models.Model):
 
     class Meta:
         ordering = ['-scheduled_time']
+        indexes = [
+            models.Index(fields=["school", "scheduled_time"], name="idx_meeting_school_time"),
+        ]
 
     def __str__(self):
         return f"{self.title} - {self.scheduled_time.strftime('%Y-%m-%d %H:%M')}"

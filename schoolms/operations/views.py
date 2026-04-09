@@ -1,10 +1,14 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.db import models
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from django.http import HttpResponse
+from django.core.cache import cache
+from accounts.decorators import role_required
+from core.pagination import paginate
+import logging
 
 from schools.models import School
 from students.models import Student
@@ -64,18 +68,10 @@ from .models import (
     ExamAnswer,
 )
 
-
-def _get_school(request):
-    """Current user's school (school admin or teacher). Platform superadmin has no school."""
-    if not request.user.is_authenticated:
-        return None
-    return getattr(request.user, "school", None)
+logger = logging.getLogger(__name__)
 
 
-def _user_can_manage_school(request):
-    """Check if user can manage school (admin or superuser)."""
-    from accounts.permissions import user_can_manage_school
-    return request.user.is_superuser or user_can_manage_school(request.user)
+from core.utils import get_school as _get_school, can_manage as _user_can_manage_school
 
 
 @login_required
@@ -121,8 +117,8 @@ def _get_image_reader_for_pdf(photo_field):
     if hasattr(photo_field, 'path') and photo_field.path:
         try:
             return ImageReader(photo_field.path)
-        except Exception as e:
-            print(f"Error reading local file: {e}")
+        except Exception:
+            logger.warning("Error reading local file for PDF image", exc_info=True)
             return None
     
     # Case 2: Cloud storage URL (Supabase or similar)
@@ -137,8 +133,8 @@ def _get_image_reader_for_pdf(photo_field):
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 return ImageReader(BytesIO(response.content))
-        except Exception as e:
-            print(f"Error downloading image from URL: {e}")
+        except Exception:
+            logger.warning("Error downloading image from URL for PDF", exc_info=True)
             return None
     
     return None
@@ -161,51 +157,91 @@ def attendance_list(request):
         messages.warning(request, "Invalid 'to' date; showing today's records instead.")
     qs = StudentAttendance.objects.filter(school=school, date__gte=from_date, date__lte=to_date).select_related(
         "student", "student__user"
-    )
+    ).order_by("-date", "student__class_name")
+    page_obj = paginate(request, qs, per_page=50)
     return render(
         request,
         "operations/attendance_list.html",
-        {"attendances": qs, "school": school, "from_date": from_date, "to_date": to_date},
+        {"attendances": page_obj, "school": school, "from_date": from_date, "to_date": to_date, "page_obj": page_obj},
     )
 
 
-@login_required
+@role_required('school_admin', 'deputy_head', 'hod', 'teacher')
 def attendance_mark(request):
+    from django.contrib import messages
+    from students.models import SchoolClass
+
     school = _require_school(request)
     if not school:
         return redirect("home")
+
+    classes = SchoolClass.objects.filter(school=school).order_by("name")
+    if request.user.role == "teacher":
+        teacher_classes = classes.filter(class_teacher=request.user)
+        if teacher_classes.exists():
+            classes = teacher_classes
+
+    selected_class = request.GET.get("class") or request.POST.get("class", "")
+    default_day = timezone.now().date()
+
     if request.method == "POST":
-        from django.contrib import messages
-        default_day = timezone.now().date()
         raw_date = request.POST.get("date")
         date = _parse_date(raw_date, default_day)
         if raw_date and date == default_day and str(raw_date) != str(default_day):
             messages.warning(request, "Invalid attendance date; saved for today instead.")
+        status_entries = {}
         for key, value in request.POST.items():
             if key.startswith("status_"):
                 try:
-                    student_id = key.replace("status_", "")
-                    student = Student.objects.get(id=student_id, school=school)
-                    StudentAttendance.objects.update_or_create(
-                        student=student, date=date, defaults={"school": school, "status": value, "marked_by": request.user}
-                    )
-                except (Student.DoesNotExist, ValueError):
+                    status_entries[int(key.replace("status_", ""))] = value
+                except (ValueError, TypeError):
                     pass
-        return redirect("operations:attendance_list")
-    from django.contrib import messages
-    default_day = timezone.now().date()
+
+        students_by_id = {
+            s.id: s
+            for s in Student.objects.filter(id__in=status_entries.keys(), school=school)
+        }
+        saved = 0
+        for student_id, status_val in status_entries.items():
+            student = students_by_id.get(student_id)
+            if student:
+                StudentAttendance.objects.update_or_create(
+                    student=student, date=date,
+                    defaults={"school": school, "status": status_val, "marked_by": request.user},
+                )
+                saved += 1
+        messages.success(request, f"Attendance saved for {saved} student(s).")
+        return redirect(f"/operations/attendance/mark/?class={selected_class}&date={date}")
+
     raw_date = request.GET.get("date")
     date = _parse_date(raw_date, default_day)
     if raw_date and date == default_day and str(raw_date) != str(default_day):
         messages.warning(request, "Invalid date; showing today's attendance sheet instead.")
-    students = list(Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number"))
-    existing = {a.student_id: a.status for a in StudentAttendance.objects.filter(school=school, date=date)}
-    for s in students:
-        s.attendance_status = existing.get(s.id, "present")
+
+    students = []
+    if selected_class:
+        students = list(
+            Student.objects.filter(school=school, class_name=selected_class)
+            .select_related("user")
+            .order_by("admission_number")
+        )
+        existing = {
+            a.student_id: a.status
+            for a in StudentAttendance.objects.filter(school=school, date=date, student__class_name=selected_class)
+        }
+        for s in students:
+            s.attendance_status = existing.get(s.id, "present")
+
     return render(
         request,
         "operations/attendance_mark.html",
-        {"students": students, "school": school, "date": date},
+        {
+            "students": students,
+            "school": school,
+            "date": date,
+            "classes": classes,
+            "selected_class": selected_class,
+        },
     )
 
 
@@ -214,8 +250,9 @@ def canteen_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    items = CanteenItem.objects.filter(school=school)
-    return render(request, "operations/canteen_list.html", {"items": items, "school": school})
+    items = CanteenItem.objects.filter(school=school).order_by("name")
+    page_obj = paginate(request, items, per_page=25)
+    return render(request, "operations/canteen_list.html", {"items": page_obj, "school": school, "page_obj": page_obj})
 
 
 @login_required
@@ -258,8 +295,9 @@ def canteen_payments(request):
         return redirect("home")
     if not user_can_manage_school(request.user):
         return redirect("operations:canteen_list")
-    payments = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")[:200]
-    return render(request, "operations/canteen_payments.html", {"payments": payments, "school": school})
+    qs = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/canteen_payments.html", {"payments": page_obj, "page_obj": page_obj, "school": school})
 
 
 @login_required
@@ -406,8 +444,9 @@ def bus_payments(request):
         return redirect("home")
     if not user_can_manage_school(request.user):
         return redirect("operations:bus_list")
-    payments = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")[:200]
-    return render(request, "operations/bus_payments.html", {"payments": payments, "school": school})
+    qs = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/bus_payments.html", {"payments": page_obj, "page_obj": page_obj, "school": school})
 
 
 @login_required
@@ -457,8 +496,9 @@ def textbook_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    books = Textbook.objects.filter(school=school)
-    return render(request, "operations/textbook_list.html", {"books": books, "school": school})
+    books = Textbook.objects.filter(school=school).order_by("title")
+    page_obj = paginate(request, books, per_page=25)
+    return render(request, "operations/textbook_list.html", {"books": page_obj, "school": school, "page_obj": page_obj})
 
 
 @login_required
@@ -545,8 +585,9 @@ def textbook_sales(request):
         return redirect("home")
     if not user_can_manage_school(request.user):
         return redirect("operations:textbook_list")
-    sales = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")[:200]
-    return render(request, "operations/textbook_sales.html", {"sales": sales, "school": school})
+    qs = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/textbook_sales.html", {"sales": page_obj, "page_obj": page_obj, "school": school})
 
 
 @login_required
@@ -688,16 +729,23 @@ def teacher_attendance_mark(request):
         date = _parse_date(raw_date, default_day)
         if raw_date and date == default_day and str(raw_date) != str(default_day):
             messages.warning(request, "Invalid attendance date; saved for today instead.")
+        teacher_status = {}
         for key, value in request.POST.items():
             if key.startswith("status_"):
                 try:
-                    teacher_id = key.replace("status_", "")
-                    teacher = User.objects.get(id=teacher_id, school=school, role="teacher")
-                    TeacherAttendance.objects.update_or_create(
-                        teacher=teacher, date=date, defaults={"school": school, "status": value, "marked_by": request.user}
-                    )
-                except (User.DoesNotExist, ValueError):
+                    teacher_status[int(key.replace("status_", ""))] = value
+                except (ValueError, TypeError):
                     pass
+        teachers_by_id = {
+            u.id: u
+            for u in User.objects.filter(id__in=teacher_status.keys(), school=school, role="teacher")
+        }
+        for tid, status_val in teacher_status.items():
+            teacher = teachers_by_id.get(tid)
+            if teacher:
+                TeacherAttendance.objects.update_or_create(
+                    teacher=teacher, date=date, defaults={"school": school, "status": status_val, "marked_by": request.user}
+                )
         return redirect("operations:teacher_attendance_list")
     
     from django.contrib import messages
@@ -718,6 +766,99 @@ def teacher_attendance_mark(request):
     )
 
 
+@login_required
+def teacher_attendance_edit(request, pk):
+    """Edit a single teacher attendance record (school admin)."""
+    from accounts.permissions import is_school_admin
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("home")
+    attendance = get_object_or_404(TeacherAttendance, pk=pk, school=school)
+    if request.method == "POST":
+        from django.contrib import messages
+
+        status_val = (request.POST.get("status") or "present").strip()
+        notes = (request.POST.get("notes") or "").strip()[:255]
+        raw_date = request.POST.get("date")
+        if raw_date:
+            date = _parse_date(raw_date, attendance.date)
+        else:
+            date = attendance.date
+        attendance.status = status_val if status_val in dict(TeacherAttendance.STATUS_CHOICES) else attendance.status
+        attendance.notes = notes
+        attendance.date = date
+        attendance.marked_by = request.user
+        attendance.save()
+        messages.success(request, "Attendance updated.")
+        return redirect("operations:teacher_attendance_list")
+    return render(
+        request,
+        "operations/teacher_attendance_edit.html",
+        {
+            "school": school,
+            "attendance": attendance,
+            "status_choices": TeacherAttendance.STATUS_CHOICES,
+        },
+    )
+
+
+@login_required
+def hostel_room_edit(request, pk):
+    """Edit an existing hostel room."""
+    from accounts.permissions import is_school_admin
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    room = get_object_or_404(HostelRoom.objects.select_related("hostel"), pk=pk, hostel__school=school)
+    hostel = room.hostel
+    if not (request.user.is_superuser or is_school_admin(request.user)):
+        return redirect("operations:hostel_rooms", pk=hostel.pk)
+    if request.method == "POST":
+        from django.contrib import messages
+
+        room_number = (request.POST.get("room_number") or "").strip()
+        floor = int(request.POST.get("floor") or room.floor)
+        total_beds = int(request.POST.get("total_beds") or room.total_beds)
+        if not room_number:
+            messages.error(request, "Room number is required.")
+        else:
+            conflict = (
+                HostelRoom.objects.filter(hostel=hostel, room_number=room_number).exclude(pk=room.pk).exists()
+            )
+            if conflict:
+                messages.error(request, "Another room already uses that number.")
+            else:
+                room.room_number = room_number
+                room.floor = max(1, floor)
+                room.total_beds = max(1, total_beds)
+                room.save()
+                messages.success(request, "Room updated.")
+                return redirect("operations:hostel_rooms", pk=hostel.pk)
+    return render(
+        request,
+        "operations/hostel_room_form.html",
+        {"school": school, "hostel": hostel, "room": room},
+    )
+
+
+@login_required
+def hostel_fee_detail(request, pk):
+    """Read-only hostel fee row with link to mark paid."""
+    from accounts.permissions import user_can_manage_school
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("home")
+    fee = get_object_or_404(HostelFee.objects.select_related("student", "student__user", "hostel"), pk=pk, school=school)
+    return render(request, "operations/hostel_fee_detail.html", {"school": school, "fee": fee})
+
+
 # Academic Calendar Views
 @login_required
 def calendar_list(request):
@@ -726,7 +867,8 @@ def calendar_list(request):
     if not school:
         return redirect("home")
     events = AcademicCalendar.objects.filter(school=school).order_by("start_date")
-    return render(request, "operations/calendar_list.html", {"events": events, "school": school})
+    page_obj = paginate(request, events, per_page=25)
+    return render(request, "operations/calendar_list.html", {"events": page_obj, "school": school, "page_obj": page_obj})
 
 
 @login_required
@@ -836,7 +978,8 @@ def announcement_list(request):
     if not (request.user.is_superuser or user_can_manage_school(request.user) or user_role == 'teacher'):
         return redirect("home")
     announcements = Announcement.objects.filter(school=school).select_related("created_by").order_by("-is_pinned", "-created_at")
-    return render(request, "operations/announcement_list.html", {"announcements": announcements, "school": school})
+    page_obj = paginate(request, announcements, per_page=25)
+    return render(request, "operations/announcement_list.html", {"announcements": page_obj, "school": school, "page_obj": page_obj})
 
 
 @login_required
@@ -988,16 +1131,18 @@ def activity_log_list(request):
 
     # Platform admins: see logs across all schools.
     if request.user.is_superuser or getattr(request.user, "is_super_admin", False):
-        logs = ActivityLog.objects.select_related("user", "school").order_by("-created_at")[:300]
-        return render(request, "operations/activity_log_list.html", {"logs": logs, "school": None})
+        qs = ActivityLog.objects.select_related("user", "school").order_by("-created_at")
+        page_obj = paginate(request, qs, per_page=50)
+        return render(request, "operations/activity_log_list.html", {"logs": page_obj, "page_obj": page_obj, "school": None})
 
     # School admins: see logs for their school.
     if not school:
         return _redirect_no_school(request)
     if not is_school_admin(request.user):
         return redirect("accounts:school_dashboard")
-    logs = ActivityLog.objects.filter(school=school).select_related("user").order_by("-created_at")[:200]
-    return render(request, "operations/activity_log_list.html", {"logs": logs, "school": school})
+    qs = ActivityLog.objects.filter(school=school).select_related("user").order_by("-created_at")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/activity_log_list.html", {"logs": page_obj, "page_obj": page_obj, "school": school})
 
 
 # Library
@@ -1009,10 +1154,11 @@ def library_catalog(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    books = LibraryBook.objects.filter(school=school).order_by("title", "author")[:500]
+    qs = LibraryBook.objects.filter(school=school).order_by("title", "author")
+    page_obj = paginate(request, qs, per_page=50)
     from accounts.permissions import user_can_manage_school
     can_manage = user_can_manage_school(request.user) or request.user.is_superuser
-    return render(request, "operations/library_catalog.html", {"books": books, "school": school, "can_manage": can_manage})
+    return render(request, "operations/library_catalog.html", {"books": page_obj, "page_obj": page_obj, "school": school, "can_manage": can_manage})
 
 
 @login_required
@@ -1023,8 +1169,9 @@ def library_manage(request):
         return redirect("home")
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
-    books = LibraryBook.objects.filter(school=school).order_by("-created_at")[:500]
-    return render(request, "operations/library_manage.html", {"books": books, "school": school})
+    qs = LibraryBook.objects.filter(school=school).order_by("-created_at")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/library_manage.html", {"books": page_obj, "page_obj": page_obj, "school": school})
 
 
 @login_required
@@ -1111,8 +1258,9 @@ def library_issues(request):
         return redirect("home")
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
-    qs = LibraryIssue.objects.filter(school=school).select_related("student", "student__user", "book", "issued_by").order_by("-issue_date")[:300]
-    return render(request, "operations/library_issues.html", {"issues": qs, "school": school})
+    qs = LibraryIssue.objects.filter(school=school).select_related("student", "student__user", "book", "issued_by").order_by("-issue_date")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/library_issues.html", {"issues": page_obj, "page_obj": page_obj, "school": school})
 
 
 @login_required
@@ -1145,25 +1293,29 @@ def library_issue_create(request):
         if not student or not book:
             from django.contrib import messages
             messages.error(request, "Invalid student or book.")
-        elif book.available_copies <= 0:
-            from django.contrib import messages
-            messages.error(request, "No copies available.")
         else:
-            LibraryIssue.objects.create(
-                school=school,
-                student=student,
-                book=book,
-                issue_date=issue_date,
-                due_date=due_date,
-                status="issued",
-                issued_by=request.user,
-                notes=notes,
-            )
-            book.available_copies = max(0, book.available_copies - 1)
-            book.save(update_fields=["available_copies"])
-            from django.contrib import messages
-            messages.success(request, "Book issued.")
-            return redirect("operations:library_issues")
+            from django.db import transaction
+            from django.db.models import F
+            updated = LibraryBook.objects.filter(
+                id=book.id, available_copies__gt=0
+            ).update(available_copies=F('available_copies') - 1)
+            if not updated:
+                from django.contrib import messages
+                messages.error(request, "No copies available.")
+            else:
+                LibraryIssue.objects.create(
+                    school=school,
+                    student=student,
+                    book=book,
+                    issue_date=issue_date,
+                    due_date=due_date,
+                    status="issued",
+                    issued_by=request.user,
+                    notes=notes,
+                )
+                from django.contrib import messages
+                messages.success(request, "Book issued.")
+                return redirect("operations:library_issues")
     return render(request, "operations/library_issue_form.html", {"school": school, "students": students, "books": books})
 
 
@@ -1177,12 +1329,21 @@ def library_issue_return(request, pk):
         return redirect("operations:library_catalog")
     issue = get_object_or_404(LibraryIssue, pk=pk, school=school)
     if request.method == "POST":
+        if issue.status == "returned":
+            from django.contrib import messages
+            messages.info(request, "This book has already been returned.")
+            return redirect("operations:library_issues")
+        from django.db.models import F
         issue.status = "returned"
         issue.return_date = timezone.now().date()
         issue.save(update_fields=["status", "return_date"])
-        book = issue.book
-        book.available_copies = min(book.total_copies, book.available_copies + 1)
-        book.save(update_fields=["available_copies"])
+        LibraryBook.objects.filter(id=issue.book_id).update(
+            available_copies=models.Case(
+                models.When(available_copies__lt=F('total_copies'),
+                            then=F('available_copies') + 1),
+                default=F('available_copies'),
+            )
+        )
         from django.contrib import messages
         messages.success(request, "Book returned.")
         return redirect("operations:library_issues")
@@ -1230,7 +1391,8 @@ def hostel_list(request):
         return redirect("home")
     hostels = Hostel.objects.filter(school=school).order_by("name")
     can_manage = request.user.is_superuser or user_can_manage_school(request.user)
-    return render(request, "operations/hostel_list.html", {"hostels": hostels, "school": school, "can_manage": can_manage})
+    page_obj = paginate(request, hostels, per_page=25)
+    return render(request, "operations/hostel_list.html", {"hostels": page_obj, "school": school, "can_manage": can_manage, "page_obj": page_obj})
 
 
 @login_required
@@ -1309,8 +1471,9 @@ def hostel_assignments(request):
         return redirect("home")
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
-    qs = HostelAssignment.objects.filter(school=school).select_related("student", "student__user", "hostel", "room").order_by("-start_date")[:300]
-    return render(request, "operations/hostel_assignments.html", {"assignments": qs, "school": school})
+    qs = HostelAssignment.objects.filter(school=school).select_related("student", "student__user", "hostel", "room").order_by("-start_date")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/hostel_assignments.html", {"assignments": page_obj, "page_obj": page_obj, "school": school})
 
 
 @login_required
@@ -1403,8 +1566,9 @@ def hostel_fees(request):
         return redirect("home")
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
-    fees = HostelFee.objects.filter(school=school).select_related("student", "student__user", "hostel").order_by("-id")[:400]
-    return render(request, "operations/hostel_fees.html", {"fees": fees, "school": school})
+    qs = HostelFee.objects.filter(school=school).select_related("student", "student__user", "hostel").order_by("-id")
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "operations/hostel_fees.html", {"fees": page_obj, "page_obj": page_obj, "school": school})
 
 
 @login_required
@@ -1489,11 +1653,19 @@ def admission_apply(request):
     Parents/guardians can submit applications online.
     """
     from schools.models import School
-    
-    # Get active schools for dropdown
+    from django.contrib import messages as _messages
+
     schools = School.objects.filter(is_active=True).order_by('name')
-    
+
     if request.method == 'POST':
+        ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR', '')
+        cache_key = f"admission_apply_{ip}"
+        count = cache.get(cache_key, 0)
+        if count >= 5:
+            _messages.error(request, "Too many submissions. Please try again later.")
+            return render(request, 'operations/admission_apply.html', {'schools': schools})
+        cache.set(cache_key, count + 1, 3600)
+
         first_name = request.POST.get('first_name', '').strip()
         last_name = request.POST.get('last_name', '').strip()
         dob = request.POST.get('date_of_birth', '').strip()
@@ -1543,11 +1715,12 @@ def admission_apply(request):
                     from messaging.utils import send_sms
                     msg = f"New Admission Application: {first_name} {last_name} for {class_applied}"
                     if school:
-                        admins = User.objects.filter(school=school, role='admin')
+                        admins = User.objects.filter(school=school, role='school_admin')
                         for admin in admins:
                             if admin.phone:
                                 send_sms(admin.phone, msg)
-                except:
+                except Exception:
+                    logger.warning("Failed to send admission application SMS notification", exc_info=True)
                     pass
                 
                 return render(request, 'operations/admission_success.html', {
@@ -1578,12 +1751,14 @@ def admission_list(request):
     if status_filter:
         qs = qs.filter(status=status_filter)
     
-    applications = qs.select_related('school', 'reviewed_by').order_by('-applied_at')[:200]
-    
+    qs = qs.select_related('school', 'reviewed_by').order_by('-applied_at')
+    page_obj = paginate(request, qs, per_page=30)
+
     return render(request, 'operations/admission_list.html', {
-        'applications': applications,
+        'applications': page_obj,
         'school': school,
-        'status_filter': status_filter
+        'status_filter': status_filter,
+        'page_obj': page_obj,
     })
 
 
@@ -1596,11 +1771,13 @@ def admission_detail(request, pk):
     if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
         return redirect('home')
     
-    application = get_object_or_404(AdmissionApplication, pk=pk)
-    
-    if school and application.school and application.school != school:
+    if school:
+        application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
+    elif request.user.is_superuser or getattr(request.user, 'is_super_admin', False):
+        application = get_object_or_404(AdmissionApplication, pk=pk)
+    else:
         return redirect('home')
-    
+
     return render(request, 'operations/admission_detail.html', {
         'application': application,
         'school': school
@@ -1618,11 +1795,13 @@ def admission_approve(request, pk):
     if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
         return redirect('home')
     
-    application = get_object_or_404(AdmissionApplication, pk=pk)
-    
-    if school and application.school and application.school != school:
+    if school:
+        application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
+    elif request.user.is_superuser or getattr(request.user, 'is_super_admin', False):
+        application = get_object_or_404(AdmissionApplication, pk=pk)
+    else:
         return redirect('home')
-    
+
     if request.method == 'POST':
         create_account = request.POST.get('create_account') == 'on'
         admission_number = request.POST.get('admission_number', '').strip()
@@ -1644,8 +1823,9 @@ def admission_approve(request, pk):
                 next_num = int(last_student.admission_number.split('-')[-1]) + 1 if last_student and last_student.admission_number else 1
                 admission_number = f"{application.school.name[:3].upper()}-{timezone.now().year}-{next_num:04d}"
             
-            # Create parent user account
+            from django.utils.crypto import get_random_string as _rnd
             username = f"parent{application.id}"
+            parent_pw = initial_password or _rnd(12)
             parent_user = User.objects.create(
                 username=username,
                 first_name=application.parent_first_name,
@@ -1654,19 +1834,21 @@ def admission_approve(request, pk):
                 phone=application.parent_phone,
                 role='parent',
                 school=application.school,
-                password=make_password(initial_password or 'Welcome123')
+                password=make_password(parent_pw),
+                must_change_password=True,
             )
-            
-            # Create student record
+
+            student_pw = initial_password or _rnd(12)
             student_user = User.objects.create(
                 username=f"student{application.id}",
                 first_name=application.first_name,
                 last_name=application.last_name,
                 role='student',
                 school=application.school,
-                password=make_password(initial_password or 'Student123')
+                password=make_password(student_pw),
+                must_change_password=True,
             )
-            
+
             student = Student.objects.create(
                 user=student_user,
                 school=application.school,
@@ -1675,17 +1857,34 @@ def admission_approve(request, pk):
                 parent=parent_user,
                 date_enrolled=timezone.now().date()
             )
-            
+
             application.created_student = student
             application.save()
-            
-            # Send SMS with login details
+
+            sms_sent = False
+            email_sent = False
+            credential_msg = f"Welcome! Your child has been admitted to {application.school.name}. Parent login: {username}, Password: {parent_pw}"
             try:
                 from messaging.utils import send_sms
-                msg = f"Welcome! Your child has been admitted to {application.school.name}. Login: {username}, Password: {initial_password or 'Welcome123'}"
-                send_sms(application.parent_phone, msg)
-            except:
-                pass
+                if application.parent_phone:
+                    send_sms(application.parent_phone, credential_msg)
+                    sms_sent = True
+            except Exception:
+                logger.warning("Failed to send admission approval SMS", exc_info=True)
+
+            if not sms_sent and application.parent_email:
+                try:
+                    from django.core.mail import send_mail
+                    send_mail(
+                        f"Admission Approved - {application.school.name}",
+                        credential_msg,
+                        None,
+                        [application.parent_email],
+                        fail_silently=True,
+                    )
+                    email_sent = True
+                except Exception:
+                    logger.warning("Failed to send admission approval email", exc_info=True)
         
         from django.contrib import messages
         messages.success(request, f'Application approved! {"Student account created." if student else ""}')
@@ -1707,11 +1906,13 @@ def admission_reject(request, pk):
     if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
         return redirect('home')
     
-    application = get_object_or_404(AdmissionApplication, pk=pk)
-    
-    if school and application.school and application.school != school:
+    if school:
+        application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
+    elif request.user.is_superuser or getattr(request.user, 'is_super_admin', False):
+        application = get_object_or_404(AdmissionApplication, pk=pk)
+    else:
         return redirect('home')
-    
+
     if request.method == 'POST':
         reason = request.POST.get('rejection_reason', '').strip()
         
@@ -1726,7 +1927,8 @@ def admission_reject(request, pk):
             from messaging.utils import send_sms
             msg = f"Admission Update: Your application for {application.first_name} has been declined. Reason: {reason or 'Please contact school for details.'}"
             send_sms(application.parent_phone, msg)
-        except:
+        except Exception:
+            logger.warning("Failed to send admission rejection SMS to parent", exc_info=True)
             pass
         
         from django.contrib import messages
@@ -1735,6 +1937,29 @@ def admission_reject(request, pk):
     
     return render(request, 'operations/admission_reject.html', {
         'application': application
+    })
+
+
+def admission_track(request):
+    """Public page: applicants can check status using phone + applicant name."""
+    application = None
+    searched = False
+    if request.GET.get("phone") or request.GET.get("name"):
+        searched = True
+        phone = request.GET.get("phone", "").strip()
+        name = request.GET.get("name", "").strip()
+        qs = AdmissionApplication.objects.select_related("school")
+        if phone:
+            qs = qs.filter(parent_phone__icontains=phone)
+        if name:
+            qs = qs.filter(
+                Q(first_name__icontains=name) | Q(last_name__icontains=name)
+            )
+        application = qs.order_by("-applied_at").first()
+
+    return render(request, "operations/admission_track.html", {
+        "application": application,
+        "searched": searched,
     })
 
 
@@ -1749,10 +1974,12 @@ def certificate_list(request):
     if not user_can_manage_school(request.user):
         return redirect('home')
     
-    certificates = Certificate.objects.filter(school=school).select_related('student', 'student__user', 'created_by').order_by('-issued_date')[:200]
+    qs = Certificate.objects.filter(school=school).select_related('student', 'student__user', 'created_by').order_by('-issued_date')
+    page_obj = paginate(request, qs, per_page=50)
     
     return render(request, 'operations/certificate_list.html', {
-        'certificates': certificates,
+        'certificates': page_obj,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -1817,7 +2044,12 @@ def certificate_view(request, pk):
     
     school = _get_school(request)
     
-    certificate = get_object_or_404(Certificate, pk=pk)
+    certificate = get_object_or_404(
+        Certificate.objects.select_related(
+            "student", "student__user", "school", "created_by"
+        ),
+        pk=pk,
+    )
     
     # Check permission
     if school and certificate.school != school:
@@ -1832,7 +2064,11 @@ def certificate_view(request, pk):
     # Get student's academic record for the certificate
     results = None
     if school:
-        results = Result.objects.filter(student=certificate.student, term__name__icontains=certificate.term or '').select_related('subject', 'term')[:20]
+        results = Result.objects.filter(
+            student=certificate.student, term__name__icontains=certificate.term or ""
+        ).select_related(
+            "student", "student__user", "subject", "exam_type", "term"
+        )[:20]
     
     return render(request, 'operations/certificate_view.html', {
         'certificate': certificate,
@@ -1856,7 +2092,10 @@ def certificate_pdf(request, pk):
     
     school = _get_school(request)
     
-    certificate = get_object_or_404(Certificate, pk=pk)
+    certificate = get_object_or_404(
+        Certificate.objects.select_related("student", "student__user", "school"),
+        pk=pk,
+    )
     
     # Check permission
     if school and certificate.school != school:
@@ -1981,7 +2220,11 @@ def certificate_delete(request, pk):
     if not user_can_manage_school(request.user):
         return redirect('home')
     
-    certificate = get_object_or_404(Certificate, pk=pk, school=school)
+    certificate = get_object_or_404(
+        Certificate.objects.select_related("student", "student__user"),
+        pk=pk,
+        school=school,
+    )
     
     if request.method == 'POST':
         certificate.delete()
@@ -2005,13 +2248,15 @@ def expense_list(request):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    expenses = Expense.objects.filter(school=school).select_related('category', 'recorded_by').order_by('-expense_date')[:200]
-    total = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
-    
+    expenses_qs = Expense.objects.filter(school=school).select_related('category', 'recorded_by').order_by('-expense_date')
+    total = expenses_qs.aggregate(Sum('amount'))['amount__sum'] or 0
+    page_obj = paginate(request, expenses_qs, per_page=30)
+
     return render(request, 'operations/expense_list.html', {
-        'expenses': expenses,
+        'expenses': page_obj,
         'school': school,
-        'total': total
+        'total': total,
+        'page_obj': page_obj,
     })
 
 
@@ -2303,21 +2548,23 @@ def discipline_list(request):
     # Parents see their children's incidents, students see their own
     if role == 'parent':
         children = Student.objects.filter(parent=request.user, school=school)
-        incidents = DisciplineIncident.objects.filter(school=school, student__in=children).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+        incidents = DisciplineIncident.objects.filter(school=school, student__in=children).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
     elif role == 'student':
         student = Student.objects.filter(user=request.user, school=school).first()
         if student:
-            incidents = DisciplineIncident.objects.filter(school=school, student=student).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+            incidents = DisciplineIncident.objects.filter(school=school, student=student).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
         else:
-            incidents = []
+            incidents = DisciplineIncident.objects.none()
     elif user_can_manage_school(request.user) or request.user.is_superuser:
-        incidents = DisciplineIncident.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')[:200]
+        incidents = DisciplineIncident.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
     else:
         return redirect('home')
-    
+
+    page_obj = paginate(request, incidents, per_page=30)
     return render(request, 'operations/discipline_list.html', {
-        'incidents': incidents,
-        'school': school
+        'incidents': page_obj,
+        'school': school,
+        'page_obj': page_obj,
     })
 
 
@@ -2468,6 +2715,7 @@ def document_list(request):
     
     role = getattr(request.user, 'role', None)
     
+    page_obj = None
     if role == 'student':
         student = Student.objects.filter(user=request.user, school=school).first()
         documents = StudentDocument.objects.filter(student=student).order_by('-uploaded_at') if student else []
@@ -2475,12 +2723,15 @@ def document_list(request):
         children = Student.objects.filter(parent=request.user, school=school)
         documents = StudentDocument.objects.filter(student__in=children).select_related('student', 'student__user').order_by('-uploaded_at')[:200]
     elif user_can_manage_school(request.user) or request.user.is_superuser:
-        documents = StudentDocument.objects.filter(school=school).select_related('student', 'student__user', 'uploaded_by').order_by('-uploaded_at')[:200]
+        qs = StudentDocument.objects.filter(school=school).select_related('student', 'student__user', 'uploaded_by').order_by('-uploaded_at')
+        page_obj = paginate(request, qs, per_page=50)
+        documents = page_obj
     else:
         return redirect('home')
     
     return render(request, 'operations/document_list.html', {
         'documents': documents,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -2548,11 +2799,13 @@ def alumni_list(request):
     if not user_can_manage_school(request.user) and not request.user.is_superuser:
         return redirect('home')
     
-    alumni = Alumni.objects.filter(school=school).order_by('-graduation_year')[:200]
-    
+    alumni = Alumni.objects.filter(school=school).order_by('-graduation_year')
+    page_obj = paginate(request, alumni, per_page=30)
+
     return render(request, 'operations/alumni_list.html', {
-        'alumni': alumni,
-        'school': school
+        'alumni': page_obj,
+        'school': school,
+        'page_obj': page_obj,
     })
 
 
@@ -2742,10 +2995,12 @@ def id_card_list(request):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    id_cards = StudentIDCard.objects.filter(school=school).select_related('student', 'student__user', 'created_by').order_by('-created_at')[:200]
+    qs = StudentIDCard.objects.filter(school=school).select_related('student', 'student__user', 'created_by').order_by('-created_at')
+    page_obj = paginate(request, qs, per_page=50)
     
     return render(request, 'operations/id_card_list.html', {
-        'id_cards': id_cards,
+        'id_cards': page_obj,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -2903,25 +3158,32 @@ def id_card_create_bulk(request):
         expiry_date = request.POST.get('expiry_date') or None
         
         if issue_date:
+            import uuid
             students = Student.objects.filter(school=school)
             if class_name:
                 students = students.filter(class_name=class_name)
-            
-            count = 0
+
+            existing_ids = set(
+                StudentIDCard.objects.filter(
+                    student__in=students
+                ).values_list("student_id", flat=True)
+            )
+
+            cards_to_create = []
             for student in students:
-                # Check if student already has an ID card
-                if not StudentIDCard.objects.filter(student=student).exists():
-                    import uuid
+                if student.id not in existing_ids:
                     card_number = f"ID-{student.admission_number or uuid.uuid4().hex[:8].upper()}"
-                    StudentIDCard.objects.create(
+                    cards_to_create.append(StudentIDCard(
                         student=student,
                         school=school,
                         card_number=card_number,
                         issue_date=issue_date,
                         expiry_date=expiry_date,
-                        created_by=request.user
-                    )
-                    count += 1
+                        created_by=request.user,
+                    ))
+            if cards_to_create:
+                StudentIDCard.objects.bulk_create(cards_to_create)
+            count = len(cards_to_create)
             
             from django.contrib import messages
             messages.success(request, f'{count} ID Cards created successfully!')
@@ -3134,12 +3396,16 @@ def staff_id_card_list(request):
     # Try to get staff ID cards, create model if needed
     try:
         from .models import StaffIDCard
-        id_cards = StaffIDCard.objects.filter(school=school).select_related('staff', 'created_by').order_by('-created_at')[:200]
-    except:
+        qs = StaffIDCard.objects.filter(school=school).select_related('staff', 'created_by').order_by('-created_at')
+        page_obj = paginate(request, qs, per_page=50)
+        id_cards = page_obj
+    except Exception:
         id_cards = []
+        page_obj = None
     
     return render(request, 'operations/staff_id_card_list.html', {
         'id_cards': id_cards,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -3224,7 +3490,7 @@ def staff_id_card_edit(request, pk):
             'school': school,
             'id_card': id_card
         })
-    except:
+    except Exception:
         return redirect('operations:staff_id_card_list')
 
 
@@ -3249,7 +3515,7 @@ def staff_id_card_delete(request, pk):
         return render(request, 'operations/confirm_delete.html', {
             'object': id_card, 'type': 'staff ID card'
         })
-    except:
+    except Exception:
         return redirect('operations:staff_id_card_list')
 
 
@@ -3268,7 +3534,7 @@ def staff_id_card_print(request, pk):
             'id_card': id_card,
             'school': school
         })
-    except:
+    except Exception:
         return redirect('operations:staff_id_card_list')
 
 
@@ -3329,8 +3595,8 @@ def id_card_pdf(request, pk):
     if id_card.photo:
         try:
             photo = _get_image_reader_for_pdf(id_card.photo)
-        except Exception as e:
-            print(f"Error reading id_card.photo: {e}")
+        except Exception:
+            logger.warning("Error reading id_card.photo for student ID PDF", exc_info=True)
             photo = None
     
     # Source 2: Student user's profile_photo (could be local path or Supabase URL)
@@ -3339,8 +3605,8 @@ def id_card_pdf(request, pk):
             user = student.user
             if hasattr(user, 'profile_photo') and user.profile_photo:
                 photo = _get_image_reader_for_pdf(user.profile_photo)
-        except Exception as e:
-            print(f"Error reading student.user.profile_photo: {e}")
+        except Exception:
+            logger.warning("Error reading student profile_photo for ID PDF", exc_info=True)
             photo = None
     
     # Draw student photo - LEFT side of card
@@ -3441,7 +3707,7 @@ def staff_id_card_pdf(request, pk):
         from .models import StaffIDCard
         id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
         staff = id_card.staff
-    except:
+    except Exception:
         return redirect('operations:staff_id_card_list')
     
     # Create PDF
@@ -3482,8 +3748,8 @@ def staff_id_card_pdf(request, pk):
     if id_card.photo:
         try:
             photo = _get_image_reader_for_pdf(id_card.photo)
-        except Exception as e:
-            print(f"Error reading id_card.photo: {e}")
+        except Exception:
+            logger.warning("Error reading id_card.photo for staff ID PDF", exc_info=True)
             photo = None
     
     # Source 2: Staff user's profile_photo (could be local path or Supabase URL)
@@ -3491,8 +3757,8 @@ def staff_id_card_pdf(request, pk):
         try:
             if hasattr(staff, 'profile_photo') and staff.profile_photo:
                 photo = _get_image_reader_for_pdf(staff.profile_photo)
-        except Exception as e:
-            print(f"Error reading staff.profile_photo: {e}")
+        except Exception:
+            logger.warning("Error reading staff profile_photo for ID PDF", exc_info=True)
             photo = None
     
     # Draw staff photo - LEFT side of card
@@ -4178,6 +4444,7 @@ def health_record_list(request):
     role = getattr(request.user, 'role', None)
     
     # Parents see their children's health records, students see their own
+    page_obj = None
     if role == 'parent':
         children = Student.objects.filter(parent=request.user, school=school)
         records = StudentHealth.objects.filter(school=school, student__in=children).select_related('student', 'student__user').order_by('-last_updated')[:200]
@@ -4188,12 +4455,15 @@ def health_record_list(request):
         else:
             records = []
     elif user_can_manage_school(request.user) or request.user.is_superuser:
-        records = StudentHealth.objects.filter(school=school).select_related('student', 'student__user').order_by('-last_updated')[:200]
+        qs = StudentHealth.objects.filter(school=school).select_related('student', 'student__user').order_by('-last_updated')
+        page_obj = paginate(request, qs, per_page=50)
+        records = page_obj
     else:
         return redirect('home')
     
     return render(request, 'operations/health_record_list.html', {
         'records': records,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -4272,10 +4542,12 @@ def health_visit_list(request):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    visits = HealthVisit.objects.filter(school=school).select_related('student', 'student__user', 'visited_by').order_by('-visit_date')[:200]
+    qs = HealthVisit.objects.filter(school=school).select_related('student', 'student__user', 'visited_by').order_by('-visit_date')
+    page_obj = paginate(request, qs, per_page=50)
     
     return render(request, 'operations/health_visit_list.html', {
-        'visits': visits,
+        'visits': page_obj,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -4366,10 +4638,12 @@ def inventory_item_list(request):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    items = InventoryItem.objects.filter(school=school).select_related('category').order_by('name')[:300]
+    qs = InventoryItem.objects.filter(school=school).select_related('category').order_by('name')
+    page_obj = paginate(request, qs, per_page=50)
     
     return render(request, 'operations/inventory_item_list.html', {
-        'items': items,
+        'items': page_obj,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -4532,10 +4806,12 @@ def inventory_transaction_list(request):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    transactions = InventoryTransaction.objects.filter(school=school).select_related('item', 'recorded_by').order_by('-created_at')[:200]
+    qs = InventoryTransaction.objects.filter(school=school).select_related('item', 'recorded_by').order_by('-created_at')
+    page_obj = paginate(request, qs, per_page=50)
     
     return render(request, 'operations/inventory_transaction_list.html', {
-        'transactions': transactions,
+        'transactions': page_obj,
+        'page_obj': page_obj,
         'school': school
     })
 
@@ -4593,10 +4869,12 @@ def school_event_list(request):
     role = getattr(request.user, 'role', None)
     can_manage = _user_can_manage_school(request)
     
-    events = SchoolEvent.objects.filter(school=school).order_by('-start_date')[:100]
+    qs = SchoolEvent.objects.filter(school=school).order_by('-start_date')
+    page_obj = paginate(request, qs, per_page=50)
     
     return render(request, 'operations/school_event_list.html', {
-        'events': events,
+        'events': page_obj,
+        'page_obj': page_obj,
         'school': school,
         'can_manage': can_manage
     })
@@ -4624,20 +4902,20 @@ def school_event_create(request):
         if title and start_date:
             try:
                 start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M')
-            except:
+            except (ValueError, TypeError):
                 try:
                     start = datetime.strptime(start_date, '%Y-%m-%d')
-                except:
+                except (ValueError, TypeError):
                     start = timezone.now()
             
             end = None
             if end_date:
                 try:
                     end = datetime.strptime(end_date, '%Y-%m-%dT%H:%M')
-                except:
+                except (ValueError, TypeError):
                     try:
                         end = datetime.strptime(end_date, '%Y-%m-%d')
-                    except:
+                    except (ValueError, TypeError):
                         end = None
             
             SchoolEvent.objects.create(
@@ -4694,20 +4972,20 @@ def school_event_edit(request, pk):
         if title and start_date:
             try:
                 start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M')
-            except:
+            except (ValueError, TypeError):
                 try:
                     start = datetime.strptime(start_date, '%Y-%m-%d')
-                except:
+                except (ValueError, TypeError):
                     start = timezone.now()
             
             end = None
             if end_date:
                 try:
                     end = datetime.strptime(end_date, '%Y-%m-%dT%H:%M')
-                except:
+                except (ValueError, TypeError):
                     try:
                         end = datetime.strptime(end_date, '%Y-%m-%d')
-                    except:
+                    except (ValueError, TypeError):
                         end = None
             
             event.title = title
@@ -4883,20 +5161,31 @@ def homework_submit(request, homework_id):
 
 @login_required
 def assignment_submission_list(request):
-    """List assignment submissions (teachers)."""
+    """List assignment submissions (teachers). Supports ?homework=<id> filter."""
     from accounts.permissions import user_can_manage_school
     from academics.models import Homework
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+
     submissions = AssignmentSubmission.objects.filter(
         homework__subject__school=school
-    ).select_related('homework', 'homework__subject', 'student', 'student__user', 'graded_by').order_by('-submitted_at')[:200]
-    
+    ).select_related('homework', 'homework__subject', 'student', 'student__user', 'graded_by').order_by('-submitted_at')
+
+    homework_filter = None
+    hw_id = request.GET.get("homework", "").strip()
+    if hw_id:
+        submissions = submissions.filter(homework_id=hw_id)
+        homework_filter = Homework.objects.filter(pk=hw_id, school=school).first()
+
+    from core.pagination import paginate
+    page_obj = paginate(request, submissions, per_page=50)
+
     return render(request, 'operations/assignment_submission_list.html', {
-        'submissions': submissions,
-        'school': school
+        'submissions': page_obj,
+        'page_obj': page_obj,
+        'school': school,
+        'homework_filter': homework_filter,
     })
 
 

@@ -7,7 +7,9 @@
 <div class="button-row mt-sm">
     <a class="btn btn-secondary" href="{% url 'students:parent_dashboard' %}">Back</a>
     <a class="btn btn-primary" href="{% url 'academics:report_card' child.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}">View report card</a>
-    <a class="btn btn-primary" href="{% url 'finance:pay' fees.0.id %}" {% if not fees or fees.0.paid %}style="display:none"{% endif %}>Pay latest fee</a>
+    {% if first_unpaid_fee %}
+    <a class="btn btn-primary" href="{% url 'finance:pay' first_unpaid_fee.id %}">Pay {{ first_unpaid_fee.remaining_balance|floatformat:2 }} GHS due</a>
+    {% endif %}
 </div>
 
 <h3 class="section-title">Quick Summary</h3>

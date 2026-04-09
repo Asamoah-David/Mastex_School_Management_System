@@ -6,6 +6,10 @@ User = get_user_model()
 
 class Conversation(models.Model):
     """A conversation thread between users."""
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="conversations",
+    )
     subject = models.CharField(max_length=255, blank=True)
     participants = models.ManyToManyField(User, related_name='conversations')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -14,6 +18,11 @@ class Conversation(models.Model):
 
     class Meta:
         ordering = ['-updated_at']
+        verbose_name = "Conversation"
+        verbose_name_plural = "Conversations"
+        indexes = [
+            models.Index(fields=["school", "updated_at"], name="idx_conv_school_updated"),
+        ]
 
     def __str__(self):
         return self.subject or f"Conversation {self.id}"
@@ -32,6 +41,11 @@ class Message(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name = "Message"
+        verbose_name_plural = "Messages"
+        indexes = [
+            models.Index(fields=["recipient", "is_read"], name="idx_msg_recipient_read"),
+        ]
 
     def __str__(self):
         return f"{self.sender} to {self.recipient}: {self.subject[:50]}"
@@ -45,6 +59,10 @@ class BroadcastNotification(models.Model):
         ('reminder', 'Reminder'),
     ]
     
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="broadcast_notifications",
+    )
     title = models.CharField(max_length=255)
     message = models.TextField()
     message_type = models.CharField(max_length=20, choices=MESSAGE_TYPE_CHOICES, default='announcement')

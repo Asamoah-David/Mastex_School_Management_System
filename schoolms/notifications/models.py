@@ -27,23 +27,29 @@ class Notification(models.Model):
     
     class Meta:
         ordering = ['-created_at']
-    
+        verbose_name = "Notification"
+        verbose_name_plural = "Notifications"
+        indexes = [
+            models.Index(fields=["user", "is_read"], name="idx_notif_user_read"),
+        ]
+
     def __str__(self):
         return f"{self.user.username}: {self.title}"
     
     @classmethod
     def create_notification(cls, user, title, message, notification_type='info', link=None, include_school=True):
-        """Helper method to create a notification"""
-        # Prepend school name to title if user has a school
+        """Helper method to create a notification."""
         if include_school and hasattr(user, 'school') and user.school:
             title = f"[{user.school.name}] {title}"
-        return cls.objects.create(
+        notif = cls.objects.create(
             user=user,
             title=title,
             message=message,
             notification_type=notification_type,
             link=link
         )
+        cls._invalidate_count_cache(user.pk)
+        return notif
     
     @classmethod
     def get_unread_count(cls, user):
@@ -51,13 +57,21 @@ class Notification(models.Model):
         return cls.objects.filter(user=user, is_read=False).count()
     
     def mark_as_read(self):
-        """Mark notification as read"""
+        """Mark notification as read."""
         self.is_read = True
-        self.save()
+        self.save(update_fields=["is_read"])
+        self._invalidate_count_cache(self.user_id)
     
+    @classmethod
     def mark_all_as_read(cls, user):
-        """Mark all notifications as read for a user"""
+        """Mark all notifications as read for a user."""
         cls.objects.filter(user=user, is_read=False).update(is_read=True)
+        cls._invalidate_count_cache(user.pk if hasattr(user, "pk") else user)
+
+    @staticmethod
+    def _invalidate_count_cache(user_pk):
+        from django.core.cache import cache
+        cache.delete(f"notif_count:{user_pk}")
 
 
 class NotificationPreference(models.Model):

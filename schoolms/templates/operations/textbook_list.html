@@ -4,7 +4,7 @@
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
 <div class="button-row">
-    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
+    {% if user.is_superuser or user.is_staff_member %}
     <a href="{% url 'operations:textbook_create' %}" class="btn btn-primary">Add Textbook</a>
     <a href="{% url 'operations:textbook_sales' %}" class="btn btn-secondary">View Sales</a>
     <a href="{% url 'operations:export_textbook_sales' %}?format=csv" class="btn btn-success">Export CSV</a>
@@ -26,7 +26,7 @@
                 <td>{{ b.stock }}</td>
                 <td>{{ b.isbn|default:"—" }}</td>
                 <td>
-                    {% if user.is_superuser or user.is_staff or user.role == 'school_admin' or user.role == 'admin' %}
+                    {% if user.is_superuser or user.is_staff_member %}
                         <a href="{% url 'operations:textbook_delete' b.pk %}" class="btn btn-danger btn-sm">Delete</a>
                     {% endif %}
                 </td>
@@ -49,4 +49,5 @@
     color: #ffffff !important;
 }
 </style>
+{% include 'includes/pagination.html' %}
 {% endblock %}

@@ -262,53 +262,70 @@
     </form>
 </div>
 
+<style>
+.field-error{color:#ef4444;font-size:.78rem;margin-top:.35rem;display:none;}
+.field-error.visible{display:block;}
+.input-invalid{border-color:#ef4444 !important;box-shadow:0 0 0 3px rgba(239,68,68,0.2) !important;}
+.input-valid{border-color:#22c55e !important;}
+</style>
 <script>
-function validateAdmissionForm() {
-    const school = document.getElementById('school').value;
-    const firstName = document.getElementById('first_name').value.trim();
-    const lastName = document.getElementById('last_name').value.trim();
-    const dob = document.getElementById('date_of_birth').value;
-    const gender = document.getElementById('gender').value;
-    const classApply = document.getElementById('class_applied_for').value;
-    const parentFirst = document.getElementById('parent_first_name').value.trim();
-    const parentLast = document.getElementById('parent_last_name').value.trim();
-    const phone = document.getElementById('parent_phone').value.trim();
-    const address = document.getElementById('address').value.trim();
-    
-    if (!school) {
-        alert('Please select the school you want to apply to');
-        return false;
+(function(){
+    var rules=[
+        {id:'school',       msg:'Please select a school.'},
+        {id:'first_name',   msg:'Student first name is required.', minLen:2},
+        {id:'last_name',    msg:'Student last name is required.', minLen:2},
+        {id:'date_of_birth',msg:'Date of birth is required.'},
+        {id:'gender',       msg:'Please select a gender.'},
+        {id:'class_applied_for', msg:'Please select the class.'},
+        {id:'parent_first_name', msg:'Parent first name is required.', minLen:2},
+        {id:'parent_last_name',  msg:'Parent last name is required.', minLen:2},
+        {id:'parent_phone', msg:'Enter a valid phone number (10 digits).', pattern:/^0\d{9}$/},
+        {id:'address',      msg:'Home address is required.', minLen:3}
+    ];
+
+    function errEl(field){
+        var el=field.parentNode.querySelector('.field-error');
+        if(!el){el=document.createElement('div');el.className='field-error';field.parentNode.appendChild(el);}
+        return el;
     }
-    if (!firstName || !lastName) {
-        alert('Please enter student\'s full name');
-        return false;
+
+    function validateField(r){
+        var f=document.getElementById(r.id);if(!f)return true;
+        var v=f.value.trim(), ok=true, msg=r.msg;
+        if(!v){ok=false;}
+        else if(r.minLen && v.length<r.minLen){ok=false;msg='Must be at least '+r.minLen+' characters.';}
+        else if(r.pattern && !r.pattern.test(v)){ok=false;msg=r.msg;}
+        var e=errEl(f);
+        if(!ok){e.textContent=msg;e.classList.add('visible');f.classList.add('input-invalid');f.classList.remove('input-valid');}
+        else{e.classList.remove('visible');f.classList.remove('input-invalid');f.classList.add('input-valid');}
+        return ok;
     }
-    if (!dob) {
-        alert('Please enter student\'s date of birth');
-        return false;
+
+    var emailField=document.getElementById('parent_email');
+    if(emailField){
+        emailField.addEventListener('blur',function(){
+            var v=emailField.value.trim(), e=errEl(emailField);
+            if(v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
+                e.textContent='Enter a valid email address.';e.classList.add('visible');emailField.classList.add('input-invalid');emailField.classList.remove('input-valid');
+            }else{e.classList.remove('visible');emailField.classList.remove('input-invalid');if(v)emailField.classList.add('input-valid');}
+        });
     }
-    if (!gender) {
-        alert('Please select gender');
-        return false;
-    }
-    if (!classApply) {
-        alert('Please select class applying for');
-        return false;
-    }
-    if (!parentFirst || !parentLast) {
-        alert('Please enter parent/guardian\'s full name');
-        return false;
-    }
-    if (!phone) {
-        alert('Please enter parent\'s phone number');
-        return false;
-    }
-    if (!address) {
-        alert('Please enter home address');
-        return false;
-    }
-    
-    return confirm('Are you ready to submit this admission application?\n\nMake sure you selected the correct school.');
-}
+
+    rules.forEach(function(r){
+        var f=document.getElementById(r.id);
+        if(f)f.addEventListener('blur',function(){validateField(r);});
+    });
+
+    window.validateAdmissionForm=function(){
+        var allOk=true;
+        rules.forEach(function(r){if(!validateField(r))allOk=false;});
+        if(!allOk){
+            var first=document.querySelector('.input-invalid');
+            if(first)first.focus();
+            return false;
+        }
+        return confirm('Are you ready to submit this admission application?\n\nMake sure you selected the correct school.');
+    };
+})();
 </script>
 {% endblock %}

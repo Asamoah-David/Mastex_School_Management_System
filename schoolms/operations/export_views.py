@@ -7,7 +7,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.http import HttpResponse
 
-from accounts.decorators import role_required
+from accounts.decorators import role_required, permission_required
+from accounts.permissions import can_export_data
 from schools.models import School
 from students.models import Student
 from accounts.models import User
@@ -21,11 +22,7 @@ from core.export_utils import export_to_csv, export_to_excel, export_to_zip
 from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook, TextbookSale, HostelFee, HostelAssignment
 
 
-def _get_school(request):
-    """Get current user's school."""
-    if not request.user.is_authenticated:
-        return None
-    return getattr(request.user, "school", None)
+from core.utils import get_school as _get_school
 
 
 def _require_school(request):
@@ -38,6 +35,7 @@ def _require_school(request):
 # ==================== EXPORT VIEWS ====================
 
 @login_required
+@permission_required(can_export_data)
 def export_students(request):
     """Export students list to CSV/Excel."""
     school = _require_school(request)
@@ -65,6 +63,7 @@ def export_students(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_staff(request):
     """Export staff list to CSV/Excel."""
     school = _require_school(request)
@@ -90,6 +89,7 @@ def export_staff(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_attendance(request):
     """Export student attendance to CSV/Excel."""
     school = _require_school(request)
@@ -130,6 +130,7 @@ def export_attendance(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_expenses(request):
     """Export expenses to CSV/Excel."""
     school = _require_school(request)
@@ -155,6 +156,7 @@ def export_expenses(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_fees(request):
     """Export fees to CSV/Excel."""
     from finance.models import Fee
@@ -181,6 +183,7 @@ def export_fees(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_library_books(request):
     """Export library books to CSV/Excel."""
     school = _require_school(request)
@@ -206,6 +209,7 @@ def export_library_books(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_library_issues(request):
     """Export library issues to CSV/Excel."""
     school = _require_school(request)
@@ -231,6 +235,7 @@ def export_library_issues(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_discipline(request):
     """Export discipline records to CSV/Excel."""
     school = _require_school(request)
@@ -256,6 +261,7 @@ def export_discipline(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_inventory(request):
     """Export inventory items to CSV/Excel."""
     school = _require_school(request)
@@ -281,6 +287,7 @@ def export_inventory(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_announcements(request):
     """Export announcements to CSV/Excel."""
     school = _require_school(request)
@@ -305,6 +312,7 @@ def export_announcements(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_admissions(request):
     """Export admission applications to CSV/Excel."""
     school = _require_school(request)
@@ -335,6 +343,7 @@ def export_admissions(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_health_records(request):
     """Export health records to CSV/Excel."""
     from .models import HealthVisit
@@ -360,6 +369,7 @@ def export_health_records(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_budgets(request):
     """Export budgets to CSV/Excel."""
     school = _require_school(request)
@@ -383,6 +393,7 @@ def export_budgets(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_online_exams(request):
     """Export online exams to CSV/Excel."""
     from .models import OnlineExam
@@ -409,6 +420,7 @@ def export_online_exams(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_all_data(request):
     """Export all school data as a ZIP file."""
     school = _require_school(request)
@@ -544,6 +556,7 @@ def _filter_by_date(queryset, request, date_field='created_at'):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_canteen_payments(request):
     """Export canteen payments to CSV/Excel with date filtering."""
     school = _require_school(request)
@@ -570,6 +583,7 @@ def export_canteen_payments(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_bus_payments(request):
     """Export bus/transport payments to CSV/Excel with date filtering."""
     school = _require_school(request)
@@ -597,6 +611,7 @@ def export_bus_payments(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_textbook_sales(request):
     """Export textbook sales to CSV/Excel with date filtering."""
     school = _require_school(request)
@@ -624,6 +639,7 @@ def export_textbook_sales(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_hostel_fees(request):
     """Export hostel fees to CSV/Excel with date filtering."""
     school = _require_school(request)
@@ -653,6 +669,7 @@ def export_hostel_fees(request):
 
 
 @login_required
+@permission_required(can_export_data)
 def export_all_payments(request):
     """Export all payment types to CSV/Excel with date filtering."""
     school = _require_school(request)

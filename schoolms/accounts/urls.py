@@ -5,6 +5,7 @@ from .views import (
     logout_view,
     profile,
     edit_profile,
+    force_password_change,
     dashboard,
     school_dashboard,
     staff_list,
@@ -23,6 +24,8 @@ from .views import (
     user_management,
     reset_user_password,
     superuser_edit_credentials,
+    global_search,
+    teacher_dashboard,
 )
 from .forms import SecurePasswordResetForm, PasswordResetConfirmForm
 
@@ -51,6 +54,7 @@ urlpatterns = [
     
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
+    path("force-password-change/", force_password_change, name="force_password_change"),
     path("profile/", profile, name="profile"),
     path("profile/edit/", edit_profile, name="edit_profile"),
     path(
@@ -65,6 +69,8 @@ urlpatterns = [
     ),
     path("dashboard/", dashboard, name="dashboard"),
     path("school-dashboard/", school_dashboard, name="school_dashboard"),
+    path("teacher-dashboard/", teacher_dashboard, name="teacher_dashboard"),
+    path("search/", global_search, name="global_search"),
     path("users/", user_management, name="user_management"),
     path("staff/", staff_list, name="staff_list"),
     path("staff/register/", staff_register, name="staff_register"),

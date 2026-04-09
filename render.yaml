@@ -1,20 +1,12 @@
-# Render Blueprint. Migrations run automatically—no shell needed.
-#
-# Docker (recommended): migrations run in docker-entrypoint.sh on every start.
-# Optionally set Release Command in Render dashboard to: python manage.py migrate --noinput
-# so migrations run before new version goes live (prevents "migration" errors).
-#
-# Native Environment: In Render dashboard set:
-#   Build Command:  pip install -r requirements.txt
-#   Start Command:  python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn schoolms.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 2
-#
-# Env vars: SECRET_KEY, DATABASE_URL (auto if PostgreSQL added), ALLOWED_HOSTS (optional).
+# Render Blueprint
 services:
   - type: web
     name: schoolms
     dockerfilePath: ./Dockerfile
-    # Run migrations before new deploy goes live (no Render shell needed).
-    preDeployCommand: python manage.py migrate --noinput
+    healthCheckPath: /health/
+    preDeployCommand: python manage.py migrate --noinput && python manage.py createcachetable 2>/dev/null; true
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
+      - key: DEBUG
+        value: "False"

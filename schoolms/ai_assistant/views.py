@@ -25,11 +25,9 @@ def chatbot_respond(request):
         try:
             # Try to parse as JSON first (AJAX)
             try:
-                import json
                 data = json.loads(request.body)
                 user_message = data.get("message", "").strip()
-            except:
-                # Fall back to form data
+            except (json.JSONDecodeError, ValueError):
                 user_message = request.POST.get("message", "").strip()
             
             if not user_message:

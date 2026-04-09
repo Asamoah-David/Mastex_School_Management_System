@@ -3,7 +3,6 @@
 {% block title %}Discipline - {{ school.name }}{% endblock %}
 {% block page_title %}Discipline Incidents{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
 <style>
 .badge-minor { background: #ffc107; color: #000; }
 .badge-moderate { background: #fd7e14; color: #fff; }
@@ -53,5 +52,6 @@
     {% else %}
     <p class="empty-state">📭 No incidents recorded.</p>
     {% endif %}
+    {% include 'includes/pagination.html' %}
 </div>
 {% endblock %}

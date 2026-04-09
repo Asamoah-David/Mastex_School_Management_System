@@ -3,7 +3,10 @@ Subscription Expiry Reminder Service
 Sends SMS and Email reminders to schools before their subscription expires.
 Run via cron job: python manage.py check_subscriptions
 """
+import logging
 from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 from django.utils import timezone
 from schools.models import School
 from accounts.models import User
@@ -66,8 +69,8 @@ def send_expiry_reminders():
                             'phone': admin.phone,
                             'days_left': days_left
                         })
-                    except Exception as e:
-                        print(f"Failed to send SMS to {admin.phone}: {e}")
+                    except Exception:
+                        logger.warning("Failed to send subscription reminder SMS", exc_info=True)
             
             # Also send email if configured
             for admin in admins:
@@ -80,8 +83,8 @@ def send_expiry_reminders():
                             subject,
                             message
                         )
-                    except Exception as e:
-                        print(f"Failed to send email to {admin.email}: {e}")
+                    except Exception:
+                        logger.warning("Failed to send subscription reminder email", exc_info=True)
     
     return schools_contacted
 
@@ -104,7 +107,7 @@ def check_and_update_expired_subscriptions():
         school.subscription_status = 'expired'
         school.save(update_fields=['subscription_status'])
         expired_count += 1
-        print(f"Marked {school.name} as expired")
+        logger.info("Marked school subscription as expired (school_id=%s)", school.id)
         
         # Notify school admins
         admins = User.objects.filter(
@@ -129,19 +132,17 @@ def run_subscription_checks():
     Main function to run all subscription checks.
     Run daily via cron: python manage.py check_subscriptions
     """
-    print("=== Starting Subscription Checks ===")
-    
     # 1. Update expired subscriptions
-    print("\n[1] Checking for expired subscriptions...")
     expired = check_and_update_expired_subscriptions()
-    print(f"    Marked {expired} subscriptions as expired")
-    
+
     # 2. Send reminders
-    print("\n[2] Sending expiry reminders...")
     reminders_sent = send_expiry_reminders()
-    print(f"    Sent {len(reminders_sent)} reminder notifications")
-    
-    print("\n=== Subscription Checks Complete ===")
+
+    logger.info(
+        "Subscription checks complete: expired=%s, reminders_sent=%s",
+        expired,
+        len(reminders_sent),
+    )
     
     return {
         'expired': expired,

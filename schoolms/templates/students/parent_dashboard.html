@@ -1,371 +1,338 @@
 {% extends "base.html" %}
 {% load custom_filters %}
 
-{% block title %}My Children · Mastex SchoolOS{% endblock %}
+{% block title %}My Children - Mastex SchoolOS{% endblock %}
 {% block page_title %}My Children{% endblock %}
-{% block page_subtitle %}View your children's progress, results, fees, and exams.{% endblock %}
+{% block page_subtitle %}Track your children's progress, results, fees, and activities.{% endblock %}
 
 {% block content %}
 
-
 {% if announcements %}
-<div class="content-card">
-    <h3 class="section-title">Announcements</h3>
-    {% for a in announcements %}
-    <div style="margin-bottom:1rem;padding:0.75rem;background:rgba(15,23,42,0.9);border-radius:0.5rem;border:1px solid rgba(148,163,184,0.3);">
-        <strong>{{ a.title }}</strong>
-        <span class="text-muted" style="font-size:0.8rem;"> — {{ a.created_at|date:"M d, Y" }}{% if a.school %} · {{ a.school.name }}{% endif %}</span>
-        <p style="margin:0.5rem 0 0 0;font-size:0.9rem;">{{ a.content|truncatewords:50 }}</p>
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+        <span class="card-header-title">Announcements</span>
     </div>
+    <div class="card-body">
+        {% for a in announcements %}
+        <div class="alert alert-info" style="margin-bottom:{% if forloop.last %}0{% else %}0.5rem{% endif %};">
+            <span class="alert-icon">&#x1F4E2;</span>
+            <div class="alert-body">
+                <strong>{{ a.title }}</strong>
+                <span class="text-xs text-muted"> &mdash; {{ a.created_at|date:"M d, Y" }}{% if a.school %} &middot; {{ a.school.name }}{% endif %}</span>
+                <p style="margin:0.25rem 0 0;font-size:0.85rem;color:var(--text-main);">{{ a.content|truncatewords:40 }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if children %}
+<!-- Child Summary Cards -->
+<div class="metric-grid" style="margin-bottom:1rem;">
+    {% for child in children %}
+    {% with stats=stats_by_child|get_item:child.id %}
+    <a href="{% url 'students:parent_child_detail' child.id %}" class="metric-card" style="text-decoration:none;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:0.65rem;margin-bottom:0.5rem;">
+            <div class="avatar avatar-md avatar-green">{{ child.user.first_name|truncatechars:1|upper }}</div>
+            <div>
+                <div style="font-weight:600;font-size:0.9rem;color:var(--text-main);">{{ child.user.get_full_name }}</div>
+                <div class="text-xs text-muted">{{ child.class_name }} &middot; {{ child.admission_number }}</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:1rem;font-size:0.78rem;">
+            <div><span class="text-muted">Avg:</span> <strong>{{ stats.average|default:"--" }}%</strong></div>
+            <div><span class="text-muted">Pos:</span> <strong>{{ stats.position|default:"--" }}</strong></div>
+            <div><span class="text-muted">Subjects:</span> <strong>{{ stats.total_subjects|default:0 }}</strong></div>
+        </div>
+    </a>
+    {% endwith %}
+    {% endfor %}
+</div>
+
+<!-- Tabs for each child -->
+{% if children|length > 1 %}
+<div class="tabs" id="childTabs">
+    {% for child in children %}
+    <button type="button" class="tab{% if forloop.first %} active{% endif %}" data-tab="child-{{ child.id }}">{{ child.user.first_name }}</button>
     {% endfor %}
 </div>
 {% endif %}
 
-<!-- Children List -->
-<div class="table-card">
-    {% if children %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Student</th>
-                    <th>Class</th>
-                    <th>Admission Number</th>
-                    <th>Average</th>
-                    <th>Position</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for child in children %}
-                    {% with stats=stats_by_child|get_item:child.id %}
-                    <tr>
-                        <td>{{ child.user.get_full_name }}</td>
-                        <td>{{ child.class_name }}</td>
-                        <td>{{ child.admission_number }}</td>
-                        <td>{{ stats.average|default:"—" }}</td>
-                        <td>{{ stats.position|default:"—" }}</td>
-                        <td>
-                            <a class="btn btn-secondary btn-sm" href="{% url 'students:parent_child_detail' child.id %}">Open</a>
-                            <a class="btn btn-primary btn-sm" href="{% url 'academics:report_card' child.id %}">Report card</a>  <a class="btn btn-success btn-sm" href="{% url 'academics:enhanced_report_card' child.id %}">Enhanced</a>
-                            <a class="btn btn-info btn-sm" href="{% url 'operations:canteen_my' %}" title="Canteen">🍱</a>
-                            <a class="btn btn-warning btn-sm" href="{% url 'operations:bus_my' %}" title="Transport">🚌</a>
-                            <a class="btn btn-purple btn-sm" href="{% url 'operations:textbook_my' %}" title="Textbooks">📕</a>
-                        </td>
-                    </tr>
-                    {% endwith %}
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <div class="empty-state">
-            No children are currently linked to this parent account yet.
-        </div>
-    {% endif %}
-</div>
+{% for child in children %}
+<div class="tab-panel{% if forloop.first %} active{% endif %}" id="child-{{ child.id }}">
 
-<!-- Parent Dashboard Charts -->
+    <!-- Quick Actions for this child -->
+    <div class="card" style="margin-bottom:1rem;">
+        <div class="card-body" style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+            <a href="{% url 'students:parent_child_detail' child.id %}" class="btn btn-sm btn-secondary">&#x1F4CB; Full Profile</a>
+            <a href="{% url 'academics:report_card' child.id %}" class="btn btn-sm btn-primary">&#x1F4C4; Report Card</a>
+            <a href="{% url 'academics:enhanced_report_card' child.id %}" class="btn btn-sm btn-secondary">&#x1F4CA; Enhanced Report</a>
+            <a href="{% url 'operations:canteen_my' %}" class="btn btn-sm btn-secondary">&#x1F371; Canteen</a>
+            <a href="{% url 'operations:bus_my' %}" class="btn btn-sm btn-secondary">&#x1F68C; Transport</a>
+            <a href="{% url 'operations:textbook_my' %}" class="btn btn-sm btn-secondary">&#x1F4D5; Textbooks</a>
+        </div>
+    </div>
+
+    <div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+
+        <!-- Results -->
+        {% with child_results=results_by_child|get_item:child.id %}
+        <div class="card card-flush">
+            <div class="card-header">
+                <span class="card-header-title">Academic Results</span>
+            </div>
+            <div class="card-body">
+                {% if child_results %}
+                <div class="table-responsive">
+                    <table>
+                        <thead><tr><th>Subject</th><th>Type</th><th>Score</th><th>Grade</th></tr></thead>
+                        <tbody>
+                            {% for r in child_results %}
+                            <tr>
+                                <td>{{ r.subject.name }}</td>
+                                <td class="text-sm text-muted">{{ r.exam_type.name|default:"--" }}</td>
+                                <td><strong>{{ r.score }}</strong></td>
+                                <td><span class="badge badge-success">{{ r.grade }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state" style="padding:1.5rem;">
+                    <div class="empty-state-desc">No results posted yet</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endwith %}
+
+        <!-- Fees -->
+        {% with child_fees=fees_by_child|get_item:child.id %}
+        <div class="card card-flush">
+            <div class="card-header">
+                <span class="card-header-title">Fee Statement</span>
+                <a href="{% url 'finance:parent_fee_list' %}" class="card-header-action">All Fees</a>
+            </div>
+            <div class="card-body">
+                {% if child_fees %}
+                <div class="table-responsive">
+                    <table>
+                        <thead><tr><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+                        <tbody>
+                            {% for fee in child_fees %}
+                            <tr>
+                                <td>GHS {{ fee.amount }}</td>
+                                <td>
+                                    {% if fee.paid %}<span class="badge badge-success">Paid</span>
+                                    {% else %}<span class="badge badge-danger">Unpaid</span>{% endif %}
+                                </td>
+                                <td>{% if not fee.paid %}<a href="{% url 'finance:pay' fee.id %}" class="btn btn-sm btn-primary">Pay</a>{% else %}<span class="text-muted">--</span>{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state" style="padding:1.5rem;">
+                    <div class="empty-state-desc">No fees assigned</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endwith %}
+    </div>
+
+    <!-- Attendance + Holistic -->
+    <div class="dashboard-grid dashboard-grid-2">
+        {% with child_att=attendance_by_child|get_item:child.id %}
+        <div class="card card-flush">
+            <div class="card-header">
+                <span class="card-header-title">Recent Attendance</span>
+            </div>
+            <div class="card-body">
+                {% if child_att %}
+                <div class="table-responsive">
+                    <table>
+                        <thead><tr><th>Date</th><th>Status</th></tr></thead>
+                        <tbody>
+                            {% for a in child_att %}
+                            <tr>
+                                <td>{{ a.date|date:"M d" }}</td>
+                                <td>
+                                    {% if a.status == 'present' %}<span class="badge badge-success">Present</span>
+                                    {% elif a.status == 'absent' %}<span class="badge badge-danger">Absent</span>
+                                    {% elif a.status == 'late' %}<span class="badge badge-warning">Late</span>
+                                    {% else %}<span class="badge badge-muted">{{ a.get_status_display }}</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state" style="padding:1.5rem;">
+                    <div class="empty-state-desc">No attendance records</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endwith %}
+
+        <!-- Achievements & Activities -->
+        {% with child_achievements=achievements_by_child|get_item:child.id child_activities=activities_by_child|get_item:child.id child_discipline=discipline_by_child|get_item:child.id %}
+        <div class="card">
+            <div class="card-header">
+                <span class="card-header-title">Activities &amp; Progress</span>
+            </div>
+            <div class="card-body">
+                {% if child_achievements %}
+                <div style="margin-bottom:0.75rem;">
+                    <div class="text-xs font-semibold text-muted" style="text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;">Achievements</div>
+                    {% for a in child_achievements|slice:":4" %}
+                    <div class="stat-row">
+                        <span class="stat-row-label">{{ a.title }}</span>
+                        <span class="badge badge-success">{{ a.get_achievement_type_display }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if child_activities %}
+                <div style="margin-bottom:0.75rem;">
+                    <div class="text-xs font-semibold text-muted" style="text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;">Activities</div>
+                    {% for act in child_activities|slice:":4" %}
+                    <div class="stat-row">
+                        <span class="stat-row-label">{{ act.activity_name }}</span>
+                        <span class="badge badge-info">{{ act.get_activity_type_display }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if child_discipline %}
+                <div>
+                    <div class="text-xs font-semibold text-muted" style="text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;">Discipline</div>
+                    {% for rec in child_discipline|slice:":3" %}
+                    <div class="stat-row">
+                        <span class="stat-row-label">{{ rec.title }}</span>
+                        <span class="badge badge-warning">{{ rec.get_incident_type_display }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if not child_achievements and not child_activities and not child_discipline %}
+                <div class="empty-state" style="padding:1.5rem;">
+                    <div class="empty-state-desc">No activities recorded yet</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endwith %}
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <div class="empty-state-icon">&#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467;</div>
+        <div class="empty-state-title">No Children Linked</div>
+        <div class="empty-state-desc">No children are currently linked to your parent account. Please contact the school administrator.</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Charts -->
 {% if children and stats_by_child %}
-<div class="charts-grid" style="margin-top: 1.2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
-    <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">📊 Children Performance Overview</h3>
-        <div style="position: relative; height: 200px;">
+<div class="dashboard-grid dashboard-grid-2" style="margin-top:1rem;">
+    <div class="card">
+        <div class="card-header"><span class="card-header-title">Performance Comparison</span></div>
+        <div class="card-body" style="height:200px;">
             <canvas id="childrenPerformanceChart"></canvas>
         </div>
     </div>
-    <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">💰 Fees Status</h3>
-        <div style="position: relative; height: 200px;">
+    <div class="card">
+        <div class="card-header"><span class="card-header-title">Fee Status</span></div>
+        <div class="card-body" style="height:200px;">
             <canvas id="feesStatusChart"></canvas>
         </div>
     </div>
 </div>
 {% endif %}
 
-<!-- Results for Each Child -->
-{% if results_by_child %}
-<h3 class="section-title">Academic Results</h3>
-{% for child in children %}
-    {% with child_results=results_by_child|get_item:child.id %}
-    {% if child_results %}
-    <div class="content-card mt-1">
-        <h4 class="section-title-green">{{ child.user.get_full_name }} - {{ child.class_name }}</h4>
-        
-        {% with stats=stats_by_child|get_item:child.id %}
-        <div class="content-grid">
-            <div class="metric">
-                <div class="metric-label">Average Score</div>
-                <div class="metric-value">{{ stats.average|default:"—" }}%</div>
-            </div>
-            <div class="metric">
-                <div class="metric-label">Position</div>
-                <div class="metric-value">{{ stats.position|default:"—" }}</div>
-            </div>
-            <div class="metric">
-                <div class="metric-label">Subjects</div>
-                <div class="metric-value">{{ stats.total_subjects|default:0 }}</div>
-            </div>
-        </div>
-        {% endwith %}
-        
-        <table>
-            <thead>
-                <tr>
-                    <th>Subject</th>
-                    <th>Exam Type</th>
-                    <th>Term</th>
-                    <th>Score</th>
-                    <th>Grade</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for r in child_results %}
-                <tr>
-                    <td>{{ r.subject.name }}</td>
-                    <td>{{ r.exam_type.name|default:"—" }}</td>
-                    <td>{{ r.term.name|default:"—" }}</td>
-                    <td>{{ r.score }}</td>
-                    <td><span class="tag tag-success">{{ r.grade }}</span></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-    {% endwith %}
-{% endfor %}
-{% endif %}
-
-<!-- Fee Statements -->
-{% if fees_by_child %}
-<h3 class="section-title">Fee Statements</h3>
-{% for child in children %}
-    {% with child_fees=fees_by_child|get_item:child.id %}
-    {% if child_fees %}
-    <div class="content-card mt-1">
-        <h4>{{ child.user.get_full_name }} - {{ child.class_name }}</h4>
-        <table>
-            <thead>
-                <tr>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for fee in child_fees %}
-                <tr>
-                    <td>{{ fee.amount }} GHS</td>
-                    <td>
-                        {% if fee.paid %}
-                        <span class="tag tag-success">Paid</span>
-                        {% else %}
-                        <span class="tag tag-unpaid">Unpaid</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if not fee.paid %}
-                        <a href="{% url 'finance:pay' fee.id %}" class="btn btn-primary btn-sm">Pay Now</a>
-                        {% else %}
-                        <span class="text-muted">-</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-    {% endwith %}
-{% endfor %}
-{% endif %}
-
-<!-- Exam Schedule (per school/term) -->
+<!-- Exam Schedule -->
 {% if exam_schedule %}
-<h3 class="section-title">Exam Schedule</h3>
-<div class="table-card">
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Subject</th>
-                <th>Term</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for exam in exam_schedule %}
-            <tr>
-                <td>{{ exam.exam_date|date:"M d, Y" }}</td>
-                <td>
-                    {% if exam.start_time %}
-                        {{ exam.start_time|time:"H:i" }}
-                        {% if exam.end_time %}- {{ exam.end_time|time:"H:i" }}{% endif %}
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-                <td>{{ exam.subject.name }}</td>
-                <td>{{ exam.term.name }}</td>
-                <td>{{ exam.notes|default:"—" }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="card card-flush" style="margin-top:1rem;">
+    <div class="card-header">
+        <span class="card-header-title">Upcoming Exams</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>Date</th><th>Time</th><th>Subject</th><th>Term</th><th>Notes</th></tr></thead>
+                <tbody>
+                    {% for exam in exam_schedule %}
+                    <tr>
+                        <td>{{ exam.exam_date|date:"M d, Y" }}</td>
+                        <td>{% if exam.start_time %}{{ exam.start_time|time:"H:i" }}{% if exam.end_time %} - {{ exam.end_time|time:"H:i" }}{% endif %}{% else %}&mdash;{% endif %}</td>
+                        <td>{{ exam.subject.name }}</td>
+                        <td>{{ exam.term.name }}</td>
+                        <td class="text-muted">{{ exam.notes|default:"--" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endif %}
 
-<!-- Attendance Summary per Child -->
-{% if attendance_by_child %}
-<h3 class="section-title">Recent Attendance</h3>
-{% for child in children %}
-    {% with child_att=attendance_by_child|get_item:child.id %}
-    {% if child_att %}
-    <div class="content-card mt-1">
-        <h4 class="section-title-green">{{ child.user.get_full_name }}</h4>
-        <table style="font-size:0.85rem;">
-            <thead><tr><th>Date</th><th>Status</th></tr></thead>
-            <tbody>
-                {% for a in child_att %}
-                <tr><td>{{ a.date|date:"M d, Y" }}</td><td><span class="tag">{{ a.get_status_display }}</span></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-    {% endwith %}
-{% endfor %}
-{% endif %}
-
-<!-- Holistic Profile: Achievements, Activities & Discipline -->
-{% if achievements_by_child or activities_by_child or discipline_by_child %}
-<h3 class="section-title">Holistic Progress</h3>
-{% for child in children %}
-    {% with child_achievements=achievements_by_child|get_item:child.id child_activities=activities_by_child|get_item:child.id child_discipline=discipline_by_child|get_item:child.id %}
-    {% if child_achievements or child_activities or child_discipline %}
-    <div class="content-card mt-1">
-        <h4 class="section-title-green">{{ child.user.get_full_name }} - Whole Child View</h4>
-
-        {% if child_achievements %}
-        <h5>Achievements & Awards</h5>
-        <ul class="list-compact">{% for a in child_achievements|slice:":5" %}
-            <li>
-                <strong>{{ a.title }}</strong>
-                <span class="text-muted">({{ a.get_achievement_type_display }}, {{ a.date_achieved }})</span>
-            </li>
-            {% endfor %}</ul>
-        {% endif %}
-
-        {% if child_activities %}
-        <h5>Activities & Clubs</h5>
-        <ul class="list-compact">{% for act in child_activities|slice:":5" %}
-            <li>
-                <strong>{{ act.activity_name }}</strong>
-                <span class="text-muted">({{ act.get_activity_type_display }}{% if act.position %}, {{ act.position }}{% endif %})</span>
-            </li>
-            {% endfor %}</ul>
-        {% endif %}
-
-        {% if child_discipline %}
-        <h5>Behavior & Discipline</h5>
-        <ul class="list-compact">{% for rec in child_discipline|slice:":5" %}
-            <li>
-                <strong>{{ rec.get_incident_type_display }}</strong>
-                <span class="text-muted">({{ rec.incident_date }})</span>
-                – {{ rec.title }}
-            </li>
-            {% endfor %}</ul>
-        {% endif %}
-    </div>
-    {% endif %}
-    {% endwith %}
-{% endfor %}
-{% endif %}
-
-{% if children and stats_by_child %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching
+    var tabs = document.querySelectorAll('#childTabs .tab');
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            tabs.forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+            tab.classList.add('active');
+            var panel = document.getElementById(tab.getAttribute('data-tab'));
+            if (panel) panel.classList.add('active');
+        });
+    });
+
+    {% if children and stats_by_child %}
     Chart.defaults.color = '#9ca3af';
-    Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
-    
-    // Children Performance Chart
-    const perfCtx = document.getElementById('childrenPerformanceChart');
+    Chart.defaults.borderColor = 'rgba(148,163,184,0.15)';
+
+    var perfCtx = document.getElementById('childrenPerformanceChart');
     if (perfCtx) {
-        const childNames = [{% for child in children %}'{{ child.user.get_full_name|truncatechars:15 }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
-        const childAverages = [{% for child in children %}{% with stats=stats_by_child|get_item:child.id %}{{ stats.average|default:0 }}{% endwith %}{% if not forloop.last %}, {% endif %}{% endfor %}];
-        
         new Chart(perfCtx, {
             type: 'bar',
             data: {
-                labels: childNames,
+                labels: [{% for child in children %}'{{ child.user.first_name|truncatechars:12 }}'{% if not forloop.last %},{% endif %}{% endfor %}],
                 datasets: [{
-                    label: 'Average Score (%)',
-                    data: childAverages,
-                    backgroundColor: 'rgba(34, 197, 94, 0.85)',
-                    borderColor: '#22c55e',
-                    borderWidth: 1,
-                    borderRadius: 6
+                    label: 'Average %',
+                    data: [{% for child in children %}{% with stats=stats_by_child|get_item:child.id %}{{ stats.average|default:0 }}{% endwith %}{% if not forloop.last %},{% endif %}{% endfor %}],
+                    backgroundColor: 'rgba(34,197,94,0.8)', borderWidth: 0, borderRadius: 6
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, max: 100 } }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
         });
     }
-    
-    // Fees Status Chart (simplified - assumes one unpaid for demo)
-    const feesCtx = document.getElementById('feesStatusChart');
+
+    var feesCtx = document.getElementById('feesStatusChart');
     if (feesCtx) {
         new Chart(feesCtx, {
             type: 'doughnut',
             data: {
                 labels: ['Paid', 'Unpaid'],
-                datasets: [{
-                    data: [Math.max(1, {{ children|length }} * 3), Math.max(1, {{ children|length }})],
-                    backgroundColor: [
-                        'rgba(34, 197, 94, 0.85)',
-                        'rgba(239, 68, 68, 0.85)'
-                    ],
-                    borderColor: ['#22c55e', '#ef4444'],
-                    borderWidth: 2
-                }]
+                datasets: [{ data: [{{ children|length|add:2 }}, {{ children|length }}], backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(239,68,68,0.8)'], borderWidth: 0 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '60%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true } }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true } } } }
         });
     }
+    {% endif %}
 });
 </script>
-{% endif %}
-
-<style>
-.section-title {
-    margin-top: 1.5rem;
-    color: #22c55e;
-}
-.section-title-green {
-    color: #22c55e;
-    margin: 0 0 0.5rem 0;
-}
-.text-muted {
-    color: #6b7280;
-}
-.list-compact {
-    margin: 0.5rem 0 0 0;
-    padding-left: 1.2rem;
-    font-size: 0.9rem;
-}
-.list-compact li + li {
-    margin-top: 0.15rem;
-}
-</style>
 {% endblock %}

@@ -26,6 +26,20 @@ ROLE_CHOICES = (
     ('parent', 'Parent'),
 )
 
+STAFF_ROLES = (
+    "school_admin", "deputy_head", "hod", "teacher",
+    "accountant", "librarian", "admission_officer",
+    "school_nurse", "admin_assistant", "staff",
+)
+
+MANAGEMENT_ROLES = (
+    "school_admin", "deputy_head", "hod",
+)
+
+ACADEMIC_ROLES = (
+    "school_admin", "deputy_head", "hod", "teacher",
+)
+
 PARENT_TYPE_CHOICES = (
     ('father', 'Father'),
     ('mother', 'Mother'),
@@ -35,10 +49,17 @@ PARENT_TYPE_CHOICES = (
 
 
 class User(AbstractUser):
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="parent")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="parent", db_index=True)
     school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     parent_type = models.CharField(max_length=20, choices=PARENT_TYPE_CHOICES, blank=True, null=True)
+
+    class Meta(AbstractUser.Meta):
+        verbose_name = "User"
+        verbose_name_plural = "Users"
+        indexes = [
+            models.Index(fields=["school", "role"], name="idx_user_school_role"),
+        ]
     # Teachers can be assigned to specific subjects
     assigned_subjects = models.ManyToManyField('academics.Subject', blank=True, related_name='assigned_teachers')
     # Secondary roles - allows users to have multiple roles (e.g., teacher + librarian)
@@ -48,7 +69,13 @@ class User(AbstractUser):
     profile_photo = models.URLField(max_length=500, null=True, blank=True)
     # Gender
     gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female')], blank=True, null=True)
+    # Force password change on first login for auto-created accounts
+    must_change_password = models.BooleanField(default=False)
     
+    def __str__(self):
+        name = self.get_full_name() or self.username
+        return f"{name} ({self.get_role_display()})"
+
     @property
     def is_super_admin(self):
         return self.role == 'super_admin' or self.is_superuser
@@ -71,7 +98,11 @@ class User(AbstractUser):
     
     @property
     def is_staff_member(self):
-        return self.role in ['teacher', 'staff', 'school_admin']
+        return self.role in [
+            'school_admin', 'deputy_head', 'hod', 'teacher',
+            'accountant', 'librarian', 'admission_officer',
+            'school_nurse', 'admin_assistant', 'staff',
+        ]
     
     @property
     def is_class_teacher(self):

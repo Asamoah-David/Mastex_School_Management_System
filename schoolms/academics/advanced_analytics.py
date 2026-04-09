@@ -10,12 +10,16 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from accounts.permissions import can_create_academic_content
 from django.utils import timezone
 from django.db.models import Avg as DB_Avg, Count, Q
 from datetime import timedelta, datetime
 from datetime import datetime as dt
+import logging
 import random
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from students.models import Student
 from schools.models import School
@@ -40,8 +44,7 @@ def analytics_role_required(view_func):
             return view_func(request, *args, **kwargs)
         
         # Check if user has required role
-        allowed_roles = ['school_admin', 'teacher', 'hod', 'deputy_head', 'admin']
-        if hasattr(request.user, 'role') and request.user.role in allowed_roles:
+        if can_create_academic_content(request.user):
             return view_func(request, *args, **kwargs)
         
         messages.error(request, 'You do not have permission to access analytics features.')
@@ -69,9 +72,7 @@ def check_analytics_feature(request, feature_key='performance_analytics', fallba
 @login_required
 def predictive_analytics(request):
     """AI-powered student performance predictions."""
-    # Check role permission
-    allowed_roles = ['school_admin', 'teacher', 'hod', 'deputy_head', 'admin']
-    if not request.user.is_superuser and hasattr(request.user, 'role') and request.user.role not in allowed_roles:
+    if not can_create_academic_content(request.user):
         messages.error(request, 'You do not have permission to access analytics features.')
         return redirect('home')
     
@@ -198,9 +199,7 @@ def get_recommendation(score):
 @login_required
 def trend_analysis(request):
     """Analyze performance trends over time."""
-    # Check role permission
-    allowed_roles = ['school_admin', 'teacher', 'hod', 'deputy_head', 'admin']
-    if not request.user.is_superuser and hasattr(request.user, 'role') and request.user.role not in allowed_roles:
+    if not can_create_academic_content(request.user):
         messages.error(request, 'You do not have permission to access analytics features.')
         return redirect('home')
     
@@ -512,8 +511,8 @@ def create_meeting(request):
             # Create in-app notifications for students/parents in the class
             try:
                 create_meeting_notifications(meeting)
-            except Exception as e:
-                print(f"Failed to create notifications: {e}")
+            except Exception:
+                logger.warning("Failed to create meeting notifications", exc_info=True)
             
             # Send SMS notifications if requested
             send_sms_notification = data.get('send_sms', False)
@@ -522,9 +521,9 @@ def create_meeting(request):
                     sms_result = send_online_class_sms(meeting, request.user)
                     # Include SMS status in response
                     sms_status = sms_result.get('sent_count', 0)
-                except Exception as sms_error:
+                except Exception:
                     # Log but don't fail the meeting creation
-                    print(f"SMS notification failed: {sms_error}")
+                    logger.warning("SMS notification failed for online class", exc_info=True)
                     sms_status = 0
             
             return JsonResponse({
@@ -546,8 +545,8 @@ def create_meeting(request):
     # GET request - show create form
     from academics.models import Subject
     subjects = Subject.objects.filter(school=school) if school else []
-    from operations.models import StudentClass
-    classes = StudentClass.objects.filter(school=school) if school else []
+    from students.models import SchoolClass
+    classes = SchoolClass.objects.filter(school=school) if school else []
     
     context = {
         'school': school,
@@ -628,9 +627,7 @@ def delete_meeting(request, meeting_id):
 @login_required
 def ai_comment_page(request):
     """AI-generated student comments page."""
-    # Check role permission
-    allowed_roles = ['school_admin', 'teacher', 'hod', 'deputy_head', 'admin']
-    if not request.user.is_superuser and hasattr(request.user, 'role') and request.user.role not in allowed_roles:
+    if not can_create_academic_content(request.user):
         messages.error(request, 'You do not have permission to access analytics features.')
         return redirect('home')
     
@@ -799,14 +796,26 @@ def save_comment(request):
         data = json.loads(request.body)
         comment_id = data.get('comment_id')
         content = data.get('content')
-        
-        comment = get_object_or_404(AIStudentComment, id=comment_id)
+
+        user = request.user
+        school = getattr(user, 'school', None)
+        filters = {"id": comment_id}
+        if not user.is_superuser:
+            if not school:
+                return JsonResponse({'error': 'Unauthorized'}, status=403)
+            filters["student__school"] = school
+
+        comment = get_object_or_404(AIStudentComment, **filters)
         comment.content = content
-        comment.save()
+        comment.save(update_fields=["content"])
         
         return JsonResponse({'success': True})
+    except AIStudentComment.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Comment not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        import logging
+        logging.getLogger(__name__).exception("save_comment error")
+        return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
 
 
 # ==================== SMS NOTIFICATIONS FOR ONLINE CLASSES ====================
@@ -860,8 +869,12 @@ def create_meeting_notifications(meeting):
                         notifications_created += 1
             except Exception:
                 pass  # Parent notification is optional
-        except Exception as e:
-            print(f"Failed to create notification for student {student.id}: {e}")
+        except Exception:
+            logger.warning(
+                "Failed to create online class notification for student",
+                extra={"student_id": student.id},
+                exc_info=True,
+            )
     
     return notifications_created
 
@@ -961,8 +974,8 @@ def send_online_class_sms(meeting, user):
         try:
             SMSService.send_sms(phone, message, meeting.school.name)
             sent_count += 1
-        except Exception as e:
-            print(f"Failed to send SMS to {phone}: {e}")
+        except Exception:
+            logger.warning("Failed to send online class SMS to a recipient", exc_info=True)
             failed_count += 1
     
     return {

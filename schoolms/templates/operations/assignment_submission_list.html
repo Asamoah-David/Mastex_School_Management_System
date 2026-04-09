@@ -1,13 +1,17 @@
 {% extends "base.html" %}
-{% load static %}
 {% block title %}Assignment Submissions - {{ school.name }}{% endblock %}
 {% block page_title %}Assignment Submissions{% endblock %}
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
-{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>📝 Assignment Submissions</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;">
+        <h2 style="margin:0;">Assignment Submissions{% if homework_filter %} — {{ homework_filter.title }}{% endif %}</h2>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            {% if homework_filter %}
+            <a href="{% url 'operations:assignment_submission_list' %}" class="btn btn-secondary btn-sm">All Submissions</a>
+            {% endif %}
+            <a href="{% url 'academics:homework_list' %}" class="btn btn-secondary btn-sm">Back to Homework</a>
+        </div>
+    </div>
     {% if submissions %}
     <table class="data-table">
         <thead><tr><th>Student</th><th>Assignment</th><th>Subject</th><th>Submitted</th><th>Status</th><th>Grade</th></tr></thead>
@@ -25,7 +29,9 @@
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">📭 No submissions found.</p>
+    <p class="empty-state">No submissions found{% if homework_filter %} for "{{ homework_filter.title }}"{% endif %}.</p>
     {% endif %}
 </div>
+<style>.btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem;}</style>
+{% include 'includes/pagination.html' %}
 {% endblock %}

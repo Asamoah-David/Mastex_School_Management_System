@@ -77,13 +77,13 @@ def qr_attendance_class(request, class_name):
     return JsonResponse({'students': students_data})
 
 
-@csrf_exempt
+@login_required
 @require_http_methods(["POST"])
 def qr_mark_attendance(request):
     """
     Mark attendance via QR code scan.
     Supports both student and staff QR codes.
-    Called via AJAX from the scanner page.
+    Called via AJAX from the scanner page (CSRF token required).
     """
     import json
     from django.utils.dateparse import parse_date

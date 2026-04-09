@@ -93,7 +93,7 @@
     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; max-width: 400px; width: 90%;">
         <h3>Pay Custom Amount</h3>
         <p>Remaining balance: <strong id="modalRemaining">GHS 0.00</strong></p>
-        <form method="post" action="{% url 'finance:pay_custom' 0 %}" id="customPaymentForm">
+        <form method="post" action="#" id="customPaymentForm">
             {% csrf_token %}
             <input type="hidden" name="fee_id" id="modalFeeId" value="">
             <div style="margin-bottom: 1rem;">

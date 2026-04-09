@@ -3,10 +3,14 @@ Email Templates for Mastex SchoolOS
 Professional HTML email templates for various notifications
 """
 
+import logging
+
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils.html import strip_tags
+
+logger = logging.getLogger(__name__)
 
 
 def send_fee_reminder_email(parent_email, parent_name, student_name, amount_due, due_date, school_name):
@@ -78,8 +82,8 @@ def send_fee_reminder_email(parent_email, parent_name, student_name, amount_due,
             fail_silently=False,
         )
         return True
-    except Exception as e:
-        print(f"Email error: {e}")
+    except Exception:
+        logger.error("Fee reminder email send failed", exc_info=True)
         return False
 
 
@@ -135,8 +139,8 @@ def send_announcement_email(parent_emails, school_name, title, message, author_n
             fail_silently=False,
         )
         return True
-    except Exception as e:
-        print(f"Email error: {e}")
+    except Exception:
+        logger.error("Announcement email send failed", exc_info=True)
         return False
 
 
@@ -201,8 +205,8 @@ def send_results_published_email(parent_email, parent_name, student_name, term_n
             fail_silently=False,
         )
         return True
-    except Exception as e:
-        print(f"Email error: {e}")
+    except Exception:
+        logger.error("Results published email send failed", exc_info=True)
         return False
 
 
@@ -269,8 +273,8 @@ def send_attendance_alert_email(parent_email, parent_name, student_name, date, s
             fail_silently=False,
         )
         return True
-    except Exception as e:
-        print(f"Email error: {e}")
+    except Exception:
+        logger.error("Attendance alert email send failed", exc_info=True)
         return False
 
 
@@ -346,6 +350,6 @@ def send_welcome_email(user_email, user_name, school_name, role):
             fail_silently=False,
         )
         return True
-    except Exception as e:
-        print(f"Email error: {e}")
+    except Exception:
+        logger.error("Welcome email send failed", exc_info=True)
         return False

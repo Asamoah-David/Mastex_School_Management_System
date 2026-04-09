@@ -1,7 +1,9 @@
 import uuid
 import json
 import requests
+from decimal import Decimal
 from django.conf import settings
+from django.db import models, transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
@@ -9,17 +11,85 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.utils import timezone
 
+from urllib.parse import urlparse
 from django.contrib.auth.decorators import login_required
 from accounts.permissions import is_school_admin, user_can_manage_school
 
+
+def _safe_referer(request, fallback="/"):
+    """Return the HTTP Referer only if it points to the same host, otherwise fallback."""
+    ref = request.META.get("HTTP_REFERER", "")
+    if ref:
+        parsed = urlparse(ref)
+        if parsed.netloc and parsed.netloc != request.get_host():
+            return fallback
+        return ref
+    return fallback
+
 from .models import Fee, FeeStructure, FeePayment
-from .paystack_service import paystack_service
+from .paystack_service import compute_paystack_gross_from_net, paystack_service
 from accounts.models import User
 from messaging.utils import send_sms
 from schools.models import School
-from django.db import models
+from core.pagination import paginate
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _net_amount_for_school_fee(reference, fee_id, paystack_major_units):
+    """
+    Amount to credit against the fee: use pending FeePayment.amount (net) when present,
+    else fall back to Paystack-reported total (legacy rows / pass-fee disabled).
+    """
+    pending = FeePayment.objects.filter(
+        paystack_reference=reference, status="pending", fee_id=fee_id
+    ).first()
+    if pending:
+        return float(pending.amount)
+    return float(paystack_major_units)
+
+
+def _complete_fee_payment(fee_id, reference, paid_amount, paystack_id, channel):
+    """
+    Atomically complete a fee payment. Uses select_for_update to prevent
+    race conditions between callback and webhook processing the same reference.
+    Returns True if payment was newly completed, False if already processed.
+    """
+    with transaction.atomic():
+        already_completed = FeePayment.objects.filter(
+            paystack_reference=reference, status="completed"
+        ).exists()
+        if already_completed:
+            return False
+
+        pending = FeePayment.objects.select_for_update().filter(
+            paystack_reference=reference, status="pending"
+        ).first()
+
+        if pending:
+            pending.status = "completed"
+            pending.amount = paid_amount
+            pending.paystack_payment_id = paystack_id
+            pending.payment_method = channel
+            pending.save()
+        else:
+            fee = Fee.objects.get(id=fee_id)
+            FeePayment.objects.create(
+                fee=fee, amount=paid_amount,
+                paystack_payment_id=paystack_id,
+                paystack_reference=reference,
+                payment_method=channel,
+                status="completed",
+            )
+
+        Fee.objects.select_for_update().filter(id=fee_id).update(
+            amount_paid=models.F('amount_paid') + paid_amount,
+            paystack_payment_id=paystack_id,
+            paystack_reference=reference,
+        )
+        fee = Fee.objects.get(id=fee_id)
+        fee.save()  # triggers paid=True auto-set
+        return True
 
 
 def is_paystack_configured():
@@ -27,6 +97,7 @@ def is_paystack_configured():
     return bool(settings.PAYSTACK_SECRET_KEY)
 
 
+@login_required
 def pay_with_paystack(request, fee_id):
     """
     Initialize Paystack payment for a fee.
@@ -34,20 +105,30 @@ def pay_with_paystack(request, fee_id):
     Payment goes directly to school's subaccount if configured.
     Creates a pending payment record for tracking.
     """
-    # Check if Paystack is configured
     if not is_paystack_configured():
         messages.error(request, "Online payments are currently unavailable. Please contact the school for payment options.")
-        return redirect(request.META.get("HTTP_REFERER", "/"))
+        return redirect(_safe_referer(request))
     
     fee = get_object_or_404(Fee, id=fee_id)
     
-    # Check remaining balance
+    user = request.user
+    is_own_fee = (
+        (fee.student.parent_id and fee.student.parent_id == user.pk)
+        or (fee.student.user_id == user.pk)
+    )
+    user_school = getattr(user, "school", None)
+    is_staff = (user.is_superuser or user_can_manage_school(user)) and (
+        user.is_superuser or (user_school and fee.school_id == user_school.pk)
+    )
+    if not is_own_fee and not is_staff:
+        messages.error(request, "You do not have permission to pay this fee.")
+        return redirect("/")
+    
     remaining = fee.remaining_balance
     if remaining <= 0:
         messages.error(request, "This fee has already been fully paid.")
-        return redirect(request.META.get("HTTP_REFERER", "/"))
+        return redirect(_safe_referer(request))
     
-    # Get payment amount from form (for partial payments)
     amount = request.GET.get("amount")
     if amount:
         try:
@@ -60,37 +141,43 @@ def pay_with_paystack(request, fee_id):
             amount = remaining
     else:
         amount = remaining
+
+    amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+    charge_amount = float(amount_gross)
     
-    # Get parent's email
-    email = fee.student.user.email if fee.student.user else "parent@example.com"
-    
-    # Build callback URL
+    student_user = fee.student.user if fee.student else None
+    parent_user = fee.student.parent if fee.student else None
+    email = (
+        (student_user.email if student_user and student_user.email else None)
+        or (parent_user.email if parent_user and parent_user.email else None)
+        or f"noreply+{fee.id}@mastex.app"
+    )
+
     callback_url = request.build_absolute_uri(
         reverse("finance:paystack_callback", kwargs={"fee_id": fee_id})
     )
     
-    # Create a unique reference for this payment
     reference = f"SCHOOL_FEE_{fee_id}_{uuid.uuid4().hex[:8].upper()}"
     
-    # Get school's subaccount if configured
     school_subaccount = None
     if fee.school and fee.school.paystack_subaccount_code:
         school_subaccount = fee.school.paystack_subaccount_code
     
-    # Create pending payment record for tracking
-    from .models import FeePayment
     pending_payment = FeePayment.objects.create(
         fee=fee,
-        amount=amount,
+        amount=amount_net,
+        gross_amount=amount_gross,
         paystack_reference=reference,
         status='pending'
     )
-    logger.info(f"Created pending payment record: payment_id={pending_payment.id}, reference={reference}")
+    logger.info(
+        "Created pending payment record: payment_id=%s, reference=%s, net=%s, gross=%s",
+        pending_payment.id, reference, amount_net, amount_gross,
+    )
     
-    # Initialize payment with Paystack
     response = paystack_service.initialize_payment(
         email=email,
-        amount=amount,
+        amount=charge_amount,
         callback_url=callback_url,
         reference=reference,
         metadata={
@@ -100,51 +187,72 @@ def pay_with_paystack(request, fee_id):
             "student_name": str(fee.student),
             "school_name": fee.school.name if fee.school else "",
             "school_id": fee.school.id if fee.school else None,
+            "amount_net": float(amount_net),
+            "amount_gross": float(amount_gross),
         },
-        subaccount=school_subaccount  # Pass school's subaccount for direct payment
+        subaccount=school_subaccount
     )
     
     if response.get("status") and response.get("data", {}).get("authorization_url"):
-        # Store reference in session for verification
         request.session[f"paystack_ref_{fee_id}"] = reference
         request.session[f"paystack_payment_id_{fee_id}"] = pending_payment.id
         return redirect(response["data"]["authorization_url"])
     else:
-        # Mark payment as failed if initialization failed
         pending_payment.status = 'failed'
         pending_payment.save()
         error_msg = response.get("message", "Could not initialize payment. Please try again.")
         messages.error(request, error_msg)
-        return redirect(request.META.get("HTTP_REFERER", "/"))
+        return redirect(_safe_referer(request))
 
 
+@login_required
 def pay_with_paystack_custom_amount(request, fee_id):
     """
     Allow parent to specify custom payment amount.
     Payment goes directly to school's subaccount if configured.
     """
-    # Check if Paystack is configured
     if not is_paystack_configured():
         messages.error(request, "Online payments are currently unavailable. Please contact the school for payment options.")
-        return redirect(request.META.get("HTTP_REFERER", "/"))
+        return redirect(_safe_referer(request))
     
     fee = get_object_or_404(Fee, id=fee_id)
-    
+
+    user = request.user
+    is_own_fee = (
+        (fee.student.parent_id and fee.student.parent_id == user.pk)
+        or (fee.student.user_id == user.pk)
+    )
+    user_school = getattr(user, "school", None)
+    is_staff = (user.is_superuser or user_can_manage_school(user)) and (
+        user.is_superuser or (user_school and fee.school_id == user_school.pk)
+    )
+    if not is_own_fee and not is_staff:
+        messages.error(request, "You do not have permission to pay this fee.")
+        return redirect("/")
+
     if request.method == "POST":
         amount_str = request.POST.get("amount", "")
         try:
             amount = float(amount_str)
             if amount <= 0:
                 messages.error(request, "Amount must be greater than 0.")
-                return redirect(request.META.get("HTTP_REFERER", "/"))
+                return redirect(_safe_referer(request))
             
             remaining = fee.remaining_balance
             if amount > remaining:
                 messages.warning(request, f"Amount exceeds remaining balance of GHS {remaining}. Paying GHS {remaining} instead.")
                 amount = remaining
+
+            amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+            charge_amount = float(amount_gross)
             
-            # Get parent's email
-            email = fee.student.user.email if fee.student.user else "parent@example.com"
+            student_user = fee.student.user if fee.student else None
+            parent_user = fee.student.parent if fee.student else None
+            email = (
+                (student_user.email if student_user and student_user.email else None)
+                or (parent_user.email if parent_user and parent_user.email else None)
+                or f"noreply+{fee.id}@mastex.app"
+            )
             
             # Build callback URL
             callback_url = request.build_absolute_uri(
@@ -163,16 +271,20 @@ def pay_with_paystack_custom_amount(request, fee_id):
             from .models import FeePayment
             pending_payment = FeePayment.objects.create(
                 fee=fee,
-                amount=amount,
+                amount=amount_net,
+                gross_amount=amount_gross,
                 paystack_reference=reference,
                 status='pending'
             )
-            logger.info(f"Created pending payment record for custom amount: payment_id={pending_payment.id}, reference={reference}")
+            logger.info(
+                "Created pending payment (custom): payment_id=%s, reference=%s, net=%s, gross=%s",
+                pending_payment.id, reference, amount_net, amount_gross,
+            )
             
             # Initialize payment
             response = paystack_service.initialize_payment(
                 email=email,
-                amount=amount,
+                amount=charge_amount,
                 callback_url=callback_url,
                 reference=reference,
                 metadata={
@@ -182,6 +294,8 @@ def pay_with_paystack_custom_amount(request, fee_id):
                     "student_name": str(fee.student),
                     "school_name": fee.school.name if fee.school else "",
                     "school_id": fee.school.id if fee.school else None,
+                    "amount_net": float(amount_net),
+                    "amount_gross": float(amount_gross),
                 },
                 subaccount=school_subaccount
             )
@@ -189,7 +303,7 @@ def pay_with_paystack_custom_amount(request, fee_id):
             if response.get("status") and response.get("data", {}).get("authorization_url"):
                 request.session[f"paystack_ref_{fee_id}"] = reference
                 request.session[f"paystack_payment_id_{fee_id}"] = pending_payment.id
-                request.session[f"paystack_amount_{fee_id}"] = amount
+                request.session[f"paystack_amount_{fee_id}"] = float(amount_net)
                 return redirect(response["data"]["authorization_url"])
             else:
                 # Mark payment as failed if initialization failed
@@ -197,18 +311,21 @@ def pay_with_paystack_custom_amount(request, fee_id):
                 pending_payment.save()
                 error_msg = response.get("message", "Could not initialize payment.")
                 messages.error(request, error_msg)
-                return redirect(request.META.get("HTTP_REFERER", "/"))
+                return redirect(_safe_referer(request))
             
         except (ValueError, TypeError):
             messages.error(request, "Invalid amount entered.")
     
-    return redirect(request.META.get("HTTP_REFERER", "/"))
+    return redirect(_safe_referer(request))
 
 
+@login_required
 def paystack_callback(request, fee_id):
     """
     Handle Paystack payment callback.
     Verify payment and update fee accordingly.
+    Uses the pending FeePayment record created during initialization
+    to prevent duplicate processing.
     """
     reference = request.GET.get("reference")
     
@@ -216,65 +333,46 @@ def paystack_callback(request, fee_id):
         messages.error(request, "Payment reference not found.")
         return redirect("home")
     
-    # Get stored amount if available
-    amount = request.session.pop(f"paystack_amount_{fee_id}", None)
-    
     # Verify payment with Paystack
     response = paystack_service.verify_payment(reference)
     
     if response.get("status") and response.get("data", {}).get("status") == "success":
         data = response["data"]
-        paid_amount = float(data.get("amount", 0)) / 100  # Convert from kobo
+        paystack_charged = float(data.get("amount", 0)) / 100
+        net_credited = _net_amount_for_school_fee(reference, fee_id, paystack_charged)
+        channel = data.get("authorization", {}).get("channel", "card")
+        paystack_id = data.get("id")
         
-        # If we don't have the amount from session, use verified amount
-        if not amount:
-            amount = paid_amount
-        else:
-            amount = float(amount)
-        
-        # Update the fee
         try:
-            fee = Fee.objects.get(id=fee_id)
+            was_new = _complete_fee_payment(fee_id, reference, net_credited, paystack_id, channel)
             
-            # Create payment record
-            payment = FeePayment.objects.create(
-                fee=fee,
-                amount=amount,
-                paystack_payment_id=data.get("id"),
-                paystack_reference=reference,
-                payment_method=data.get("authorization", {}).get("channel", "card"),
-                status="completed"
-            )
+            if was_new:
+                try:
+                    from fees.services.admin_unpaid_notification import notify_parent_fee_paid
+                    fee = Fee.objects.select_related("student__parent").get(id=fee_id)
+                    if fee.student.parent and fee.student.parent.phone:
+                        notify_parent_fee_paid(fee.student, net_credited)
+                except Exception as e:
+                    logger.error(f"Failed to send payment SMS: {e}")
+                extra = ""
+                if paystack_charged > net_credited + 0.001:
+                    extra = f" (GHS {paystack_charged:.2f} charged including processing uplift)"
+                messages.success(
+                    request,
+                    f"GHS {net_credited:.2f} applied to the fee successfully.{extra}",
+                )
+            else:
+                messages.info(request, "This payment has already been recorded.")
             
-            # Update fee's amount_paid
-            fee.amount_paid = float(fee.amount_paid) + amount
-            fee.paystack_payment_id = data.get("id")
-            fee.paystack_reference = reference
-            
-            # Update fee status to 'paid' if fully paid
-            if fee.amount_paid >= fee.amount:
-                fee.status = 'paid'
-            
-            fee.save()
-            
-            # Send SMS notification to parent
-            try:
-                from fees.services.admin_unpaid_notification import notify_parent_fee_paid
-                student = fee.student
-                if student.parent and student.parent.phone:
-                    notify_parent_fee_paid(student, amount)
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to send payment SMS: {e}")
-            
-            messages.success(request, f"Payment of GHS {amount} received successfully!")
             return redirect("finance:parent_fee_list")
             
         except Fee.DoesNotExist:
             messages.error(request, "Fee record not found.")
     
     else:
+        FeePayment.objects.filter(
+            paystack_reference=reference, status="pending"
+        ).update(status="failed")
         error_msg = response.get("message", "Payment verification failed.")
         messages.error(request, f"Payment was not successful: {error_msg}")
     
@@ -288,19 +386,26 @@ def paystack_webhook(request):
     This ensures payments are recorded even if the user closes the browser
     before being redirected back to the site.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     if request.method != "POST":
         return HttpResponse(status=405)
     
-    # Verify webhook signature
+    # Webhook signature verification is MANDATORY.
+    # If PAYSTACK_WEBHOOK_SECRET is not configured, reject the request
+    # to prevent forged payment confirmations.
+    webhook_secret = settings.PAYSTACK_WEBHOOK_SECRET
+    if not webhook_secret:
+        logger.error("PAYSTACK_WEBHOOK_SECRET is not configured - rejecting webhook")
+        return HttpResponse("Webhook secret not configured", status=500)
+    
     signature = request.headers.get("x-paystack-signature")
-    if signature and settings.PAYSTACK_WEBHOOK_SECRET:
-        body = request.body
-        if not paystack_service.verify_webhook_signature(body, signature, settings.PAYSTACK_WEBHOOK_SECRET):
-            logger.warning("Invalid Paystack webhook signature")
-            return HttpResponse("Invalid signature", status=403)
+    if not signature:
+        logger.warning("Paystack webhook received without signature header")
+        return HttpResponse("Missing signature", status=403)
+    
+    body = request.body
+    if not paystack_service.verify_webhook_signature(body, signature, webhook_secret):
+        logger.warning("Invalid Paystack webhook signature")
+        return HttpResponse("Invalid signature", status=403)
     
     try:
         payload = json.loads(request.body)
@@ -324,49 +429,18 @@ def paystack_webhook(request):
             # Handle School Fee Payments
             if payment_type == "school_fee" or payment_type == "fee":
                 fee_id = metadata.get("fee_id")
-                payment_id = metadata.get("payment_id")  # Our FeePayment record ID
                 if fee_id:
                     try:
-                        fee = Fee.objects.get(id=fee_id)
-                        amount = float(data.get("amount", 0)) / 100
-                        
-                        # Check if payment already exists to avoid duplicates
-                        existing = FeePayment.objects.filter(paystack_reference=reference).exists()
-                        if not existing:
-                            # If we have a pending payment ID, update it; otherwise create new
-                            if payment_id:
-                                try:
-                                    payment = FeePayment.objects.get(id=payment_id)
-                                    payment.status = "completed"
-                                    payment.paystack_payment_id = data.get("id")
-                                    payment.payment_method = data.get("authorization", {}).get("channel", "card")
-                                    payment.save()
-                                    logger.info(f"Updated pending payment to completed: payment_id={payment_id}")
-                                except FeePayment.DoesNotExist:
-                                    # Create new payment record
-                                    payment = FeePayment.objects.create(
-                                        fee=fee,
-                                        amount=amount,
-                                        paystack_payment_id=data.get("id"),
-                                        paystack_reference=reference,
-                                        payment_method=data.get("authorization", {}).get("channel", "card"),
-                                        status="completed"
-                                    )
-                            else:
-                                payment = FeePayment.objects.create(
-                                    fee=fee,
-                                    amount=amount,
-                                    paystack_payment_id=data.get("id"),
-                                    paystack_reference=reference,
-                                    payment_method=data.get("authorization", {}).get("channel", "card"),
-                                    status="completed"
-                                )
-                            
-                            fee.amount_paid = float(fee.amount_paid) + amount
-                            fee.paystack_payment_id = data.get("id")
-                            fee.paystack_reference = reference
-                            fee.save()
-                            logger.info(f"School fee payment recorded: fee_id={fee_id}, amount={amount}")
+                        paystack_charged = float(data.get("amount", 0)) / 100
+                        net_credited = _net_amount_for_school_fee(reference, fee_id, paystack_charged)
+                        channel = data.get("authorization", {}).get("channel", "card")
+                        paystack_id = data.get("id")
+                        was_new = _complete_fee_payment(fee_id, reference, net_credited, paystack_id, channel)
+                        if was_new:
+                            logger.info(
+                                "School fee payment recorded: fee_id=%s net=%s paystack_gross=%s",
+                                fee_id, net_credited, paystack_charged,
+                            )
                         else:
                             logger.info(f"Payment already processed: reference={reference}")
                     except Fee.DoesNotExist:
@@ -414,19 +488,23 @@ def paystack_webhook(request):
                 payment_id = metadata.get("payment_id")
                 if payment_id:
                     try:
-                        from operations.models import TextbookSale
-                        sale = TextbookSale.objects.get(id=payment_id)
-                        if sale.payment_status != 'completed':
-                            sale.payment_status = 'completed'
-                            sale.save()
-                            # Reduce textbook stock
-                            if sale.textbook:
-                                sale.textbook.stock -= sale.quantity
-                                sale.textbook.save()
-                                logger.info(f"Textbook stock reduced: textbook_id={sale.textbook.id}, quantity={sale.quantity}")
-                            logger.info(f"Textbook sale completed: sale_id={payment_id}")
-                        else:
-                            logger.info(f"Textbook sale already completed: sale_id={payment_id}")
+                        from operations.models import TextbookSale, Textbook
+                        with transaction.atomic():
+                            sale = TextbookSale.objects.select_for_update().get(id=payment_id)
+                            if sale.payment_status != 'completed':
+                                sale.payment_status = 'completed'
+                                sale.save()
+                                if sale.textbook:
+                                    updated = Textbook.objects.filter(
+                                        id=sale.textbook_id, stock__gte=sale.quantity
+                                    ).update(stock=models.F('stock') - sale.quantity)
+                                    if not updated:
+                                        logger.warning(f"Textbook stock insufficient: textbook_id={sale.textbook_id}, requested={sale.quantity}")
+                                    else:
+                                        logger.info(f"Textbook stock reduced: textbook_id={sale.textbook_id}, quantity={sale.quantity}")
+                                logger.info(f"Textbook sale completed: sale_id={payment_id}")
+                            else:
+                                logger.info(f"Textbook sale already completed: sale_id={payment_id}")
                     except TextbookSale.DoesNotExist:
                         logger.error(f"Textbook sale not found: sale_id={payment_id}")
             
@@ -531,8 +609,9 @@ def fee_list(request):
         fees_qs = fees_qs.filter(amount_paid__gte=models.F('amount'))
     
     fees = fees_qs.order_by("student__school__name", "student__class_name", "student__admission_number")
+    page_obj = paginate(request, fees, per_page=30)
 
-    return render(request, "finance/fee_list.html", {"fees": fees, "school": school})
+    return render(request, "finance/fee_list.html", {"fees": page_obj, "school": school, "page_obj": page_obj})
 
 
 # ============ Fee Structure Views ============
@@ -666,8 +745,9 @@ def generate_fees_from_structure(request, pk):
     skipped_count = 0
     
     for student in students:
-        # Check if fee already exists for this student
-        existing = Fee.objects.filter(school=school, student=student).first()
+        existing = Fee.objects.filter(
+            school=school, student=student, amount=structure.amount
+        ).exists()
         
         if not existing:
             Fee.objects.create(
@@ -679,7 +759,7 @@ def generate_fees_from_structure(request, pk):
         else:
             skipped_count += 1
     
-    messages.success(request, f"Generated fees for {created_count} students. {skipped_count} skipped (already have fees).")
+    messages.success(request, f"Generated fees for {created_count} students. {skipped_count} skipped (already have matching fees).")
     return redirect("finance:fee_structure_list")
 
 
@@ -721,8 +801,10 @@ def pay_subscription(request):
         messages.error(request, "Online payments are currently unavailable. Please contact support.")
         return redirect("finance:subscription")
     
-    # Get subscription amount from school
+    # Subscription list price (net to platform); customer may pay gross if fee pass-through is on.
     amount = float(school.subscription_amount) if school.subscription_amount else 1500
+    amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+    charge_amount = float(amount_gross)
     
     # Get admin's email
     email = request.user.email or "admin@school.com"
@@ -739,14 +821,16 @@ def pay_subscription(request):
     # Initialize payment with Paystack
     response = paystack_service.initialize_payment(
         email=email,
-        amount=amount,
+        amount=charge_amount,
         callback_url=callback_url,
         reference=reference,
         metadata={
             "school_id": school.id,
             "school_name": school.name,
             "type": "subscription",
-        }
+            "amount_net": float(amount_net),
+            "amount_gross": float(amount_gross),
+        },
     )
     
     if response.get("status") and response.get("data", {}).get("authorization_url"):
@@ -760,9 +844,11 @@ def pay_subscription(request):
         return redirect("finance:subscription")
 
 
+@login_required
 def subscription_callback(request):
     """
     Handle Paystack subscription payment callback.
+    School ID is retrieved from session only (not from query params) for security.
     """
     reference = request.GET.get("reference")
     
@@ -770,29 +856,29 @@ def subscription_callback(request):
         messages.error(request, "Payment reference not found.")
         return redirect("finance:subscription")
     
-    # Verify payment with Paystack
     response = paystack_service.verify_payment(reference)
     
     if response.get("status") and response.get("data", {}).get("status") == "success":
         data = response["data"]
         
-        # Get school ID from session (primary method) or from query param (fallback)
+        # Only trust session for school ID (not query params to prevent tampering)
         school_id = request.session.pop("paystack_sub_school_id", None)
         if not school_id:
-            # Fallback to query parameter if session expired
-            school_id = request.GET.get("school_id")
+            school_id = getattr(request.user, "school_id", None)
         
         if school_id:
             try:
                 school = School.objects.get(id=school_id)
                 
-                # Extend subscription by 1 month
                 from django.utils import timezone
-                new_end_date = timezone.now() + timezone.timedelta(days=30)
+                now = timezone.now()
+                renewal_days = 30
                 
-                # If already expired or no end date, set new dates
-                if not school.subscription_end_date or school.subscription_end_date < timezone.now():
-                    school.subscription_start_date = timezone.now()
+                if school.subscription_end_date and school.subscription_end_date > now:
+                    new_end_date = school.subscription_end_date + timezone.timedelta(days=renewal_days)
+                else:
+                    school.subscription_start_date = now
+                    new_end_date = now + timezone.timedelta(days=renewal_days)
                 
                 school.subscription_end_date = new_end_date
                 school.subscription_status = "active"
@@ -824,15 +910,16 @@ def retry_failed_payments():
 
 def notify_admin_unpaid_fees():
     """
-    Notify all admin users of unpaid fees.
+    Notify all school_admin users of unpaid fees.
     """
     unpaid_fees = Fee.objects.filter(amount_paid__lt=models.F('amount'))
-    admins = User.objects.filter(role="admin")
+    unpaid_count = unpaid_fees.count()
+    admins = User.objects.filter(role="school_admin")
     for admin in admins:
-        message = f"There are {unpaid_fees.count()} unpaid/partial fees pending in the system."
+        message = f"There are {unpaid_count} unpaid/partial fees pending in the system."
         if admin.phone:
             send_sms(admin.phone, message)
-    return unpaid_fees.count()
+    return unpaid_count
 
 
 # ============ Parent Portal Views ============
@@ -868,15 +955,88 @@ def parent_fee_list(request):
 
 
 def payment_success(request):
-    """
-    Show payment success page after successful payment.
-    """
+    """Show payment success page after successful payment."""
     return render(request, "finance/payment_success.html")
 
 
+@login_required
+def payment_receipt(request, pk):
+    """Generate a downloadable PDF receipt for a payment."""
+    payment = get_object_or_404(
+        FeePayment.objects.select_related("fee", "fee__student", "fee__student__user", "fee__school"),
+        pk=pk, status="completed",
+    )
+    fee = payment.fee
+    school = fee.school if fee else None
+    user = request.user
+
+    is_parent_of = fee.student and (
+        fee.student.parent_id == user.id or (fee.student.user and fee.student.user_id == user.id)
+    )
+    user_school = getattr(user, "school", None)
+    is_school_staff = (user.is_superuser or user_can_manage_school(user)) and (
+        user.is_superuser or (user_school and school and school.pk == user_school.pk)
+    )
+    if not (is_school_staff or is_parent_of):
+        messages.error(request, "You do not have permission to view this receipt.")
+        return redirect("home")
+
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.units import mm
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=30*mm, bottomMargin=20*mm)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    school_name = school.name if school else "Mastex SchoolOS"
+    elements.append(Paragraph(f"<b>{school_name}</b>", styles["Title"]))
+    elements.append(Paragraph("Payment Receipt", styles["Heading2"]))
+    elements.append(Spacer(1, 10*mm))
+
+    student_name = fee.student.user.get_full_name() if fee.student and fee.student.user else "N/A"
+    admno = fee.student.admission_number if fee.student else "N/A"
+
+    data = [
+        ["Receipt No.", str(payment.id).zfill(6)],
+        ["Date", payment.created_at.strftime("%B %d, %Y") if payment.created_at else ""],
+        ["Student", student_name],
+        ["Admission No.", admno],
+        ["Fee Description", str(getattr(fee, "description", None) or getattr(fee, "fee_type", None) or "School Fee")],
+        ["Amount Paid", f"GHS {payment.amount:,.2f}"],
+        ["Payment Method", (payment.payment_method or "Paystack").title()],
+        ["Reference", payment.paystack_reference or "---"],
+        ["Status", "Completed"],
+    ]
+    t = Table(data, colWidths=[50*mm, 100*mm])
+    t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LINEBELOW", (0, -1), (-1, -1), 1, colors.black),
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 15*mm))
+    elements.append(Paragraph("This is a computer-generated receipt. No signature required.", styles["Italic"]))
+
+    doc.build(elements)
+    pdf = buf.getvalue()
+    buf.close()
+
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="receipt_{payment.id}.pdf"'
+    return resp
+
+
+@login_required
 def check_payment_status(request):
     """
-    Allow users to check payment status using their payment reference.
+    Allow authenticated users to check payment status using their payment reference.
     This helps when user closes browser during payment and needs to verify
     if their payment was recorded via webhook.
     """
@@ -965,20 +1125,23 @@ def payment_history_list(request):
             models.Q(paystack_reference__icontains=search)
         )
     
-    # Order by most recent first
-    payments = payments_qs.order_by("-created_at")[:500]  # Limit to 500 most recent
-    
-    # Calculate totals
-    total_amount = sum(p.amount for p in payments if p.status == "completed")
-    total_count = payments.count()
-    
+    payments_qs = payments_qs.order_by("-created_at")
+
+    from django.db.models import Sum as _Sum
+    totals = payments_qs.filter(status="completed").aggregate(total_amount=_Sum("amount"))
+    total_amount = totals["total_amount"] or 0
+    total_count = payments_qs.count()
+
+    page_obj = paginate(request, payments_qs, per_page=30)
+
     return render(request, "finance/payment_history_list.html", {
-        "payments": payments,
+        "payments": page_obj,
         "total_amount": total_amount,
         "total_count": total_count,
         "school": school,
         "filter_status": filter_status,
         "search": search,
+        "page_obj": page_obj,
     })
 
 
@@ -1073,12 +1236,14 @@ def run_subscription_check(request):
     import os
     from django.conf import settings
     
-    # Get the secret key from request or environment
-    provided_key = request.GET.get("key", "")
+    import hmac as _hmac
+    
+    provided_key = request.GET.get("key", "") or request.headers.get("X-Cron-Key", "")
     expected_key = getattr(settings, 'CRON_SECRET_KEY', os.environ.get('CRON_SECRET_KEY', ''))
     
-    # If no key is configured, allow the request (for development)
-    if expected_key and provided_key != expected_key:
+    if not expected_key:
+        return JsonResponse({"error": "CRON_SECRET_KEY not configured"}, status=500)
+    if not provided_key or not _hmac.compare_digest(provided_key, expected_key):
         return JsonResponse({"error": "Unauthorized"}, status=401)
     
     try:
