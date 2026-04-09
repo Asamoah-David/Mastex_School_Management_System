@@ -1,15 +1,15 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
     "numReplicas": 1,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/health/",
-    "healthcheckTimeout": 60,
-    "command": "sh -c 'python manage.py migrate --noinput && python manage.py createcachetable 2>/dev/null; python manage.py collectstatic --noinput && gunicorn schoolms.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 --max-requests 1000 --max-requests-jitter 50 --access-logfile - --error-logfile -'"
+    "healthcheckTimeout": 180
   },
   "jobs": {
     "retry_unpaid": {
