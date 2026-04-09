@@ -7,7 +7,7 @@ from .models import School
 
 class SchoolMiddleware:
     _skip_paths = frozenset([
-        "/", "/accounts/login/", "/accounts/logout/", "/accounts/dashboard/",
+        "/", "/health/", "/accounts/login/", "/accounts/logout/", "/accounts/dashboard/",
         "/accounts/school-dashboard/", "/login/", "/logout/", "/register/",
         "/admin/login/", "/portal/",
     ])

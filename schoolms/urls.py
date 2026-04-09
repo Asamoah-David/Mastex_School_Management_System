@@ -26,16 +26,18 @@ def custom_500(request):
 
 
 def health_check(request):
-    """Lightweight health probe for load balancers and uptime monitors."""
+    """Lightweight health probe for load balancers and uptime monitors.
+
+    Always returns HTTP 200 so platforms (e.g. Railway) mark the process as up.
+    Use the JSON body for DB status; monitor ``status`` / ``database`` in ops.
+    """
     status = {"status": "ok", "database": "ok"}
-    http_status = 200
     try:
         connection.ensure_connection()
     except Exception:
         status["database"] = "unavailable"
         status["status"] = "degraded"
-        http_status = 503
-    return JsonResponse(status, status=http_status)
+    return JsonResponse(status)
 
 
 handler404 = custom_404
