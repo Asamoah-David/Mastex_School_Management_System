@@ -10,9 +10,7 @@
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/health/",
     "healthcheckTimeout": 300,
-    "preDeployCommand": [
-      "cd /app && python manage.py migrate --noinput && (python manage.py createcachetable 2>/dev/null || true)"
-    ],
+    "preDeployCommand": ["/app/scripts/railway-predeploy.sh"],
     "startCommand": "./docker-entrypoint.sh web-only"
   },
   "jobs": {
