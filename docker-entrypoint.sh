@@ -9,8 +9,16 @@ WORKERS=$(( CORES * 2 + 1 ))
 if [ "$WORKERS" -gt 4 ]; then WORKERS=4; fi
 export WEB_CONCURRENCY="${WEB_CONCURRENCY:-$WORKERS}"
 
-echo "==> Running migrations..."
-python manage.py migrate --noinput || { echo "Migration failed!"; exit 1; }
+# Railway (and similar): run DB migrations in preDeployCommand so this process
+# can bind HTTP immediately for healthchecks. Use:
+#   startCommand: ./docker-entrypoint.sh web-only
+if [ "${1:-}" = "web-only" ]; then
+  shift
+  echo "==> Skipping migrations (web-only; migrations run in pre-deploy phase)"
+else
+  echo "==> Running migrations..."
+  python manage.py migrate --noinput || { echo "Migration failed!"; exit 1; }
+fi
 
 echo "==> Collecting static files..."
 python manage.py collectstatic --noinput
