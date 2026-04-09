@@ -11,9 +11,7 @@
     "healthcheckPath": "/health/",
     "healthcheckTimeout": 300,
     "preDeployCommand": [
-      "sh",
-      "-c",
-      "set -e; cd /app; python manage.py migrate --noinput; python manage.py createcachetable 2>/dev/null || true"
+      "cd /app && python manage.py migrate --noinput && (python manage.py createcachetable 2>/dev/null || true)"
     ],
     "startCommand": "./docker-entrypoint.sh web-only"
   },
