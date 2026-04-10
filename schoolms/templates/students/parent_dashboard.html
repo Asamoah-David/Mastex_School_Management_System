@@ -136,7 +136,7 @@
                                     {% if fee.paid %}<span class="badge badge-success">Paid</span>
                                     {% else %}<span class="badge badge-danger">Unpaid</span>{% endif %}
                                 </td>
-                                <td>{% if not fee.paid %}<a href="{% url 'finance:pay' fee.id %}" class="btn btn-sm btn-primary">Pay</a>{% else %}<span class="text-muted">--</span>{% endif %}</td>
+                                <td>{% if not fee.paid %}<a href="{% url 'finance:pay' fee.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-primary">Pay</a>{% else %}<span class="text-muted">--</span>{% endif %}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

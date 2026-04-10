@@ -749,10 +749,17 @@ def teacher_attendance_mark(request):
     if not school:
         return redirect("home")
     
-    # Only school admins can mark teacher attendance
+    # Only school admins can mark teacher (staff) attendance
     from accounts.permissions import is_school_admin
     if not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect("home")
+        from django.contrib import messages
+
+        messages.info(
+            request,
+            "Staff attendance is recorded here by administrators. "
+            "Use Mark Attendance to record attendance for your students.",
+        )
+        return redirect("operations:attendance_mark")
     
     if request.method == "POST":
         from django.contrib import messages
@@ -1660,20 +1667,61 @@ def hostel_my(request):
     """
     Student/parent view: current hostel assignment + fee status.
     """
+    from django.conf import settings
+
     school = _get_school(request)
     if not school:
         return redirect("home")
+    paystack_public_key = getattr(settings, "PAYSTACK_PUBLIC_KEY", "")
     role = getattr(request.user, "role", None)
     if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
         assignment = HostelAssignment.objects.filter(school=school, student=student, is_active=True).select_related("hostel", "room").first() if student else None
         fees = HostelFee.objects.filter(school=school, student=student).select_related("hostel").order_by("-id")[:200] if student else []
-        return render(request, "operations/hostel_my.html", {"school": school, "mode": "student", "student": student, "assignment": assignment, "fees": fees})
+        pending_fees = (
+            HostelFee.objects.filter(school=school, student=student, payment_status="pending")
+            .select_related("hostel")
+            .order_by("-id")[:50]
+            if student
+            else []
+        )
+        return render(
+            request,
+            "operations/hostel_my.html",
+            {
+                "school": school,
+                "mode": "student",
+                "student": student,
+                "assignment": assignment,
+                "fees": fees,
+                "paystack_public_key": paystack_public_key,
+                "pending_fees": pending_fees,
+            },
+        )
     if role == "parent":
         children = list(Student.objects.filter(parent=request.user, school=school).select_related("user").order_by("class_name", "admission_number"))
         assignments = HostelAssignment.objects.filter(school=school, student__in=children, is_active=True).select_related("student", "student__user", "hostel", "room")
         fees = HostelFee.objects.filter(school=school, student__in=children).select_related("student", "student__user", "hostel").order_by("-id")[:400] if children else []
-        return render(request, "operations/hostel_my.html", {"school": school, "mode": "parent", "children": children, "assignments": assignments, "fees": fees})
+        pending_fees = (
+            HostelFee.objects.filter(school=school, student__in=children, payment_status="pending")
+            .select_related("student", "student__user", "hostel")
+            .order_by("-id")[:100]
+            if children
+            else []
+        )
+        return render(
+            request,
+            "operations/hostel_my.html",
+            {
+                "school": school,
+                "mode": "parent",
+                "children": children,
+                "assignments": assignments,
+                "fees": fees,
+                "paystack_public_key": paystack_public_key,
+                "pending_fees": pending_fees,
+            },
+        )
     return redirect("home")
 
 
@@ -1996,6 +2044,54 @@ def admission_track(request):
 
 
 # ==================== CERTIFICATES ====================
+
+@login_required
+def student_my_certificates(request):
+    """Certificates issued to the logged-in student (links use real certificate PKs)."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school or getattr(request.user, "role", None) != "student":
+        messages.error(request, "This page is for students only.")
+        return redirect("home")
+    student = Student.objects.filter(user=request.user, school=school).select_related("user").first()
+    if not student:
+        messages.error(request, "No student profile is linked to your account.")
+        return redirect("home")
+    certificates = (
+        Certificate.objects.filter(student=student, school=school)
+        .select_related("student", "student__user", "school")
+        .order_by("-issued_date")
+    )
+    return render(
+        request,
+        "operations/student_my_certificates.html",
+        {"certificates": certificates, "school": school, "student": student},
+    )
+
+
+@login_required
+def student_my_id_card(request):
+    """Open this student's ID card record, or show a clear empty state."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school or getattr(request.user, "role", None) != "student":
+        messages.error(request, "This page is for students only.")
+        return redirect("home")
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        messages.error(request, "No student profile is linked to your account.")
+        return redirect("home")
+    id_card = StudentIDCard.objects.filter(student=student, school=school).first()
+    if id_card:
+        return redirect("operations:id_card_view", pk=id_card.pk)
+    return render(
+        request,
+        "operations/student_no_id_card.html",
+        {"school": school, "student": student},
+    )
+
 
 @login_required
 def certificate_list(request):

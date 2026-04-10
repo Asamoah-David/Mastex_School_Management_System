@@ -28,7 +28,7 @@
                 <td>{{ f.created_at|date:"Y-m-d" }}</td>
                 <td>
                     {% if not f.paid %}
-                    <a class="btn btn-primary btn-sm" href="{% url 'finance:pay' f.id %}">Pay</a>
+                    <a class="btn btn-primary btn-sm" href="{% url 'finance:pay' f.id %}?next={{ request.get_full_path|urlencode }}">Pay</a>
                     {% endif %}
                 </td>
             </tr>

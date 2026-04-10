@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
 from . import payment_views
 from . import export_views
@@ -98,8 +99,11 @@ urlpatterns = [
     path("textbooks/pay/", payment_views.textbook_initiate_payment, name="textbook_initiate_payment"),
     path("textbooks/verify/", payment_views.textbook_payment_verify, name="textbook_payment_verify"),
     
-    # Hostel (Student/Parent Portal with Paystack)
-    path("hostel/my/", payment_views.hostel_my, name="hostel_my"),
+    # Hostel (Student/Parent Portal with Paystack) — canonical page is hostels/my/
+    path(
+        "hostel/my/",
+        RedirectView.as_view(pattern_name="operations:hostel_my", permanent=False),
+    ),
     path("hostel/pay/", payment_views.hostel_initiate_payment, name="hostel_initiate_payment"),
     path("hostel/verify/", payment_views.hostel_payment_verify, name="hostel_payment_verify"),
 
@@ -149,6 +153,10 @@ urlpatterns = [
     path("admission/<int:pk>/reject/", views.admission_reject, name="admission_reject"),
     path("admission/track/", views.admission_track, name="admission_track"),
     
+    # Student portal (certificates / ID — not admin lists)
+    path("my-certificates/", views.student_my_certificates, name="student_my_certificates"),
+    path("my-id-card/", views.student_my_id_card, name="student_my_id_card"),
+
     # Certificates
     path("certificates/", views.certificate_list, name="certificate_list"),
     path("certificates/create/", views.certificate_create, name="certificate_create"),

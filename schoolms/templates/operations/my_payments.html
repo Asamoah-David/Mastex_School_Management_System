@@ -7,6 +7,19 @@
         <h2><i class="bi bi-wallet2"></i> My Payments - {{ student_name }}</h2>
     </div>
 
+    {% if portal_children|length > 1 %}
+    <div class="mb-4">
+        <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
+            <label for="portal-student" class="form-label mb-0">Fees for</label>
+            <select name="student" id="portal-student" class="form-select" style="max-width: 22rem;" onchange="this.form.submit()">
+                {% for c in portal_children %}
+                <option value="{{ c.id }}" {% if c.id == portal_student.id %}selected{% endif %}>{{ c.user.get_full_name|default:c.admission_number }} ({{ c.class_name|default:"—" }})</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- Payment Summary Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
@@ -272,6 +285,7 @@
                     <p>You are about to pay <strong id="paymentAmount">GHS 0.00</strong></p>
                     <form id="paymentForm">
                         {% csrf_token %}
+                        <input type="hidden" id="feePayReturnPath" value="{{ request.get_full_path }}">
                         <input type="hidden" id="feeId" name="fee_id">
                         <input type="hidden" id="paymentAmountInput" name="amount">
                         <div class="mb-3">
@@ -331,6 +345,7 @@ function submitPayment() {
     const feeId = document.getElementById('feeId').value;
     const amount = document.getElementById('amountToPay').value;
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const retPath = document.getElementById('feePayReturnPath').value;
 
     // Initiate payment
     fetch('{% url "operations:initiate_online_payment" %}', {
@@ -339,15 +354,16 @@ function submitPayment() {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': csrfToken
         },
-        body: `fee_id=${feeId}&amount=${amount}`
+        body: 'fee_id=' + encodeURIComponent(feeId)
+            + '&amount=' + encodeURIComponent(amount)
+            + '&next=' + encodeURIComponent(retPath)
     })
     .then(response => response.json())
     .then(data => {
-        if (data.status === 'success') {
-            // Redirect to Paystack payment page
+        if (data.success && data.authorization_url) {
             window.location.href = data.authorization_url;
         } else {
-            alert('Payment initialization failed: ' + data.message);
+            alert('Payment initialization failed: ' + (data.error || data.message || 'Unknown error'));
         }
     })
     .catch(error => {

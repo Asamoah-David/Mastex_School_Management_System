@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Student ID card · {{ school.name }}{% endblock %}
+{% block page_title %}Student ID card{% endblock %}
+{% block content %}
+<div class="content-card">
+    <div class="empty-state">
+        <div class="empty-state-icon">🪪</div>
+        <div class="empty-state-title">No ID card on file</div>
+        <div class="empty-state-desc">
+            Your school has not issued a digital ID card to your profile yet.
+            Ask the school office if you need one.
+        </div>
+    </div>
+</div>
+{% endblock %}

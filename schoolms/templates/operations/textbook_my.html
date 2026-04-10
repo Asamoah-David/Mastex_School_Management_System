@@ -7,6 +7,19 @@
 
 {% block content %}
 
+{% if portal_children|length > 1 %}
+<div class="content-card" style="margin-bottom: 1rem;">
+    <form method="get" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <label for="portal-student" style="color: #e5e7eb;">Buying for</label>
+        <select id="portal-student" name="student" onchange="this.form.submit()" style="padding: 0.4rem 0.75rem; border-radius: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5);">
+            {% for c in portal_children %}
+            <option value="{{ c.id }}" {% if c.id == portal_student.id %}selected{% endif %}>{{ c.user.get_full_name|default:c.admission_number }} ({{ c.class_name|default:"—" }})</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+{% endif %}
+
 {% if textbooks %}
 <div class="content-card">
     <h3 class="section-title">📚 Available Textbooks</h3>
@@ -68,7 +81,7 @@
         <tbody>
             {% for purchase in my_purchases %}
             <tr>
-                <td>{{ purchase.purchase_date|date:"M d, Y" }}</td>
+                <td>{{ purchase.sale_date|date:"M d, Y" }}</td>
                 <td>{{ purchase.textbook.title }}</td>
                 <td>{{ purchase.quantity }}</td>
                 <td>{{ purchase.amount }} GHS</td>
@@ -103,7 +116,7 @@ function payTextbook(textbookId, price) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: 'textbook_id=' + textbookId + '&quantity=' + quantity
+        body: 'textbook_id=' + textbookId + '&quantity=' + quantity + '&student_id={{ portal_student.id }}'
     })
     .then(response => response.json())
     .then(data => {

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}My certificates · {{ school.name }}{% endblock %}
+{% block page_title %}My certificates{% endblock %}
+{% block page_subtitle %}Official certificates issued to you by the school.{% endblock %}
+{% block content %}
+<div class="content-card">
+    {% if certificates %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Issued</th>
+                    <th>Academic year</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in certificates %}
+                <tr>
+                    <td><strong>{{ c.title }}</strong></td>
+                    <td>{{ c.get_certificate_type_display }}</td>
+                    <td>{{ c.issued_date|date:"M j, Y" }}</td>
+                    <td>{{ c.academic_year }}{% if c.term %} · {{ c.term }}{% endif %}</td>
+                    <td><a href="{% url 'operations:certificate_view' c.pk %}" class="btn btn-primary btn-sm">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">🎓</div>
+        <div class="empty-state-title">No certificates yet</div>
+        <div class="empty-state-desc">When your school issues a certificate, it will appear here.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

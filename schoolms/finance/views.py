@@ -32,8 +32,23 @@ from accounts.models import User
 from messaging.utils import send_sms
 from schools.models import School
 from core.pagination import paginate
+from core.utils import FEE_PAYSTACK_RETURN_SESSION_KEY, safe_internal_redirect_path
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _store_fee_paystack_return(request, raw_next):
+    nxt = safe_internal_redirect_path(raw_next)
+    if nxt:
+        request.session[FEE_PAYSTACK_RETURN_SESSION_KEY] = nxt
+
+
+def _redirect_after_fee_paystack(request):
+    raw = request.session.pop(FEE_PAYSTACK_RETURN_SESSION_KEY, None)
+    nxt = safe_internal_redirect_path(raw) if raw else None
+    if nxt:
+        return redirect(nxt)
+    return redirect("finance:parent_fee_list")
 
 
 def _net_amount_for_school_fee(reference, fee_id, paystack_major_units):
@@ -194,6 +209,7 @@ def pay_with_paystack(request, fee_id):
     )
     
     if response.get("status") and response.get("data", {}).get("authorization_url"):
+        _store_fee_paystack_return(request, request.GET.get("next"))
         request.session[f"paystack_ref_{fee_id}"] = reference
         request.session[f"paystack_payment_id_{fee_id}"] = pending_payment.id
         return redirect(response["data"]["authorization_url"])
@@ -301,6 +317,7 @@ def pay_with_paystack_custom_amount(request, fee_id):
             )
             
             if response.get("status") and response.get("data", {}).get("authorization_url"):
+                _store_fee_paystack_return(request, request.POST.get("next"))
                 request.session[f"paystack_ref_{fee_id}"] = reference
                 request.session[f"paystack_payment_id_{fee_id}"] = pending_payment.id
                 request.session[f"paystack_amount_{fee_id}"] = float(amount_net)
@@ -363,20 +380,20 @@ def paystack_callback(request, fee_id):
                 )
             else:
                 messages.info(request, "This payment has already been recorded.")
-            
-            return redirect("finance:parent_fee_list")
-            
+
+            return _redirect_after_fee_paystack(request)
+
         except Fee.DoesNotExist:
             messages.error(request, "Fee record not found.")
-    
+
     else:
         FeePayment.objects.filter(
             paystack_reference=reference, status="pending"
         ).update(status="failed")
         error_msg = response.get("message", "Payment verification failed.")
         messages.error(request, f"Payment was not successful: {error_msg}")
-    
-    return redirect("finance:parent_fee_list")
+
+    return _redirect_after_fee_paystack(request)
 
 
 @csrf_exempt

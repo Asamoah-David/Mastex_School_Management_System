@@ -1,7 +1,37 @@
 """Shared utilities including activity logging and common view helpers."""
 import logging
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+# Session key: where to send the user after finance Paystack school-fee callback (safe path only).
+FEE_PAYSTACK_RETURN_SESSION_KEY = "fee_paystack_return_path"
+
+
+def safe_internal_redirect_path(raw):
+    """
+    Return a safe same-site path+query for redirect(), or None.
+    Rejects schemes, hosts, newlines, and open-redirect patterns.
+    """
+    if raw is None or not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    if "\n" in raw or "\r" in raw or "\x00" in raw:
+        return None
+    parsed = urlparse(raw)
+    if parsed.scheme or parsed.netloc:
+        return None
+    path = parsed.path or ""
+    if not path.startswith("/") or path.startswith("//"):
+        return None
+    out = path
+    if parsed.query:
+        out = f"{path}?{parsed.query}"
+    if len(out) > 2048:
+        return None
+    return out
 
 
 def get_school(request):

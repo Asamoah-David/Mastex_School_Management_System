@@ -7,6 +7,19 @@
 
 {% block content %}
 
+{% if portal_children|length > 1 %}
+<div class="content-card" style="margin-bottom: 1rem;">
+    <form method="get" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <label for="portal-student" style="color: #e5e7eb;">Paying for</label>
+        <select id="portal-student" name="student" onchange="this.form.submit()" style="padding: 0.4rem 0.75rem; border-radius: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5);">
+            {% for c in portal_children %}
+            <option value="{{ c.id }}" {% if c.id == portal_student.id %}selected{% endif %}>{{ c.user.get_full_name|default:c.admission_number }} ({{ c.class_name|default:"—" }})</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+{% endif %}
+
 {% if routes %}
 <div class="content-card">
     <h3 class="section-title">🚌 Available Bus Routes</h3>
@@ -109,7 +122,7 @@ function payBus(routeId, fee) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: 'route_id=' + routeId + '&payment_method=card'
+        body: 'route_id=' + routeId + '&payment_method=card&student_id={{ portal_student.id }}'
     })
     .then(response => response.json())
     .then(data => {

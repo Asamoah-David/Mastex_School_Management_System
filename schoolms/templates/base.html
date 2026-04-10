@@ -743,7 +743,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">My Timetable</span></div></a></li>
-                                <li><a href="{% url 'operations:teacher_attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span></div></a></li>
+                                <li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span><span class="nav-item-sub">Students in your classes</span></div></a></li>
                                 <li><a href="{% url 'operations:qr_attendance_scanner' %}" class="nav-item"><span class="nav-item-icon">📱</span><div class="nav-item-label"><span class="nav-item-title">QR Scanner</span></div></a></li>
                                 <li><a href="{% url 'operations:attendance_qr_summary' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">QR Summary</span></div></a></li>
                             </ul>
@@ -805,8 +805,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">My Timetable</span></div></a></li>
-                                <li><a href="{% url 'operations:homework_for_student' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">My Homework</span></div></a></li>
-                                <li><a href="{% url 'operations:homework_for_student' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Submit Homework</span></div></a></li>
+                                <li><a href="{% url 'operations:homework_for_student' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">My Homework</span><span class="nav-item-sub">View assignments & submit</span></div></a></li>
                                 <li><a href="{% url 'students:results_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">My Results</span></div></a></li>
                                 <li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">❓</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>
                             </ul>
@@ -847,8 +846,8 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>🪪 ID & Certificates</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'operations:id_card_view' user.id %}" class="nav-item"><span class="nav-item-icon">🪪</span><div class="nav-item-label"><span class="nav-item-title">My ID Card</span></div></a></li>
-                                <li><a href="{% url 'operations:certificate_view' user.id %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">My Certificates</span></div></a></li>
+                                <li><a href="{% url 'operations:student_my_id_card' %}" class="nav-item"><span class="nav-item-icon">🪪</span><div class="nav-item-label"><span class="nav-item-title">My ID Card</span></div></a></li>
+                                <li><a href="{% url 'operations:student_my_certificates' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">My Certificates</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1482,8 +1481,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% if user.is_authenticated %}
 <nav class="mobile-bottom-nav" aria-label="Quick navigation">
-    <div class="mobile-bottom-nav-inner{% if user.role == 'school_admin' or user.is_superuser %} mobile-bottom-nav-inner--dense{% endif %}">
-        {% if user.role == "school_admin" or user.is_superuser %}
+    <div class="mobile-bottom-nav-inner{% if user.role == 'school_admin' or user.is_superuser or user.role == 'deputy_head' or user.role == 'hod' %} mobile-bottom-nav-inner--dense{% endif %}">
+        {% if user.role == "school_admin" or user.is_superuser or user.role == "deputy_head" or user.role == "hod" %}
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Dashboard</a>
         <a href="{% url 'students:student_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F393;</span>Students</a>
         <a href="{% url 'finance:fee_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B0;</span>Finance</a>
@@ -1494,7 +1493,7 @@ document.addEventListener('DOMContentLoaded', function() {
         {% elif user.role == "teacher" %}
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Dashboard</a>
         <a href="{% url 'academics:result_upload' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DD;</span>Results</a>
-        <a href="{% url 'operations:attendance_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x2705;</span>Attendance</a>
+        <a href="{% url 'operations:attendance_mark' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x2705;</span>Attendance</a>
         <a href="{% url 'academics:homework_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DA;</span>Homework</a>
         <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
         <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>
@@ -1509,6 +1508,21 @@ document.addEventListener('DOMContentLoaded', function() {
         <a href="{% url 'students:results_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Results</a>
         <a href="{% url 'finance:parent_fee_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B5;</span>Fees</a>
         <a href="{% url 'students:announcements_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4E2;</span>News</a>
+        <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
+        <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>
+        {% elif user.role == "accountant" or user.role == "librarian" or user.role == "admission_officer" or user.role == "school_nurse" or user.role == "admin_assistant" or user.role == "staff" %}
+        <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Dashboard</a>
+        {% if user.role == "accountant" %}
+        <a href="{% url 'finance:fee_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B0;</span>Finance</a>
+        {% elif user.role == "librarian" %}
+        <a href="{% url 'operations:library_manage' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DA;</span>Library</a>
+        {% elif user.role == "admission_officer" %}
+        <a href="{% url 'operations:admission_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CB;</span>Admissions</a>
+        {% elif user.role == "school_nurse" %}
+        <a href="{% url 'operations:health_record_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F3E5;</span>Health</a>
+        {% else %}
+        <a href="{% url 'students:student_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F393;</span>Students</a>
+        {% endif %}
         <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
         <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>
         {% else %}

@@ -12,13 +12,14 @@ from django.conf import settings
 import uuid
 
 from accounts.decorators import login_required, parent_required, student_required
-
+from accounts.permissions import user_can_manage_school
 
 from students.models import Student
 from schools.models import School
 from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook, TextbookSale, HostelFee
 from finance.paystack_service import paystack_service
 from finance.models import Fee, FeePayment
+from core.utils import FEE_PAYSTACK_RETURN_SESSION_KEY, safe_internal_redirect_path
 
 
 def _get_paystack_public_key(request):
@@ -54,49 +55,143 @@ def _get_parent_email(student, request):
     return None
 
 
+def _portal_children(user):
+    """Students linked to a parent user (stable ordering)."""
+    if getattr(user, "role", None) != "parent":
+        return []
+    return list(
+        user.children.select_related("user", "school").order_by("class_name", "admission_number")
+    )
+
+
+def student_for_portal(request):
+    """
+    Active student on canteen/bus/textbook/my_payments portals.
+    Parent may choose via ?student=<pk>; invalid id falls back to first child.
+    """
+    role = getattr(request.user, "role", None)
+    if role == "student":
+        return getattr(request.user, "student", None)
+    if role == "parent":
+        children = _portal_children(request.user)
+        if not children:
+            return None
+        raw = request.GET.get("student")
+        if raw:
+            try:
+                sid = int(raw)
+            except (TypeError, ValueError):
+                sid = None
+            if sid is not None:
+                for c in children:
+                    if c.id == sid:
+                        return c
+        return children[0]
+    return None
+
+
+def authorized_student_for_payment_post(request):
+    """
+    Student record for POST initiate endpoints (canteen, bus, textbook).
+    Parent may pass student_id for the child; student role ignores mismatching student_id.
+    Returns (student, None) or (None, JsonResponse).
+    """
+    role = getattr(request.user, "role", None)
+    raw_sid = request.POST.get("student_id")
+    want_id = None
+    if raw_sid not in (None, ""):
+        try:
+            want_id = int(raw_sid)
+        except (TypeError, ValueError):
+            return None, JsonResponse({"success": False, "error": "Invalid student_id"}, status=400)
+
+    if role == "student":
+        st = getattr(request.user, "student", None)
+        if not st:
+            return None, JsonResponse({"success": False, "error": "Student not found"}, status=400)
+        if want_id is not None and want_id != st.id:
+            return None, JsonResponse({"success": False, "error": "Forbidden"}, status=403)
+        return st, None
+
+    if role == "parent":
+        qs = request.user.children.select_related("user", "school")
+        if want_id is not None:
+            st = qs.filter(id=want_id).first()
+        else:
+            st = qs.first()
+        if not st:
+            return None, JsonResponse({"success": False, "error": "Student not found"}, status=400)
+        return st, None
+
+    return None, JsonResponse({"success": False, "error": "Forbidden"}, status=403)
+
+
+def user_can_access_student_payment(user, student):
+    """Student, parent of student, or school staff for the student's school."""
+    if user.is_superuser:
+        return True
+    if student is None:
+        return False
+    role = getattr(user, "role", None)
+    if role == "student" and student.user_id == user.id:
+        return True
+    if role == "parent" and student.parent_id == user.id:
+        return True
+    school = getattr(user, "school", None)
+    if school and student.school_id == school.id:
+        if user_can_manage_school(user):
+            return True
+    return False
+
+
 # ==================== CANTEEN PAYMENTS ====================
 
 @student_required
 def canteen_my(request):
     """Student view to browse and purchase canteen items."""
-    student = _get_user_student(request)
+    student = student_for_portal(request)
     if not student:
-        return redirect('accounts:login')
-    
+        messages.error(request, "No student profile is linked to this account.")
+        return redirect("home")
+
     school = student.school
-    
+
     # Get available canteen items
     items = CanteenItem.objects.filter(school=school, is_available=True)
-    
+
     # Get student's payment history (only completed payments)
     my_payments = CanteenPayment.objects.filter(
         student=student,
         payment_status='completed'
     )[:20]
-    
+
     # Get pending payments
     pending_payments = CanteenPayment.objects.filter(
         student=student,
         payment_status='pending'
     )
-    
+
     from django.conf import settings
+    portal_children = _portal_children(request.user)
     context = {
         'items': items,
         'my_payments': my_payments,
         'pending_payments': pending_payments,
         'page_title': 'Canteen',
         'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
+        'portal_children': portal_children,
+        'portal_student': student,
     }
     return render(request, 'operations/canteen_my.html', context)
 
 
+@login_required
 @require_POST
 def canteen_initiate_payment(request):
     """Initiate Paystack payment for canteen items."""
-    student = _get_user_student(request)
-    if not student:
-        return JsonResponse({'success': False, 'error': 'Student not found'}, status=400)
+    student, err = authorized_student_for_payment_post(request)
+    if err:
+        return err
     
     item_id = request.POST.get('item_id')
     quantity = int(request.POST.get('quantity', 1))
@@ -233,44 +328,51 @@ def canteen_payment_verify(request):
 @student_required
 def bus_my(request):
     """Student view to see bus routes and make payments."""
-    student = _get_user_student(request)
+    student = student_for_portal(request)
     if not student:
-        return redirect('accounts:login')
-    
+        messages.error(request, "No student profile is linked to this account.")
+        return redirect("home")
+
     school = student.school
-    
+
     # Get all bus routes with fees
     routes = BusRoute.objects.filter(school=school)
-    
+
     # Get student's payment records
     my_payments = BusPayment.objects.filter(
         student=student,
         payment_status='completed'
     ).select_related('route')[:20]
-    
+
     # Get pending payments
     pending_payments = BusPayment.objects.filter(
         student=student,
         payment_status='pending'
     )
-    
+
     from django.conf import settings
+    portal_children = _portal_children(request.user)
     context = {
         'routes': routes,
         'my_payments': my_payments,
         'pending_payments': pending_payments,
         'page_title': 'Transport',
         'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
+        'portal_children': portal_children,
+        'portal_student': student,
+        'mode': 'parent' if getattr(request.user, 'role', None) == 'parent' else 'student',
+        'children': portal_children,
     }
     return render(request, 'operations/bus_my.html', context)
 
 
+@login_required
 @require_POST
 def bus_initiate_payment(request):
     """Initiate Paystack payment for bus/transport."""
-    student = _get_user_student(request)
-    if not student:
-        return JsonResponse({'success': False, 'error': 'Student not found'}, status=400)
+    student, err = authorized_student_for_payment_post(request)
+    if err:
+        return err
     
     route_id = request.POST.get('route_id')
     term = request.POST.get('term', f'Term {timezone.now().year}')
@@ -351,11 +453,13 @@ def bus_initiate_payment(request):
     )
     
     if result.get('status'):
+        pe = parent_email or student.user.email
         return JsonResponse({
             'success': True,
             'authorization_url': result['data']['authorization_url'],
             'reference': reference,
-            'payment_id': payment.id  # Return payment_id for reliable lookup
+            'payment_id': payment.id,  # Return payment_id for reliable lookup
+            'email': pe,
         })
     else:
         payment.payment_status = 'failed'
@@ -421,44 +525,49 @@ def bus_payment_verify(request):
 @student_required
 def textbook_my(request):
     """Student view to browse and purchase textbooks."""
-    student = _get_user_student(request)
+    student = student_for_portal(request)
     if not student:
-        return redirect('accounts:login')
-    
+        messages.error(request, "No student profile is linked to this account.")
+        return redirect("home")
+
     school = student.school
-    
+
     # Get available textbooks
     textbooks = Textbook.objects.filter(school=school, stock__gt=0)
-    
+
     # Get student's purchase history
     my_purchases = TextbookSale.objects.filter(
         student=student,
         payment_status='completed'
     )[:20]
-    
+
     # Get pending purchases
     pending_purchases = TextbookSale.objects.filter(
         student=student,
         payment_status='pending'
     )
-    
+
     from django.conf import settings
+    portal_children = _portal_children(request.user)
     context = {
         'textbooks': textbooks,
         'my_purchases': my_purchases,
         'pending_purchases': pending_purchases,
         'page_title': 'Textbooks',
         'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
+        'portal_children': portal_children,
+        'portal_student': student,
     }
     return render(request, 'operations/textbook_my.html', context)
 
 
+@login_required
 @require_POST
 def textbook_initiate_payment(request):
     """Initiate Paystack payment for textbooks."""
-    student = _get_user_student(request)
-    if not student:
-        return JsonResponse({'success': False, 'error': 'Student not found'}, status=400)
+    student, err = authorized_student_for_payment_post(request)
+    if err:
+        return err
     
     textbook_id = request.POST.get('textbook_id')
     quantity = int(request.POST.get('quantity', 1))
@@ -525,11 +634,13 @@ def textbook_initiate_payment(request):
     )
     
     if result.get('status'):
+        pe = parent_email or student.user.email
         return JsonResponse({
             'success': True,
             'authorization_url': result['data']['authorization_url'],
             'reference': reference,
-            'payment_id': sale.id  # Return payment_id for reliable lookup
+            'payment_id': sale.id,  # Return payment_id for reliable lookup
+            'email': pe,
         })
     else:
         sale.payment_status = 'failed'
@@ -594,80 +705,52 @@ def textbook_payment_verify(request):
 
 # ==================== HOSTEL FEE PAYMENTS ====================
 
-@student_required
-def hostel_my(request):
-    """Student view to see hostel fees and make payments."""
-    student = _get_user_student(request)
-    if not student:
-        return redirect('accounts:login')
-    
-    school = student.school
-    
-    # Get student's hostel fee records
-    from operations.models import HostelAssignment
-    assignments = HostelAssignment.objects.filter(
-        student=student,
-        is_active=True
-    ).select_related('hostel')
-    
-    # Get all pending hostel fees for this student
-    hostel_fees = HostelFee.objects.filter(
-        student=student
-    ).select_related('hostel')[:20]
-    
-    # Get pending payments
-    pending_fees = HostelFee.objects.filter(
-        student=student,
-        payment_status='pending'
-    )
-    
-    from django.conf import settings
-    context = {
-        'assignments': assignments,
-        'hostel_fees': hostel_fees,
-        'pending_fees': pending_fees,
-        'page_title': 'Hostel',
-        'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
-    }
-    return render(request, 'operations/hostel_my.html', context)
-
-
+@login_required
 @require_POST
 def hostel_initiate_payment(request):
     """Initiate Paystack payment for hostel fees."""
-    student = _get_user_student(request)
-    if not student:
-        return JsonResponse({'success': False, 'error': 'Student not found'}, status=400)
-    
     fee_id = request.POST.get('fee_id')
-    
+    if not fee_id:
+        return JsonResponse({'success': False, 'error': 'Missing fee_id'}, status=400)
+
     try:
-        fee = HostelFee.objects.get(id=fee_id, student=student)
+        fee = HostelFee.objects.select_related('student', 'student__user', 'hostel', 'school').get(id=fee_id)
     except HostelFee.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Fee not found'}, status=404)
-    
-    if fee.payment_status == 'completed':
+
+    student = fee.student
+    role = getattr(request.user, 'role', None)
+    if role == 'student':
+        if student.user_id != request.user.id:
+            return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+    elif role == 'parent':
+        if student.parent_id != request.user.id:
+            return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+    else:
+        return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+
+    if fee.payment_status == 'completed' or fee.paid:
         return JsonResponse({'success': False, 'error': 'Already paid'}, status=400)
-    
+
     amount = float(fee.amount)
-    
+
     # Generate unique reference
     reference = f"HOSTEL_{uuid.uuid4().hex[:12].upper()}"
     fee.payment_reference = reference
     fee.payment_status = 'pending'
     fee.save()
-    
+
     # Get parent email using helper function
     parent_email = _get_parent_email(student, request)
-    
+
     if not parent_email and request.user.email:
         parent_email = request.user.email
-    
+
     # Build callback URL with payment_id for reliable lookup
     callback_url = request.build_absolute_uri(
         reverse('operations:hostel_payment_verify') + f"?payment_id={fee.id}"
     )
-    
+
     metadata = {
         'payment_type': 'hostel',
         'payment_id': str(fee.id),
@@ -675,7 +758,7 @@ def hostel_initiate_payment(request):
         'term': fee.term,
         'student_name': student.user.get_full_name()
     }
-    
+
     # Get school's subaccount if configured
     school = student.school
     school_subaccount = None
@@ -1108,13 +1191,16 @@ def record_payment(request):
 
 @student_required
 def my_payments(request):
-    """Student view of their own payments."""
-    student = _get_user_student(request)
+    """Student or parent view of payments (parent: ?student=<pk> selects child)."""
+    student = student_for_portal(request)
     if not student:
-        return redirect('accounts:login')
-    
+        messages.error(request, "No student profile is linked to this account.")
+        return redirect("home")
+
     from finance.models import Fee, FeePayment
-    
+
+    portal_children = _portal_children(request.user)
+
     # Get school fees
     school_fees = Fee.objects.filter(student=student).order_by('-created_at')
     
@@ -1164,6 +1250,9 @@ def my_payments(request):
         'total_pending': total_pending,
         'student_name': student_name,
         'page_title': 'My Payments',
+        'portal_children': portal_children,
+        'portal_student': student,
+        'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
     }
     return render(request, 'operations/my_payments.html', context)
 
@@ -1222,15 +1311,9 @@ def generate_receipt(request, payment_type, payment_id):
         messages.error(request, "Invalid payment type")
         return redirect('operations:payment_dashboard')
     
-    # Verify access
-    school = getattr(request.user, 'school', None)
-    if school and student.school != school:
+    if not user_can_access_student_payment(request.user, student):
         messages.error(request, "Access denied")
-        return redirect('operations:payment_dashboard')
-    
-    if request.user.role == 'student' and request.user.student != student:
-        messages.error(request, "Access denied")
-        return redirect('operations:my_payments')
+        return redirect("operations:my_payments")
     
     context = {
         'student': student,
@@ -1246,79 +1329,108 @@ def generate_receipt(request, payment_type, payment_id):
 @require_POST
 @login_required
 def initiate_online_payment(request):
-    """Initiate Paystack payment for school fees."""
-    from finance.models import Fee
-    
-    school = getattr(request.user, 'school', None)
-    if not school:
-        return JsonResponse({'success': False, 'error': 'School not found'}, status=400)
-    
-    fee_id = request.POST.get('fee_id')
-    
-    try:
-        fee = Fee.objects.get(id=fee_id, school=school)
-    except Fee.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Fee not found'}, status=404)
-    
-    remaining = fee.remaining_balance
+    """Initiate Paystack for school fees (JSON). Matches finance:pay net/gross and pending FeePayment."""
+    from decimal import Decimal
+    from finance.paystack_service import compute_paystack_gross_from_net
+
+    if not getattr(settings, "PAYSTACK_SECRET_KEY", ""):
+        return JsonResponse({"success": False, "error": "Online payments are unavailable."}, status=503)
+
+    fee_id = request.POST.get("fee_id")
+    if not fee_id:
+        return JsonResponse({"success": False, "error": "Missing fee_id"}, status=400)
+
+    fee = get_object_or_404(Fee, id=fee_id)
+    if not user_can_access_student_payment(request.user, fee.student):
+        return JsonResponse({"success": False, "error": "Forbidden"}, status=403)
+
+    remaining = float(fee.remaining_balance)
     if remaining <= 0:
-        return JsonResponse({'success': False, 'error': 'Fee already paid'}, status=400)
-    
-    student = fee.student
-    
-    # Get parent email using helper function
-    parent_email = _get_parent_email(student, request)
-    
-    if not parent_email and request.user.email:
-        parent_email = request.user.email
-    
-    # Generate unique reference
-    reference = f"FEE_{uuid.uuid4().hex[:12].upper()}"
-    
-    # Build callback URL
-    callback_url = request.build_absolute_uri(reverse('operations:paystack_callback', args=[fee.id]))
-    
-    metadata = {
-        'payment_type': 'school_fee',
-        'fee_id': str(fee.id),
-        'student_name': student.user.get_full_name(),
-    }
-    
-    # Get school's subaccount if configured
-    school = student.school
+        return JsonResponse({"success": False, "error": "Fee already paid"}, status=400)
+
+    amount_str = request.POST.get("amount")
+    if amount_str:
+        try:
+            amount = float(amount_str)
+            if amount <= 0:
+                amount = remaining
+            elif amount > remaining:
+                amount = remaining
+        except (ValueError, TypeError):
+            amount = remaining
+    else:
+        amount = remaining
+
+    amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+    charge_amount = float(amount_gross)
+
+    stu = fee.student
+    su = stu.user if stu else None
+    pu = stu.parent if stu else None
+    email = (
+        (su.email if su and su.email else None)
+        or (pu.email if pu and pu.email else None)
+        or (request.user.email if request.user.email else None)
+        or f"noreply+{fee.id}@mastex.app"
+    )
+
+    reference = f"SCHOOL_FEE_{fee.id}_{uuid.uuid4().hex[:8].upper()}"
+    callback_url = request.build_absolute_uri(
+        reverse("finance:paystack_callback", kwargs={"fee_id": fee.id})
+    )
+
     school_subaccount = None
-    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
-        school_subaccount = school.paystack_subaccount_code
-    
-    # Get currency from settings
-    from django.conf import settings
-    currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
-    
+    if fee.school and fee.school.paystack_subaccount_code:
+        school_subaccount = fee.school.paystack_subaccount_code
+
+    pending_payment = FeePayment.objects.create(
+        fee=fee,
+        amount=amount_net,
+        gross_amount=amount_gross,
+        paystack_reference=reference,
+        status="pending",
+    )
+
+    currency = getattr(settings, "PAYSTACK_CURRENCY", "GHS")
     result = paystack_service.initialize_payment(
-        email=parent_email or student.user.email,
-        amount=remaining,
+        email=email,
+        amount=charge_amount,
         callback_url=callback_url,
         reference=reference,
-        metadata=metadata,
+        metadata={
+            "fee_id": fee.id,
+            "payment_id": pending_payment.id,
+            "payment_type": "school_fee",
+            "student_name": str(stu),
+            "school_name": fee.school.name if fee.school else "",
+            "school_id": fee.school.id if fee.school else None,
+            "amount_net": float(amount_net),
+            "amount_gross": float(amount_gross),
+        },
         subaccount=school_subaccount,
-        currency=currency
+        currency=currency,
     )
-    
-    if result.get('status'):
-        # Update fee with reference
-        fee.paystack_reference = reference
-        fee.save()
-        
-        return JsonResponse({
-            'success': True,
-            'authorization_url': result['data']['authorization_url'],
-            'reference': reference
-        })
-    else:
-        return JsonResponse({
-            'success': False,
-            'error': result.get('message', 'Payment initialization failed')
-        })
+
+    if result.get("status") and result.get("data", {}).get("authorization_url"):
+        nxt = safe_internal_redirect_path(request.POST.get("next"))
+        if nxt:
+            request.session[FEE_PAYSTACK_RETURN_SESSION_KEY] = nxt
+        return JsonResponse(
+            {
+                "success": True,
+                "authorization_url": result["data"]["authorization_url"],
+                "reference": reference,
+            }
+        )
+
+    pending_payment.status = "failed"
+    pending_payment.save()
+    return JsonResponse(
+        {
+            "success": False,
+            "error": result.get("message", "Payment initialization failed"),
+        }
+    )
 
 
 @login_required
@@ -1584,63 +1696,64 @@ def send_payment_reminder(request):
 @login_required
 @require_POST
 def cancel_pending_payment(request):
-    """Cancel/delete a pending payment owned by the requesting user's school."""
+    """Cancel a pending canteen/bus/textbook/hostel payment if the user may act for that student."""
     try:
         purchase_id = request.POST.get('purchase_id')
         payment_type = request.POST.get('payment_type')
-        
+
         if not purchase_id or not payment_type:
             return JsonResponse({'success': False, 'error': 'Missing purchase_id or payment_type'}, status=400)
-        
-        school = getattr(request.user, 'school', None)
-        if not school and not request.user.is_superuser:
-            return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
 
-        from .models import CanteenPayment, BusPayment, TextbookSale
-        
-        deleted = False
-        school_filter = {} if request.user.is_superuser else {"school": school}
-        
         if payment_type == 'canteen':
             try:
-                payment = CanteenPayment.objects.get(id=purchase_id, payment_status='pending', **school_filter)
-                payment.delete()
-                deleted = True
+                payment = CanteenPayment.objects.select_related('student').get(
+                    id=purchase_id, payment_status='pending'
+                )
             except CanteenPayment.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Canteen payment not found'}, status=404)
-        
-        elif payment_type == 'bus':
+            if not user_can_access_student_payment(request.user, payment.student):
+                return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+            payment.delete()
+            return JsonResponse({'success': True, 'message': 'Pending payment cancelled successfully'})
+
+        if payment_type == 'bus':
             try:
-                payment = BusPayment.objects.get(id=purchase_id, payment_status='pending', **school_filter)
-                payment.delete()
-                deleted = True
+                payment = BusPayment.objects.select_related('student').get(
+                    id=purchase_id, payment_status='pending'
+                )
             except BusPayment.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Bus payment not found'}, status=404)
-        
-        elif payment_type == 'textbook':
+            if not user_can_access_student_payment(request.user, payment.student):
+                return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+            payment.delete()
+            return JsonResponse({'success': True, 'message': 'Pending payment cancelled successfully'})
+
+        if payment_type == 'textbook':
             try:
-                payment = TextbookSale.objects.get(id=purchase_id, payment_status='pending', **school_filter)
-                payment.delete()
-                deleted = True
+                payment = TextbookSale.objects.select_related('student').get(
+                    id=purchase_id, payment_status='pending'
+                )
             except TextbookSale.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Textbook payment not found'}, status=404)
-        
-        elif payment_type == 'hostel':
+            if not user_can_access_student_payment(request.user, payment.student):
+                return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+            payment.delete()
+            return JsonResponse({'success': True, 'message': 'Pending payment cancelled successfully'})
+
+        if payment_type == 'hostel':
             try:
-                payment = HostelFee.objects.get(id=purchase_id, payment_status='pending')
-                payment.payment_status = 'cancelled'
-                payment.save()
-                deleted = True
+                fee = HostelFee.objects.select_related('student').get(
+                    id=purchase_id, payment_status='pending'
+                )
             except HostelFee.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Hostel payment not found'}, status=404)
-        
-        else:
-            return JsonResponse({'success': False, 'error': f'Invalid payment type: {payment_type}'}, status=400)
-        
-        if deleted:
+            if not user_can_access_student_payment(request.user, fee.student):
+                return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+            fee.payment_status = 'cancelled'
+            fee.save(update_fields=['payment_status'])
             return JsonResponse({'success': True, 'message': 'Pending payment cancelled successfully'})
-        
+
+        return JsonResponse({'success': False, 'error': f'Invalid payment type: {payment_type}'}, status=400)
+
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
-    
-    return JsonResponse({'success': False, 'error': 'Unknown error'}, status=500)

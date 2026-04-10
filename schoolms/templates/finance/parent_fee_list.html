@@ -74,7 +74,7 @@
                 </td>
                 <td>
                     {% if not fee.is_fully_paid and paystack_available %}
-                        <a href="{% url 'finance:pay' fee.id %}" class="btn btn-primary btn-sm">Pay Full</a>
+                        <a href="{% url 'finance:pay' fee.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-primary btn-sm">Pay Full</a>
                         <button type="button" class="btn btn-secondary btn-sm" onclick="showCustomPayment({{ fee.id }}, {{ fee.remaining_balance }})">Pay Partially</button>
                     {% elif not fee.is_fully_paid %}
                         <span class="text-muted">Contact school</span>
@@ -95,6 +95,7 @@
         <p>Remaining balance: <strong id="modalRemaining">GHS 0.00</strong></p>
         <form method="post" action="#" id="customPaymentForm">
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <input type="hidden" name="fee_id" id="modalFeeId" value="">
             <div style="margin-bottom: 1rem;">
                 <label>Amount (GHS):</label>
