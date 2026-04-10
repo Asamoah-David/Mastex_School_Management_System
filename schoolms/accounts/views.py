@@ -57,7 +57,9 @@ def home(request):
         role = getattr(request.user, "role", None)
         if role in ["parent", "student"]:
             return redirect("portal")
-        if role in ("school_admin", "deputy_head", "hod", "teacher", "accountant",
+        if role == "teacher":
+            return redirect("accounts:teacher_dashboard")
+        if role in ("school_admin", "deputy_head", "hod", "accountant",
                     "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
             return redirect("accounts:school_dashboard")
         if getattr(request.user, "is_superuser", False) or role == "super_admin":
@@ -77,7 +79,9 @@ def login_view(request):
         role = getattr(request.user, "role", None)
         if role in ["parent", "student"]:
             return redirect("portal")
-        if role in ("school_admin", "deputy_head", "hod", "teacher", "accountant",
+        if role == "teacher":
+            return redirect("accounts:teacher_dashboard")
+        if role in ("school_admin", "deputy_head", "hod", "accountant",
                     "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
             return redirect("accounts:school_dashboard")
         if getattr(request.user, "is_superuser", False) or role == "super_admin":
@@ -136,7 +140,9 @@ def login_view(request):
             role = getattr(user, "role", None)
             if role in ["parent", "student"]:
                 return redirect("portal")
-            if role in ("school_admin", "deputy_head", "hod", "teacher", "accountant",
+            if role == "teacher":
+                return redirect("accounts:teacher_dashboard")
+            if role in ("school_admin", "deputy_head", "hod", "accountant",
                         "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
                 return redirect("accounts:school_dashboard")
             if user.is_superuser or role == "super_admin":
@@ -433,12 +439,21 @@ def school_dashboard(request):
     )
     unread_notification_count = Notification.get_unread_count(request.user)
 
-    quick_actions = [
-        {"label": "Add Student", "url": reverse("students:student_register"), "icon": "👤"},
-        {"label": "Record Payment", "url": reverse("finance:fee_list"), "icon": "💰"},
-        {"label": "Mark Attendance", "url": reverse("operations:attendance_mark"), "icon": "📋"},
-        {"label": "Send Announcement", "url": reverse("messaging:send_message"), "icon": "📢"},
-    ]
+    role = getattr(request.user, "role", None)
+    if role == "teacher":
+        quick_actions = [
+            {"label": "Teacher home", "url": reverse("accounts:teacher_dashboard"), "icon": "🏠"},
+            {"label": "Mark Attendance", "url": reverse("operations:attendance_mark"), "icon": "📋"},
+            {"label": "Upload Results", "url": reverse("academics:result_upload"), "icon": "📊"},
+            {"label": "Send Announcement", "url": reverse("messaging:send_message"), "icon": "📢"},
+        ]
+    else:
+        quick_actions = [
+            {"label": "Add Student", "url": reverse("students:student_register"), "icon": "👤"},
+            {"label": "Record Payment", "url": reverse("finance:fee_list"), "icon": "💰"},
+            {"label": "Mark Attendance", "url": reverse("operations:attendance_mark"), "icon": "📋"},
+            {"label": "Send Announcement", "url": reverse("messaging:send_message"), "icon": "📢"},
+        ]
 
     context = {
         "school": school,
@@ -479,7 +494,8 @@ def school_dashboard(request):
 def teacher_dashboard(request):
     """Dedicated dashboard for teachers showing their classes, attendance, and results."""
     from students.models import SchoolClass
-    from academics.models import Subject, Term, Result, Homework, Timetable, Quiz
+    from academics.models import Subject, Term, Result, Homework
+    from accounts.teaching_scope import teacher_attendance_classes_qs, teacher_result_subject_ids
 
     school = getattr(request.user, "school", None)
     if not school:
@@ -487,37 +503,15 @@ def teacher_dashboard(request):
 
     today = timezone.now().date()
     my_classes = SchoolClass.objects.filter(school=school, class_teacher=request.user).order_by("name")
-    assigned_ids = list(
-        request.user.assigned_subjects.filter(school=school).values_list("id", flat=True)
-    )
-    timetable_subject_ids = list(
-        Timetable.objects.filter(school=school, teacher=request.user)
-        .values_list("subject_id", flat=True)
-        .distinct()
-    )
-    homework_subject_ids = list(
-        Homework.objects.filter(school=school, created_by=request.user)
-        .values_list("subject_id", flat=True)
-        .distinct()
-    )
-    quiz_subject_ids = list(
-        Quiz.objects.filter(school=school, created_by=request.user)
-        .values_list("subject_id", flat=True)
-        .distinct()
-    )
-    subject_id_set = (
-        set(assigned_ids)
-        | set(timetable_subject_ids)
-        | set(homework_subject_ids)
-        | set(quiz_subject_ids)
-    )
+    markable_classes = teacher_attendance_classes_qs(school, request.user)
+    subject_id_set = teacher_result_subject_ids(school, request.user)
     my_subjects = Subject.objects.filter(school=school, id__in=subject_id_set).order_by("name")
     current_term = Term.objects.filter(school=school, is_current=True).first()
 
     from django.db.models import Count, Q, Subquery, OuterRef, IntegerField
     from django.db.models.functions import Coalesce
 
-    class_names = list(my_classes.values_list("name", flat=True))
+    class_names = list(markable_classes.values_list("name", flat=True))
     student_counts = dict(
         Student.objects.filter(school=school, class_name__in=class_names)
         .values("class_name")
@@ -533,7 +527,7 @@ def teacher_dashboard(request):
         .values_list("student__class_name", "cnt")
     )
     classes_attendance = []
-    for cls in my_classes:
+    for cls in markable_classes:
         sc = student_counts.get(cls.name, 0)
         mc = marked_counts.get(cls.name, 0)
         classes_attendance.append({

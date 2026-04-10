@@ -34,7 +34,7 @@
 <div class="content-grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-bottom:1.5rem;">
     <div class="content-card">
         <h3 style="margin-bottom:.75rem;">Your students: attendance trend</h3>
-        <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 .75rem;">Last 14 days for students in your <strong>homeroom</strong> classes, on your <strong>timetable</strong>, or in classes where you assigned <strong>homework</strong> or <strong>quizzes</strong>.</p>
+        <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 .75rem;">Last 14 days for students in your <strong>homeroom</strong>, <strong>timetable</strong>, <strong>homework</strong>, or <strong>quiz</strong> classes. The attendance table below lists only <strong>homeroom and timetable</strong> classes you may mark.</p>
         {% if teacher_attendance_trend.has_data %}
         <div style="height:200px;">
             <canvas id="teacherAttendanceTrendChart"></canvas>
@@ -79,7 +79,7 @@
 
 {% if classes_attendance %}
 <div class="content-card" style="margin-bottom:1.5rem;">
-    <h3 style="margin-bottom:.75rem;">Today's Attendance Status</h3>
+    <h3 style="margin-bottom:.75rem;">Today's Attendance (homeroom &amp; timetable)</h3>
     <div class="table-responsive">
         <table>
             <thead><tr><th>Class</th><th>Students</th><th>Marked</th><th>Status</th><th></th></tr></thead>

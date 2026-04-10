@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Q
 from django.db import models
@@ -170,21 +171,41 @@ def attendance_list(request):
 def attendance_mark(request):
     from django.contrib import messages
     from students.models import SchoolClass
+    from accounts.permissions import has_school_wide_class_scope, is_teacher
+    from accounts.teaching_scope import teacher_attendance_classes_qs
 
     school = _require_school(request)
     if not school:
         return redirect("home")
 
     classes = SchoolClass.objects.filter(school=school).order_by("name")
-    if request.user.role == "teacher":
-        teacher_classes = classes.filter(class_teacher=request.user)
-        if teacher_classes.exists():
-            classes = teacher_classes
+    teacher_no_assigned_classes = False
+    if has_school_wide_class_scope(request.user):
+        pass
+    elif is_teacher(request.user):
+        classes = teacher_attendance_classes_qs(school, request.user)
+        teacher_no_assigned_classes = not classes.exists()
+    else:
+        classes = SchoolClass.objects.none()
 
     selected_class = request.GET.get("class") or request.POST.get("class", "")
     default_day = timezone.now().date()
 
     if request.method == "POST":
+        mark_class = (request.POST.get("class") or "").strip()
+        if not has_school_wide_class_scope(request.user) and is_teacher(request.user):
+            if teacher_no_assigned_classes:
+                messages.error(
+                    request,
+                    "You have no homeroom class and no classes on your timetable. "
+                    "Ask your admin to assign you as class teacher or add you to the timetable.",
+                )
+                return redirect("operations:attendance_mark")
+            allowed_names = set(classes.values_list("name", flat=True))
+            if mark_class not in allowed_names:
+                messages.error(request, "You cannot mark attendance for that class.")
+                return redirect("operations:attendance_mark")
+
         raw_date = request.POST.get("date")
         date = _parse_date(raw_date, default_day)
         if raw_date and date == default_day and str(raw_date) != str(default_day):
@@ -204,19 +225,29 @@ def attendance_mark(request):
         saved = 0
         for student_id, status_val in status_entries.items():
             student = students_by_id.get(student_id)
-            if student:
+            if student and student.class_name == mark_class:
                 StudentAttendance.objects.update_or_create(
                     student=student, date=date,
                     defaults={"school": school, "status": status_val, "marked_by": request.user},
                 )
                 saved += 1
         messages.success(request, f"Attendance saved for {saved} student(s).")
-        return redirect(f"/operations/attendance/mark/?class={selected_class}&date={date}")
+        q = f"class={mark_class}&date={date}" if mark_class else f"date={date}"
+        return redirect(f"{reverse('operations:attendance_mark')}?{q}")
 
     raw_date = request.GET.get("date")
     date = _parse_date(raw_date, default_day)
     if raw_date and date == default_day and str(raw_date) != str(default_day):
         messages.warning(request, "Invalid date; showing today's attendance sheet instead.")
+
+    if not has_school_wide_class_scope(request.user) and is_teacher(request.user) and selected_class:
+        allowed_names = set(classes.values_list("name", flat=True))
+        if selected_class not in allowed_names:
+            messages.warning(
+                request,
+                "You can only mark attendance for your homeroom classes or classes on your timetable.",
+            )
+            selected_class = ""
 
     students = []
     if selected_class:
@@ -241,6 +272,7 @@ def attendance_mark(request):
             "date": date,
             "classes": classes,
             "selected_class": selected_class,
+            "teacher_no_assigned_classes": teacher_no_assigned_classes,
         },
     )
 

@@ -62,6 +62,10 @@
     </div>
     <div class="card-body">
         <div class="quick-actions">
+            <a href="{% url 'students:results_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">&#x1F4CA;</span>
+                <span class="quick-action-label">My Results</span>
+            </a>
             <a href="{% url 'academics:enhanced_report_card' student.id %}" class="quick-action-btn">
                 <span class="quick-action-icon">&#x1F4C4;</span>
                 <span class="quick-action-label">Report Card</span>
@@ -306,6 +310,13 @@
 </div>
 {% endif %}
 
+{# json_script outputs its own <script> tags; must not be nested inside executable JS or the first </script> closes the outer block and leaks the rest as visible text. #}
+{% if chart_labels %}
+{{ chart_labels|json_script:"chart-labels" }}
+{{ chart_data|json_script:"chart-data" }}
+{{ class_chart_data|json_script:"chart-class-data" }}
+{% endif %}
+
 <script>
 function filterResults(value, type) {
     var url = new URL(window.location.href);
@@ -337,9 +348,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    {{ chart_labels|json_script:"chart-labels" }}
-    {{ chart_data|json_script:"chart-data" }}
-    {{ class_chart_data|json_script:"chart-class-data" }}
     var termCtx = document.getElementById('termProgressChart');
     if (termCtx) {
         var labels = JSON.parse(document.getElementById('chart-labels').textContent);

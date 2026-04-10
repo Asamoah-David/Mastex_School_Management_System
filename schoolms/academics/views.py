@@ -6,7 +6,12 @@ from django.http import HttpResponse
 
 from students.models import Student
 from schools.models import School
-from accounts.permissions import user_can_manage_school
+from accounts.permissions import (
+    user_can_manage_school,
+    has_school_wide_class_scope,
+    is_teacher,
+)
+from accounts.teaching_scope import teacher_result_subject_ids
 from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable, Quiz, QuizQuestion, QuizAttempt, AssessmentType, AssessmentScore, ExamScore, GradingPolicy, OnlineMeeting, AIStudentComment, bulk_annotate_grades
 from core.pagination import paginate
 
@@ -311,22 +316,34 @@ def _ensure_core_academics_for_school(school):
 def results_management(request):
     """Results Management Hub - consolidated results entry page."""
     school = _get_school(request)
-    
-    # Get recent results for activity display
+    user = request.user
+
     from academics.models import Result
-    from django.contrib.auth import get_user_model
-    
+
     recent_results = []
+    recent_results_scoped = False
     if school:
-        recent_results = Result.objects.filter(
-            student__school=school
-        ).select_related('student', 'student__user', 'subject').order_by('-id')[:10]
-    
+        qs = Result.objects.filter(student__school=school).select_related(
+            "student", "student__user", "subject"
+        )
+        if has_school_wide_class_scope(user):
+            recent_results = list(qs.order_by("-id")[:10])
+        elif is_teacher(user):
+            recent_results_scoped = True
+            subject_ids = teacher_result_subject_ids(school, user)
+            if subject_ids:
+                recent_results = list(
+                    qs.filter(subject_id__in=subject_ids).order_by("-id")[:10]
+                )
+        else:
+            recent_results = []
+
     context = {
-        'school': school,
-        'recent_results': recent_results,
+        "school": school,
+        "recent_results": recent_results,
+        "recent_results_scoped": recent_results_scoped,
     }
-    return render(request, 'academics/results_management.html', context)
+    return render(request, "academics/results_management.html", context)
 
 @login_required
 def result_upload(request):

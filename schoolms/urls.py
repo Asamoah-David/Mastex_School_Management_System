@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.conf.urls import handler404, handler500
 from django.shortcuts import render
 from django.http import JsonResponse
+from django.views.generic import RedirectView
 from django.db import connection
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
@@ -45,6 +46,10 @@ handler500 = custom_500
 
 urlpatterns = [
     path("", home, name="home"),
+    path(
+        "favicon.ico",
+        RedirectView.as_view(url=f"{settings.STATIC_URL}favicon.png", permanent=False),
+    ),
     path("health/", health_check, name="health_check"),
     path("admin/", admin.site.urls),
     path("schools/register/", school_register, name="school_register"),

@@ -14,7 +14,7 @@
             <span class="quick-action-icon">🏫</span>
             <span class="quick-action-label">Add School</span>
         </a>
-        <a href="/admin/schools/school/" class="quick-action-btn">
+        <a href="{% url 'schools:school_list' %}" class="quick-action-btn">
             <span class="quick-action-icon">📋</span>
             <span class="quick-action-label">Manage Schools</span>
         </a>
@@ -22,7 +22,7 @@
             <span class="quick-action-icon">📊</span>
             <span class="quick-action-label">Activity Log</span>
         </a>
-        <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
+        <a href="{% url 'messaging:superuser_send_message' %}" class="quick-action-btn">
             <span class="quick-action-icon">📢</span>
             <span class="quick-action-label">Broadcast</span>
         </a>
@@ -165,7 +165,7 @@
         <div class="button-row" style="margin-top: 1rem;">
             <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary btn-sm">View Activity Log</a>
             <a href="/admin/" class="btn btn-secondary btn-sm">Django Admin</a>
-            <a href="{% url 'messaging:send_message' %}" class="btn btn-secondary btn-sm">Broadcast Message</a>
+            <a href="{% url 'messaging:superuser_send_message' %}" class="btn btn-secondary btn-sm">Broadcast Message</a>
         </div>
     </div>
 </div>

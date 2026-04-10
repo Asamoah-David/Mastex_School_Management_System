@@ -460,10 +460,11 @@ def get_messages(request, contact_id):
 def superuser_send_message(request):
     """Superuser can send SMS or Email to school admins across all schools or a specific school."""
     import logging
+    from accounts.permissions import is_super_admin
+
     logger = logging.getLogger(__name__)
-    
-    # Only superusers can access this
-    if not request.user.is_superuser:
+
+    if not (request.user.is_superuser or is_super_admin(request.user)):
         return redirect("home")
     
     # Get all schools for selection

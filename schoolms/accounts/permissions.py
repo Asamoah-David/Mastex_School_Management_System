@@ -119,6 +119,21 @@ def is_student(user):
     return _is_authenticated(user) and _has(user, "student")
 
 
+def has_school_wide_class_scope(user):
+    """
+    May act on any class in the school (attendance pickers, school-wide result snippets).
+
+    Super admins / superusers, head, deputy, and HOD (primary or secondary role).
+    """
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user):
+        return True
+    if getattr(user, "is_superuser", False):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "hod")
+
+
 def is_staff_member(user):
     """Any school staff (teaching + admin)."""
     return _is_authenticated(user) and (
@@ -187,7 +202,7 @@ def can_mark_attendance(user):
         return False
     if is_super_admin(user):
         return True
-    return _has_any(user, "school_admin", "deputy_head", "teacher")
+    return _has_any(user, "school_admin", "deputy_head", "hod", "teacher")
 
 
 def can_view_reports(user):

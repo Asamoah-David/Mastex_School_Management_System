@@ -7,6 +7,13 @@
 
 {% block content %}
 
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-body" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
+        <span class="text-sm text-muted" style="margin-right:0.25rem;">Results &amp; filters:</span>
+        <a href="{% url 'students:results_list' %}" class="btn btn-sm btn-primary">&#x1F4CA; All results</a>
+    </div>
+</div>
+
 {% if announcements %}
 <div class="card" style="margin-bottom:1rem;">
     <div class="card-header">
@@ -66,6 +73,7 @@
     <div class="card" style="margin-bottom:1rem;">
         <div class="card-body" style="display:flex;flex-wrap:wrap;gap:0.5rem;">
             <a href="{% url 'students:parent_child_detail' child.id %}" class="btn btn-sm btn-secondary">&#x1F4CB; Full Profile</a>
+            <a href="{% url 'students:results_list' %}?student={{ child.id }}" class="btn btn-sm btn-primary">&#x1F4CA; Results &amp; filters</a>
             <a href="{% url 'academics:report_card' child.id %}" class="btn btn-sm btn-primary">&#x1F4C4; Report Card</a>
             <a href="{% url 'academics:enhanced_report_card' child.id %}" class="btn btn-sm btn-secondary">&#x1F4CA; Enhanced Report</a>
             <a href="{% url 'operations:canteen_my' %}" class="btn btn-sm btn-secondary">&#x1F371; Canteen</a>

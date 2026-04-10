@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 from django.contrib.auth.decorators import login_required
@@ -238,7 +239,10 @@ def portal(request):
                 from django.db.models import Avg
                 from django.core.cache import cache as _cache
 
-                cache_key = f"class_pos_{student.school_id}_{student.class_name}_{student.id}"
+                class_slug = hashlib.sha256(
+                    (student.class_name or "").encode("utf-8")
+                ).hexdigest()[:16]
+                cache_key = f"class_pos_{student.school_id}_{class_slug}_{student.id}"
                 position = _cache.get(cache_key)
                 if position is None:
                     class_averages = list(

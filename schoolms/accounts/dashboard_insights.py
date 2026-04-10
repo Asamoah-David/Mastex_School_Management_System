@@ -59,22 +59,25 @@ def build_attendance_trend(school, days: int = 14) -> dict[str, Any]:
 def teacher_student_scope(school, user) -> tuple[set[str], set[int]]:
     """
     Class names and SchoolClass PKs for students tied to this teacher:
-    homeroom (class teacher), timetable rows, homework, and quizzes they created.
+    homeroom ∪ timetable (via ``teacher_attendance_classes_qs``), plus homework
+    and quiz classes they created (broader chart scope than attendance marking).
     """
     from academics.models import Homework, Quiz, Timetable
-    from students.models import SchoolClass
+    from accounts.teaching_scope import teacher_attendance_classes_qs
 
     class_names: set[str] = set()
     school_class_ids: set[int] = set()
 
-    for name in SchoolClass.objects.filter(school=school, class_teacher=user).values_list("name", flat=True):
+    for name, sc_pk in teacher_attendance_classes_qs(school, user).values_list("name", "id"):
         if name:
             class_names.add(str(name).strip())
+        if sc_pk:
+            school_class_ids.add(int(sc_pk))
 
-    tt = Timetable.objects.filter(school=school, teacher=user).values_list("class_name", "school_class_id")
-    for cn, scid in tt:
-        if cn:
-            class_names.add(str(cn).strip())
+    # Timetable FK to SchoolClass (e.g. named slots) — keep ids even if name matching differs
+    for scid in Timetable.objects.filter(school=school, teacher=user).values_list(
+        "school_class_id", flat=True
+    ):
         if scid:
             school_class_ids.add(int(scid))
 

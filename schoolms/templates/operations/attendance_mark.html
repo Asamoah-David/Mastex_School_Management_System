@@ -3,6 +3,14 @@
 {% block page_title %}Mark Attendance{% endblock %}
 {% block page_subtitle %}{{ school.name }} — {{ date }}{% endblock %}
 {% block content %}
+{% if teacher_no_assigned_classes %}
+<div class="content-card" style="margin-bottom:1rem;border-left:4px solid var(--warning,#f59e0b);">
+    <p style="margin:0;font-size:0.9rem;color:var(--text-main);">
+        You have no <strong>homeroom</strong> class and no <strong>timetable</strong> rows as class teacher, so you cannot mark student attendance here.
+        Ask your admin to assign you as class teacher or add you to the timetable for the classes you teach.
+    </p>
+</div>
+{% endif %}
 <div class="content-card" style="margin-bottom:1rem;">
     <form method="get" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;">
         <div>

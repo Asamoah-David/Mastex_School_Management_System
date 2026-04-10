@@ -5,6 +5,13 @@
 {% block page_subtitle %}Enter, manage, and export student exam results{% endblock %}
 
 {% block content %}
+{% if recent_results_scoped %}
+<div class="content-card" style="margin-bottom:1rem;border-left:4px solid var(--info,#3b82f6);">
+    <p style="margin:0;font-size:0.9rem;color:var(--text-main);">
+        <strong>Recent activity</strong> shows only results for subjects linked to you (assigned subjects, timetable, homework, or quizzes you created). Heads, deputies, and HODs see school-wide activity.
+    </p>
+</div>
+{% endif %}
 <div class="content-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
     
     {# CA Score Upload #}
@@ -88,7 +95,7 @@
 {# Quick Stats #}
 {% if recent_results %}
 <div class="content-card" style="margin-top: 2rem;">
-    <h3 style="margin: 0 0 1rem 0;">📈 Recent Activity</h3>
+    <h3 style="margin: 0 0 1rem 0;">📈 Recent Activity{% if recent_results_scoped %} <span style="font-size:0.75rem;font-weight:500;color:var(--text-secondary);">(your subjects)</span>{% endif %}</h3>
     <table class="data-table">
         <thead>
             <tr>
@@ -109,6 +116,11 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+{% elif recent_results_scoped %}
+<div class="content-card" style="margin-top: 2rem;">
+    <h3 style="margin: 0 0 1rem 0;">📈 Recent Activity <span style="font-size:0.75rem;font-weight:500;color:var(--text-secondary);">(your subjects)</span></h3>
+    <p style="margin:0;font-size:0.9rem;color:var(--text-secondary);">No recent results for subjects linked to you yet. Assign subjects, add timetable rows, or upload scores to see activity here.</p>
 </div>
 {% endif %}
 
