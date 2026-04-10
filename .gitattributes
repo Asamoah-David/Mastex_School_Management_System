@@ -1,0 +1,2 @@
+# Shell scripts must use LF so Linux/Railway/Docker do not see ^M (exit 127 / bad interpreter).
+*.sh text eol=lf
