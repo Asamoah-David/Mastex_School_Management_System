@@ -21,6 +21,7 @@ db.sqlite3
 db.sqlite3-journal
 _ci_migrate.sqlite3
 x.sqlite3
+ci*.sqlite3
 staticfiles/
 media/
 schoolms/logs/
