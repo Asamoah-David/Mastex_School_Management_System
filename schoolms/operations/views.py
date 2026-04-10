@@ -1162,26 +1162,66 @@ def staff_leave_review(request, pk):
     return redirect("operations:staff_leave_list")
 
 
-# Activity Log (admin only)
+# Activity Log (school leadership + platform admins)
 @login_required
 def activity_log_list(request):
-    from accounts.permissions import is_school_admin
+    from django.contrib import messages
+    from accounts.permissions import is_deputy_head, is_hod, is_school_admin, is_super_admin
+
     school = _get_school(request)
 
-    # Platform admins: see logs across all schools.
-    if request.user.is_superuser or getattr(request.user, "is_super_admin", False):
-        qs = ActivityLog.objects.select_related("user", "school").order_by("-created_at")
-        page_obj = paginate(request, qs, per_page=50)
-        return render(request, "operations/activity_log_list.html", {"logs": page_obj, "page_obj": page_obj, "school": None})
-
-    # School admins: see logs for their school.
-    if not school:
-        return _redirect_no_school(request)
-    if not is_school_admin(request.user):
+    can_view = (
+        request.user.is_superuser
+        or is_super_admin(request.user)
+        or is_school_admin(request.user)
+        or is_deputy_head(request.user)
+        or is_hod(request.user)
+    )
+    if not can_view:
+        messages.error(request, "You do not have permission to view the activity log.")
         return redirect("accounts:school_dashboard")
-    qs = ActivityLog.objects.filter(school=school).select_related("user").order_by("-created_at")
+
+    # Platform admins: all schools
+    if request.user.is_superuser or is_super_admin(request.user):
+        qs = ActivityLog.objects.select_related("user", "school").order_by("-created_at")
+    else:
+        if not school:
+            return _redirect_no_school(request)
+        qs = ActivityLog.objects.filter(school=school).select_related("user").order_by("-created_at")
+
+    q = (request.GET.get("q") or "").strip()
+    action_f = (request.GET.get("action") or "").strip()
+    if action_f:
+        qs = qs.filter(action=action_f)
+    if q:
+        qs = qs.filter(
+            models.Q(action__icontains=q)
+            | models.Q(details__icontains=q)
+            | models.Q(user__username__icontains=q)
+            | models.Q(user__first_name__icontains=q)
+            | models.Q(user__last_name__icontains=q)
+        )
+
     page_obj = paginate(request, qs, per_page=50)
-    return render(request, "operations/activity_log_list.html", {"logs": page_obj, "page_obj": page_obj, "school": school})
+    action_choices = (
+        ActivityLog.objects.filter(school=school).values_list("action", flat=True).distinct()
+        if school
+        else ActivityLog.objects.values_list("action", flat=True).distinct()
+    )
+    action_choices = sorted({a for a in action_choices if a})[:80]
+
+    return render(
+        request,
+        "operations/activity_log_list.html",
+        {
+            "logs": page_obj,
+            "page_obj": page_obj,
+            "school": school if not (request.user.is_superuser or is_super_admin(request.user)) else None,
+            "filter_q": q,
+            "filter_action": action_f,
+            "action_choices": action_choices,
+        },
+    )
 
 
 # Library

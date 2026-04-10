@@ -21,6 +21,7 @@ from accounts.dashboard_insights import (
     build_finance_insights,
     build_teacher_academic_insights,
     build_teacher_attendance_trend,
+    build_teacher_students_by_class_chart,
 )
 
 # Supabase Storage for media files
@@ -155,6 +156,20 @@ def login_view(request):
             user_obj.increment_failed_login()
         else:
             hashlib.pbkdf2_hmac("sha256", password.encode(), b"timing-pad", 260000)
+
+        if user_obj and getattr(user_obj, "school_id", None):
+            try:
+                from operations.activity import client_ip_from_request, log_school_activity
+
+                log_school_activity(
+                    user=None,
+                    school=getattr(user_obj, "school", None),
+                    action="login_failed",
+                    details="Incorrect password for existing account.",
+                    ip=client_ip_from_request(request),
+                )
+            except Exception:
+                pass
     
     return render(request, "accounts/login.html")
 
@@ -189,6 +204,17 @@ def force_password_change(request):
             user.save(update_fields=["password", "must_change_password"])
             from django.contrib.auth import update_session_auth_hash
             update_session_auth_hash(request, user)
+            try:
+                from operations.activity import client_ip_from_request, log_school_activity
+
+                log_school_activity(
+                    user=user,
+                    action="password_change",
+                    details="Password updated (required change after login).",
+                    ip=client_ip_from_request(request),
+                )
+            except Exception:
+                pass
             messages.success(request, "Password changed successfully.")
             return redirect("home")
     return render(request, "accounts/force_password_change.html")
@@ -555,6 +581,12 @@ def teacher_dashboard(request):
         "values": [r["avg_pct"] for r in teacher_academic.get("subject_avgs", [])],
     }
     teacher_attendance_trend = build_teacher_attendance_trend(school, request.user, days=14)
+    teacher_class_strength = build_teacher_students_by_class_chart(school, request.user)
+    teacher_class_chart = {
+        "labels": teacher_class_strength["labels"],
+        "values": teacher_class_strength["values"],
+        "has_data": teacher_class_strength["has_data"],
+    }
 
     from notifications.models import Notification
 
@@ -575,6 +607,8 @@ def teacher_dashboard(request):
         "teacher_academic": teacher_academic,
         "teacher_subject_chart": teacher_subject_chart,
         "teacher_attendance_trend": teacher_attendance_trend,
+        "teacher_class_strength": teacher_class_strength,
+        "teacher_class_chart": teacher_class_chart,
         "teacher_notifications": teacher_notifications,
         "teacher_unread_notifications": teacher_unread_notifications,
     }

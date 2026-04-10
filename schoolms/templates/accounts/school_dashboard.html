@@ -8,11 +8,11 @@
 {% block content %}
 
 {% if show_expiry_warning %}
-<div class="alert alert-{% if expiry_severity == 'critical' %}error{% elif expiry_severity == 'warning' %}warning{% else %}info{% endif %}" style="margin-bottom:1rem;">
+<div class="alert alert-{% if expiry_severity == 'critical' %}error{% elif expiry_severity == 'warning' %}warning{% else %}info{% endif %} dash-section">
     <span class="alert-icon">&#x26A0;</span>
     <div class="alert-body">
         <strong>{{ expiry_title }}</strong><br>
-        <span style="font-size:0.85rem;">{{ expiry_message }}</span>
+        <span style="font-size:0.85rem;color:var(--text-secondary);">{{ expiry_message }}</span>
     </div>
     <a href="{% url 'finance:subscription' %}" class="btn btn-sm btn-primary" style="white-space:nowrap;">{{ expiry_button_text }}</a>
 </div>
@@ -20,11 +20,11 @@
 
 <!-- Quick Actions -->
 {% if quick_actions %}
-<div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
+<div class="dash-quick-row dash-section">
     {% for qa in quick_actions %}
-    <a href="{{ qa.url }}" class="content-card" style="flex:1;min-width:140px;text-align:center;padding:1rem;text-decoration:none;transition:transform .15s;">
-        <div style="font-size:1.5rem;margin-bottom:.25rem;">{{ qa.icon }}</div>
-        <div style="font-size:.85rem;font-weight:600;color:var(--text-primary);">{{ qa.label }}</div>
+    <a href="{{ qa.url }}" class="content-card dash-quick-tile">
+        <div class="dash-quick-tile-icon" aria-hidden="true">{{ qa.icon }}</div>
+        <div class="dash-quick-tile-label">{{ qa.label }}</div>
     </a>
     {% endfor %}
 </div>
@@ -32,30 +32,30 @@
 
 <!-- Attention Center -->
 {% if pending_admissions or overdue_books or absent_today %}
-<div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
+<div class="dash-attention-row dash-section">
     {% if pending_admissions %}
-    <a href="{% url 'operations:admission_list' %}" class="content-card" style="flex:1;min-width:200px;border-left:4px solid var(--warning,#f59e0b);padding:.75rem 1rem;text-decoration:none;">
-        <div style="font-size:1.25rem;font-weight:700;color:var(--warning,#f59e0b);">{{ pending_admissions }}</div>
-        <div style="font-size:.8rem;color:var(--text-secondary);">Pending Admissions</div>
+    <a href="{% url 'operations:admission_list' %}" class="content-card attention-tile attention-tile--warning">
+        <div class="attention-tile__value">{{ pending_admissions }}</div>
+        <div class="attention-tile__label">Pending Admissions</div>
     </a>
     {% endif %}
     {% if overdue_books %}
-    <a href="{% url 'operations:library_catalog' %}" class="content-card" style="flex:1;min-width:200px;border-left:4px solid var(--danger,#ef4444);padding:.75rem 1rem;text-decoration:none;">
-        <div style="font-size:1.25rem;font-weight:700;color:var(--danger,#ef4444);">{{ overdue_books }}</div>
-        <div style="font-size:.8rem;color:var(--text-secondary);">Overdue Library Books</div>
+    <a href="{% url 'operations:library_catalog' %}" class="content-card attention-tile attention-tile--danger">
+        <div class="attention-tile__value">{{ overdue_books }}</div>
+        <div class="attention-tile__label">Overdue Library Books</div>
     </a>
     {% endif %}
     {% if absent_today %}
-    <a href="{% url 'operations:attendance_list' %}" class="content-card" style="flex:1;min-width:200px;border-left:4px solid var(--info,#6366f1);padding:.75rem 1rem;text-decoration:none;">
-        <div style="font-size:1.25rem;font-weight:700;color:var(--info,#6366f1);">{{ absent_today }}</div>
-        <div style="font-size:.8rem;color:var(--text-secondary);">Students Absent Today</div>
+    <a href="{% url 'operations:attendance_list' %}" class="content-card attention-tile attention-tile--info">
+        <div class="attention-tile__value">{{ absent_today }}</div>
+        <div class="attention-tile__label">Students Absent Today</div>
     </a>
     {% endif %}
 </div>
 {% endif %}
 
 <!-- Key Metrics -->
-<div class="metric-grid" style="margin-bottom:1rem;">
+<div class="metric-grid dash-section">
     <div class="metric-card">
         <div class="metric-card-icon green">&#x1F393;</div>
         <div class="metric-card-label">Total Students</div>
@@ -90,7 +90,7 @@
 {{ subject_perf_chart|json_script:"school-subject-perf-json" }}
 
 <!-- Insights: academics, finance KPIs, attendance trend, notifications -->
-<div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+<div class="dashboard-grid dashboard-grid-2 dash-section">
     <div class="card">
         <div class="card-header">
             <span class="card-header-title">Academic performance</span>
@@ -98,7 +98,7 @@
         </div>
         <div class="card-body">
             {% if academic_insights.has_data %}
-            <p style="margin:0 0 .75rem;font-size:.9rem;color:var(--text-secondary);">
+            <p style="margin:0 0 .75rem;font-size:.9rem;color:var(--text-secondary);line-height:1.5;">
                 Based on <strong>{{ academic_insights.result_count }}</strong> result record{{ academic_insights.result_count|pluralize }} for <strong>{{ academic_insights.term_label }}</strong>.
             </p>
             <div class="stat-row">
@@ -161,13 +161,13 @@
     </div>
 </div>
 
-<div class="dashboard-grid dashboard-grid-2" style="margin-bottom:1rem;">
+<div class="dashboard-grid dashboard-grid-2 dash-section">
     <div class="card">
         <div class="card-header">
             <span class="card-header-title">Attendance trend (14 days)</span>
             <a href="{% url 'operations:attendance_list' %}" class="card-header-action">History</a>
         </div>
-        <div class="card-body" style="height:220px;">
+        <div class="card-body chart-canvas-host chart-canvas-host--trend">
             {% if attendance_trend_chart.has_data %}
             <canvas id="attendanceTrendChart"></canvas>
             {% else %}
@@ -182,15 +182,15 @@
         <div class="card-header">
             <span class="card-header-title">Notifications</span>
             {% if unread_notification_count %}
-            <span class="badge badge-warning" style="margin-right:.5rem;">{{ unread_notification_count }} unread</span>
+            <span class="badge badge-warning badge-spaced">{{ unread_notification_count }} unread</span>
             {% endif %}
             <a href="{% url 'notifications:list' %}" class="card-header-action">All</a>
         </div>
-        <div class="card-body" style="max-height:260px;overflow-y:auto;">
+        <div class="card-body notifications-scroll">
             {% if recent_notifications %}
-            <ul class="activity-list" style="margin:0;">
+            <ul class="activity-list activity-list--flush">
                 {% for n in recent_notifications %}
-                <li class="activity-item" style="align-items:flex-start;">
+                <li class="activity-item activity-item--top">
                     <div class="activity-icon school" style="flex-shrink:0;">&#x1F514;</div>
                     <div class="activity-content" style="min-width:0;">
                         {% if n.link %}
@@ -198,7 +198,7 @@
                         {% else %}
                         <div class="activity-text" style="font-weight:600;">{{ n.title }}</div>
                         {% endif %}
-                        <div class="activity-time" style="font-size:.78rem;">{{ n.created_at|timesince }} ago{% if not n.is_read %} · <span style="color:var(--primary,#6366f1);">Unread</span>{% endif %}</div>
+                        <div class="activity-time" style="font-size:.78rem;">{{ n.created_at|timesince }} ago{% if not n.is_read %} · <span class="text-unread-accent">Unread</span>{% endif %}</div>
                     </div>
                 </li>
                 {% endfor %}
@@ -213,12 +213,12 @@
 </div>
 
 <!-- Charts Row -->
-<div class="dashboard-grid dashboard-grid-3" style="margin-bottom:1rem;">
+<div class="dashboard-grid dashboard-grid-3 dash-section">
     <div class="card">
         <div class="card-header">
             <span class="card-header-title">Gender Distribution</span>
         </div>
-        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
+        <div class="card-body chart-canvas-host">
             <canvas id="genderChart"></canvas>
         </div>
     </div>
@@ -226,7 +226,7 @@
         <div class="card-header">
             <span class="card-header-title">Attendance Today</span>
         </div>
-        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
+        <div class="card-body chart-canvas-host">
             <canvas id="attendanceChart"></canvas>
         </div>
     </div>
@@ -234,14 +234,14 @@
         <div class="card-header">
             <span class="card-header-title">Fee Collection</span>
         </div>
-        <div class="card-body" style="height:200px;display:flex;align-items:center;justify-content:center;">
+        <div class="card-body chart-canvas-host">
             <canvas id="feeChart"></canvas>
         </div>
     </div>
 </div>
 
 <!-- Quick Actions -->
-<div class="card" style="margin-bottom:1rem;">
+<div class="card dash-section">
     <div class="card-header">
         <span class="card-header-title">Quick Actions</span>
     </div>
@@ -328,7 +328,7 @@
     </div>
 
     <!-- Right Column: Events + Fee Breakdown -->
-    <div style="display:flex;flex-direction:column;gap:1rem;">
+    <div class="dash-col-stack">
         <!-- Fee Overview -->
         <div class="card">
             <div class="card-header">

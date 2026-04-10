@@ -1,31 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Activity Log{% if school %} - {{ school.name }}{% endif %}{% endblock %}
-{% block page_title %}Activity Log{% endblock %}
-{% block page_subtitle %}Audit trail of system actions{% endblock %}
+{% block page_title %}Activity log{% endblock %}
+{% block page_subtitle %}Sign-ins, sign-outs, and other recorded school events (new entries appear as staff use the system).{% endblock %}
 
 {% block content %}
+<div class="content-card" style="margin-bottom:1rem;">
+    <form method="get" class="activity-log-filters" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;">
+        <div>
+            <label for="id_q" style="display:block;font-size:.8rem;color:var(--text-secondary);margin-bottom:.25rem;">Search</label>
+            <input type="search" id="id_q" name="q" value="{{ filter_q }}" placeholder="User, action, details…" style="min-width:14rem;padding:.45rem .6rem;border-radius:.4rem;border:1px solid var(--border-color,#334155);background:var(--bg-input,#0f172a);color:inherit;">
+        </div>
+        <div>
+            <label for="id_action" style="display:block;font-size:.8rem;color:var(--text-secondary);margin-bottom:.25rem;">Action</label>
+            <select id="id_action" name="action" style="padding:.45rem .6rem;border-radius:.4rem;border:1px solid var(--border-color,#334155);background:var(--bg-input,#0f172a);color:inherit;min-width:10rem;">
+                <option value="">All actions</option>
+                {% for a in action_choices %}
+                <option value="{{ a }}" {% if filter_action == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        {% if filter_q or filter_action %}
+        <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary btn-sm">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
 <div class="content-card">
     {% if logs %}
     <div class="table-card">
         <table>
             <thead>
-                <tr><th>Time</th>{% if not school %}<th>School</th>{% endif %}<th>User</th><th>Action</th><th>Details</th></tr>
+                <tr>
+                    <th>Time</th>
+                    {% if not school %}<th>School</th>{% endif %}
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>IP</th>
+                    <th>Details</th>
+                </tr>
             </thead>
             <tbody>
                 {% for log in logs %}
                 <tr>
                     <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
                     {% if not school %}<td>{{ log.school.name|default:"—" }}</td>{% endif %}
-                    <td>{{ log.user.get_full_name|default:log.user.username|default:"-" }}</td>
-                    <td>{{ log.action }}</td>
-                    <td>{{ log.details|truncatewords:15 }}</td>
+                    <td>{% if log.user %}{{ log.user.get_full_name|default:log.user.username }}{% else %}—{% endif %}</td>
+                    <td><span class="tag" style="font-size:.7rem;">{{ log.action }}</span></td>
+                    <td style="font-size:.8rem;color:var(--text-secondary);">{{ log.ip_address|default:"—" }}</td>
+                    <td style="max-width:22rem;font-size:.85rem;" title="{{ log.details }}">{{ log.details|truncatechars:120 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% include "includes/pagination.html" with page_obj=page_obj %}
     {% else %}
-    <div class="empty-state">No activity recorded yet.</div>
+    <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-title">No matching activity</div>
+        <div class="empty-state-desc">Try clearing filters, or wait until users sign in — logins and logouts are recorded automatically.</div>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

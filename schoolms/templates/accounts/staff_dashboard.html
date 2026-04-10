@@ -78,13 +78,14 @@
     <!-- Today's Attendance Summary -->
     <div class="content-card">
         <h3 class="section-title">Today's Summary</h3>
+        {% with marked=present_today|add:absent_today %}
         <div class="summary-section">
             <div class="summary-row">
                 <span class="color-green">Present</span>
                 <span class="color-white">{{ present_today }} students</span>
             </div>
             <div class="progress-container">
-                <div class="progress-bar-success progress-75 height-full"></div>
+                <div class="progress-bar-success height-full" style="width:{% if marked > 0 %}{% widthratio present_today marked 100 %}%{% else %}0%{% endif %};"></div>
             </div>
         </div>
         <div class="summary-section">
@@ -93,9 +94,13 @@
                 <span class="color-white">{{ absent_today }} students</span>
             </div>
             <div class="progress-container">
-                <div class="progress-bar-danger progress-25 height-full"></div>
+                <div class="progress-bar-danger height-full" style="width:{% if marked > 0 %}{% widthratio absent_today marked 100 %}%{% else %}0%{% endif %};"></div>
             </div>
         </div>
+        {% if marked == 0 %}
+        <p style="font-size:0.8rem;color:var(--text-soft);margin:0.5rem 0 0;">No present/absent marks recorded for today yet.</p>
+        {% endif %}
+        {% endwith %}
     </div>
 </div>
 {% endblock %}

@@ -306,3 +306,46 @@ def build_finance_insights(school, total_fees: float, paid_fees: float) -> dict[
         "week_payment_count": week_payment_count,
         "collection_rate_pct": collection_rate_pct,
     }
+
+
+def build_teacher_students_by_class_chart(school, user) -> dict[str, Any]:
+    """
+    Active student counts per class name within this teacher's scope
+    (homeroom, timetable, homework, quiz — same scope as attendance trend).
+    """
+    from django.db.models import Count, Q
+
+    from students.models import Student
+
+    class_names, school_class_ids = teacher_student_scope(school, user)
+    if not class_names and not school_class_ids:
+        return {"labels": [], "values": [], "has_data": False, "total_students": 0}
+
+    scope_q = Q()
+    if class_names:
+        scope_q |= Q(class_name__in=class_names)
+    if school_class_ids:
+        scope_q |= Q(school_class_id__in=school_class_ids)
+
+    rows = (
+        Student.objects.filter(school=school, status="active")
+        .filter(scope_q)
+        .values("class_name")
+        .annotate(c=Count("id"))
+        .order_by("-c", "class_name")
+    )
+    labels: list[str] = []
+    values: list[int] = []
+    total = 0
+    for row in rows:
+        cn = row["class_name"] or "—"
+        labels.append(cn)
+        n = int(row["c"])
+        values.append(n)
+        total += n
+    return {
+        "labels": labels,
+        "values": values,
+        "has_data": bool(labels),
+        "total_students": total,
+    }

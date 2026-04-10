@@ -1,8 +1,10 @@
 {% extends "base_login.html" %}
 {% load static %}
 
+{% block title %}Sign in · Mastex SchoolOS{% endblock %}
+
 {% block content %}
-<form method="post" action="{% url 'accounts:login' %}">
+<form method="post" action="{% url 'accounts:login' %}" class="form-stack">
     {% csrf_token %}
     <div class="form-group">
         <label for="id_username">Username</label>
@@ -15,17 +17,12 @@
     <button type="submit" class="btn btn-primary">Sign in</button>
 </form>
 
-<p style="margin-top: 0.75rem; font-size: 0.8rem; color: #9ca3af;">
-    This system does not support self-sign up. Your
-    <strong>username</strong> and <strong>password</strong> are given to you
-    by your school or platform administrator. If you have forgotten your
-    login details, please contact your school administration to reset them.
+<p class="auth-card-footnote">
+    Credentials are issued by your <strong>school</strong> or <strong>platform administrator</strong>.
+    There is no public self-registration for student and parent accounts.
 </p>
 
-<!-- Forgot Password Link -->
-<div class="forgot-password-link" style="margin-top: 1rem; text-align: center;">
-    <a href="{% url 'accounts:password_reset' %}" style="color: #22c55e; text-decoration: none; font-size: 0.9rem;">
-        Forgot your password?
-    </a>
+<div class="auth-link-row">
+    <a href="{% url 'accounts:password_reset' %}">Forgot your password?</a>
 </div>
 {% endblock %}

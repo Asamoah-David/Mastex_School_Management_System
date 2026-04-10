@@ -26,10 +26,15 @@
         {% endif %}
     </div>
     {% endif %}
+    <div class="content-card" style="text-align:center;">
+        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ teacher_class_strength.total_students }}</div>
+        <div style="font-size:.85rem;color:var(--text-secondary);">Active students (your scope)</div>
+    </div>
 </div>
 
 {{ teacher_attendance_trend|json_script:"teacher-attendance-trend-json" }}
 {{ teacher_subject_chart|json_script:"teacher-subject-perf-json" }}
+{{ teacher_class_chart|json_script:"teacher-class-strength-json" }}
 
 <div class="content-grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-bottom:1.5rem;">
     <div class="content-card">
@@ -63,6 +68,18 @@
         <a href="{% url 'notifications:list' %}" style="font-size:.85rem;margin-top:.75rem;display:inline-block;">View all notifications</a>
         {% else %}
         <p style="font-size:.9rem;color:var(--text-secondary);">No notifications yet.</p>
+        {% endif %}
+    </div>
+    <div class="content-card">
+        <h3 style="margin-bottom:.75rem;">Student strength by class</h3>
+        <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 .75rem;">Active students per class in your <strong>homeroom</strong>, <strong>timetable</strong>, <strong>homework</strong>, or <strong>quiz</strong> scope.</p>
+        {% if teacher_class_strength.has_data %}
+        {% widthratio teacher_class_strength.labels|length 1 28 as class_chart_h %}
+        <div style="height:min(400px, max(200px, {{ class_chart_h }}px));">
+            <canvas id="teacherClassStrengthChart"></canvas>
+        </div>
+        {% else %}
+        <p style="font-size:.9rem;color:var(--text-secondary);">No class assignments yet, or no active students linked to your classes.</p>
         {% endif %}
     </div>
 </div>
@@ -182,6 +199,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     indexAxis: 'y',
                     plugins: { legend: { display: false } },
                     scales: { x: { min: 0, max: 100 } }
+                }
+            });
+        }
+    }
+    var cEl = document.getElementById('teacher-class-strength-json');
+    var cCan = document.getElementById('teacherClassStrengthChart');
+    if (cEl && cCan) {
+        var cs = JSON.parse(cEl.textContent);
+        if (cs.has_data && cs.labels && cs.labels.length) {
+            var maxV = Math.max.apply(null, cs.values.concat([1]));
+            new Chart(cCan, {
+                type: 'bar',
+                data: {
+                    labels: cs.labels,
+                    datasets: [{ label: 'Students', data: cs.values, backgroundColor: 'rgba(59,130,246,0.75)', borderRadius: 6 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, suggestedMax: maxV < 5 ? 5 : undefined } }
                 }
             });
         }

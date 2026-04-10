@@ -2,6 +2,28 @@
 
 {% block title %}Register School · Mastex SchoolOS{% endblock %}
 
+{% block login_card_extra %}login-card--wide{% endblock %}
+
+{% block auth_aside %}
+<p class="auth-kicker">School signup</p>
+<h1 class="auth-headline" id="auth-headline">Bring your institution online in minutes.</h1>
+<p class="auth-lead">Create your school profile and an administrator account. After signup you can configure classes, fees, staff, and academic terms from the dashboard.</p>
+<ul class="auth-features">
+    <li class="auth-feature">
+        <span class="auth-feature-icon" aria-hidden="true">&#x2713;</span>
+        <span>One workspace for admins, teachers, parents, and students</span>
+    </li>
+    <li class="auth-feature">
+        <span class="auth-feature-icon" aria-hidden="true">&#x2713;</span>
+        <span>Fee tracking, attendance, results, and messaging in a single system</span>
+    </li>
+    <li class="auth-feature">
+        <span class="auth-feature-icon" aria-hidden="true">&#x2713;</span>
+        <span>Designed for African schools—GHS billing, flexible roles, mobile-friendly UI</span>
+    </li>
+</ul>
+{% endblock %}
+
 {% block content %}
 <form method="post" action="{% url 'school_register' %}">
     {% csrf_token %}
