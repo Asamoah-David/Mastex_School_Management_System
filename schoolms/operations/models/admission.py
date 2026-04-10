@@ -26,7 +26,6 @@ class AdmissionApplication(models.Model):
     public_reference = models.CharField(
         max_length=20,
         unique=True,
-        db_index=True,
         help_text="Shown to applicant for status tracking (not secret; do not use as password).",
     )
     

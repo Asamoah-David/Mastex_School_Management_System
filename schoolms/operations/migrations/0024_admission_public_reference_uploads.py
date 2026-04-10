@@ -18,12 +18,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Do not set db_index=True here: on PostgreSQL Django creates a *_like pattern index.
+        # AlterField(unique=True) below would try to create the same index again → DuplicateTable.
         migrations.AddField(
             model_name="admissionapplication",
             name="public_reference",
             field=models.CharField(
                 blank=True,
-                db_index=True,
+                db_index=False,
                 help_text="Shown to applicant for status tracking (not secret; do not use as password).",
                 max_length=20,
                 null=True,
@@ -76,7 +78,6 @@ class Migration(migrations.Migration):
             model_name="admissionapplication",
             name="public_reference",
             field=models.CharField(
-                db_index=True,
                 help_text="Shown to applicant for status tracking (not secret; do not use as password).",
                 max_length=20,
                 unique=True,
