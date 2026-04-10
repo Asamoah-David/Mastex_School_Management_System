@@ -1,0 +1,27 @@
+{# Shared ERP finance navigation. Requires: user_can_manage_school, request #}
+{% if user_can_manage_school or user.is_superuser %}
+{% with ns=request.resolver_match.namespace|default:'' rn=request.resolver_match.url_name|default:'' %}
+<nav class="content-card finance-subnav" style="padding:0.75rem 1rem; margin-bottom:1.25rem;" aria-label="Finance modules">
+    <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-soft, #94a3b8); margin-bottom:0.5rem;">Finance &amp; treasury</div>
+    <div class="button-row" style="flex-wrap:wrap; gap:0.35rem;">
+        <a href="{% url 'finance:fee_list' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'fee_list' %}btn-primary{% else %}btn-secondary{% endif %}">School fees</a>
+        <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'payment_dashboard' %}btn-primary{% else %}btn-secondary{% endif %}">Payment dashboard</a>
+        <a href="{% url 'operations:record_payment' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'record_payment' %}btn-primary{% else %}btn-secondary{% endif %}">Record payment</a>
+        <a href="{% url 'finance:payment_history_list' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_history_list' %}btn-primary{% else %}btn-secondary{% endif %}">Payment history</a>
+        {% if is_school_admin or can_manage_finance or user.is_superuser or is_super_admin %}
+        <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-sm {% if ns == 'finance' and rn|default:''|slice:':13' == 'fee_structure' %}btn-primary{% else %}btn-secondary{% endif %}">Fee structures</a>
+        {% endif %}
+        <a href="{% url 'operations:expense_list' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'expense_list' or ns == 'operations' and rn == 'expense_detail' or ns == 'operations' and rn == 'expense_create' or ns == 'operations' and rn == 'expense_edit' or ns == 'operations' and rn == 'expense_delete' %}btn-primary{% else %}btn-secondary{% endif %}">Expenses</a>
+        <a href="{% url 'operations:expense_category_list' %}" class="btn btn-sm {% if ns == 'operations' and rn|default:''|slice:':16' == 'expense_category' %}btn-primary{% else %}btn-secondary{% endif %}">Expense categories</a>
+        <a href="{% url 'operations:budget_list' %}" class="btn btn-sm {% if ns == 'operations' and rn|default:''|slice:':6' == 'budget' %}btn-primary{% else %}btn-secondary{% endif %}">Budgets</a>
+        <a href="{% url 'operations:financial_reports_page' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'financial_reports_page' %}btn-primary{% else %}btn-secondary{% endif %}">Financial reports</a>
+        {% if can_access_services_hub %}
+        <a href="{% url 'operations:services_hub' %}" class="btn btn-sm btn-secondary">Services hub</a>
+        {% endif %}
+        {% if is_school_admin or user.is_superuser or is_super_admin %}
+        <a href="{% url 'finance:subscription' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'subscription' or rn == 'pay_subscription' or rn == 'subscription_callback' %}btn-primary{% else %}btn-secondary{% endif %}">Platform billing</a>
+        {% endif %}
+    </div>
+</nav>
+{% endwith %}
+{% endif %}

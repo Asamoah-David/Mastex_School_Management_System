@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 
 {% block title %}Super Admin Dashboard · Mastex SchoolOS{% endblock %}
 {% block page_title %}Super Admin Dashboard{% endblock %}
@@ -33,6 +33,14 @@
         <a href="/admin/" class="quick-action-btn">
             <span class="quick-action-icon">⚙️</span>
             <span class="quick-action-label">Django Admin</span>
+        </a>
+        <a href="{% url 'operations:admission_apply' %}" class="quick-action-btn">
+            <span class="quick-action-icon">📝</span>
+            <span class="quick-action-label">Online admission</span>
+        </a>
+        <a href="{% url 'operations:admission_track' %}" class="quick-action-btn">
+            <span class="quick-action-icon">🔎</span>
+            <span class="quick-action-label">Track admission</span>
         </a>
     </div>
 </div>
@@ -78,7 +86,7 @@
     <section class="metric">
         <span class="metric-icon">💰</span>
         <div class="metric-label">Fees collected</div>
-        <div class="metric-value" data-count="{{ mrr|default:'0' }}">{{ mrr|default:"0" }} GHS</div>
+        <div class="metric-value" data-count="{{ mrr|default:0 }}">{{ mrr|default:0|format_ghs }}</div>
         <div class="metric-caption">
             Total fees paid via Paystack/MNotify.
         </div>
@@ -171,12 +179,15 @@
 </div>
 
 <script>
+function formatGhsCount(n) {
+    return 'GHS ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 // Animated Counter Effect
 document.addEventListener('DOMContentLoaded', function() {
     const counters = document.querySelectorAll('.metric-value[data-count]');
     
     counters.forEach(counter => {
-        const target = parseInt(counter.getAttribute('data-count')) || 0;
+        const target = parseFloat(counter.getAttribute('data-count')) || 0;
         if (target > 0) {
             counter.classList.add('animated');
             animateCounter(counter, target);
@@ -188,14 +199,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const increment = target / 50;
         const duration = 1000;
         const stepTime = duration / 50;
+        const isGhs = element.textContent.indexOf('GHS') >= 0;
         
         const timer = setInterval(() => {
             current += increment;
             if (current >= target) {
-                element.textContent = target.toLocaleString();
+                element.textContent = isGhs ? formatGhsCount(target) : Math.round(target).toLocaleString();
                 clearInterval(timer);
             } else {
-                element.textContent = Math.floor(current).toLocaleString();
+                element.textContent = isGhs ? formatGhsCount(current) : Math.floor(current).toLocaleString();
             }
         }, stepTime);
     }

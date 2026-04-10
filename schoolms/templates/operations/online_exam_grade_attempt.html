@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Grade attempt · {{ attempt.exam.title }}{% endblock %}
+{% block page_title %}Grade essays{% endblock %}
+{% block page_subtitle %}{{ attempt.student.user.get_full_name }} · Attempt #{{ attempt.attempt_number }}{% endblock %}
+{% block content %}
+
+<div class="content-card">
+    <p style="color: var(--text-soft); margin-bottom: 1rem;">
+        Exam: <strong>{{ attempt.exam.title }}</strong> · Total marks {{ attempt.exam.total_marks }} ·
+        <a href="{% url 'operations:online_exam_result' attempt.pk %}">View full result</a>
+        · <a href="{% url 'operations:online_exam_essay_queue' %}">Essay queue</a>
+    </p>
+
+    {% if not essay_answers %}
+    <p class="text-muted">No essay questions in this attempt.</p>
+    {% if next_path %}
+    <a href="{{ next_path }}" class="btn btn-secondary">Back</a>
+    {% else %}
+    <a href="{% url 'operations:online_exam_results' %}?exam={{ attempt.exam_id }}" class="btn btn-secondary">Back to results</a>
+    {% endif %}
+    {% else %}
+
+    {% if messages %}
+    <div class="messages mb-3">
+        {% for message in messages %}
+        <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
+        {% for ans in essay_answers %}
+        <div style="background: rgba(30, 41, 59, 0.4); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1rem; border-left: 4px solid #6366f1;">
+            <p style="margin: 0 0 0.5rem; font-weight: 600;">Essay · max {{ ans.question.marks }} marks
+                {% if ans.teacher_reviewed %}<span style="color:#22c55e;font-size:0.85rem;">· Graded</span>{% else %}<span style="color:#eab308;font-size:0.85rem;">· Pending</span>{% endif %}
+            </p>
+            <p style="color: var(--text-main); margin-bottom: 0.75rem;">{{ ans.question.question_text }}</p>
+            <p style="color: var(--text-soft); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Student answer:</strong> {{ ans.answer_given|default:"—" }}</p>
+            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                <span>Marks awarded</span>
+                <input type="number" name="marks_{{ ans.pk }}" value="{{ ans.marks_obtained }}" min="0" max="{{ ans.question.marks }}" step="0.01" style="width: 6rem; padding: 0.35rem 0.5rem; border-radius: 0.35rem;">
+                <span>/ {{ ans.question.marks }}</span>
+            </label>
+        </div>
+        {% endfor %}
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save marks</button>
+            {% if next_path %}
+            <a href="{{ next_path }}" class="btn btn-secondary">Back</a>
+            {% else %}
+            <a href="{% url 'operations:online_exam_results' %}?exam={{ attempt.exam_id }}" class="btn btn-secondary">Back to results</a>
+            {% endif %}
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

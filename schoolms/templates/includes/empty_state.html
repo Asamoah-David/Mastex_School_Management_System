@@ -1,0 +1,11 @@
+{# Reusable empty / zero-data panel. Optional: icon, title, message, action_url, action_label #}
+<div class="content-card erp-empty-state" role="status">
+    {% if icon %}<div class="erp-empty-state__icon" aria-hidden="true">{{ icon }}</div>{% endif %}
+    <h2 class="erp-empty-state__title">{{ title }}</h2>
+    {% if message %}<p class="erp-empty-state__msg">{{ message }}</p>{% endif %}
+    {% if action_url and action_label %}
+    <div class="erp-empty-state__actions">
+        <a href="{{ action_url }}" class="btn btn-primary">{{ action_label }}</a>
+    </div>
+    {% endif %}
+</div>

@@ -1,0 +1,19 @@
+{# Requires context processor: can_access_services_hub #}
+{% if can_access_services_hub %}
+<div class="content-card" style="padding:0.65rem 1rem; margin-bottom:1rem; font-size:0.82rem; display:flex; flex-wrap:wrap; align-items:center; gap:0.35rem 0.75rem;">
+    <strong style="color:var(--text-soft, #94a3b8); margin-right:0.25rem;">Services</strong>
+    <a href="{% url 'operations:services_hub' %}">Hub</a>
+    <span style="opacity:0.35;">·</span>
+    <a href="{% url 'operations:library_catalog' %}">Library</a>
+    <span style="opacity:0.35;">·</span>
+    <a href="{% url 'operations:canteen_list' %}">Canteen</a>
+    <span style="opacity:0.35;">·</span>
+    <a href="{% url 'operations:bus_list' %}">Transport</a>
+    <span style="opacity:0.35;">·</span>
+    <a href="{% url 'operations:hostel_list' %}">Hostel</a>
+    <span style="opacity:0.35;">·</span>
+    <a href="{% url 'operations:textbook_list' %}">Textbooks</a>
+    <span style="opacity:0.35;">·</span>
+    <a href="{% url 'finance:fee_list' %}">School fees</a>
+</div>
+{% endif %}

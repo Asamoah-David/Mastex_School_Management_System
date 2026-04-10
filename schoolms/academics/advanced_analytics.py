@@ -377,66 +377,89 @@ def get_trend_data(request):
 
 # ==================== ONLINE CLASSES ====================
 
+def _online_classes_school(request):
+    """School context for online class views (supports superuser current_school_id)."""
+    school = getattr(request.user, "school", None)
+    if request.user.is_superuser:
+        school_id = request.session.get("current_school_id")
+        if school_id:
+            school = get_object_or_404(School, id=school_id)
+    return school
+
+
+def online_meetings_visible_to_user(user, school):
+    """
+    OnlineMeeting queryset visible to this user for the given school.
+    Keeps list and join URLs consistent (prevents joining by guessing IDs).
+    """
+    meetings = OnlineMeeting.objects.filter(school=school)
+    if user.is_superuser:
+        return meetings
+
+    user_role = getattr(user, "role", None)
+
+    if user_role == "teacher":
+        return meetings.filter(
+            Q(teacher=user)
+            | Q(target_audience="staff")
+            | Q(target_audience="all")
+        )
+    if user_role == "student":
+        student = Student.objects.filter(user=user, school=school).first()
+        if student and student.class_name:
+            return meetings.filter(
+                Q(target_audience="students")
+                | Q(target_audience="all")
+                | Q(class_name=student.class_name)
+                | Q(class_name="")
+            )
+        return meetings.filter(
+            Q(target_audience="students")
+            | Q(target_audience="all")
+            | Q(class_name="")
+        )
+    if user_role == "parent":
+        children = Student.objects.filter(parent=user, school=school)
+        child_classes = [c.class_name for c in children if c.class_name]
+        if child_classes:
+            return meetings.filter(
+                Q(target_audience="students")
+                | Q(target_audience="all")
+                | Q(class_name__in=child_classes)
+                | Q(class_name="")
+            )
+        return meetings.filter(
+            Q(target_audience="students")
+            | Q(target_audience="all")
+            | Q(class_name="")
+        )
+    if user_role in (
+        "school_admin",
+        "deputy_head",
+        "hod",
+        "accountant",
+        "librarian",
+        "school_nurse",
+        "admin_assistant",
+        "staff",
+        "admission_officer",
+    ):
+        return meetings.filter(
+            Q(target_audience="staff") | Q(target_audience="all")
+        )
+    return meetings
+
+
 @login_required
 def online_classes_page(request):
     """Online classes dashboard."""
-    school = getattr(request.user, 'school', None)
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
+    school = _online_classes_school(request)
     
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
     
-    # Get meetings
-    meetings = OnlineMeeting.objects.filter(school=school)
-    
-    # Filter based on user role
-    user_role = getattr(request.user, 'role', None)
-    
-    if user_role == 'teacher':
-        # Teachers see their own meetings + staff-only meetings + all meetings
-        meetings = meetings.filter(
-            Q(teacher=request.user) | Q(target_audience='staff') | Q(target_audience='all')
-        )
-    elif user_role == 'student':
-        # Students see student-only meetings + all meetings + their class meetings + all-class meetings (empty class_name)
-        student = Student.objects.filter(user=request.user, school=school).first()
-        if student and student.class_name:
-            # Show: students audience, all audience, student's class, OR empty class_name (all classes)
-            meetings = meetings.filter(
-                Q(target_audience='students') | Q(target_audience='all') | 
-                Q(class_name=student.class_name) | Q(class_name='')
-            )
-        else:
-            # If no student record or no class assigned, show students + all + all-class meetings (empty class_name)
-            meetings = meetings.filter(
-                Q(target_audience='students') | Q(target_audience='all') | Q(class_name='')
-            )
-    elif user_role == 'parent':
-        # Parents see student meetings + all meetings + their children's class meetings + all-class meetings
-        children = Student.objects.filter(parent=request.user, school=school)
-        child_classes = [c.class_name for c in children if c.class_name]
-        if child_classes:
-            meetings = meetings.filter(
-                Q(target_audience='students') | Q(target_audience='all') | 
-                Q(class_name__in=child_classes) | Q(class_name='')
-            )
-        else:
-            # If no child classes, show students + all + all-class meetings (empty class_name)
-            meetings = meetings.filter(
-                Q(target_audience='students') | Q(target_audience='all') | Q(class_name='')
-            )
-    elif user_role in ['school_admin', 'deputy_head', 'hod', 'accountant', 'librarian', 'nurse']:
-        # Staff see staff-only meetings + all meetings
-        meetings = meetings.filter(
-            Q(target_audience='staff') | Q(target_audience='all')
-        )
-    else:
-        # For other roles, show all meetings
-        pass
+    meetings = online_meetings_visible_to_user(request.user, school)
     
     upcoming_meetings = meetings.filter(status='scheduled', scheduled_time__gte=timezone.now()).order_by('scheduled_time')
     past_meetings = meetings.filter(Q(status='completed') | Q(scheduled_time__lt=timezone.now())).order_by('-scheduled_time')[:10]
@@ -462,13 +485,14 @@ def online_classes_page(request):
 @login_required
 def create_meeting(request):
     """Create an online meeting (Zoom/Meet)."""
-    school = getattr(request.user, 'school', None)
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
+    school = _online_classes_school(request)
     
     if request.method == 'POST':
+        if not school:
+            return JsonResponse(
+                {'success': False, 'error': 'No school associated with your account.'},
+                status=400,
+            )
         import json
         try:
             data = json.loads(request.body)
@@ -559,11 +583,7 @@ def create_meeting(request):
 @login_required
 def join_meeting(request, meeting_id):
     """Join an online meeting."""
-    school = getattr(request.user, 'school', None)
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
+    school = _online_classes_school(request)
     
     if not school:
         messages.error(request, 'No school associated with your account.')
@@ -571,6 +591,11 @@ def join_meeting(request, meeting_id):
     
     # Get meeting
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
+
+    visible = online_meetings_visible_to_user(request.user, school)
+    if not visible.filter(pk=meeting.pk).exists():
+        messages.error(request, "You don't have access to this class session.")
+        return redirect('academics:online_classes')
     
     # Update status if starting
     if meeting.status == 'scheduled' and meeting.scheduled_time <= timezone.now():
@@ -593,7 +618,9 @@ def end_meeting(request, meeting_id):
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid method'}, status=400)
     
-    school = getattr(request.user, 'school', None)
+    school = _online_classes_school(request)
+    if not school:
+        return JsonResponse({'error': 'No school associated with your account.'}, status=400)
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
     
     if meeting.teacher != request.user:
@@ -611,7 +638,9 @@ def delete_meeting(request, meeting_id):
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid method'}, status=400)
     
-    school = getattr(request.user, 'school', None)
+    school = _online_classes_school(request)
+    if not school:
+        return JsonResponse({'error': 'No school associated with your account.'}, status=400)
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
     
     if meeting.teacher != request.user and not request.user.is_superuser:

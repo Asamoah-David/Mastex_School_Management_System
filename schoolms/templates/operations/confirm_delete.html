@@ -5,6 +5,9 @@
 {% block page_subtitle %}Are you sure you want to delete this {{ type }}?{% endblock %}
 
 {% block content %}
+{% if type == 'expense' or type == 'budget' %}
+{% include "includes/finance_subnav.html" %}
+{% endif %}
 <div class="content-card">
     <p>Are you sure you want to delete <strong>{{ object }}</strong>?</p>
     <p>This action cannot be undone.</p>

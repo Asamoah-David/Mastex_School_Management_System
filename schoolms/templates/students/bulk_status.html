@@ -30,26 +30,44 @@
             </select>
         </div>
         
-        <div class="form-group">
+        <div class="form-group" id="wrap-deactivate-parent">
             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                 <input type="checkbox" name="deactivate_parent" id="id_deactivate_parent">
-                <span>Also deactivate linked parent accounts (if they have no other active children)</span>
+                <span>Deactivate parent accounts when they have no other <strong>active</strong> children at this school</span>
             </label>
             <p class="form-help" style="margin-top: 0.5rem;">
-                When enabled, parent accounts will be automatically deactivated if all their children 
-                are being graduated, withdrawn, or dismissed.
+                Applies when moving students to graduated, withdrawn, or dismissed. Each parent is toggled at most once.
+            </p>
+        </div>
+
+        <div class="form-group" id="wrap-reactivate-parent" style="display: none;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="reactivate_parent" id="id_reactivate_parent">
+                <span>Re-enable parent logins when they again have at least one <strong>active</strong> child in this class batch</span>
+            </label>
+            <p class="form-help" style="margin-top: 0.5rem;">
+                Use after bulk reactivation if parents were disabled when their children left.
             </p>
         </div>
         
-        <div class="alert alert-warning" style="margin: 1rem 0;">
-            <strong>Warning:</strong> This action will:
+        <div class="alert alert-warning" style="margin: 1rem 0;" id="bulk-alert-exit">
+            <strong>Leaving / removing students:</strong>
             <ul style="margin: 0.5rem 0 0 1.5rem;">
-                <li>Update the status of ALL active students in the selected class</li>
-                <li>Set the exit date to today for all affected students</li>
-                <li>Deactivate all affected student user accounts (they won't be able to log in)</li>
-                <li>Optionally deactivate linked parent accounts</li>
+                <li>Updates every <strong>active</strong> student in the selected class</li>
+                <li>Sets exit date to today and records a matching exit reason</li>
+                <li>Disables student logins (not suspended — use individual exit for suspension)</li>
+                <li>Optionally disables parent logins when they have no active children left</li>
             </ul>
-            <p style="margin-top: 0.5rem;">This action CAN be reversed using the "Reactivate" option.</p>
+            <p style="margin-top: 0.5rem;">You can reverse with the “Reactivate” status for the same class.</p>
+        </div>
+
+        <div class="alert alert-info" style="margin: 1rem 0; display: none;" id="bulk-alert-reactivate">
+            <strong>Reactivating a class:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem;">
+                <li>Targets every <strong>non-active</strong> student still listed in that class</li>
+                <li>Sets status to active, clears exit reason/notes, enables student logins</li>
+                <li>Optionally turns parent logins back on when appropriate</li>
+            </ul>
         </div>
         
         <div class="button-row">
@@ -58,4 +76,22 @@
         </div>
     </form>
 </div>
+<script>
+(function(){
+    var statusEl = document.getElementById('id_status');
+    var wDep = document.getElementById('wrap-deactivate-parent');
+    var wRea = document.getElementById('wrap-reactivate-parent');
+    var aExit = document.getElementById('bulk-alert-exit');
+    var aRea = document.getElementById('bulk-alert-reactivate');
+    function sync(){
+        var v = statusEl && statusEl.value;
+        var re = v === 'active';
+        if (wDep) wDep.style.display = re ? 'none' : '';
+        if (wRea) wRea.style.display = re ? '' : 'none';
+        if (aExit) aExit.style.display = re ? 'none' : '';
+        if (aRea) aRea.style.display = re ? '' : 'none';
+    }
+    if (statusEl) { statusEl.addEventListener('change', sync); sync(); }
+})();
+</script>
 {% endblock %}

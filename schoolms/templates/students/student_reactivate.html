@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Reactivate student · Mastex SchoolOS{% endblock %}
+{% block page_title %}Reactivate student{% endblock %}
+{% block page_subtitle %}{{ student.user.get_full_name|default:student.user.username }} · {{ student.admission_number }}{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width: 640px; margin: 0 auto;">
+    <p style="margin: 0 0 1rem; color: var(--text-soft); font-size: 0.9rem; line-height: 1.5;">
+        This will set the student’s status to <strong>active</strong>, turn their login back on, and clear exit reason/notes.
+        The last exit date is kept for the record.
+    </p>
+
+    {% if student.parent %}
+    <div style="padding: 0.85rem 1rem; border-radius: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3); margin-bottom: 1rem; font-size: 0.88rem;">
+        <strong>Linked parent:</strong> {{ student.parent.get_full_name|default:student.parent.username }}
+        {% if student.parent.is_active %}
+        <span class="badge badge-success" style="margin-left: 0.35rem;">Login active</span>
+        {% else %}
+        <span class="badge badge-warning" style="margin-left: 0.35rem;">Login disabled</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {% if suggest_reactivate_parent %}
+        <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; margin-bottom: 1.25rem; font-size: 0.88rem; color: var(--text-soft); line-height: 1.45;">
+            <input type="checkbox" name="reactivate_parent" id="id_reactivate_parent" checked style="margin-top: 0.2rem;">
+            <span>Also re-enable the parent’s login if they now have at least one <strong>active</strong> child at this school (recommended when the parent was disabled after this child left).</span>
+        </label>
+        {% endif %}
+
+        <div class="button-row" style="flex-wrap: wrap; gap: 0.5rem;">
+            <button type="submit" class="btn btn-success">Confirm reactivation</button>
+            <a href="{% url 'students:student_detail' student.pk %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

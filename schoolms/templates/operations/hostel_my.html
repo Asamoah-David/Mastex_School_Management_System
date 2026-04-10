@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}My Hostel · Mastex SchoolOS{% endblock %}
 {% block page_title %}My Hostel{% endblock %}
 {% block page_subtitle %}Hostel assignment and fees.{% endblock %}
@@ -33,7 +34,7 @@
                 <tr>
                     <td>{{ f.term }}</td>
                     <td>{{ f.hostel.name }}</td>
-                    <td>{{ f.amount }} GHS</td>
+                    <td>{{ f.amount|format_ghs }}</td>
                     <td><span class="tag" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">Pending</span></td>
                     <td>
                         <button type="button" class="btn btn-danger btn-sm" onclick="cancelPending('{{ f.id }}', 'hostel')">Cancel</button>
@@ -55,7 +56,7 @@
                 <tr>
                     <td>{{ f.term }}</td>
                     <td>{{ f.hostel.name }}</td>
-                    <td>{{ f.amount }} GHS</td>
+                    <td>{{ f.amount|format_ghs }}</td>
                     <td>{% if f.paid %}<span class="tag"><span class="tag-bullet"></span>Paid</span>{% else %}<span class="tag">Unpaid</span>{% endif %}</td>
                     <td>
                         {% if not f.paid %}
@@ -106,7 +107,7 @@
                     <td>{{ f.student.user.get_full_name|default:f.student.admission_number }}</td>
                     <td>{{ f.hostel.name }}</td>
                     <td>{{ f.term }}</td>
-                    <td>{{ f.amount }} GHS</td>
+                    <td>{{ f.amount|format_ghs }}</td>
                     <td><span class="tag" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">Pending</span></td>
                     <td>
                         <button type="button" class="btn btn-danger btn-sm" onclick="cancelPending('{{ f.id }}', 'hostel')">Cancel</button>
@@ -129,7 +130,7 @@
                     <td>{{ f.student.user.get_full_name|default:f.student.admission_number }}</td>
                     <td>{{ f.hostel.name }}</td>
                     <td>{{ f.term }}</td>
-                    <td>{{ f.amount }} GHS</td>
+                    <td>{{ f.amount|format_ghs }}</td>
                     <td>{% if f.paid %}<span class="tag"><span class="tag-bullet"></span>Paid</span>{% else %}<span class="tag">Unpaid</span>{% endif %}</td>
                     <td>
                         {% if not f.paid %}

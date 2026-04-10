@@ -1,5 +1,8 @@
+import logging
 import requests
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 class SMSService:
@@ -8,6 +11,14 @@ class SMSService:
         # Prepend school name to message if provided
         if school_name:
             message = f"[{school_name}] {message}"
+        hard_max = int(getattr(settings, "SMS_MESSAGE_HARD_MAX_CHARS", 2500) or 2500)
+        if hard_max > 0 and len(message) > hard_max:
+            logger.warning(
+                "SMS body truncated from %s to %s characters (SMS_MESSAGE_HARD_MAX_CHARS)",
+                len(message),
+                hard_max,
+            )
+            message = message[: hard_max - 3] + "..."
         # Validate API key is configured
         api_key = settings.MNOTIFY_API_KEY
         if not api_key or api_key == "":

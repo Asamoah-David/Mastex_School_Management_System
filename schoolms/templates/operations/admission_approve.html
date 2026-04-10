@@ -11,6 +11,7 @@
                 <div class="card-body">
                     <h5>{{ application.first_name }} {{ application.last_name }}</h5>
                     <p class="text-muted">Applying for: {{ application.class_applied_for }}</p>
+                    <p class="text-muted small">Reference: <code>{{ application.public_reference }}</code> — usernames will be derived from this where possible.</p>
                     
                     <form method="POST">
                         {% csrf_token %}

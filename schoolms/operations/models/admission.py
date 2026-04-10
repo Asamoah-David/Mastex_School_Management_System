@@ -1,9 +1,14 @@
-from django.db import models
-from django.core.validators import FileExtensionValidator
-from accounts.models import User
-from students.models import Student
-from schools.models import School
+import secrets
 
+from django.core.validators import FileExtensionValidator
+from django.db import models
+
+from accounts.models import User
+from schools.models import School
+from students.models import Student
+
+_DOC_EXT = ["pdf", "jpg", "jpeg", "png", "webp"]
+_IMG_EXT = ["jpg", "jpeg", "png", "gif", "webp"]
 _IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp"]
 
 
@@ -17,6 +22,13 @@ class AdmissionApplication(models.Model):
     )
     
     school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)  # School can be set if public form has school selection
+
+    public_reference = models.CharField(
+        max_length=20,
+        unique=True,
+        db_index=True,
+        help_text="Shown to applicant for status tracking (not secret; do not use as password).",
+    )
     
     # Student Information
     first_name = models.CharField(max_length=100)
@@ -39,10 +51,29 @@ class AdmissionApplication(models.Model):
     medical_conditions = models.TextField(blank=True)
     how_did_you_hear = models.CharField(max_length=200, blank=True)
     
-    # Documents (file paths stored as text)
+    # Documents (legacy text paths — prefer FileFields below)
     birth_certificate_path = models.CharField(max_length=255, blank=True)
     previous_report_path = models.CharField(max_length=255, blank=True)
     passport_photo_path = models.CharField(max_length=255, blank=True)
+
+    birth_certificate = models.FileField(
+        upload_to="admission_docs/%Y/%m/",
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=_DOC_EXT)],
+    )
+    previous_report = models.FileField(
+        upload_to="admission_docs/%Y/%m/",
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=_DOC_EXT)],
+    )
+    passport_photo = models.ImageField(
+        upload_to="admission_photos/%Y/%m/",
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=_IMG_EXT)],
+    )
     
     # Status and Tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -59,6 +90,14 @@ class AdmissionApplication(models.Model):
         indexes = [
             models.Index(fields=["school", "status"], name="idx_admission_school_st"),
         ]
+
+    @classmethod
+    def allocate_public_reference(cls):
+        for _ in range(64):
+            ref = "ADM-" + secrets.token_hex(4).upper()
+            if not cls.objects.filter(public_reference=ref).exists():
+                return ref
+        raise RuntimeError("Unable to allocate a unique admission reference")
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.class_applied_for} ({self.status})"

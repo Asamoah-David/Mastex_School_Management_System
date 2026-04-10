@@ -2,8 +2,11 @@
 {% load custom_filters %}
 
 {% block title %}Financial Reports - {{ school.name }}{% endblock %}
+{% block page_title %}Financial reports{% endblock %}
+{% block page_subtitle %}Budget and expense analysis{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="content-card">
     <div class="page-heading">
         <div>
@@ -26,7 +29,7 @@
                 </svg>
             </div>
             <div class="stat-content">
-                <div class="stat-value" id="totalBudget">GHS {{ total_budget|default:"0" }}</div>
+                <div class="stat-value" id="totalBudget">{{ total_budget|default:0|format_ghs }}</div>
                 <div class="stat-label">Total Budget</div>
             </div>
         </div>
@@ -39,7 +42,7 @@
                 </svg>
             </div>
             <div class="stat-content">
-                <div class="stat-value" id="totalExpenses">GHS {{ total_expenses|default:"0" }}</div>
+                <div class="stat-value" id="totalExpenses">{{ total_expenses|default:0|format_ghs }}</div>
                 <div class="stat-label">Total Expenses</div>
             </div>
         </div>
@@ -52,7 +55,7 @@
                 </svg>
             </div>
             <div class="stat-content">
-                <div class="stat-value" id="budgetRemaining" style="color: #22c55e;">GHS {{ budget_remaining|default:"0" }}</div>
+                <div class="stat-value" id="budgetRemaining" style="color: #22c55e;">{{ budget_remaining|default:0|format_ghs }}</div>
                 <div class="stat-label">Remaining Budget</div>
             </div>
         </div>
@@ -69,7 +72,7 @@
                     <div>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
                             <strong>{{ cat.category__name|default:"Uncategorized" }}</strong>
-                            <span>GHS {{ cat.total|default:"0" }}</span>
+                            <span>{{ cat.total|default:0|format_ghs }}</span>
                         </div>
                         <div style="height: 12px; background: rgba(148,163,184,0.2); border-radius: 999px; overflow: hidden;">
                             <div style="height: 100%; width: {% widthratio cat.total total_expenses 100 %}%; background: #3b82f6; border-radius: 999px;"></div>
@@ -106,7 +109,7 @@
             <div style="margin-bottom: 1rem;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                     <span>Budget Used</span>
-                    <span>{{ total_expenses|default:0 }} / {{ total_budget|default:0 }}</span>
+                    <span>{{ total_expenses|default:0|format_ghs }} / {{ total_budget|default:0|format_ghs }}</span>
                 </div>
                 <div style="height: 24px; background: rgba(148,163,184,0.2); border-radius: 999px; overflow: hidden;">
                     <div style="height: 100%; width: {% widthratio total_expenses total_budget 100 %}%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 999px;"></div>
@@ -117,6 +120,11 @@
 </div>
 
 <script>
+function formatGhsClient(n) {
+    var x = parseFloat(n);
+    if (isNaN(x)) return '—';
+    return 'GHS ' + x.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 document.getElementById('yearSelect').addEventListener('change', function() {
     const year = this.value;
     loadFinancialData(year);
@@ -126,9 +134,9 @@ function loadFinancialData(year) {
     fetch(`/operations/financial/data/?year=${year}`)
         .then(response => response.json())
         .then(data => {
-            document.getElementById('totalBudget').textContent = 'GHS ' + data.total_budget;
-            document.getElementById('totalExpenses').textContent = 'GHS ' + data.total_expenses;
-            document.getElementById('budgetRemaining').textContent = 'GHS ' + data.budget_remaining;
+            document.getElementById('totalBudget').textContent = formatGhsClient(data.total_budget);
+            document.getElementById('totalExpenses').textContent = formatGhsClient(data.total_expenses);
+            document.getElementById('budgetRemaining').textContent = formatGhsClient(data.budget_remaining);
             
             // Update color based on remaining budget
             const remaining = data.budget_remaining;

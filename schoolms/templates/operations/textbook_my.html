@@ -29,7 +29,7 @@
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ textbook.title }}</h4>
             <p style="color: #9ca3af; margin: 0.25rem 0;">{{ textbook.author }}</p>
             <p style="color: #9ca3af; margin: 0.25rem 0;">Class: {{ textbook.class_name }}</p>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0.5rem 0;">{{ textbook.price }} GHS</p>
+            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0.5rem 0;">{{ textbook.price|format_ghs }}</p>
             <p style="color: #9ca3af; margin: 0.25rem 0;">Stock: {{ textbook.stock }}</p>
             {% if request.user.role == 'student' or request.user.role == 'parent' %}
             <div style="margin-top: 0.5rem;">
@@ -57,7 +57,7 @@
     <p>You have pending purchases that need to be completed.</p>
     {% for purchase in pending_purchases %}
     <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.5rem;">
-        <strong>{{ purchase.textbook.title }}</strong> - {{ purchase.amount }} GHS ({{ purchase.quantity }} copies)
+        <strong>{{ purchase.textbook.title }}</strong> — {{ purchase.amount|format_ghs }} ({{ purchase.quantity }} copies)
         <br><small>Reference: {{ purchase.payment_reference }}</small>
         <button type="button" class="btn btn-danger btn-sm" style="margin-left: 0.5rem;" onclick="cancelPending('{{ purchase.id }}', 'textbook')">Cancel</button>
     </div>
@@ -84,7 +84,7 @@
                 <td>{{ purchase.sale_date|date:"M d, Y" }}</td>
                 <td>{{ purchase.textbook.title }}</td>
                 <td>{{ purchase.quantity }}</td>
-                <td>{{ purchase.amount }} GHS</td>
+                <td>{{ purchase.amount|format_ghs }}</td>
                 <td>
                     {% if purchase.payment_status == 'completed' %}
                     <span class="tag tag-success">Purchased</span>

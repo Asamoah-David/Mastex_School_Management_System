@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Essay grading queue · {{ school.name }}{% endblock %}
+{% block page_title %}Essay grading queue{% endblock %}
+{% block page_subtitle %}Submitted attempts waiting for essay marks{% endblock %}
+{% block content %}
+
+<div class="content-card">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <p class="mb-0 text-muted">
+            {% if attempts %}
+            <strong>{{ attempts|length }}</strong> attempt{{ attempts|length|pluralize }} waiting for essay marks. Oldest submissions first — filter by exam or class.
+            {% else %}
+            Nothing in the queue right now. When students submit exams with essays, they appear here for marking.
+            {% endif %}
+        </p>
+        <div class="d-flex gap-2">
+            <a href="{% url 'operations:online_exam_results' %}" class="btn btn-secondary btn-sm">Exam results</a>
+            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-outline-secondary btn-sm">Online exams</a>
+        </div>
+    </div>
+
+    <form method="get" class="filter-bar mb-3" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label fw-bold mb-1">Exam</label>
+                <select name="exam" class="form-control" onchange="this.form.submit()">
+                    <option value="">All exams</option>
+                    {% for e in exam_options %}
+                    <option value="{{ e.pk }}" {% if filter_exam == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.title }} — {{ e.subject.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold mb-1">Class</label>
+                <select name="class" class="form-control" onchange="this.form.submit()">
+                    <option value="">All classes</option>
+                    {% for c in class_names %}
+                    <option value="{{ c }}" {% if filter_class == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-auto">
+                <a href="{% url 'operations:online_exam_essay_queue' %}" class="btn btn-secondary">Clear</a>
+            </div>
+        </div>
+    </form>
+
+    {% if attempts %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Submitted</th>
+                    <th>Exam</th>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Attempt</th>
+                    <th>Pending essays</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in attempts %}
+                <tr>
+                    <td>{{ a.submitted_at|date:"M j, Y H:i"|default:"—" }}</td>
+                    <td>{{ a.exam.title }}</td>
+                    <td>{{ a.student.user.get_full_name|default:a.student.user.username }}</td>
+                    <td>{{ a.student.class_name|default:"—" }}</td>
+                    <td>#{{ a.attempt_number }}</td>
+                    <td><span class="badge bg-warning text-dark">{{ a.pending_essays }}</span></td>
+                    <td>
+                        <a href="{% url 'operations:online_exam_grade_attempt' a.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-primary">Grade</a>
+                        <a href="{% url 'operations:online_exam_result' a.pk %}" class="btn btn-sm btn-outline-secondary">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">No pending essay marks. When students submit exams with essay questions, they will appear here.</p>
+    {% endif %}
+</div>
+{% endblock %}

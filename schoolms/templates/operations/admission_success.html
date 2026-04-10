@@ -1,32 +1,48 @@
 {% extends "base.html" %}
-
+{% block title %}Application submitted · Mastex SchoolOS{% endblock %}
+{% block page_title %}Application received{% endblock %}
+{% block page_subtitle %}Save your reference number to track your application{% endblock %}
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card shadow text-center">
-                <div class="card-header bg-success text-white">
-                    <h3 class="mb-0"><i class="fas fa-check-circle"></i> Application Submitted!</h3>
-                </div>
-                <div class="card-body">
-                    <h4>Thank you, {{ application.parent_first_name }}!</h4>
-                    <p>Your application for <strong>{{ application.first_name }} {{ application.last_name }}</strong> has been received.</p>
-                    <p class="text-muted">Applied for: <strong>{{ application.class_applied_for }}</strong></p>
-                    
-                    <hr>
-                    <p>What happens next?</p>
-                    <ol class="text-start">
-                        <li>Our admissions team will review your application</li>
-                        <li>You will receive an SMS confirmation</li>
-                        <li>If approved, you will receive login credentials</li>
-                    </ol>
-                    
-                    <div class="mt-4">
-                        <a href="/" class="btn btn-primary">Return Home</a>
-                    </div>
-                </div>
-            </div>
-        </div>
+
+<div class="content-card" style="max-width: 640px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+        <div style="width: 56px; height: 56px; margin: 0 auto 1rem; border-radius: 1rem; background: linear-gradient(135deg, #22c55e, #16a34a); display: flex; align-items: center; justify-content: center; font-size: 1.75rem;">✓</div>
+        <h2 style="margin: 0; color: var(--text-main);">Thank you, {{ application.parent_first_name }}!</h2>
+        <p style="margin: 0.5rem 0 0; color: var(--text-soft); font-size: 0.9rem;">
+            We received an application for <strong>{{ application.first_name }} {{ application.last_name }}</strong>
+            ({{ application.class_applied_for }}{% if application.school %} at {{ application.school.name }}{% endif %}).
+        </p>
     </div>
+
+    <div style="padding: 1.25rem; border-radius: 0.75rem; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.35); margin-bottom: 1.25rem;">
+        <p style="margin: 0 0 0.35rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-soft); font-weight: 600;">Your application reference</p>
+        <p style="margin: 0; font-size: 1.35rem; font-weight: 700; font-family: ui-monospace, monospace; color: #60a5fa; letter-spacing: 0.04em;">{{ application.public_reference }}</p>
+        <p style="margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--text-soft); line-height: 1.45;">
+            Use this reference on the track page to check your status. It is not a password—do not share it as proof of identity with third parties.
+        </p>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-bottom: 1.5rem;">
+        <a href="{% url 'operations:admission_track' %}?ref={{ application.public_reference|urlencode }}" class="btn btn-primary" style="padding: 0.75rem 1.25rem;">
+            Track application status
+        </a>
+        <a href="{% url 'operations:admission_apply' %}" class="btn btn-secondary" style="padding: 0.75rem 1.25rem;">
+            Submit another application
+        </a>
+    </div>
+
+    <div style="padding: 1rem; border-radius: 0.75rem; background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.2);">
+        <p style="margin: 0 0 0.5rem; font-weight: 600; color: var(--text-main); font-size: 0.9rem;">What happens next?</p>
+        <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-soft); font-size: 0.85rem; line-height: 1.6;">
+            <li>Our admissions team will review your application.</li>
+            <li>If SMS is enabled, you may receive a text with your reference and a link to track status.</li>
+            <li>School staff may also be notified by SMS.</li>
+            <li>If approved, you will receive login details by SMS or email when the school creates accounts.</li>
+        </ol>
+    </div>
+
+    <p style="text-align: center; margin: 1.25rem 0 0;">
+        <a href="/" style="color: var(--text-soft); font-size: 0.9rem;">Return home</a>
+    </p>
 </div>
 {% endblock %}

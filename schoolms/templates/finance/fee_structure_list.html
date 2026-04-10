@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Fee Structure - {{ school.name|default:"Platform" }}{% endblock %}
 {% block page_title %}Fee Structure{% endblock %}
 {% block page_subtitle %}Define fee types and amounts per class{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="content-card">
     {% if school and user.role == "school_admin" or user.is_superuser %}
     <div style="margin-bottom:1rem;">
@@ -20,7 +22,7 @@
                 {% for s in structures %}
                 <tr>
                     <td>{{ s.name }}</td>
-                    <td>{{ s.amount }}</td>
+                    <td>{{ s.amount|format_ghs }}</td>
                     <td>{{ s.class_name|default:"All" }}</td>
                     <td>{{ s.term|default:"Any" }}</td>
                     <td>{{ s.is_active|yesno:"Yes,No" }}</td>

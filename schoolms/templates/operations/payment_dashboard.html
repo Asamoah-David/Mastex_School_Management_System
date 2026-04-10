@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
+{% load custom_filters %}
+
+{% block title %}Payment dashboard · Mastex SchoolOS{% endblock %}
+{% block page_title %}Payment dashboard{% endblock %}
+{% block page_subtitle %}Consolidated collections across fees and services{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-cash-stack"></i> Payment Dashboard</h2>
@@ -9,12 +15,14 @@
             <a href="{% url 'operations:record_payment' %}" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Record Payment
             </a>
+            {% if can_export_data %}
             <a href="{% url 'operations:export_all_payments' %}?format=csv{% if payment_type and payment_type != 'all' %}&payment_type={{ payment_type }}{% endif %}{% if date_filter %}&date_filter={{ date_filter }}{% endif %}{% if start_date %}&from={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&to={{ end_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">
                 <i class="bi bi-download"></i> Export CSV
             </a>
             <a href="{% url 'operations:export_all_payments' %}?format=excel{% if payment_type and payment_type != 'all' %}&payment_type={{ payment_type }}{% endif %}{% if date_filter %}&date_filter={{ date_filter }}{% endif %}{% if start_date %}&from={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&to={{ end_date|date:'Y-m-d' }}{% endif %}" class="btn btn-success">
                 <i class="bi bi-file-earmark-excel"></i> Export Excel
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -71,7 +79,7 @@
             <div class="card bg-primary text-white">
                 <div class="card-body">
                     <h5 class="card-title">School Fees</h5>
-                    <h3>GHS {{ total_school_fees|floatformat:2 }}</h3>
+                    <h3>{{ total_school_fees|format_ghs }}</h3>
                     <small>{{ school_fees|length }} Records</small>
                 </div>
             </div>
@@ -80,7 +88,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h5 class="card-title">Canteen</h5>
-                    <h3>GHS {{ canteen_total|floatformat:2 }}</h3>
+                    <h3>{{ canteen_total|format_ghs }}</h3>
                     <small>{{ canteen_count }} Transactions</small>
                 </div>
             </div>
@@ -89,7 +97,7 @@
             <div class="card bg-warning text-dark">
                 <div class="card-body">
                     <h5 class="card-title">Bus Fees</h5>
-                    <h3>GHS {{ bus_total|floatformat:2 }}</h3>
+                    <h3>{{ bus_total|format_ghs }}</h3>
                     <small>{{ bus_count }} Transactions</small>
                 </div>
             </div>
@@ -98,7 +106,7 @@
             <div class="card bg-info text-white">
                 <div class="card-body">
                     <h5 class="card-title">Textbooks</h5>
-                    <h3>GHS {{ textbook_total|floatformat:2 }}</h3>
+                    <h3>{{ textbook_total|format_ghs }}</h3>
                     <small>{{ textbook_count }} Sales</small>
                 </div>
             </div>
@@ -155,7 +163,7 @@
                                         </a>
                                     </td>
                                     <td><span class="badge bg-secondary">{{ payment.type }}</span></td>
-                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.amount|format_ghs }}</td>
                                     <td>{{ payment.description|default:"-" }}</td>
                                     <td>
                                         {% if payment.type == 'Canteen' %}
@@ -188,7 +196,7 @@
         <div class="tab-pane fade {% if payment_type == 'canteen' %}show active{% endif %}" id="canteen">
             <div class="card">
                 <div class="card-header d-flex justify-content-between">
-                    <h5>Canteen Payments - Total: GHS {{ canteen_total|floatformat:2 }}</h5>
+                    <h5>Canteen Payments - Total: {{ canteen_total|format_ghs }}</h5>
                 </div>
                 <div class="card-body">
                     {% if canteen_payments %}
@@ -213,7 +221,7 @@
                                             {{ payment.student.user.get_full_name|default:payment.student.user.username }}
                                         </a>
                                     </td>
-                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.amount|format_ghs }}</td>
                                     <td>{{ payment.description|default:"-" }}</td>
                                     <td>{{ payment.recorded_by.get_full_name|default:"-" }}</td>
                                     <td>
@@ -237,7 +245,7 @@
         <div class="tab-pane fade {% if payment_type == 'bus' %}show active{% endif %}" id="bus">
             <div class="card">
                 <div class="card-header">
-                    <h5>Bus Payments - Total: GHS {{ bus_total|floatformat:2 }} (Paid: {{ bus_paid }}, Unpaid: {{ bus_unpaid }})</h5>
+                    <h5>Bus Payments - Total: {{ bus_total|format_ghs }} (Paid: {{ bus_paid }}, Unpaid: {{ bus_unpaid }})</h5>
                 </div>
                 <div class="card-body">
                     {% if bus_payments %}
@@ -263,7 +271,7 @@
                                     </td>
                                     <td>{{ payment.route.name|default:"-" }}</td>
                                     <td>{{ payment.term_period|default:"-" }}</td>
-                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.amount|format_ghs }}</td>
                                     <td>
                                         {% if payment.paid %}
                                         <span class="badge bg-success">Paid</span>
@@ -298,7 +306,7 @@
         <div class="tab-pane fade {% if payment_type == 'textbook' %}show active{% endif %}" id="textbook">
             <div class="card">
                 <div class="card-header">
-                    <h5>Textbook Sales - Total: GHS {{ textbook_total|floatformat:2 }}</h5>
+                    <h5>Textbook Sales - Total: {{ textbook_total|format_ghs }}</h5>
                 </div>
                 <div class="card-body">
                     {% if textbook_sales %}
@@ -325,7 +333,7 @@
                                     </td>
                                     <td>{{ sale.textbook.title }}</td>
                                     <td>{{ sale.quantity }}</td>
-                                    <td>GHS {{ sale.amount|floatformat:2 }}</td>
+                                    <td>{{ sale.amount|format_ghs }}</td>
                                     <td>
                                         <a href="{% url 'operations:generate_receipt' 'textbook' sale.id %}" class="btn btn-sm btn-primary">
                                             <i class="bi bi-receipt"></i> Receipt
@@ -347,7 +355,7 @@
         <div class="tab-pane fade {% if payment_type == 'school_fees' %}show active{% endif %}" id="school_fees">
             <div class="card">
                 <div class="card-header">
-                    <h5>School Fees - Total: GHS {{ total_school_fees|floatformat:2 }}</h5>
+                    <h5>School Fees - Total: {{ total_school_fees|format_ghs }}</h5>
                 </div>
                 <div class="card-body">
                     {% if school_fees %}
@@ -371,11 +379,11 @@
                                         </a>
                                     </td>
                                     <td>{{ fee.term }}</td>
-                                    <td>GHS {{ fee.amount|floatformat:2 }}</td>
-                                    <td>GHS {{ fee.paid_amount|floatformat:2|default:"0.00" }}</td>
+                                    <td>{{ fee.amount|format_ghs }}</td>
+                                    <td>{{ fee.paid_amount|default:0|format_ghs }}</td>
                                     <td>
                                         {% with balance=fee.amount|add:fee.paid_amount|default:fee.amount %}
-                                        <span class="text-danger">GHS {{ balance|floatformat:2 }}</span>
+                                        <span class="text-danger">{{ balance|format_ghs }}</span>
                                         {% endwith %}
                                     </td>
                                 </tr>

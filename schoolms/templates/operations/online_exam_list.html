@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load custom_filters %}
 {% block title %}Online Exams - {{ school.name }}{% endblock %}
 {% block page_title %}Online Exams{% endblock %}
 {% block extra_css %}
@@ -86,7 +87,7 @@
                         <th>Title</th>
                         <th>Subject</th>
                         <th>Duration</th>
-                        <th>Total Marks</th>
+                        <th>Total / Pass</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -97,7 +98,7 @@
                     <td>{{ exam.title }}</td>
                     <td>{{ exam.subject.name }}</td>
                     <td>{{ exam.duration_minutes }} min</td>
-                    <td>{{ exam.total_marks }}</td>
+                    <td>{{ exam.total_marks }} / pass {{ exam.passing_marks }}</td>
                     <td><span class="badge status-{{ exam.status }}">{{ exam.status|title }}</span></td>
                     <td>
                         {% if is_staff %}
@@ -106,9 +107,20 @@
                         <a href="{% url 'operations:online_exam_delete' exam.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
                         {% else %}
                         {% if exam.status == 'published' %}
-                        <a href="{% url 'operations:online_exam_take' exam.pk %}" class="btn btn-sm btn-success">📝 Take Exam</a>
+                            {% with row=exam_student_meta|get_item:exam.pk %}
+                            {% if row %}
+                                <span style="font-size:0.78rem;color:#64748b;display:block;margin-bottom:0.35rem;">Attempts {{ row.completed }}/{{ row.max_attempts }}{% if row.best is not None %} · Best {{ row.best }}/{{ exam.total_marks }}{% endif %}</span>
+                            {% endif %}
+                            {% if row and row.can_take_more %}
+                            <a href="{% url 'operations:online_exam_take' exam.pk %}" class="btn btn-sm btn-success">📝 {% if row.incomplete %}Continue{% else %}Take exam{% endif %}</a>
+                            {% elif row and row.last_done_pk %}
+                            <a href="{% url 'operations:online_exam_result' row.last_done_pk %}" class="btn btn-sm btn-info">📊 Latest result</a>
+                            {% else %}
+                            <a href="{% url 'operations:online_exam_take' exam.pk %}" class="btn btn-sm btn-success">📝 Take exam</a>
+                            {% endif %}
+                            {% endwith %}
                         {% else %}
-                        <span style="color: #6c757d;">Not Available</span>
+                        <span style="color: #6c757d;">Not available</span>
                         {% endif %}
                         {% endif %}
                     </td>

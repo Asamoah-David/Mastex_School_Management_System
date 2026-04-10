@@ -3,6 +3,7 @@
 {% block page_title %}Record New Expense{% endblock %}
 {% block page_subtitle %}Track and manage school expenses{% endblock %}
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 
 {% if messages %}
 <div class="messages">
@@ -34,11 +35,11 @@
             
             <!-- Amount -->
             <div class="form-group">
-                <label class="required">💰 Amount (GH₵)</label>
+                <label class="required">💰 Amount (GHS)</label>
                 <input type="number" name="amount" id="amount" required step="0.01" min="0" 
                        placeholder="0.00">
                 <small class="form-error" id="amountError"></small>
-                <small id="currencyDisplay" class="form-text" style="color: #22c55e;">GH₵ 0.00</small>
+                <small id="currencyDisplay" class="form-text" style="color: #22c55e;">GHS 0.00</small>
             </div>
             
             <!-- Category -->
@@ -142,9 +143,9 @@ function updateCurrencyDisplay() {
     const amount = document.getElementById('amount').value;
     const display = document.getElementById('currencyDisplay');
     if (amount && !isNaN(amount)) {
-        display.textContent = 'GH₵ ' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        display.textContent = 'GHS ' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     } else {
-        display.textContent = 'GH₵ 0.00';
+        display.textContent = 'GHS 0.00';
     }
 }
 

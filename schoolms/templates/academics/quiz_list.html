@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load custom_filters %}
 
 {% block content %}
 <div class="container mt-4">
@@ -18,7 +19,7 @@
                 <div class="card-body">
                     <h5 class="card-title">{{ quiz.title }}</h5>
                     <p class="card-text text-muted">{{ quiz.subject.name }} - {{ quiz.class_name }}</p>
-                    <p><small>Duration: {{ quiz.duration_minutes }} mins | Passing: {{ quiz.passing_score }}%</small></p>
+                    <p><small>Duration: {{ quiz.duration_minutes }} mins | Passing: {{ quiz.passing_score }}% | Max attempts: {{ quiz.max_attempts_per_student }}</small></p>
                     <p><small>Questions: {{ quiz.questions.count }}</small></p>
                     {% if quiz.is_active %}
                     <span class="badge bg-success">Active</span>
@@ -28,7 +29,18 @@
                     <div class="mt-3">
                         <a href="{% url 'academics:quiz_detail' quiz.pk %}" class="btn btn-sm btn-info">View</a>
                         {% if request.user.role == 'student' %}
-                        <a href="{% url 'academics:quiz_take' quiz.pk %}" class="btn btn-sm btn-success">Take Quiz</a>
+                            {% with row=quiz_student_meta|get_item:quiz.pk %}
+                            {% if row %}
+                            <span class="d-block small text-muted mb-1">Attempts {{ row.completed }}/{{ row.max_attempts }}</span>
+                            {% endif %}
+                            {% if row and row.can_take_more %}
+                            <a href="{% url 'academics:quiz_take' quiz.pk %}" class="btn btn-sm btn-success">{% if row.incomplete %}Continue{% else %}Take quiz{% endif %}</a>
+                            {% elif row and row.last_pk %}
+                            <a href="{% url 'academics:quiz_result' row.last_pk %}" class="btn btn-sm btn-info">Latest result</a>
+                            {% else %}
+                            <a href="{% url 'academics:quiz_take' quiz.pk %}" class="btn btn-sm btn-success">Take quiz</a>
+                            {% endif %}
+                            {% endwith %}
                         {% endif %}
                         {% if can_manage %}
                         <a href="{% url 'academics:quiz_delete' quiz.pk %}" class="btn btn-sm btn-danger">Delete</a>

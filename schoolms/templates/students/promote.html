@@ -1,69 +1,81 @@
 {% extends "base.html" %}
 
-{% block title %}Promote Students · Mastex SchoolOS{% endblock %}
-{% block page_title %}Promote Students{% endblock %}
-{% block page_subtitle %}Move students to the next class level.{% endblock %}
+{% block title %}Class promotion · Mastex SchoolOS{% endblock %}
+{% block page_title %}Promote a class{% endblock %}
+{% block page_subtitle %}Move all active students from one class to another for the new academic year.{% endblock %}
 
 {% block content %}
-<div class="form-card">
-    <form method="post">
+{{ class_counts|json_script:"promotion-class-counts" }}
+
+<div class="content-card" style="max-width: 720px; margin: 0 auto 1.25rem;">
+    <form method="post" id="promoteForm">
         {% csrf_token %}
-        
-        <div class="form-grid-2">
+        <div style="display: grid; gap: 1.1rem;">
             <div class="form-group">
-                <label for="current_class">Current Class</label>
-                <select name="current_class" id="current_class" required>
-                    <option value="">Select current class</option>
+                <label for="current_class">From class</label>
+                <select name="current_class" id="current_class" required
+                        style="width:100%;padding:.65rem .85rem;border-radius:.5rem;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.9);color:var(--text-main);">
+                    <option value="">Select class with students to promote</option>
                     {% for class in classes %}
                     <option value="{{ class }}">{{ class }}</option>
                     {% endfor %}
                 </select>
+                <p id="sourceCountHint" style="margin:.4rem 0 0;font-size:.8rem;color:var(--text-soft);min-height:1.2em;"></p>
             </div>
-            
+
             <div class="form-group">
-                <label for="new_class">Promote To (New Class)</label>
-                <select name="new_class" id="new_class" required>
-                    <option value="">Select new class</option>
-                    {% for class in classes %}
+                <label for="new_class">Promote to</label>
+                <select name="new_class" id="new_class" required
+                        style="width:100%;padding:.65rem .85rem;border-radius:.5rem;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.9);color:var(--text-main);">
+                    <option value="">Select destination class</option>
+                    {% for class in target_classes %}
                     <option value="{{ class }}">{{ class }}</option>
                     {% endfor %}
-                    <option value="Form 1">Form 1</option>
-                    <option value="Form 2">Form 2</option>
-                    <option value="Form 3">Form 3</option>
-                    <option value="Form 4">Form 4</option>
-                    <option value="SHS 1">SHS 1</option>
-                    <option value="SHS 2">SHS 2</option>
-                    <option value="SHS 3">SHS 3</option>
-                    <option value="Primary 1">Primary 1</option>
-                    <option value="Primary 2">Primary 2</option>
-                    <option value="Primary 3">Primary 3</option>
-                    <option value="Primary 4">Primary 4</option>
-                    <option value="Primary 5">Primary 5</option>
-                    <option value="Primary 6">Primary 6</option>
-                    <option value="JHS 1">JHS 1</option>
-                    <option value="JHS 2">JHS 2</option>
-                    <option value="JHS 3">JHS 3</option>
-                    <option value="Kindergarten 1">Kindergarten 1</option>
-                    <option value="Kindergarten 2">Kindergarten 2</option>
-                    <option value="Nursery 1">Nursery 1</option>
-                    <option value="Nursery 2">Nursery 2</option>
                 </select>
             </div>
-        </div>
-        
-        <div class="button-row">
-            <button type="submit" class="btn btn-primary">Promote Students</button>
+
+            <label style="display:flex;align-items:flex-start;gap:.6rem;cursor:pointer;font-size:.88rem;color:var(--text-soft);line-height:1.45;">
+                <input type="checkbox" name="confirm_promote" id="confirm_promote" required style="margin-top:.2rem;">
+                <span>I confirm that all <strong>active</strong> students in the source class should be moved to the destination class. This updates their class and class link used across the system.</span>
+            </label>
+
+            <div class="button-row" style="flex-wrap:wrap;gap:.5rem;">
+                <button type="submit" class="btn btn-primary">Run promotion</button>
+                <a href="{% url 'students:student_list' %}" class="btn btn-secondary">Cancel</a>
+            </div>
         </div>
     </form>
 </div>
 
-<div class="info-box mt-1">
-    <strong>How it works:</strong>
-    <ul>
-        <li>Select the current class of students you want to promote.</li>
-        <li>Select the new class they will be moved to.</li>
-        <li>All students in the selected current class will be moved to the new class.</li>
-        <li>This action cannot be undone - make sure to select the correct classes.</li>
+<div class="content-card" style="max-width: 720px; margin: 0 auto;">
+    <h3 style="margin:0 0 .75rem;font-size:.95rem;color:var(--text-main);">Guidance</h3>
+    <ul style="margin:0;padding-left:1.2rem;font-size:.85rem;line-height:1.55;color:var(--text-soft);">
+        <li>Only <strong>active</strong> students in the source class are moved; graduated or withdrawn students are unchanged.</li>
+        <li>If a <a href="{% url 'students:class_list' %}">Classes</a> record exists for the destination name, students are linked to it; otherwise the class link is cleared until you match them in class setup.</li>
+        <li>For leavers, use <a href="{% url 'students:graduate_class' %}">Graduate a class</a> instead of promoting.</li>
+        <li>Class lists come from your configured classes and current rosters. Add missing names under <a href="{% url 'students:class_list' %}">Classes</a> or enroll students first.</li>
     </ul>
 </div>
+
+<script>
+(function(){
+    var el = document.getElementById('promotion-class-counts');
+    var counts = el ? JSON.parse(el.textContent) : {};
+    var sel = document.getElementById('current_class');
+    var hint = document.getElementById('sourceCountHint');
+    function refresh(){
+        if (!sel || !hint) return;
+        var v = sel.value;
+        if (!v) { hint.textContent = ''; return; }
+        var n = counts[v];
+        if (typeof n === 'number') {
+            hint.textContent = n === 0 ? 'No active students in this class.' : n + ' active student(s) will be moved.';
+        } else {
+            hint.textContent = '';
+        }
+    }
+    if (sel) sel.addEventListener('change', refresh);
+    refresh();
+})();
+</script>
 {% endblock %}

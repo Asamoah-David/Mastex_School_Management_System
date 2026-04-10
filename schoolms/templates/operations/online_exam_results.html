@@ -4,9 +4,12 @@
 {% block page_title %}Online Exam Results{% endblock %}
 {% block content %}
 <div class="content-card">
-    <div class="d-flex justify-between align-center mb-3">
-        <h2>📊 Online Exam Results</h2>
-        <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">← Back to Exams</a>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 style="margin:0;">📊 Online Exam Results</h2>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'operations:online_exam_essay_queue' %}" class="btn btn-warning">✏️ Essay queue{% if pending_essay_queue_count %} ({{ pending_essay_queue_count }}){% endif %}</a>
+            <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">← Back to exams</a>
+        </div>
     </div>
     
     {# Filters for Class and Subject #}
@@ -65,17 +68,29 @@
                 <p><strong>Date:</strong> {{ selected_exam.start_time|date:"M d, Y H:i" }}</p>
                 <p><strong>Total Marks:</strong> {{ selected_exam.total_marks }}</p>
                 <p><strong>Passing Marks:</strong> {{ selected_exam.passing_marks }}</p>
+                <p><strong>Max Attempts / Student:</strong> {{ selected_exam.max_attempts_per_student }}</p>
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                 {% if attempts %}
-                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}" class="btn btn-primary">
-                    📥 Export CSV
+                <span style="font-size:0.75rem;color:#64748b;text-transform:uppercase;">All attempts (full history)</span>
+                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}" class="btn btn-primary btn-sm">
+                    📥 CSV — all rows
                 </a>
-                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}?format=excel" class="btn btn-success">
-                    📊 Export Excel
+                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}?format=excel" class="btn btn-success btn-sm">
+                    📊 Excel — all rows
                 </a>
-                <button onclick="window.print()" class="btn btn-secondary">
-                    🖨️ Print Results
+                <span style="font-size:0.75rem;color:#64748b;text-transform:uppercase;margin-top:0.35rem;">Best score per student (reports)</span>
+                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}?rows=best" class="btn btn-outline-primary btn-sm">
+                    📥 CSV — best / student
+                </a>
+                <a href="{% url 'operations:online_exam_export_results' selected_exam.id %}?format=excel&amp;rows=best" class="btn btn-outline-success btn-sm">
+                    📊 Excel — best / student
+                </a>
+                <a href="{% url 'operations:online_exam_essay_queue' %}?exam={{ selected_exam.id }}" class="btn btn-warning btn-sm" style="margin-top:0.35rem;">
+                    ✏️ Pending essays
+                </a>
+                <button onclick="window.print()" class="btn btn-secondary btn-sm">
+                    🖨️ Print
                 </button>
                 {% endif %}
             </div>
@@ -88,6 +103,7 @@
             <tr>
                 <th>Student</th>
                 <th>Class</th>
+                <th>Attempt</th>
                 <th>Score</th>
                 <th>Percentage</th>
                 <th>Status</th>
@@ -109,6 +125,7 @@
                 {{ attempt.student.user.get_full_name }}
             </td>
             <td>{{ attempt.student.class_name|default:"N/A" }}</td>
+            <td>#{{ attempt.attempt_number }}</td>
             <td>{{ attempt.score|default:"0" }} / {{ selected_exam.total_marks }}</td>
             <td>
                 {% widthratio attempt.score selected_exam.total_marks 100 as percentage %}
@@ -124,7 +141,9 @@
             <td>{{ attempt.submitted_at|date:"M d, Y H:i" }}</td>
             <td>
                 <a href="{% url 'operations:online_exam_result' attempt.pk %}" class="btn btn-sm btn-info">📋 Details</a>
-                <a href="{% url 'operations:online_exam_allow_retake' attempt.pk %}" class="btn btn-sm btn-warning" onclick="return confirm('Allow this student to retake the exam?');">🔄 Retake</a>
+                <a href="{% url 'operations:online_exam_grade_attempt' attempt.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-primary">✏️ Grade</a>
+                <a href="{% url 'operations:online_exam_allow_retake' attempt.pk %}" class="btn btn-sm btn-warning">🔄 Reopen</a>
+                <a href="{% url 'operations:online_exam_attempt_delete' attempt.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
             </td>
         </tr>
         {% endfor %}
@@ -136,8 +155,12 @@
         <h4 style="margin: 0 0 1rem 0; color: #22c55e;">📊 Class Statistics</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
             <div style="background: rgba(34, 197, 94, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
-                <div style="font-size: 1.5rem; font-weight: bold; color: #22c55e;">{{ attempts.count }}</div>
-                <div style="font-size: 0.8rem; color: #9ca3af;">Total Students</div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #22c55e;">{{ students_with_results }}</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Students (unique)</div>
+            </div>
+            <div style="background: rgba(59, 130, 246, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #3b82f6;">{{ attempt_rows_count }}</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Total attempt rows</div>
             </div>
             <div style="background: rgba(16, 185, 129, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
                 <div style="font-size: 1.5rem; font-weight: bold; color: #10b981;">{{ passed_count }}</div>
@@ -156,8 +179,8 @@
                 <div style="font-size: 0.8rem; color: #9ca3af;">Avg Score</div>
             </div>
             <div style="background: rgba(168, 85, 247, 0.1); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
-                <div style="font-size: 1.5rem; font-weight: bold; color: #a855f7;">{{ highest_score }}</div>
-                <div style="font-size: 0.8rem; color: #9ca3af;">Highest Score</div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #a855f7;">{{ highest_score|floatformat:1 }}%</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">Highest (best per student)</div>
             </div>
         </div>
     </div>

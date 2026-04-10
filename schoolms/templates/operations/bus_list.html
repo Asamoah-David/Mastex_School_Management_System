@@ -3,10 +3,15 @@
 {% block page_title %}Bus routes{% endblock %}
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
+{% include "operations/includes/services_quick_nav.html" %}
 <div class="button-row">
-    {% if user.is_superuser or user.is_staff_member %}
+    {% if user.is_superuser or is_school_admin or is_super_admin or can_manage_transport %}
     <a href="{% url 'operations:bus_create' %}" class="btn btn-primary">Add Route</a>
+    {% endif %}
+    {% if user_can_manage_school %}
     <a href="{% url 'operations:bus_payments' %}" class="btn btn-secondary">View Payments</a>
+    {% endif %}
+    {% if can_export_data %}
     <a href="{% url 'operations:export_bus_payments' %}?format=csv" class="btn btn-success">Export CSV</a>
     <a href="{% url 'operations:export_bus_payments' %}?format=excel" class="btn btn-success">Export Excel</a>
     {% endif %}
@@ -24,7 +29,7 @@
                 <td>{{ r.name }}</td>
                 <td>{{ r.fee_per_term }}</td>
                 <td>
-                    {% if user.is_superuser or user.is_staff_member %}
+                    {% if user.is_superuser or is_school_admin or is_super_admin or can_manage_transport %}
                         <a href="{% url 'operations:bus_route_delete' r.pk %}" class="btn btn-danger btn-sm">Delete</a>
                     {% endif %}
                 </td>

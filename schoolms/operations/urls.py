@@ -120,6 +120,9 @@ urlpatterns = [
     # Activity Log
     path("activity-log/", views.activity_log_list, name="activity_log_list"),
 
+    # Staff services hub (canteen, transport, textbooks, hostel, library, fees)
+    path("services/", views.services_hub, name="services_hub"),
+
     # Library
     path("library/", views.library_catalog, name="library_catalog"),
     path("library/manage/", views.library_manage, name="library_manage"),
@@ -294,6 +297,11 @@ urlpatterns = [
     path("online-exams/", views.online_exam_list, name="online_exam_list"),
     path("online-exams/create/", views.online_exam_create, name="online_exam_create"),
     path("online-exams/results/", views.online_exam_results, name="online_exam_results"),
+    path(
+        "online-exams/essay-queue/",
+        views.online_exam_essay_queue,
+        name="online_exam_essay_queue",
+    ),
     path("online-exams/results/<int:exam_id>/export/", views.online_exam_export_results, name="online_exam_export_results"),
     path("online-exams/<int:pk>/", views.online_exam_detail, name="online_exam_detail"),
     path("online-exams/<int:pk>/edit/", views.online_exam_edit, name="online_exam_edit"),
@@ -303,6 +311,16 @@ urlpatterns = [
     path("online-exams/<int:pk>/take/", views.online_exam_take, name="online_exam_take"),
     path("online-exams/result/<int:pk>/", views.online_exam_result, name="online_exam_result"),
     path("online-exams/retake/<int:attempt_id>/", views.online_exam_allow_retake, name="online_exam_allow_retake"),
+    path(
+        "online-exams/attempt/<int:attempt_id>/delete/",
+        views.online_exam_attempt_delete,
+        name="online_exam_attempt_delete",
+    ),
+    path(
+        "online-exams/attempt/<int:attempt_id>/grade/",
+        views.online_exam_grade_attempt,
+        name="online_exam_grade_attempt",
+    ),
     
     # PT Meetings
     path("pt-meetings/", views.pt_meeting_list, name="pt_meeting_list"),

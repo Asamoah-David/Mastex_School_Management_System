@@ -4,12 +4,35 @@
 {% block page_subtitle %}Hostels and dormitories.{% endblock %}
 {% block content %}
 
+{% include "operations/includes/services_quick_nav.html" %}
+
 <div class="button-row mt-sm">
     <a class="btn btn-secondary" href="{% url 'operations:hostel_my' %}">My Hostel</a>
-    {% if can_manage %}
+    {% if can_edit_structure %}
     <a class="btn btn-primary" href="{% url 'operations:hostel_create' %}">Add Hostel</a>
+    {% endif %}
+    {% if can_manage %}
     <a class="btn btn-secondary" href="{% url 'operations:hostel_assignments' %}">Assignments</a>
     <a class="btn btn-secondary" href="{% url 'operations:hostel_fees' %}">Hostel Fees</a>
+    {% endif %}
+    {% if can_export_data %}
+    <div class="export-dropdown" style="display: inline-block; position: relative;">
+        <button class="btn btn-success dropdown-toggle" type="button">Export fees ▼</button>
+        <div class="dropdown-menu">
+            <a href="{% url 'operations:export_hostel_fees' %}?format=csv" class="dropdown-item">Export CSV</a>
+            <a href="{% url 'operations:export_hostel_fees' %}?format=excel" class="dropdown-item">Export Excel</a>
+            <div class="dropdown-divider"></div>
+            <form method="get" action="{% url 'operations:export_hostel_fees' %}" style="display: inline;" class="d-inline">
+                <div class="px-2 py-1">
+                    <small class="text-muted">Filter by date:</small>
+                    <input type="date" name="from" class="form-control form-control-sm mb-1" placeholder="From date">
+                    <input type="date" name="to" class="form-control form-control-sm mb-1" placeholder="To date">
+                    <input type="month" name="month" class="form-control form-control-sm mb-1" placeholder="Month (YYYY-MM)">
+                    <button type="submit" class="btn btn-sm btn-outline-primary w-100">Apply filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
     {% endif %}
 </div>
 

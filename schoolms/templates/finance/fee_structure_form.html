@@ -4,6 +4,7 @@
 {% block page_subtitle %}Define a fee structure entry{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="content-card">
     <form method="post">
         {% csrf_token %}

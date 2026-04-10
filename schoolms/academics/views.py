@@ -12,10 +12,54 @@ from accounts.permissions import (
     is_teacher,
 )
 from accounts.teaching_scope import teacher_result_subject_ids
-from .models import Subject, ExamType, Term, Result, GradeBoundary, Homework, ExamSchedule, Timetable, Quiz, QuizQuestion, QuizAttempt, AssessmentType, AssessmentScore, ExamScore, GradingPolicy, OnlineMeeting, AIStudentComment, bulk_annotate_grades
+from .models import (
+    Subject,
+    ExamType,
+    Term,
+    Result,
+    GradeBoundary,
+    Homework,
+    ExamSchedule,
+    Timetable,
+    Quiz,
+    QuizQuestion,
+    QuizAnswer,
+    QuizAttempt,
+    AssessmentType,
+    AssessmentScore,
+    ExamScore,
+    GradingPolicy,
+    OnlineMeeting,
+    AIStudentComment,
+    bulk_annotate_grades,
+)
 from core.pagination import paginate
 
 from core.utils import get_school as _get_school, can_manage as _user_can_manage_school
+
+def _quiz_response_matches_correct(given, correct, question_type):
+    """Normalize student response vs stored correct key for quizzes."""
+    g = (given or "").strip().upper()
+    c = (correct or "").strip().upper()
+    if not c:
+        return False
+    if question_type == "short_answer":
+        return (given or "").strip().lower() == (correct or "").strip().lower()
+    if question_type == "true_false":
+        tf_map = {
+            "TRUE": "A",
+            "T": "A",
+            "YES": "A",
+            "1": "A",
+            "FALSE": "B",
+            "F": "B",
+            "NO": "B",
+            "0": "B",
+        }
+        g = tf_map.get(g, g)
+        c = tf_map.get(c, c)
+    return g == c
+
 
 def _can_view_student_record(user, student):
     if not getattr(user, "is_authenticated", False):
@@ -1480,10 +1524,57 @@ def quiz_list(request):
             quizzes = Quiz.objects.filter(school=school, class_name=student.class_name, is_active=True).order_by('-id')
         else:
             quizzes = Quiz.objects.none()
+    elif role == "parent":
+        children = Student.objects.filter(parent=request.user, school=school)
+        class_names = [c.class_name for c in children if c.class_name]
+        if class_names:
+            quizzes = Quiz.objects.filter(
+                school=school, class_name__in=class_names, is_active=True
+            ).order_by("-id")
+        else:
+            quizzes = Quiz.objects.none()
     else:
         quizzes = Quiz.objects.none()
-    
-    return render(request, "academics/quiz_list.html", {"quizzes": quizzes, "school": school, "can_manage": can_manage})
+
+    quiz_student_meta = {}
+    if role == "student":
+        st = Student.objects.filter(user=request.user, school=school).first()
+        qids = list(quizzes.values_list("pk", flat=True))
+        if st and qids:
+            from collections import defaultdict
+            from .models import QuizAttempt
+
+            by_q = defaultdict(lambda: {"completed": 0, "incomplete": False, "last_pk": None})
+            for a in QuizAttempt.objects.filter(quiz_id__in=qids, student=st):
+                row = by_q[a.quiz_id]
+                if not a.is_completed:
+                    row["incomplete"] = True
+                else:
+                    row["completed"] += 1
+            for a in (
+                QuizAttempt.objects.filter(quiz_id__in=qids, student=st, is_completed=True)
+                .order_by("-submitted_at", "-pk")
+            ):
+                row = by_q[a.quiz_id]
+                if row["last_pk"] is None:
+                    row["last_pk"] = a.pk
+            for q in quizzes:
+                row = by_q[q.pk]
+                cap = max(1, int(q.max_attempts_per_student or 1))
+                row["max_attempts"] = cap
+                row["can_take_more"] = row["incomplete"] or row["completed"] < cap
+                quiz_student_meta[q.pk] = row
+
+    return render(
+        request,
+        "academics/quiz_list.html",
+        {
+            "quizzes": quizzes,
+            "school": school,
+            "can_manage": can_manage,
+            "quiz_student_meta": quiz_student_meta,
+        },
+    )
 
 
 @login_required
@@ -1511,6 +1602,8 @@ def quiz_create(request):
         if title and subject_id and class_name:
             try:
                 from datetime import datetime
+                max_attempts = int(request.POST.get("max_attempts_per_student") or "1")
+                max_attempts = max(1, min(max_attempts, 50))
                 quiz = Quiz.objects.create(
                     school=school,
                     title=title,
@@ -1520,6 +1613,7 @@ def quiz_create(request):
                     class_name=class_name,
                     duration_minutes=int(duration),
                     passing_score=int(passing),
+                    max_attempts_per_student=max_attempts,
                     created_by=request.user
                 )
                 messages.success(request, "Quiz created! Add questions now.")
@@ -1528,11 +1622,11 @@ def quiz_create(request):
                 messages.error(request, f"Error creating quiz: {str(e)}")
     
     return render(request, "academics/quiz_form.html", {
-        "school": school, 
-        "subjects": subjects, 
-        "terms": terms, 
+        "school": school,
+        "subjects": subjects,
+        "terms": terms,
         "classes": classes,
-        "quiz": None
+        "quiz": None,
     })
 
 
@@ -1545,13 +1639,17 @@ def quiz_detail(request, pk):
     
     quiz = get_object_or_404(Quiz, pk=pk, school=school)
     questions = quiz.questions.all().order_by('order')
-    can_edit = _user_can_manage_school(request)
+    can_edit = _user_can_manage_school(request.user)
+    from django.db.models import Sum
+
+    question_marks_sum = questions.aggregate(s=Sum("marks"))["s"] or 0
     
     return render(request, "academics/quiz_detail.html", {
         "quiz": quiz, 
         "questions": questions, 
         "school": school,
-        "can_edit": can_edit
+        "can_edit": can_edit,
+        "question_marks_sum": question_marks_sum,
     })
 
 
@@ -1600,6 +1698,8 @@ def quiz_add_question(request, pk):
 @login_required
 def quiz_take(request, pk):
     """Student takes a quiz"""
+    from django.utils import timezone as dj_tz
+
     school = _get_school(request)
     if not school:
         return redirect("home")
@@ -1613,60 +1713,108 @@ def quiz_take(request, pk):
         return redirect("home")
     
     quiz = get_object_or_404(Quiz, pk=pk, school=school, is_active=True)
-    
-    # Check if already attempted
-    existing = QuizAttempt.objects.filter(quiz=quiz, student=student, is_completed=True).first()
-    if existing:
-        messages.info(request, "You have already completed this quiz.")
-        return redirect("academics:quiz_result", pk=existing.pk)
-    
-    # Get or create attempt
-    attempt, created = QuizAttempt.objects.get_or_create(
-        quiz=quiz, 
-        student=student, 
-        is_completed=False,
-        defaults={}
+
+    if (student.class_name or "").strip() != (quiz.class_name or "").strip():
+        messages.error(request, "This quiz is not for your class.")
+        return redirect("academics:quiz_list")
+
+    if quiz.due_date and dj_tz.now() > quiz.due_date:
+        messages.error(request, "The deadline for this quiz has passed.")
+        return redirect("academics:quiz_list")
+
+    max_try = max(1, int(quiz.max_attempts_per_student or 1))
+    completed_n = QuizAttempt.objects.filter(quiz=quiz, student=student, is_completed=True).count()
+    incomplete = (
+        QuizAttempt.objects.filter(quiz=quiz, student=student, is_completed=False)
+        .order_by("-started_at")
+        .first()
     )
+
+    if incomplete:
+        attempt = incomplete
+    elif completed_n >= max_try:
+        last = (
+            QuizAttempt.objects.filter(quiz=quiz, student=student, is_completed=True)
+            .order_by("-submitted_at", "-pk")
+            .first()
+        )
+        messages.warning(request, f"You have used all {max_try} attempt(s) for this quiz.")
+        if last:
+            return redirect("academics:quiz_result", pk=last.pk)
+        return redirect("academics:quiz_list")
+    else:
+        attempt = QuizAttempt.objects.create(quiz=quiz, student=student, is_completed=False)
     
-    questions = quiz.questions.all().order_by('order')
-    
+    questions = list(quiz.questions.all().order_by("order"))
+    max_marks = sum(q.marks for q in questions) or 1
+    duration_sec = int(quiz.duration_minutes) * 60
+    grace_sec = 120
+
     if request.method == "POST":
+        now = dj_tz.now()
+        attempt.refresh_from_db()
+        if attempt.is_completed:
+            return redirect("academics:quiz_result", pk=attempt.pk)
+
+        elapsed = (now - attempt.started_at).total_seconds()
+        over_time = elapsed > duration_sec + grace_sec
+
+        QuizAnswer.objects.filter(attempt=attempt).delete()
         total_marks = 0
-        answers_data = []
         for question in questions:
-            answer = request.POST.get(f"q_{question.pk}", "")
-            is_correct = answer.upper() == question.correct_answer.upper() if answer else False
-            marks = question.marks if is_correct else 0
-            total_marks += marks
-            answers_data.append({
-                'question_id': question.pk,
-                'answer': answer,
-                'is_correct': is_correct,
-                'marks': marks
-            })
-        
-        # Calculate percentage
-        max_marks = sum(q.marks for q in questions)
+            raw = request.POST.get(f"q_{question.pk}", "").strip()
+            if question.question_type == "short_answer":
+                is_correct = _quiz_response_matches_correct(
+                    raw, question.correct_answer, "short_answer"
+                )
+            else:
+                is_correct = _quiz_response_matches_correct(
+                    raw, question.correct_answer, question.question_type
+                )
+            marks_obtained = float(question.marks) if is_correct else 0.0
+            total_marks += marks_obtained
+            QuizAnswer.objects.create(
+                attempt=attempt,
+                question=question,
+                answer=raw[:500],
+                is_correct=is_correct,
+                marks_obtained=marks_obtained,
+            )
+
         score = (total_marks / max_marks * 100) if max_marks > 0 else 0
-        
-        # Store answers as JSON in attempt
-        attempt.score = score
+        attempt.score = round(score, 2)
         attempt.is_passed = score >= quiz.passing_score
         attempt.is_completed = True
-        attempt.answers_data = answers_data  # Store as JSON if model supports it
-        from django.utils import timezone
-        attempt.submitted_at = timezone.now()
+        attempt.submitted_at = now
         attempt.save()
-        
+
+        if over_time:
+            messages.warning(
+                request,
+                "Your time window had ended; your submitted answers were saved.",
+            )
         messages.success(request, f"Quiz completed! Score: {round(score, 1)}%")
         return redirect("academics:quiz_result", pk=attempt.pk)
-    
-    return render(request, "academics/quiz_take.html", {
-        "quiz": quiz, 
-        "questions": questions, 
-        "attempt": attempt,
-        "school": school
-    })
+
+    now = dj_tz.now()
+    by_duration = duration_sec - int((now - attempt.started_at).total_seconds())
+    if quiz.due_date:
+        by_due = int((quiz.due_date - now).total_seconds())
+        timer_seconds = max(0, min(by_duration, by_due))
+    else:
+        timer_seconds = max(0, by_duration)
+
+    return render(
+        request,
+        "academics/quiz_take.html",
+        {
+            "quiz": quiz,
+            "questions": questions,
+            "attempt": attempt,
+            "school": school,
+            "quiz_timer_seconds": timer_seconds,
+        },
+    )
 
 
 @login_required
@@ -1676,25 +1824,33 @@ def quiz_result(request, pk):
     if not school:
         return redirect("home")
 
-    attempt = get_object_or_404(QuizAttempt, pk=pk, student__school=school)
+    attempt = get_object_or_404(
+        QuizAttempt.objects.select_related("quiz", "student", "student__user"),
+        pk=pk,
+        quiz__school=school,
+    )
 
-    # Check permission
-    role = getattr(request.user, "role", None)
-    if role == "student" and attempt.student.user != request.user:
+    if not (
+        attempt.student.user_id == request.user.id
+        or _user_can_manage_school(request.user)
+        or _can_view_student_record(request.user, attempt.student)
+    ):
         return redirect("home")
 
-    # Get answers from stored JSON data
-    answers_data = getattr(attempt, 'answers_data', []) or []
-    
-    # Get questions for display
-    questions = attempt.quiz.questions.all().order_by('order')
-    
-    return render(request, "academics/quiz_result.html", {
-        "attempt": attempt,
-        "questions": questions,
-        "answers_data": answers_data,
-        "school": school
-    })
+    answers = (
+        attempt.answers.select_related("question")
+        .order_by("question__order", "question_id", "id")
+    )
+
+    return render(
+        request,
+        "academics/quiz_result.html",
+        {
+            "attempt": attempt,
+            "answers": answers,
+            "school": school,
+        },
+    )
 
 
 @login_required
@@ -1706,19 +1862,46 @@ def quiz_edit(request, pk):
         return redirect("home")
 
     quiz = get_object_or_404(Quiz, pk=pk, school=school)
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+    classes = [c for c in Student.objects.filter(school=school).values_list("class_name", flat=True).distinct() if c]
 
     if request.method == "POST":
-        quiz.title = request.POST.get("title", "").strip()
-        quiz.description = request.POST.get("description", "").strip()
-        quiz.time_limit = request.POST.get("time_limit") or None
-        quiz.passing_score = request.POST.get("passing_score") or 0
-        quiz.is_published = request.POST.get("is_published") == "on"
-        quiz.save()
-        from django.contrib import messages
-        messages.success(request, "Quiz updated!")
-        return redirect("academics:quiz_detail", pk=quiz.pk)
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
+        subject_id = request.POST.get("subject")
+        term_id = request.POST.get("term")
+        class_name = request.POST.get("class_name", "").strip()
+        duration = request.POST.get("duration_minutes", "30")
+        passing = request.POST.get("passing_score", "50")
+        max_attempts = int(request.POST.get("max_attempts_per_student") or "1")
+        max_attempts = max(1, min(max_attempts, 50))
+        if title and subject_id and class_name:
+            quiz.title = title
+            quiz.description = description
+            quiz.subject_id = subject_id
+            quiz.term_id = term_id or None
+            quiz.class_name = class_name
+            quiz.duration_minutes = int(duration)
+            quiz.passing_score = int(passing)
+            quiz.max_attempts_per_student = max_attempts
+            quiz.is_active = request.POST.get("is_active") == "on"
+            quiz.save()
+            from django.contrib import messages
+            messages.success(request, "Quiz updated!")
+            return redirect("academics:quiz_detail", pk=quiz.pk)
 
-    return render(request, "academics/quiz_form.html", {"quiz": quiz, "school": school})
+    return render(
+        request,
+        "academics/quiz_form.html",
+        {
+            "quiz": quiz,
+            "school": school,
+            "subjects": subjects,
+            "terms": terms,
+            "classes": classes,
+        },
+    )
 
 
 @login_required
@@ -2422,7 +2605,8 @@ def enhanced_report_card_pdf(request, student_id):
     
     term_id = request.GET.get("term")
     term_label = "All Terms"
-    
+    term = None
+
     summaries = StudentResultSummary.objects.filter(student=student)
     if term_id:
         summaries = summaries.filter(term_id=term_id)
@@ -2438,7 +2622,11 @@ def enhanced_report_card_pdf(request, student_id):
     # Calculate stats
     total_scores = [s.final_score for s in summaries]
     avg_score = sum(total_scores) / len(total_scores) if total_scores else 0
-    gpa = GradingService.calculate_term_gpa(student, term_id) if term_id else GradingService.calculate_cumulative_gpa(student)
+    gpa = (
+        GradingService.calculate_term_gpa(student, term)
+        if term
+        else GradingService.calculate_cumulative_gpa(student)
+    )
     
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)

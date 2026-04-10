@@ -1,19 +1,25 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Expenses - {{ school.name }}{% endblock %}
 {% block page_title %}Expense Tracking{% endblock %}
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>💰 Expenses</h2>
         <div class="gap-2 d-flex">
+            {% if can_export_data %}
             <a href="{% url 'operations:export_expenses' %}?format=csv" class="btn btn-success">📥 CSV</a>
             <a href="{% url 'operations:export_expenses' %}?format=excel" class="btn btn-success">📊 Excel</a>
+            {% endif %}
+            {% if can_manage_school_expense_records %}
             <a href="{% url 'operations:expense_create' %}" class="btn btn-primary">➕ Add Expense</a>
+            {% endif %}
         </div>
     </div>
     
     {% if expenses %}
-    <p class="total-display">Total: <strong>GHS {{ total }}</strong></p>
+    <p class="total-display">Total: <strong>{{ total|format_ghs }}</strong></p>
     <table class="data-table">
         <thead>
             <tr>
@@ -31,12 +37,14 @@
             <td>{{ expense.expense_date|date:"M d, Y" }}</td>
             <td>{{ expense.category.name|default:"N/A" }}</td>
             <td>{{ expense.description }}</td>
-            <td>GHS {{ expense.amount }}</td>
+            <td>{{ expense.amount|format_ghs }}</td>
             <td>{{ expense.vendor|default:"N/A" }}</td>
             <td>
                 <a href="{% url 'operations:expense_detail' expense.pk %}" class="btn btn-sm btn-info">👁️ View</a>
+                {% if can_manage_school_expense_records %}
                 <a href="{% url 'operations:expense_edit' expense.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                 <a href="{% url 'operations:expense_delete' expense.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

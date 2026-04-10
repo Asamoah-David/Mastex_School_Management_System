@@ -21,6 +21,18 @@
         </div>
     </div>
     
+    {% if marks_mismatch %}
+    <div style="background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.45); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem;">
+        <strong>⚠️ Marks check:</strong> Question marks sum to <strong>{{ question_marks_sum }}</strong> but exam total marks is <strong>{{ exam.total_marks }}</strong>. Align these so student percentages and pass/fail stay accurate.
+    </div>
+    {% endif %}
+    {% if pending_essay_grades %}
+    <div style="background: rgba(99, 102, 241, 0.12); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem;">
+        <strong>{{ pending_essay_grades }}</strong> essay response(s) awaiting manual marks.
+        <a href="{% url 'operations:online_exam_results' %}?exam={{ exam.pk }}" class="btn btn-sm btn-warning" style="margin-left:0.5rem;">Open results</a>
+    </div>
+    {% endif %}
+
     <div class="button-row mb-3">
         <a href="{% url 'operations:online_exam_add_question' exam.id %}" class="btn btn-primary">➕ Add Question</a>
         
@@ -64,6 +76,10 @@
                 <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.end_time }}</p>
             </div>
             <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">🔁 Max attempts</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 500;">{{ exam.max_attempts_per_student }} per student</p>
+            </div>
+            <div>
                 <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">📊 Status</p>
                 <p style="margin: 0.25rem 0 0; font-weight: 500;">
                     {% if exam.status == 'draft' %}
@@ -74,6 +90,12 @@
                 </p>
             </div>
         </div>
+        {% if exam.instructions %}
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(148, 163, 184, 0.2);">
+            <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">📋 Student instructions</p>
+            <p style="margin: 0.35rem 0 0; white-space: pre-wrap;">{{ exam.instructions }}</p>
+        </div>
+        {% endif %}
     </div>
     
     <h4 style="color: #22c55e;">❓ Questions ({{ questions.count }})</h4>

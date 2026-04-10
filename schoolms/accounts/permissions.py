@@ -170,6 +170,19 @@ def user_can_manage_school(user):
     return _has_any(user, *ALL_STAFF_ROLES) and bool(getattr(user, "school_id", None))
 
 
+def can_bulk_promote_students(user):
+    """
+    Whole-class cohort actions: promote all active students to another class_name,
+    or graduate an entire class. Restricted to senior leadership — not general staff
+    or class teachers alone.
+    """
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "hod")
+
+
 # --- Academic content -------------------------------------------------
 
 def can_create_academic_content(user):
@@ -224,6 +237,18 @@ def can_manage_finance(user):
     return _has(user, "accountant")
 
 
+def can_manage_school_expense_records(user):
+    """
+    ERP: post and adjust payables — expenses, budgets, expense categories.
+    Headteacher / accountant / platform admin; not general teaching staff.
+    """
+    if not _is_authenticated(user):
+        return False
+    if getattr(user, "is_superuser", False) or is_super_admin(user):
+        return True
+    return can_manage_finance(user)
+
+
 def can_manage_library(user):
     if not _is_authenticated(user):
         return False
@@ -270,6 +295,25 @@ def can_manage_transport(user):
     if is_super_admin(user) or is_school_admin(user):
         return True
     return _has_any(user, "deputy_head", "admin_assistant")
+
+
+def user_can_access_services_hub(user):
+    """
+    Staff hub for canteen, transport, textbooks, hostel, library, and school fees.
+    Excludes parent/student portal roles.
+    """
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return bool(
+        user_can_manage_school(user)
+        or can_manage_finance(user)
+        or can_manage_library(user)
+        or can_manage_hostel(user)
+        or can_manage_transport(user)
+        or can_manage_inventory(user)
+    )
 
 
 def can_manage_sports(user):

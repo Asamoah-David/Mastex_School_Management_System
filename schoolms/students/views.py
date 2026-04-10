@@ -2,6 +2,8 @@ import hashlib
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.db.models import Count, F, Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
@@ -17,10 +19,19 @@ from .models import (
     StudentDiscipline,
     AbsenceRequest,
 )
+from .student_lifecycle import (
+    bulk_exit_reason_for_status,
+    deactivate_parent_if_no_active_children,
+    reactivate_parent_if_has_active_children,
+)
 from accounts.models import User
-from accounts.permissions import user_can_manage_school, is_school_admin
+from accounts.permissions import (
+    user_can_manage_school,
+    is_school_admin,
+    can_bulk_promote_students,
+)
+from core.utils import log_activity
 from schools.models import School
-from core.pagination import paginate
 from core.pagination import paginate
 
 
@@ -776,22 +787,8 @@ def student_register(request):
 
 @login_required
 def student_delete(request, pk):
-    """
-    Archive/Deactivate a student instead of hard-deleting.
-    This shows the exit form with reason selection.
-    """
-    if not _user_can_manage_school(request):
-        return redirect("home")
-    school = getattr(request.user, "school", None)
-    if not school:
-        return redirect("home")
-    
-    student = get_object_or_404(Student, pk=pk, school=school)
-    
-    return render(request, "students/student_exit.html", {
-        "student": student,
-        "cancel_url": "students:student_detail"
-    })
+    """Legacy URL — use the canonical exit flow (records exit reason and parent options)."""
+    return redirect("students:student_exit", pk=pk)
 
 
 @login_required
@@ -808,7 +805,15 @@ def student_exit(request, pk):
         return redirect("home")
     
     student = get_object_or_404(Student, pk=pk, school=school)
-    
+
+    if request.method == "GET":
+        if student.status not in ("active", "suspended"):
+            messages.info(
+                request,
+                "This student is not on roll as active or suspended. Open their profile to reactivate or review history.",
+            )
+            return redirect("students:student_detail", pk=pk)
+
     if request.method == "POST":
         exit_reason = request.POST.get("exit_reason", "").strip()
         exit_notes = request.POST.get("exit_notes", "").strip()
@@ -829,41 +834,39 @@ def student_exit(request, pk):
         if exit_reason not in status_map:
             messages.error(request, "Please select a valid exit reason.")
             return redirect("students:student_exit", pk=pk)
-        
-        # Update student status
-        student.status = new_status
-        student.exit_date = timezone.now().date()
-        student.exit_reason = exit_reason
-        if exit_notes:
-            student.exit_notes = exit_notes
-        student.save()
-        
-        # Deactivate student user account (except for suspended)
-        if new_status != "suspended" and student.user:
-            student.user.is_active = False
-            student.user.save(update_fields=["is_active"])
-        
-        # Optionally deactivate linked parent
-        if deactivate_parent and student.parent:
-            parent = student.parent
-            other_active = Student.objects.filter(
-                parent=parent, 
-                status="active",
-                school=school
-            ).exclude(pk=student.pk).exists()
-            
-            if not other_active:
-                parent.is_active = False
-                parent.save(update_fields=["is_active"])
-        
+
+        with transaction.atomic():
+            student.status = new_status
+            student.exit_date = timezone.now().date()
+            student.exit_reason = exit_reason
+            student.exit_notes = exit_notes.strip()
+            student.save()
+
+            if new_status != "suspended" and student.user:
+                User.objects.filter(pk=student.user_id).update(is_active=False)
+
+            parent_deactivated = False
+            if deactivate_parent and student.parent_id:
+                parent_deactivated = deactivate_parent_if_no_active_children(
+                    student.parent, school, exclude_student_pk=student.pk
+                )
+
         status_display = dict(Student.STATUS_CHOICES).get(new_status, new_status)
-        messages.success(
-            request,
+        msg = (
             f"Student '{student.user.get_full_name() or student.user.username}' has been marked as {status_display}. "
-            f"Exit reason: {exit_reason}. Records preserved.",
+            f"Exit reason: {exit_reason}. Records preserved."
         )
-        
-        log_activity(request.user, "STUDENT_EXIT", f"Student {student.id} exited: {exit_reason}")
+        if parent_deactivated:
+            msg += " Linked parent account was deactivated (no other active children at this school)."
+        messages.success(request, msg)
+
+        log_activity(
+            request.user,
+            "STUDENT_EXIT",
+            f"Student {student.id} exited: {exit_reason}",
+            school=school,
+            request=request,
+        )
         return redirect("students:student_detail", pk=student.pk)
     
     return render(request, "students/student_exit.html", {
@@ -875,7 +878,8 @@ def student_exit(request, pk):
 @login_required
 def student_reactivate(request, pk):
     """
-    Reactivate a previously deactivated student and restore login access.
+    Reactivate a previously exited student, restore login, and optionally the
+    linked parent when they again have an active child at this school.
     """
     if not _user_can_manage_school(request):
         return redirect("home")
@@ -883,67 +887,194 @@ def student_reactivate(request, pk):
     if not school:
         return redirect("home")
 
-    student = get_object_or_404(Student, pk=pk, school=school)
+    student = get_object_or_404(
+        Student.objects.select_related("user", "parent"), pk=pk, school=school
+    )
+
+    if student.status == "active" and getattr(student.user, "is_active", True):
+        messages.info(request, "This student is already active.")
+        return redirect("students:student_detail", pk=pk)
 
     if request.method == "POST":
+        reactivate_parent = request.POST.get("reactivate_parent") == "on"
+
+        with transaction.atomic():
+            student.status = "active"
+            student.exit_reason = ""
+            student.exit_notes = ""
+            student.save()
+
+            User.objects.filter(pk=student.user_id).update(is_active=True)
+
+            parent_reactivated = False
+            if reactivate_parent and student.parent_id:
+                parent_reactivated = reactivate_parent_if_has_active_children(
+                    student.parent, school
+                )
+
         user = student.user
-
-        student.status = "active"
-        # Keep exit_date as history; do not clear it automatically
-        student.save()
-
-        user.is_active = True
-        user.save(update_fields=["is_active"])
-
-        messages.success(
-            request,
-            f"Student '{user.get_full_name() or user.username}' has been reactivated and can log in again.",
+        msg = (
+            f"Student '{user.get_full_name() or user.username}' is active again and can log in."
+        )
+        if parent_reactivated:
+            msg += " Linked parent account was reactivated (they have an active child at this school)."
+        messages.success(request, msg)
+        log_activity(
+            request.user,
+            "STUDENT_REACTIVATE",
+            f"Student {student.id} reactivated",
+            school=school,
+            request=request,
         )
         return redirect("students:student_detail", pk=student.pk)
 
+    suggest_parent = bool(
+        student.parent_id and not student.parent.is_active
+    )
     return render(
         request,
-        "students/confirm_delete.html",
+        "students/student_reactivate.html",
         {
-            "object": student,
-            "type": "student reactivation",
-            "cancel_url": "students:student_detail",
+            "student": student,
+            "suggest_reactivate_parent": suggest_parent,
         },
     )
 
 
+_STANDARD_PROMOTION_TARGETS = (
+    "Nursery 1",
+    "Nursery 2",
+    "Kindergarten 1",
+    "Kindergarten 2",
+    "Primary 1",
+    "Primary 2",
+    "Primary 3",
+    "Primary 4",
+    "Primary 5",
+    "Primary 6",
+    "JHS 1",
+    "JHS 2",
+    "JHS 3",
+    "Form 1",
+    "Form 2",
+    "Form 3",
+    "Form 4",
+    "SHS 1",
+    "SHS 2",
+    "SHS 3",
+)
+
+
+def _promotion_source_class_names(school):
+    """Classes that appear in roster or class setup (promote *from*)."""
+    from_schoolclass = set(
+        SchoolClass.objects.filter(school=school).values_list("name", flat=True)
+    )
+    from_students = set(
+        Student.objects.filter(school=school, status="active")
+        .exclude(class_name="")
+        .values_list("class_name", flat=True)
+    )
+    names = from_schoolclass | from_students
+    return sorted(names, key=lambda x: (x.lower(), x))
+
+
+def _promotion_target_class_names(school):
+    """Allowed promote-to labels: roster, class setup, and common templates."""
+    return sorted(
+        set(_promotion_source_class_names(school)) | set(_STANDARD_PROMOTION_TARGETS),
+        key=lambda x: (x.lower(), x),
+    )
+
+
+def _active_student_counts_by_class(school):
+    rows = (
+        Student.objects.filter(school=school, status="active")
+        .exclude(class_name="")
+        .values("class_name")
+        .annotate(c=Count("id"))
+    )
+    return {row["class_name"]: row["c"] for row in rows}
+
+
 @login_required
 def promote_students(request):
-    """Promote all students to the next class."""
-    if not _user_can_manage_school(request):
+    """
+    Move all *active* students from one class_name to another and refresh school_class FK
+    when a matching SchoolClass row exists.
+    """
+    if not can_bulk_promote_students(request.user):
+        messages.error(request, "You do not have permission to run class promotions.")
         return redirect("home")
-    
+
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    
+
+    source_names = set(_promotion_source_class_names(school))
+    target_names = set(_promotion_target_class_names(school))
+
     if request.method == "POST":
-        # Get current class names and map to next class
         current_class = request.POST.get("current_class", "").strip()
         new_class = request.POST.get("new_class", "").strip()
-        
-        if current_class and new_class:
-            updated_count = Student.objects.filter(
-                school=school, 
-                class_name=current_class,
-                status="active",
-            ).update(class_name=new_class)
-            
-            messages.success(request, f"Successfully promoted {updated_count} students from {current_class} to {new_class}.")
-            return redirect("students:student_list")
+        confirm = request.POST.get("confirm_promote") == "on"
+
+        if current_class not in source_names:
+            messages.error(request, "Invalid source class.")
+        elif new_class not in target_names:
+            messages.error(request, "Invalid destination class.")
+        elif not confirm:
+            messages.error(request, "Please tick the box to confirm this promotion.")
+        elif current_class == new_class:
+            messages.error(request, "Source and destination class must be different.")
         else:
-            messages.error(request, "Please select both current class and new class.")
-    
-    # Get all unique class names for this school
-    classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
-    classes = [c for c in classes if c]  # Remove empty values
-    
-    return render(request, "students/promote.html", {"school": school, "classes": classes})
+            with transaction.atomic():
+                qs = Student.objects.filter(
+                    school=school,
+                    class_name=current_class,
+                    status="active",
+                )
+                ids = list(qs.values_list("pk", flat=True))
+                if not ids:
+                    messages.warning(
+                        request,
+                        f"No active students in “{current_class}” to promote.",
+                    )
+                else:
+                    qs.update(class_name=new_class)
+                    sc = SchoolClass.objects.filter(school=school, name=new_class).first()
+                    follow = Student.objects.filter(pk__in=ids)
+                    if sc:
+                        follow.update(school_class=sc)
+                    else:
+                        follow.update(school_class=None)
+
+                    updated_count = len(ids)
+                    messages.success(
+                        request,
+                        f"Promoted {updated_count} student(s) from “{current_class}” to “{new_class}”.",
+                    )
+                    log_activity(
+                        request.user,
+                        "PROMOTE_STUDENTS",
+                        f"Promoted {updated_count} from {current_class!r} to {new_class!r}",
+                        school=school,
+                        request=request,
+                    )
+                    return redirect("students:student_list")
+
+    class_counts = _active_student_counts_by_class(school)
+
+    return render(
+        request,
+        "students/promote.html",
+        {
+            "school": school,
+            "classes": _promotion_source_class_names(school),
+            "target_classes": _promotion_target_class_names(school),
+            "class_counts": class_counts,
+        },
+    )
 
 
 @login_required
@@ -954,14 +1085,13 @@ def class_list(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("accounts:dashboard")
-    from django.db.models import Count, Q
     classes = (
         SchoolClass.objects.filter(school=school)
         .select_related("class_teacher")
         .annotate(
             student_count=Count(
-                "school__student",
-                filter=Q(school__student__class_name=models.F("name")),
+                "school__student_set",
+                filter=Q(school__student_set__class_name=F("name")),
             )
         )
         .order_by("name")
@@ -1219,62 +1349,80 @@ def bulk_student_status(request):
         class_name = request.POST.get("class_name", "").strip()
         new_status = request.POST.get("status", "").strip()
         deactivate_parent = request.POST.get("deactivate_parent") == "on"
-        
+        reactivate_parent = request.POST.get("reactivate_parent") == "on"
+
         if not class_name or new_status not in ["graduated", "withdrawn", "dismissed", "active"]:
             messages.error(request, "Please select a valid class and status.")
             return redirect("students:bulk_student_status")
-        
+
         is_reactivation = new_status == "active"
-        
+
         if is_reactivation:
-            students = Student.objects.filter(school=school, class_name=class_name).exclude(status="active")
+            students = Student.objects.filter(school=school, class_name=class_name).exclude(
+                status="active"
+            )
         else:
-            students = Student.objects.filter(school=school, class_name=class_name, status="active")
-        
+            students = Student.objects.filter(
+                school=school, class_name=class_name, status="active"
+            )
+
         if not students.exists():
             label = "non-active" if is_reactivation else "active"
             messages.warning(request, f"No {label} students found in class {class_name}.")
             return redirect("students:student_list")
-        
+
+        today = timezone.now().date()
+        parents_deactivated_ids = set()
+        parents_reactivated_ids = set()
         updated_count = 0
-        parents_deactivated = 0
-        
-        for student in students:
-            student.status = new_status
-            if is_reactivation:
-                student.save()
-                if student.user:
-                    student.user.is_active = True
-                    student.user.save(update_fields=["is_active"])
-            else:
-                student.exit_date = timezone.now().date()
-                student.save()
-                if student.user:
-                    student.user.is_active = False
-                    student.user.save(update_fields=["is_active"])
-            
-            if not is_reactivation and deactivate_parent and student.parent:
-                parent = student.parent
-                other_active = Student.objects.filter(
-                    parent=parent, 
-                    status="active",
-                    school=school
-                ).exclude(pk=student.pk).exists()
-                
-                if not other_active:
-                    parent.is_active = False
-                    parent.save(update_fields=["is_active"])
-                    parents_deactivated += 1
-            
-            updated_count += 1
-        
+
+        with transaction.atomic():
+            student_list = list(students.select_related("user", "parent"))
+            for student in student_list:
+                student.status = new_status
+                if is_reactivation:
+                    student.exit_reason = ""
+                    student.exit_notes = ""
+                    student.save()
+                    if student.user_id:
+                        User.objects.filter(pk=student.user_id).update(is_active=True)
+                    if reactivate_parent and student.parent_id:
+                        parents_reactivated_ids.add(student.parent_id)
+                else:
+                    student.exit_date = today
+                    student.exit_reason = bulk_exit_reason_for_status(new_status)
+                    student.save()
+                    if student.user_id:
+                        User.objects.filter(pk=student.user_id).update(is_active=False)
+                    if deactivate_parent and student.parent_id:
+                        if deactivate_parent_if_no_active_children(
+                            student.parent, school, exclude_student_pk=student.pk
+                        ):
+                            parents_deactivated_ids.add(student.parent_id)
+                updated_count += 1
+
+            parents_reactivated = 0
+            if is_reactivation and reactivate_parent and parents_reactivated_ids:
+                for pid in parents_reactivated_ids:
+                    parent = User.objects.filter(pk=pid).first()
+                    if parent and reactivate_parent_if_has_active_children(parent, school):
+                        parents_reactivated += 1
+
         status_display = dict(Student.STATUS_CHOICES).get(new_status, new_status)
-        msg = f"Successfully updated {updated_count} students in {class_name} to '{status_display}'."
-        if not is_reactivation and deactivate_parent and parents_deactivated > 0:
-            msg += f" Also deactivated {parents_deactivated} parent account(s)."
-        
+        msg = f"Updated {updated_count} student(s) in {class_name} to “{status_display}”."
+        if not is_reactivation and deactivate_parent and parents_deactivated_ids:
+            msg += f" Deactivated {len(parents_deactivated_ids)} parent account(s) with no remaining active children."
+        if is_reactivation and reactivate_parent and parents_reactivated:
+            msg += f" Reactivated {parents_reactivated} parent account(s) that now have an active child."
+
         messages.success(request, msg)
-        log_activity(request.user, "BULK_STUDENT_STATUS", f"Updated {updated_count} students to {new_status}")
+        log_activity(
+            request.user,
+            "BULK_STUDENT_STATUS",
+            f"Updated {updated_count} students in {class_name!r} to {new_status}",
+            school=school,
+            request=request,
+        )
         return redirect("students:student_list")
     
     # Get all classes for this school (only those with students)
@@ -1294,7 +1442,8 @@ def graduate_class(request):
     One-click graduation for an entire class - sets status to 'graduated',
     sets exit date, and optionally deactivates parents.
     """
-    if not _user_can_manage_school(request):
+    if not can_bulk_promote_students(request):
+        messages.error(request, "You do not have permission to graduate a whole class.")
         return redirect("home")
     
     school = getattr(request.user, "school", None)
@@ -1304,52 +1453,56 @@ def graduate_class(request):
     if request.method == "POST":
         class_name = request.POST.get("class_name", "").strip()
         deactivate_parents = request.POST.get("deactivate_parents") == "on"
-        
+
         if not class_name:
             messages.error(request, "Please select a class.")
             return redirect("students:graduate_class")
-        
-        students = Student.objects.filter(school=school, class_name=class_name, status="active")
-        
-        if not students.exists():
+
+        active_qs = Student.objects.filter(
+            school=school, class_name=class_name, status="active"
+        )
+        if not active_qs.exists():
             messages.warning(request, f"No active students found in class {class_name}.")
             return redirect("students:student_list")
-        
-        # Update all students to graduated
-        students.update(status="graduated", exit_date=timezone.now().date())
-        
-        # Get updated students for parent deactivation
-        students = Student.objects.filter(school=school, class_name=class_name)
-        
-        parents_deactivated = 0
-        if deactivate_parents:
-            for student in students:
-                if student.parent:
-                    parent = student.parent
-                    other_active = Student.objects.filter(
-                        parent=parent,
-                        status="active",
-                        school=school
-                    ).exclude(pk=student.pk).exists()
-                    
-                    if not other_active:
-                        parent.is_active = False
-                        parent.save(update_fields=["is_active"])
-                        parents_deactivated += 1
-        
-        # Deactivate all student user accounts
-        for student in students:
-            if student.user:
-                student.user.is_active = False
-                student.user.save(update_fields=["is_active"])
-        
-        count = students.count()
-        msg = f"Successfully graduated {count} students from class {class_name}."
-        if deactivate_parents and parents_deactivated > 0:
-            msg += f" Also deactivated {parents_deactivated} parent account(s)."
-        
+
+        today = timezone.now().date()
+        parents_deactivated_ids = set()
+
+        with transaction.atomic():
+            student_ids = list(active_qs.values_list("pk", flat=True))
+            Student.objects.filter(pk__in=student_ids).update(
+                status="graduated",
+                exit_date=today,
+                exit_reason="graduated",
+            )
+            graduated = list(
+                Student.objects.filter(pk__in=student_ids).select_related("user", "parent")
+            )
+
+            if deactivate_parents:
+                for student in graduated:
+                    if student.parent_id and deactivate_parent_if_no_active_children(
+                        student.parent, school, exclude_student_pk=student.pk
+                    ):
+                        parents_deactivated_ids.add(student.parent_id)
+
+            for student in graduated:
+                if student.user_id:
+                    User.objects.filter(pk=student.user_id).update(is_active=False)
+
+        count = len(student_ids)
+        msg = f"Graduated {count} student(s) from class {class_name}."
+        if deactivate_parents and parents_deactivated_ids:
+            msg += f" Deactivated {len(parents_deactivated_ids)} parent account(s) with no remaining active children."
+
         messages.success(request, msg)
-        log_activity(request.user, "GRADUATE_CLASS", f"Graduated {count} students from {class_name}")
+        log_activity(
+            request.user,
+            "GRADUATE_CLASS",
+            f"Graduated {count} students from {class_name!r}",
+            school=school,
+            request=request,
+        )
         return redirect("students:student_list")
     
     # Get classes for the form
@@ -1360,6 +1513,3 @@ def graduate_class(request):
         "school": school,
         "classes": classes,
     })
-
-
-from core.utils import log_activity

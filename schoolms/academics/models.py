@@ -333,7 +333,14 @@ class Quiz(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     term = models.ForeignKey(Term, on_delete=models.SET_NULL, null=True, blank=True)
     duration_minutes = models.PositiveIntegerField(default=30)
-    passing_score = models.PositiveIntegerField(default=50)
+    passing_score = models.PositiveIntegerField(
+        default=50,
+        help_text="Minimum percentage (0–100) to pass.",
+    )
+    max_attempts_per_student = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="How many times each student may complete this quiz.",
+    )
     is_active = models.BooleanField(default=True)
     due_date = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
@@ -359,7 +366,7 @@ class QuizQuestion(models.Model):
     option_b = models.CharField(max_length=500, blank=True)
     option_c = models.CharField(max_length=500, blank=True)
     option_d = models.CharField(max_length=500, blank=True)
-    correct_answer = models.CharField(max_length=10)
+    correct_answer = models.CharField(max_length=200)
     marks = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField(default=0)
     
@@ -374,7 +381,7 @@ class QuizAnswer(models.Model):
     """Quiz answer model (from migration)."""
     attempt = models.ForeignKey('QuizAttempt', on_delete=models.CASCADE, related_name='answers')
     question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE)
-    answer = models.CharField(max_length=10)
+    answer = models.CharField(max_length=500)
     is_correct = models.BooleanField(default=False)
     marks_obtained = models.FloatField(default=0)
     

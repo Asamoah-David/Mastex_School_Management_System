@@ -1,9 +1,13 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 
 {% block title %}Subscription Expired - {{ school.name }}{% endblock %}
+{% block page_title %}Subscription expired{% endblock %}
+{% block page_subtitle %}{{ school.name }}{% endblock %}
 
 {% block content %}
-<div style="max-width: 600px; margin: 4rem auto; text-align: center; padding: 2rem;">
+{% include "includes/finance_subnav.html" %}
+<div style="max-width: 600px; margin: 2rem auto; text-align: center; padding: 2rem;">
     <div style="font-size: 4rem; margin-bottom: 1rem;">🚫</div>
     
     <h1 style="color: #dc3545; margin-bottom: 1rem;">Subscription Expired</h1>
@@ -25,7 +29,7 @@
         <h3 style="margin-top: 0;">To regain access:</h3>
         <ol style="text-align: left; color: #666;">
             <li style="margin-bottom: 0.5rem;">Click the button below to go to the subscription page</li>
-            <li style="margin-bottom: 0.5rem;">Complete payment via Paystack (GHS {{ school.subscription_amount|default:1500 }}/month)</li>
+            <li style="margin-bottom: 0.5rem;">Complete payment via Paystack ({{ school.subscription_amount|default:1500|format_ghs }}/month)</li>
             <li style="margin-bottom: 0.5rem;">Your access will be restored immediately after payment</li>
         </ol>
         

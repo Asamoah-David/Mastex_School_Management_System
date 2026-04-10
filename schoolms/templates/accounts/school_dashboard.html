@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 
 {% block title %}{{ school.name }} - Dashboard{% endblock %}
 {% block page_title %}{{ school.name }}{% endblock %}
@@ -30,6 +30,49 @@
 </div>
 {% endif %}
 
+{% if can_access_services_hub %}
+<div class="content-card dash-section" style="padding:1rem 1.1rem;">
+    <h3 class="section-title" style="margin-bottom:0.65rem;">Operations &amp; finance</h3>
+    <p style="margin:0 0 0.75rem;font-size:0.85rem;color:var(--text-secondary);line-height:1.45;">
+        ERP-style shortcuts: revenue services, payables, and stock in one row.
+    </p>
+    <div class="dash-quick-row">
+        <a href="{% url 'operations:services_hub' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">🏫</div>
+            <div class="dash-quick-tile-label">Services hub</div>
+        </a>
+        <a href="{% url 'operations:payment_dashboard' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">💳</div>
+            <div class="dash-quick-tile-label">All payments</div>
+        </a>
+        <a href="{% url 'finance:fee_list' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">📋</div>
+            <div class="dash-quick-tile-label">School fees</div>
+        </a>
+        {% if can_manage_finance or is_school_admin %}
+        <a href="{% url 'operations:expense_list' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">💸</div>
+            <div class="dash-quick-tile-label">Expenses</div>
+        </a>
+        <a href="{% url 'operations:budget_list' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">📊</div>
+            <div class="dash-quick-tile-label">Budgets</div>
+        </a>
+        {% endif %}
+        {% if can_manage_inventory or is_school_admin %}
+        <a href="{% url 'operations:inventory_item_list' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">📦</div>
+            <div class="dash-quick-tile-label">Inventory</div>
+        </a>
+        {% endif %}
+        <a href="{% url 'operations:financial_reports_page' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">📈</div>
+            <div class="dash-quick-tile-label">Financial reports</div>
+        </a>
+    </div>
+</div>
+{% endif %}
+
 <!-- Attention Center -->
 {% if pending_admissions or overdue_books or absent_today %}
 <div class="dash-attention-row dash-section">
@@ -40,7 +83,7 @@
     </a>
     {% endif %}
     {% if overdue_books %}
-    <a href="{% url 'operations:library_catalog' %}" class="content-card attention-tile attention-tile--danger">
+    <a href="{% url 'operations:library_issues' %}" class="content-card attention-tile attention-tile--danger">
         <div class="attention-tile__value">{{ overdue_books }}</div>
         <div class="attention-tile__label">Overdue Library Books</div>
     </a>
@@ -81,8 +124,8 @@
     <div class="metric-card">
         <div class="metric-card-icon amber">&#x1F4B0;</div>
         <div class="metric-card-label">Fees Collected</div>
-        <div class="metric-card-value" data-count="{{ paid_fees }}">GHS {{ paid_fees }}</div>
-        {% if unpaid_fees %}<div class="metric-card-trend down">GHS {{ unpaid_fees }} outstanding</div>{% endif %}
+        <div class="metric-card-value" data-count="{{ paid_fees }}">{{ paid_fees|format_ghs }}</div>
+        {% if unpaid_fees %}<div class="metric-card-trend down">{{ unpaid_fees|format_ghs }} outstanding</div>{% endif %}
     </div>
 </div>
 
@@ -140,16 +183,16 @@
             </div>
             <div class="stat-row">
                 <span class="stat-row-label">Outstanding balance (unpaid lines)</span>
-                <span class="stat-row-value">GHS {{ finance_insights.outstanding_balance|floatformat:2 }}</span>
+                <span class="stat-row-value">{{ finance_insights.outstanding_balance|format_ghs }}</span>
             </div>
             <div class="stat-row">
                 <span class="stat-row-label">Collected last 7 days</span>
-                <span class="stat-row-value" style="color:#4ade80;">GHS {{ finance_insights.week_collection|floatformat:2 }}</span>
+                <span class="stat-row-value" style="color:#4ade80;">{{ finance_insights.week_collection|format_ghs }}</span>
             </div>
             <p style="margin:.5rem 0 0;font-size:.8rem;color:var(--text-secondary);">
                 {% if finance_insights.collection_rate_pct is not None %}
                 Overall collection vs billed: <strong>{{ finance_insights.collection_rate_pct }}%</strong>
-                (GHS {{ paid_fees }} of {{ total_fees }} recorded on fee lines).
+                ({{ paid_fees|format_ghs }} of {{ total_fees|format_ghs }} recorded on fee lines).
                 {% else %}
                 Set fee amounts on student records to track collection rate.
                 {% endif %}
@@ -269,10 +312,12 @@
                 <span class="quick-action-icon">&#x1F4B5;</span>
                 <span class="quick-action-label">Manage Fees</span>
             </a>
+            {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
             <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
                 <span class="quick-action-icon">&#x1F4C8;</span>
-                <span class="quick-action-label">Promotions</span>
+                <span class="quick-action-label">Class promotion</span>
             </a>
+            {% endif %}
             <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
                 <span class="quick-action-icon">&#x1F4AC;</span>
                 <span class="quick-action-label">Send Message</span>
@@ -310,7 +355,7 @@
                         <tr>
                             <td>{{ payment.created_at|date:"M d" }}</td>
                             <td class="truncate" style="max-width:140px;">{% if payment.fee.student %}{{ payment.fee.student.user.get_full_name|default:payment.fee.student.user.username }}{% else %}N/A{% endif %}</td>
-                            <td>GHS {{ payment.amount }}</td>
+                            <td>{{ payment.amount|format_ghs }}</td>
                             <td><span class="badge badge-success">Paid</span></td>
                         </tr>
                         {% endfor %}
@@ -338,7 +383,7 @@
             <div class="card-body">
                 <div class="stat-row">
                     <span class="stat-row-label">Collected</span>
-                    <span class="stat-row-value" style="color:#4ade80;">GHS {{ paid_fees }}</span>
+                    <span class="stat-row-value" style="color:#4ade80;">{{ paid_fees|format_ghs }}</span>
                 </div>
                 <div style="margin:0.5rem 0;">
                     <div class="progress">
@@ -349,7 +394,7 @@
                 </div>
                 <div class="stat-row">
                     <span class="stat-row-label">Outstanding</span>
-                    <span class="stat-row-value" style="color:#f87171;">GHS {{ unpaid_fees }}</span>
+                    <span class="stat-row-value" style="color:#f87171;">{{ unpaid_fees|format_ghs }}</span>
                 </div>
             </div>
         </div>
@@ -385,15 +430,22 @@
 
 <!-- Charts Script -->
 <script>
+function formatGhsCount(n) {
+    return 'GHS ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 document.addEventListener('DOMContentLoaded', function() {
     var counters = document.querySelectorAll('.metric-card-value[data-count]');
     counters.forEach(function(el) {
-        var target = parseInt(el.getAttribute('data-count')) || 0;
+        var target = parseFloat(el.getAttribute('data-count')) || 0;
         if (target <= 0) return;
         var current = 0, step = target / 40, interval = setInterval(function() {
             current += step;
-            if (current >= target) { el.textContent = el.textContent.indexOf('GHS') >= 0 ? 'GHS ' + target.toLocaleString() : target.toLocaleString(); clearInterval(interval); }
-            else { el.textContent = el.textContent.indexOf('GHS') >= 0 ? 'GHS ' + Math.floor(current).toLocaleString() : Math.floor(current).toLocaleString(); }
+            if (current >= target) {
+                el.textContent = el.textContent.indexOf('GHS') >= 0 ? formatGhsCount(target) : String(Math.round(target)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                clearInterval(interval);
+            } else {
+                el.textContent = el.textContent.indexOf('GHS') >= 0 ? formatGhsCount(current) : Math.floor(current).toLocaleString();
+            }
         }, 25);
     });
 
@@ -512,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true, maintainAspectRatio: false, cutout: '68%',
                 plugins: {
                     legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } },
-                    tooltip: { callbacks: { label: function(c) { return c.label + ': GHS ' + c.raw.toLocaleString() + ' (' + (c.label === 'Collected' ? pct : 100 - pct) + '%)'; } } }
+                    tooltip: { callbacks: { label: function(c) { return c.label + ': ' + formatGhsCount(c.raw) + ' (' + (c.label === 'Collected' ? pct : 100 - pct) + '%)'; } } }
                 }
             }
         });

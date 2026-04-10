@@ -27,7 +27,7 @@
         {% for item in items %}
         <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ item.name }}</h4>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0 0 1rem 0;">{{ item.price }} GHS</p>
+            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0 0 1rem 0;">{{ item.price|format_ghs }}</p>
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <input type="number" id="quantity-{{ item.id }}" value="1" min="1" max="10" style="width: 60px; padding: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5); border-radius: 0.4rem;">
                 <button type="button" class="btn btn-primary btn-sm" onclick="payCanteen('{{ item.id }}', '{{ item.price }}')">Pay with Paystack</button>
@@ -52,7 +52,7 @@
     <p>You have pending payments that need to be completed.</p>
     {% for payment in pending_payments %}
     <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.5rem;">
-        <strong>{{ payment.description }}</strong> - {{ payment.amount }} GHS
+        <strong>{{ payment.description }}</strong> — {{ payment.amount|format_ghs }}
         <br><small>Reference: {{ payment.payment_reference }}</small>
         <button type="button" class="btn btn-danger btn-sm" style="margin-left: 0.5rem;" onclick="cancelPending('{{ payment.id }}', 'canteen')">Cancel</button>
     </div>
@@ -77,7 +77,7 @@
             <tr>
                 <td>{{ payment.payment_date|date:"M d, Y" }}</td>
                 <td>{{ payment.description }}</td>
-                <td>{{ payment.amount }} GHS</td>
+                <td>{{ payment.amount|format_ghs }}</td>
                 <td><span class="badge badge-success">Completed</span></td>
             </tr>
             {% endfor %}

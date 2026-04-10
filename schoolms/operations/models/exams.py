@@ -65,6 +65,11 @@ class OnlineExam(models.Model):
     duration_minutes = models.PositiveIntegerField(default=30)
     total_marks = models.DecimalField(max_digits=5, decimal_places=2, default=100)
     passing_marks = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+    max_attempts_per_student = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Maximum completed attempts per student (e.g. 3 for practice). Staff can still reset an attempt.",
+    )
+    instructions = models.TextField(blank=True)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
     is_random_questions = models.BooleanField(default=False)
@@ -98,7 +103,7 @@ class ExamQuestion(models.Model):
     option_b = models.CharField(max_length=500, blank=True)
     option_c = models.CharField(max_length=500, blank=True)
     option_d = models.CharField(max_length=500, blank=True)
-    correct_answer = models.CharField(max_length=1, blank=True)  # A, B, C, D for MCQ
+    correct_answer = models.CharField(max_length=200, blank=True)  # A–D / T&F / expected short text
     
     order = models.PositiveIntegerField(default=0)
     
@@ -110,19 +115,29 @@ class ExamQuestion(models.Model):
 
 
 class ExamAttempt(models.Model):
-    """Track student exam attempts"""
+    """Track student exam attempts (multiple per exam when max_attempts_per_student > 1)."""
     exam = models.ForeignKey(OnlineExam, on_delete=models.CASCADE, related_name='attempts')
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='exam_attempts')
+    attempt_number = models.PositiveIntegerField(default=1)
     started_at = models.DateTimeField(auto_now_add=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     
     class Meta:
-        unique_together = ("exam", "student")
+        ordering = ["-started_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exam", "student", "attempt_number"],
+                name="ops_exmatt_ex_stu_attn_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["exam", "student", "is_completed"], name="ops_exmatt_ex_st_done"),
+        ]
     
     def __str__(self):
-        return f"{self.student} - {self.exam.title}"
+        return f"{self.student} - {self.exam.title} (#{self.attempt_number})"
 
 
 class ExamAnswer(models.Model):
@@ -132,6 +147,10 @@ class ExamAnswer(models.Model):
     answer_given = models.CharField(max_length=500, blank=True)
     is_correct = models.BooleanField(default=False)
     marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    teacher_reviewed = models.BooleanField(
+        default=True,
+        help_text="False for essay answers until a teacher enters marks.",
+    )
     
     class Meta:
         unique_together = ("attempt", "question")

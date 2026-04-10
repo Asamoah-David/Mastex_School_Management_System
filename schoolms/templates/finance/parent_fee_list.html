@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 
 {% block title %}My Child's Fees - Mastex SchoolOS{% endblock %}
 {% block page_title %}My Child's Fees{% endblock %}
@@ -48,11 +49,11 @@
             <tr>
                 <td>{{ fee.student.user.get_full_name|default:fee.student.user.username }}</td>
                 <td>{{ fee.school.name }}</td>
-                <td><strong>{{ fee.amount }}</strong></td>
-                <td>{{ fee.amount_paid }}</td>
+                <td><strong>{{ fee.amount|format_ghs }}</strong></td>
+                <td>{{ fee.amount_paid|format_ghs }}</td>
                 <td>
                     {% if fee.remaining_balance > 0 %}
-                        <span style="color: red; font-weight: bold;">{{ fee.remaining_balance }}</span>
+                        <span style="color: red; font-weight: bold;">{{ fee.remaining_balance|format_ghs }}</span>
                     {% else %}
                         <span>—</span>
                     {% endif %}
@@ -110,9 +111,14 @@
 </div>
 
 <script>
+function formatGhsClient(n) {
+    var x = parseFloat(n);
+    if (isNaN(x)) return '—';
+    return 'GHS ' + x.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 function showCustomPayment(feeId, remaining) {
     document.getElementById('modalFeeId').value = feeId;
-    document.getElementById('modalRemaining').textContent = 'GHS ' + remaining.toFixed(2);
+    document.getElementById('modalRemaining').textContent = formatGhsClient(remaining);
     document.getElementById('modalAmount').max = remaining;
     document.getElementById('customPaymentForm').action = '/finance/pay/' + feeId + '/custom/';
     document.getElementById('customPaymentModal').style.display = 'block';

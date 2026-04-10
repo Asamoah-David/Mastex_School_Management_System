@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
+{% load custom_filters %}
+
+{% block title %}Payment history · Mastex SchoolOS{% endblock %}
+{% block page_title %}Payment history{% endblock %}
+{% block page_subtitle %}Recorded fee transactions{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-history me-2"></i>Payment History</h2>
@@ -24,7 +30,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h5 class="card-title">Completed Amount</h5>
-                    <h3>GHS {{ total_amount|floatformat:2 }}</h3>
+                    <h3>{{ total_amount|format_ghs }}</h3>
                 </div>
             </div>
         </div>
@@ -111,7 +117,7 @@
                                         N/A
                                     {% endif %}
                                 </td>
-                                <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                <td>{{ payment.amount|format_ghs }}</td>
                                 <td>
                                     {% if payment.status == 'completed' %}
                                     <span class="badge bg-success">Completed</span>

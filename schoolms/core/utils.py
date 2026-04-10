@@ -59,6 +59,19 @@ def get_effective_school(request):
     return get_school(request)
 
 
+def pending_essay_attempt_cache_key(school_pk):
+    return f"mastex:pending_essay_attempts:v1:{school_pk}"
+
+
+def invalidate_pending_essay_attempt_cache(school_pk):
+    """Drop cached count used for staff nav badge (essay grading queue)."""
+    if not school_pk:
+        return
+    from django.core.cache import cache
+
+    cache.delete(pending_essay_attempt_cache_key(school_pk))
+
+
 def log_activity(user, action, details="", school=None, request=None):
     """
     Record an activity for audit trail. 

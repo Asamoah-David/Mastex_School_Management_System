@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}{{ child.user.get_full_name|default:child.user.username }} · Mastex SchoolOS{% endblock %}
 {% block page_title %}{{ child.user.get_full_name|default:child.user.username }}{% endblock %}
 {% block page_subtitle %}Admission: {{ child.admission_number }} · Class: {{ child.class_name|default:"—" }}{% endblock %}
@@ -8,7 +9,7 @@
     <a class="btn btn-secondary" href="{% url 'students:parent_dashboard' %}">Back</a>
     <a class="btn btn-primary" href="{% url 'academics:report_card' child.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}">View report card</a>
     {% if first_unpaid_fee %}
-    <a class="btn btn-primary" href="{% url 'finance:pay' first_unpaid_fee.id %}?next={{ request.get_full_path|urlencode }}">Pay {{ first_unpaid_fee.remaining_balance|floatformat:2 }} GHS due</a>
+    <a class="btn btn-primary" href="{% url 'finance:pay' first_unpaid_fee.id %}?next={{ request.get_full_path|urlencode }}">Pay {{ first_unpaid_fee.remaining_balance|format_ghs }} due</a>
     {% endif %}
 </div>
 
@@ -83,7 +84,7 @@
         <tbody>
             {% for f in fees %}
             <tr>
-                <td>{{ f.amount }} GHS</td>
+                <td>{{ f.amount|format_ghs }}</td>
                 <td>{% if f.paid %}<span class="tag"><span class="tag-bullet"></span>Paid</span>{% else %}<span class="tag">Unpaid</span>{% endif %}</td>
                 <td>{{ f.created_at|date:"Y-m-d" }}</td>
                 <td>{% if not f.paid %}<a class="btn btn-primary btn-sm" href="{% url 'finance:pay' f.id %}?next={{ request.get_full_path|urlencode }}">Pay</a>{% endif %}</td>

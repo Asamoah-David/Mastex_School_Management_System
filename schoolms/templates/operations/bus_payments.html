@@ -3,6 +3,8 @@
 {% block page_title %}Bus payments{% endblock %}
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
+{% include "includes/finance_subnav.html" %}
+{% include "operations/includes/services_quick_nav.html" %}
 <div class="table-card">
     {% if payments %}
     <table>

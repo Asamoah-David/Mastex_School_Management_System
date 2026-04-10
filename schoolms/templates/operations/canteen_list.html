@@ -3,13 +3,17 @@
 {% block page_title %}Canteen items{% endblock %}
 {% block page_subtitle %}{{ school.name }}.{% endblock %}
 {% block content %}
+{% include "operations/includes/services_quick_nav.html" %}
 <div class="button-row">
-    {% if user.is_superuser or user.is_staff_member %}
+    {% if user.is_superuser or is_school_admin or is_super_admin or can_manage_finance %}
     <a href="{% url 'operations:canteen_create' %}" class="btn btn-primary">Add Item</a>
+    {% endif %}
+    {% if user_can_manage_school %}
     <a href="{% url 'operations:canteen_payments' %}" class="btn btn-secondary">View Payments</a>
-    
+    {% endif %}
+    {% if can_export_data %}
     <div class="export-dropdown" style="display: inline-block; position: relative;">
-        <button class="btn btn-success dropdown-toggle" type="button">Export Payments ▼</button>
+        <button class="btn btn-success dropdown-toggle" type="button">Export payments ▼</button>
         <div class="dropdown-menu">
             <a href="{% url 'operations:export_canteen_payments' %}?format=csv" class="dropdown-item">Export CSV</a>
             <a href="{% url 'operations:export_canteen_payments' %}?format=excel" class="dropdown-item">Export Excel</a>
@@ -20,7 +24,7 @@
                     <input type="date" name="from" class="form-control form-control-sm mb-1" placeholder="From date">
                     <input type="date" name="to" class="form-control form-control-sm mb-1" placeholder="To date">
                     <input type="month" name="month" class="form-control form-control-sm mb-1" placeholder="Month (YYYY-MM)">
-                    <button type="submit" class="btn btn-sm btn-outline-primary w-100">Apply Filter</button>
+                    <button type="submit" class="btn btn-sm btn-outline-primary w-100">Apply filter</button>
                 </div>
             </form>
         </div>
@@ -41,7 +45,7 @@
                 <td>{{ i.price }}</td>
                 <td>{{ i.is_available|yesno:"Yes,No" }}</td>
                 <td>
-                    {% if user.is_superuser or user.is_staff_member %}
+                    {% if user.is_superuser or is_school_admin or is_super_admin or can_manage_finance %}
                         <a href="{% url 'operations:canteen_item_delete' i.pk %}" class="btn btn-danger btn-sm">Delete</a>
                     {% endif %}
                 </td>

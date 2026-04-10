@@ -119,6 +119,7 @@ _template_options = {
         "django.contrib.messages.context_processors.messages",
         "notifications.context_processors.notification_context",
         "accounts.context_processors.role_permissions",
+        "accounts.context_processors.current_datetime",
     ],
     "libraries": {
         "custom_filters": "templatetags.custom_filters",
@@ -327,6 +328,23 @@ if DEBUG:
 # ---------------------------------------------------------------------------
 MNOTIFY_API_KEY = env("MNOTIFY_API_KEY", "")
 MNOTIFY_SENDER_ID = env("MNOTIFY_SENDER_ID", "")
+
+# Admission SMS: optional short public origin for links (e.g. https://school.example.com) when
+# the incoming Host header is long or internal. If unset, links use the current request URL.
+_admission_sms_base = env("ADMISSION_SMS_PUBLIC_BASE_URL", "").strip()
+if _admission_sms_base and not _admission_sms_base.startswith(("http://", "https://")):
+    _admission_sms_base = f"https://{_admission_sms_base}"
+ADMISSION_SMS_PUBLIC_BASE_URL = _admission_sms_base or None
+try:
+    ADMISSION_SMS_MAX_CHARS = max(120, min(640, int(env("ADMISSION_SMS_MAX_CHARS", "300"))))
+except ValueError:
+    ADMISSION_SMS_MAX_CHARS = 300
+
+# Hard ceiling for any SMS body (after optional [school] prefix in SMSService); avoids huge payloads.
+try:
+    SMS_MESSAGE_HARD_MAX_CHARS = max(500, int(env("SMS_MESSAGE_HARD_MAX_CHARS", "2500")))
+except ValueError:
+    SMS_MESSAGE_HARD_MAX_CHARS = 2500
 
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", "")

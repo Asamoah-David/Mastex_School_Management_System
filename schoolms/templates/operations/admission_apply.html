@@ -21,9 +21,13 @@
         </div>
     </div>
     
-    <form method="POST" id="admissionForm" onsubmit="return validateAdmissionForm()">
+    <form method="POST" id="admissionForm" enctype="multipart/form-data" onsubmit="return validateAdmissionForm()">
         {% csrf_token %}
-        
+        <div style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
+            <label for="hp_company">Company website</label>
+            <input type="text" name="hp_company" id="hp_company" tabindex="-1" autocomplete="off" value="">
+        </div>
+
         <!-- School Selection - CRITICAL FOR MULTI-SCHOOL -->
         <div style="padding: 1.25rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.4); margin-bottom: 1.5rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
@@ -222,6 +226,39 @@
             <!-- Additional Information -->
             <div style="padding: 1rem; border-radius: 0.75rem; background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(139, 92, 246, 0.1)); border: 1px solid rgba(168, 85, 247, 0.3);">
                 <h4 style="margin: 0 0 1rem; color: #a855f7;">📋 Additional Information</h4>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                        <span>📣</span> How did you hear about us?
+                    </label>
+                    <input type="text" name="how_did_you_hear" id="how_did_you_hear" maxlength="200"
+                           placeholder="e.g. friend, social media, school fair"
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem;">
+                </div>
+
+                <div style="display: grid; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                            <span>📄</span> Birth certificate <span style="color: var(--text-soft); font-weight: 400;">(optional, PDF or image)</span>
+                        </label>
+                        <input type="file" name="birth_certificate" id="birth_certificate" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
+                               style="width: 100%; font-size: 0.85rem; color: var(--text-main);">
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                            <span>📑</span> Previous school report <span style="color: var(--text-soft); font-weight: 400;">(optional)</span>
+                        </label>
+                        <input type="file" name="previous_report" id="previous_report" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
+                               style="width: 100%; font-size: 0.85rem; color: var(--text-main);">
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+                            <span>🖼️</span> Passport photo <span style="color: var(--text-soft); font-weight: 400;">(optional)</span>
+                        </label>
+                        <input type="file" name="passport_photo" id="passport_photo" accept=".jpg,.jpeg,.png,.gif,.webp,image/*"
+                               style="width: 100%; font-size: 0.85rem; color: var(--text-main);">
+                    </div>
+                </div>
                 
                 <div class="form-group">
                     <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
@@ -249,7 +286,7 @@
             <!-- Info Box -->
             <div style="padding: 1rem; border-radius: 0.75rem; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3);">
                 <p style="margin: 0; color: var(--text-soft); font-size: 0.85rem;">
-                    <strong style="color: #3b82f6;">📌 Note:</strong> After submission, our admissions team will review your application and contact you via phone or email. You may be required to bring original documents for verification.
+                    <strong style="color: #3b82f6;">📌 Note:</strong> After submission you will receive an <strong>application reference</strong> to track status online. Our admissions team may contact you by phone or email. You may be asked to bring original documents for verification.
                 </p>
             </div>
         </div>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm delete · Mastex SchoolOS{% endblock %}
+{% block page_title %}Confirm delete{% endblock %}
+{% block page_subtitle %}This action cannot be undone{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+<div class="content-card">
+    <p>Are you sure you want to delete <strong>{{ object }}</strong>?</p>
+    <p style="color:var(--text-soft, #94a3b8); font-size:0.9rem;">Type: {{ type }}</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="button-row">
+            <button type="submit" class="btn btn-danger">Yes, delete</button>
+            {% if cancel_url %}
+            <a href="{% url cancel_url %}" class="btn btn-secondary">Cancel</a>
+            {% else %}
+            <a href="javascript:history.back()" class="btn btn-secondary">Cancel</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

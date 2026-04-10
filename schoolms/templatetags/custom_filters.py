@@ -1,4 +1,6 @@
-﻿from django import template
+﻿from decimal import Decimal, InvalidOperation
+
+from django import template
 import calendar
 
 register = template.Library()
@@ -90,3 +92,17 @@ def text_to_words(amount):
     else:
         # For very large amounts, just return the number
         return str(int(amount))
+
+
+@register.filter
+def format_ghs(value):
+    """Format a numeric amount as Ghana Cedis (GHS), with thousands separators."""
+    if value is None or value == "":
+        return "—"
+    try:
+        d = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+    quantized = d.quantize(Decimal("0.01"))
+    text = f"{quantized:,.2f}"
+    return f"GHS {text}"

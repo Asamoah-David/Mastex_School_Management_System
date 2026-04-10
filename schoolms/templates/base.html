@@ -8,6 +8,7 @@
     <link rel="apple-touch-icon" href="{% static 'favicon.png' %}">
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="theme-color" content="#22c55e">
+    <meta name="description" content="{% block meta_description %}Mastex SchoolOS — academics, finance, canteen, transport, hostel, library, and parent portals in one school ERP.{% endblock %}">
     {% load feature_flags %}
     <title>{% block title %}School Management System{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,6 +17,7 @@
     <link rel="stylesheet" href="{% static 'css/design-system.css' %}">
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     <link rel="stylesheet" href="{% static 'css/dashboard_enhancements.css' %}">
+    <link rel="stylesheet" href="{% static 'css/erp-product.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- jQuery required for Select2 -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
@@ -472,6 +474,7 @@ background: rgba(2, 6, 23, 0.98);
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-to-main">Skip to main content</a>
     <!-- Top Progress Bar -->
     <div id="page-progress"></div>
     
@@ -549,7 +552,7 @@ background: rgba(2, 6, 23, 0.98);
                 </a>
                 {% if user.is_authenticated %}
                 <form action="{% url 'accounts:global_search' %}" method="get" class="nav-search" style="flex:1;max-width:360px;margin:0 1rem;">
-                    <input type="search" name="q" placeholder="Search students, staff, fees…" value="{{ request.GET.q }}" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.85rem;background:var(--bg-surface,#fff);color:var(--text-primary);">
+                    <input type="search" name="q" placeholder="Search people, fees, classes, ledgers…" value="{{ request.GET.q }}" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.85rem;background:var(--bg-surface,#fff);color:var(--text-primary);">
                 </form>
                 {% endif %}
                 <div class="nav-actions">
@@ -582,17 +585,29 @@ background: rgba(2, 6, 23, 0.98);
                             <a class="menu-item" href="{% url 'accounts:profile' %}"><span class="menu-item-title">My Profile</span><span class="menu-item-sub">View account details</span></a>
                             <a class="menu-item" href="{% url 'accounts:edit_profile' %}"><span class="menu-item-title">Edit Profile</span><span class="menu-item-sub">Update name, email, phone</span></a>
                             <a class="menu-item" href="{% url 'accounts:password_change' %}"><span class="menu-item-title">Change Password</span><span class="menu-item-sub">Update your password</span></a>
+                            {% if can_access_services_hub %}
+                            <a class="menu-item" href="{% url 'operations:services_hub' %}"><span class="menu-item-title">Services hub</span><span class="menu-item-sub">Canteen, transport, library, fees</span></a>
+                            {% endif %}
+                            {% if can_manage_finance %}
+                            <a class="menu-item" href="{% url 'finance:fee_list' %}"><span class="menu-item-title">School fees</span><span class="menu-item-sub">Balances and fee records</span></a>
+                            <a class="menu-item" href="{% url 'operations:payment_dashboard' %}"><span class="menu-item-title">Payment register</span><span class="menu-item-sub">All payment types</span></a>
+                            {% endif %}
+                            {% if user.is_superuser or user.role == "school_admin" %}
+                            <a class="menu-item" href="{% url 'schools:school_settings' %}"><span class="menu-item-title">School settings</span><span class="menu-item-sub">Branding, year, Paystack</span></a>
+                            {% endif %}
                             <a class="menu-item" href="{% url 'accounts:logout' %}"><span class="menu-item-title">Log out</span><span class="menu-item-sub">Sign out of your account</span></a>
                         </div>
                     </div>
                     {% else %}
+                    <a href="{% url 'operations:admission_apply' %}" class="btn btn-secondary btn-sm">Apply</a>
+                    <a href="{% url 'operations:admission_track' %}" class="btn btn-secondary btn-sm">Track</a>
                     <a href="{% url 'accounts:login' %}" class="btn btn-primary">Sign in</a>
                     {% endif %}
                 </div>
             </div>
         </header>
 
-        <main class="layout">
+        <main class="layout" id="main-content" role="main" tabindex="-1">
             <aside class="sidebar">
                 <div class="sidebar-close">
                     <button type="button" id="sidebarClose" aria-label="Close sidebar">✕ Close</button>
@@ -611,6 +626,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'schools:school_list' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Schools</span></div></a></li>
                                 <li><a href="{% url 'school_register' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Register School</span></div></a></li>
                                 <li><a href="{% url 'operations:activity_log_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Activity Log</span></div></a></li>
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Canteen, fees, library…</span></div></a></li>
                                 <li><a href="/admin/" class="nav-item"><span class="nav-item-icon">⚙️</span><div class="nav-item-label"><span class="nav-item-title">Django Admin</span></div></a></li>
                                 <li><a href="{% url 'messaging:superuser_send_message' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Broadcast to Schools</span></div></a></li>
                             </ul>
@@ -630,6 +646,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467;</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
                                 <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
                                 <li><a href="{% url 'students:class_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Classes</span></div></a></li>
+                                <li><a href="{% url 'students:promote_students' %}" class="nav-item"><span class="nav-item-icon">&#x2B06;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Promote class</span><span class="nav-item-sub">Move whole class up</span></div></a></li>
                                 <li><a href="{% url 'operations:admission_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DD;</span><div class="nav-item-label"><span class="nav-item-title">Admissions</span></div></a></li>
                             </ul>
                         </div>
@@ -644,6 +661,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">&#x23F0;</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
                                 <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
                                 <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+                                <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>
                                 <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Online Classes</span></div></a></li>
                             </ul>
                         </div>
@@ -673,6 +691,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4B0; Finance</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
+                                <li><a href="{% url 'finance:fee_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B0;</span><div class="nav-item-label"><span class="nav-item-title">School Fees</span><span class="nav-item-sub">Balances &amp; export</span></div></a></li>
                                 <li><a href="{% url 'operations:payment_dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B3;</span><div class="nav-item-label"><span class="nav-item-title">Payment Dashboard</span></div></a></li>
                                 <li><a href="{% url 'operations:financial_reports_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C8;</span><div class="nav-item-label"><span class="nav-item-title">Financial Reports</span></div></a></li>
                                 <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B8;</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
@@ -684,6 +703,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F3E2; Operations</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E2;</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Fees, canteen, transport…</span></div></a></li>
                                 <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
                                 <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F37D;</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
                                 <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F68C;</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
@@ -776,6 +796,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-items">
                             <ul class="nav-list">
 <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+<li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>
                                 <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Online Classes</span></div></a></li>
                                 <li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">❓</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>
                                 <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
@@ -786,6 +807,9 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📚 Library</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
+                                {% if can_access_services_hub %}
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span></div></a></li>
+                                {% endif %}
                                 <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">Catalog</span></div></a></li>
                                 <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">📥</span><div class="nav-item-label"><span class="nav-item-title">My Issues</span></div></a></li>
                             </ul>
@@ -938,6 +962,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>💰 Finance</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Canteen, transport, library…</span></div></a></li>
                                 <li><a href="{% url 'finance:fee_list' %}" class="nav-item"><span class="nav-item-icon">💵</span><div class="nav-item-label"><span class="nav-item-title">Fee Structures</span></div></a></li>
                                 <li><a href="{% url 'operations:payment_dashboard' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payments</span></div></a></li>
                                 <li><a href="{% url 'operations:record_payment' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Record Payment</span></div></a></li>
@@ -974,6 +999,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📚 Library</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span></div></a></li>
                                 <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">Book Catalog</span></div></a></li>
                                 <li><a href="{% url 'operations:library_manage' %}" class="nav-item"><span class="nav-item-icon">⚙️</span><div class="nav-item-label"><span class="nav-item-title">Manage Library</span></div></a></li>
                                 <li><a href="{% url 'operations:library_issues' %}" class="nav-item"><span class="nav-item-icon">📥</span><div class="nav-item-label"><span class="nav-item-title">Book Issues</span></div></a></li>
@@ -991,6 +1017,7 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
                                 <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                                <li><a href="{% url 'students:promote_students' %}" class="nav-item"><span class="nav-item-icon">⬆️</span><div class="nav-item-label"><span class="nav-item-title">Promote class</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1019,6 +1046,14 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
                                 <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Discipline</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🏫 School services</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Canteen, hostel, fees…</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1066,6 +1101,14 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🏫 School services</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
                     {% elif user.role == "admin_assistant" %}
                     <!-- ADMIN ASSISTANT NAVIGATION -->
                     <div class="nav-section">
@@ -1078,6 +1121,14 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
                                 <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
                                 <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🏫 School services</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Hostel, transport, canteen…</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1103,6 +1154,14 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
                                 <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🏫 School services</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1149,7 +1208,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="page-title">{% block page_title %}Dashboard{% endblock %}</div>
                         <div class="page-subtitle">{% block page_subtitle %}Track schools, students, billing, and communication in one place.{% endblock %}</div>
                     </div>
-                    <div class="page-meta"><div class="page-meta-pill">Today · {{ now|default:"" }}</div></div>
+                    <div class="page-meta"><div class="page-meta-pill">{% if now %}{{ now|date:"D j M Y" }} · {{ now|time:"H:i" }}{% else %}—{% endif %}</div></div>
                 </div>
 {% if messages %}
                 <div class="messages" role="status">
@@ -1171,6 +1230,16 @@ background: rgba(2, 6, 23, 0.98);
                 <div>Mastex SchoolOS &mdash; modern school management platform.</div>
                 <div class="footer-links"><span class="badge-pill">Secure · Paystack · MNotify</span></div>
                 <div>Contact: mastex.digital.world@gmail.com | +233544789716</div>
+                {% if user.is_authenticated %}
+                <div class="erp-footer-dock no-print" aria-label="Quick links">
+                    <span class="erp-footer-dock__label">Quick</span>
+                    {% if can_access_services_hub %}<a href="{% url 'operations:services_hub' %}">Services</a>{% endif %}
+                    {% if can_manage_finance %}<a href="{% url 'finance:fee_list' %}">Fees</a><a href="{% url 'operations:payment_dashboard' %}">Payments</a>{% endif %}
+                    {% if can_manage_finance %}<a href="{% url 'operations:financial_reports_page' %}">Reports</a>{% endif %}
+                    {% if user.is_superuser or user.role == "super_admin" or user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" %}<a href="{% url 'operations:activity_log_list' %}">Activity</a>{% endif %}
+                    {% if user.is_superuser or user.role == "super_admin" or user.role == "school_admin" %}<a href="{% url 'audit:dashboard' %}">Audit</a>{% endif %}
+                </div>
+                {% endif %}
             </div>
         </footer>
     </div>

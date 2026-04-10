@@ -1,15 +1,20 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Budgets - {{ school.name }}{% endblock %}
 {% block page_title %}Budget Management{% endblock %}
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>💰 Budgets</h2>
         <div class="gap-2 d-flex">
+            {% if can_export_data %}
             <a href="{% url 'operations:export_budgets' %}?format=csv" class="btn btn-success">📥 CSV</a>
             <a href="{% url 'operations:export_budgets' %}?format=excel" class="btn btn-success">📊 Excel</a>
+            {% endif %}
+            {% if can_manage_school_expense_records %}
             <a href="{% url 'operations:budget_create' %}" class="btn btn-primary">➕ Create Budget</a>
+            {% endif %}
         </div>
     </div>
     
@@ -32,12 +37,16 @@
             <td>{{ budget.category.name|default:"General" }}</td>
             <td>{{ budget.academic_year }}</td>
             <td>{{ budget.term|default:"All Terms" }}</td>
-            <td>GHS {{ budget.allocated_amount }}</td>
-            <td>GHS {{ budget.spent_amount|default:"0" }}</td>
-            <td>GHS {{ budget.remaining|default:budget.allocated_amount }}</td>
+            <td>{{ budget.allocated_amount|format_ghs }}</td>
+            <td>{{ budget.spent_amount|default:0|format_ghs }}</td>
+            <td>{{ budget.remaining|default:budget.allocated_amount|format_ghs }}</td>
             <td>
+                {% if can_manage_school_expense_records %}
                 <a href="{% url 'operations:budget_edit' budget.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                 <a href="{% url 'operations:budget_delete' budget.pk %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+                {% else %}
+                <span style="color:var(--text-soft, #94a3b8); font-size:0.85rem;">View only</span>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

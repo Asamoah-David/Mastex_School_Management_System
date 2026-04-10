@@ -1,10 +1,13 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 
 {% block title %}Fees · {{ school.name|default:"Platform" }}{% endblock %}
 {% block page_title %}Fees Management{% endblock %}
 {% block page_subtitle %}View and manage student fee payments{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
+{% include "operations/includes/services_quick_nav.html" %}
 <div class="content-card" style="margin-bottom: 1.5rem;">
     <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-between;">
         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
@@ -21,10 +24,12 @@
             Paid
         </a>
         </div>
+        {% if can_export_data %}
         <div style="display: flex; gap: 0.5rem;">
             <a href="{% url 'operations:export_fees' %}?format=csv" class="btn btn-success">📥 CSV</a>
             <a href="{% url 'operations:export_fees' %}?format=excel" class="btn btn-success">📊 Excel</a>
         </div>
+        {% endif %}
     </div>
 </div>
 
@@ -55,11 +60,11 @@
                     <td>{{ fee.student.user.get_full_name|default:fee.student.user.username }}</td>
                     <td>{{ fee.student.class_name|default:"—" }}</td>
                     <td>{{ fee.school.name }}</td>
-                    <td><strong>{{ fee.amount }}</strong></td>
-                    <td>{{ fee.amount_paid }}</td>
+                    <td><strong>{{ fee.amount|format_ghs }}</strong></td>
+                    <td>{{ fee.amount_paid|format_ghs }}</td>
                     <td>
                         {% if fee.remaining_balance > 0 %}
-                            <span style="color: red;">{{ fee.remaining_balance }}</span>
+                            <span style="color: red;">{{ fee.remaining_balance|format_ghs }}</span>
                         {% else %}
                             <span>—</span>
                         {% endif %}
@@ -93,7 +98,7 @@
                                     <summary style="cursor:pointer; font-size:0.8rem;">History</summary>
                                     <ul style="font-size:0.75rem; margin:0.5rem 0; padding-left:1rem;">
                                         {% for payment in fee.payments.all %}
-                                            <li>GHS {{ payment.amount }} - {{ payment.created_at|date:"M d, Y" }} ({{ payment.payment_method }})</li>
+                                            <li>{{ payment.amount|format_ghs }} — {{ payment.created_at|date:"M d, Y" }} ({{ payment.payment_method }})</li>
                                         {% endfor %}
                                     </ul>
                                 </details>

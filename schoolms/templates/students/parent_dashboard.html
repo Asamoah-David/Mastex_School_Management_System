@@ -131,7 +131,7 @@
                         <tbody>
                             {% for fee in child_fees %}
                             <tr>
-                                <td>GHS {{ fee.amount }}</td>
+                                <td>{{ fee.amount|format_ghs }}</td>
                                 <td>
                                     {% if fee.paid %}<span class="badge badge-success">Paid</span>
                                     {% else %}<span class="badge badge-danger">Unpaid</span>{% endif %}

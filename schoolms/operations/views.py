@@ -2,11 +2,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Q
-from django.db import models
+from django.db import models, transaction, IntegrityError
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from django.http import HttpResponse
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.utils.text import slugify
+import re
 from accounts.decorators import role_required
 from core.pagination import paginate
 import logging
@@ -72,7 +75,11 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-from core.utils import get_school as _get_school, can_manage as _user_can_manage_school
+from core.utils import (
+    get_school as _get_school,
+    can_manage as _user_can_manage_school,
+    invalidate_pending_essay_attempt_cache,
+)
 
 
 @login_required
@@ -290,11 +297,15 @@ def canteen_list(request):
 @login_required
 def canteen_create(request):
     """Create a new canteen item."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_finance
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_finance(request.user)
+    ):
         return redirect("operations:canteen_list")
     
     if request.method == "POST":
@@ -333,103 +344,6 @@ def canteen_payments(request):
 
 
 @login_required
-def canteen_my(request):
-    """
-    Student/parent view: view available canteen items and make purchases.
-    """
-    role = getattr(request.user, "role", None)
-    if role not in ("student", "parent"):
-        return redirect("home")
-    
-    # For parents, get school from children; for students, use their school
-    school = _get_school(request)
-    if role == "parent":
-        # Get school from any of the parent's children
-        child = Student.objects.filter(parent=request.user).first()
-        if child:
-            school = child.school
-        else:
-            messages.error(request, "No children found linked to your account.")
-            return redirect("home")
-    
-    if not school:
-        return redirect("home")
-    
-    # Get available canteen items
-    items = CanteenItem.objects.filter(school=school, is_available=True).order_by("name")
-    
-    # Get student's/children's purchase history
-    if role == "student":
-        student = Student.objects.filter(user=request.user, school=school).first()
-        my_payments = CanteenPayment.objects.filter(school=school, student=student).select_related("item").order_by("-payment_date")[:50] if student else []
-    else:
-        children = Student.objects.filter(parent=request.user, school=school)
-        my_payments = CanteenPayment.objects.filter(school=school, student__in=children).select_related("item", "student", "student__user").order_by("-payment_date")[:100]
-    
-    return render(request, "operations/canteen_my.html", {
-        "items": items,
-        "my_payments": my_payments,
-        "school": school,
-        "mode": role
-    })
-
-
-@login_required
-def canteen_buy(request):
-    """
-    Student/parent purchases a canteen item.
-    """
-    from django.contrib import messages
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
-    
-    role = getattr(request.user, "role", None)
-    if role not in ("student", "parent"):
-        return redirect("home")
-    
-    if request.method == "POST":
-        item_id = request.POST.get("item_id")
-        quantity = int(request.POST.get("quantity", 1))
-        
-        item = CanteenItem.objects.filter(id=item_id, school=school, is_available=True).first()
-        if not item:
-            messages.error(request, "Item not available.")
-            return redirect("operations:canteen_my")
-        
-        # Get the student
-        if role == "student":
-            student = Student.objects.filter(user=request.user, school=school).first()
-        else:
-            # For parent, get first child or selected child
-            child_id = request.POST.get("student_id")
-            if child_id:
-                student = Student.objects.filter(id=child_id, parent=request.user, school=school).first()
-            else:
-                student = Student.objects.filter(parent=request.user, school=school).first()
-        
-        if not student:
-            messages.error(request, "No student found.")
-            return redirect("operations:canteen_my")
-        
-        # Create payment record
-        total_amount = item.price * quantity
-        CanteenPayment.objects.create(
-            school=school,
-            student=student,
-            item=item,
-            quantity=quantity,
-            amount=total_amount,
-            payment_date=timezone.now().date()
-        )
-        
-        messages.success(request, f"Purchased {quantity}x {item.name} for {total_amount} GHS!")
-        return redirect("operations:canteen_my")
-    
-    return redirect("operations:canteen_my")
-
-
-@login_required
 def bus_list(request):
     school = _get_school(request)
     if not school:
@@ -441,11 +355,15 @@ def bus_list(request):
 @login_required
 def bus_create(request):
     """Create a new bus route."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_transport
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_transport(request.user)
+    ):
         return redirect("operations:bus_list")
     
     if request.method == "POST":
@@ -536,11 +454,15 @@ def textbook_list(request):
 @login_required
 def textbook_create(request):
     """Create a new textbook."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_inventory
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_inventory(request.user)
+    ):
         return redirect("operations:textbook_list")
     
     if request.method == "POST":
@@ -625,11 +547,15 @@ def textbook_sales(request):
 @login_required
 def canteen_item_delete(request, pk):
     """Delete a canteen item."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_finance
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_finance(request.user)
+    ):
         return redirect("operations:canteen_list")
     item = get_object_or_404(CanteenItem, pk=pk, school=school)
     if request.method == "POST":
@@ -643,11 +569,15 @@ def canteen_item_delete(request, pk):
 @login_required
 def bus_route_delete(request, pk):
     """Delete a bus route."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_transport
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_transport(request.user)
+    ):
         return redirect("operations:bus_list")
     route = get_object_or_404(BusRoute, pk=pk, school=school)
     if request.method == "POST":
@@ -661,11 +591,15 @@ def bus_route_delete(request, pk):
 @login_required
 def textbook_delete(request, pk):
     """Delete a textbook."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_inventory
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_inventory(request.user)
+    ):
         return redirect("operations:textbook_list")
     book = get_object_or_404(Textbook, pk=pk, school=school)
     if request.method == "POST":
@@ -1224,6 +1158,20 @@ def activity_log_list(request):
     )
 
 
+@login_required
+def services_hub(request):
+    from django.contrib import messages
+    from accounts.permissions import user_can_access_services_hub
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not user_can_access_services_hub(request.user):
+        messages.error(request, "You do not have access to the services hub.")
+        return redirect("home")
+    return render(request, "operations/services_hub.html", {"school": school})
+
+
 # Library
 @login_required
 def library_catalog(request):
@@ -1464,23 +1412,42 @@ def library_my_issues(request):
 # Hostel
 @login_required
 def hostel_list(request):
-    from accounts.permissions import user_can_manage_school
+    from accounts.permissions import user_can_manage_school, is_school_admin, can_manage_hostel
     school = _get_school(request)
     if not school:
         return redirect("home")
     hostels = Hostel.objects.filter(school=school).order_by("name")
     can_manage = request.user.is_superuser or user_can_manage_school(request.user)
+    can_edit_structure = (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_hostel(request.user)
+    )
     page_obj = paginate(request, hostels, per_page=25)
-    return render(request, "operations/hostel_list.html", {"hostels": page_obj, "school": school, "can_manage": can_manage, "page_obj": page_obj})
+    return render(
+        request,
+        "operations/hostel_list.html",
+        {
+            "hostels": page_obj,
+            "school": school,
+            "can_manage": can_manage,
+            "can_edit_structure": can_edit_structure,
+            "page_obj": page_obj,
+        },
+    )
 
 
 @login_required
 def hostel_create(request):
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_hostel
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_hostel(request.user)
+    ):
         return redirect("operations:hostel_list")
     if request.method == "POST":
         name = (request.POST.get("name") or "").strip()
@@ -1519,12 +1486,16 @@ def hostel_rooms(request, pk):
 
 @login_required
 def hostel_room_create(request, pk):
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_admin, can_manage_hostel
     school = _get_school(request)
     if not school:
         return redirect("home")
     hostel = get_object_or_404(Hostel, pk=pk, school=school)
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (
+        request.user.is_superuser
+        or is_school_admin(request.user)
+        or can_manage_hostel(request.user)
+    ):
         return redirect("operations:hostel_rooms", pk=hostel.pk)
     if request.method == "POST":
         room_number = (request.POST.get("room_number") or "").strip()
@@ -1767,90 +1738,190 @@ def hostel_my(request):
 
 # ==================== ADMISSION APPLICATIONS ====================
 
+def _admission_next_number(school):
+    """Next admission number for a school; tolerates varied existing formats."""
+    prefix = "".join(c for c in school.name[:3] if c.isalnum()).upper() or "SCH"
+    year = timezone.now().year
+    tail = re.compile(r"-(\d+)$")
+    max_n = 0
+    for an in Student.objects.filter(school=school).values_list("admission_number", flat=True):
+        if not an:
+            continue
+        m = tail.search(an)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"{prefix}-{year}-{max_n + 1:04d}"
+
+
+def _admission_unique_username(base):
+    base = slugify(str(base).replace("@", "-"))[:100] or "user"
+    u = base
+    n = 0
+    while User.objects.filter(username=u).exists():
+        n += 1
+        suffix = f"-{n}"
+        u = f"{base}{suffix}"[:150]
+    return u
+
+
 def admission_apply(request):
     """
     Public admission form - no login required.
     Parents/guardians can submit applications online.
     """
-    from schools.models import School
+    from datetime import datetime
+
     from django.contrib import messages as _messages
 
-    schools = School.objects.filter(is_active=True).order_by('name')
+    from schools.models import School
 
-    if request.method == 'POST':
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR', '')
+    schools = School.objects.filter(is_active=True).order_by("name")
+
+    if request.method == "POST":
+        if request.POST.get("hp_company", "").strip():
+            logger.info("Admission apply honeypot triggered")
+            return render(request, "operations/admission_apply.html", {"schools": schools})
+
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        dob = request.POST.get("date_of_birth", "").strip()
+        gender = request.POST.get("gender", "").strip()
+        previous_school = request.POST.get("previous_school", "").strip()
+        class_applied = request.POST.get("class_applied_for", "").strip()
+        parent_first = request.POST.get("parent_first_name", "").strip()
+        parent_last = request.POST.get("parent_last_name", "").strip()
+        parent_phone = request.POST.get("parent_phone", "").strip()
+        parent_email = request.POST.get("parent_email", "").strip()
+        parent_occupation = request.POST.get("parent_occupation", "").strip()
+        address = request.POST.get("address", "").strip()
+        medical = request.POST.get("medical_conditions", "").strip()
+        reason = request.POST.get("reason_for_applying", "").strip()
+        how_did_you_hear = request.POST.get("how_did_you_hear", "").strip()
+        school_id = (request.POST.get("school") or "").strip()
+
+        school = None
+        if school_id:
+            school = School.objects.filter(id=school_id, is_active=True).first()
+
+        if not (
+            first_name
+            and last_name
+            and dob
+            and gender
+            and class_applied
+            and parent_first
+            and parent_last
+            and parent_phone
+            and address
+        ):
+            return render(request, "operations/admission_apply.html", {"schools": schools})
+
+        if not school:
+            _messages.error(request, "Please select a valid school.")
+            return render(request, "operations/admission_apply.html", {"schools": schools})
+
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get(
+            "REMOTE_ADDR", ""
+        )
         cache_key = f"admission_apply_{ip}"
-        count = cache.get(cache_key, 0)
-        if count >= 5:
+        if cache.get(cache_key, 0) >= 5:
             _messages.error(request, "Too many submissions. Please try again later.")
-            return render(request, 'operations/admission_apply.html', {'schools': schools})
-        cache.set(cache_key, count + 1, 3600)
+            return render(request, "operations/admission_apply.html", {"schools": schools})
 
-        first_name = request.POST.get('first_name', '').strip()
-        last_name = request.POST.get('last_name', '').strip()
-        dob = request.POST.get('date_of_birth', '').strip()
-        gender = request.POST.get('gender', '').strip()
-        previous_school = request.POST.get('previous_school', '').strip()
-        class_applied = request.POST.get('class_applied_for', '').strip()
-        parent_first = request.POST.get('parent_first_name', '').strip()
-        parent_last = request.POST.get('parent_last_name', '').strip()
-        parent_phone = request.POST.get('parent_phone', '').strip()
-        parent_email = request.POST.get('parent_email', '').strip()
-        parent_occupation = request.POST.get('parent_occupation', '').strip()
-        address = request.POST.get('address', '').strip()
-        medical = request.POST.get('medical_conditions', '').strip()
-        reason = request.POST.get('reason_for_applying', '').strip()
-        school_id = request.POST.get('school')
-        
-        if first_name and last_name and dob and gender and class_applied and parent_first and parent_last and parent_phone and address:
+        try:
+            dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
+        except ValueError:
+            _messages.error(request, "Invalid date of birth.")
+            return render(request, "operations/admission_apply.html", {"schools": schools})
+
+        application = AdmissionApplication(
+            public_reference=AdmissionApplication.allocate_public_reference(),
+            school=school,
+            first_name=first_name,
+            last_name=last_name,
+            date_of_birth=dob_date,
+            gender=gender,
+            previous_school=previous_school,
+            class_applied_for=class_applied,
+            parent_first_name=parent_first,
+            parent_last_name=parent_last,
+            parent_phone=parent_phone,
+            parent_email=parent_email,
+            parent_occupation=parent_occupation,
+            address=address,
+            medical_conditions=medical,
+            reason_for_applying=reason,
+            how_did_you_hear=how_did_you_hear,
+            status="pending",
+        )
+        if request.FILES.get("birth_certificate"):
+            application.birth_certificate = request.FILES["birth_certificate"]
+        if request.FILES.get("previous_report"):
+            application.previous_report = request.FILES["previous_report"]
+        if request.FILES.get("passport_photo"):
+            application.passport_photo = request.FILES["passport_photo"]
+
+        try:
+            application.full_clean()
+            application.save()
+        except ValidationError as exc:
+            parts = []
+            if exc.error_dict:
+                for err_list in exc.error_dict.values():
+                    parts.extend(str(e) for e in err_list)
+            for m in getattr(exc, "messages", []):
+                sm = str(m)
+                if sm not in parts:
+                    parts.append(sm)
+            if not parts:
+                parts = [str(exc)]
+            _messages.error(
+                request,
+                " ".join(parts) if parts else "Please check your form and uploaded file types.",
+            )
+            return render(request, "operations/admission_apply.html", {"schools": schools})
+
+        cache.set(cache_key, cache.get(cache_key, 0) + 1, 3600)
+
+        try:
+            from messaging.utils import send_sms
+
+            from operations.admission_sms import admission_admin_new_application_message
+
+            admin_msg = admission_admin_new_application_message(
+                application.public_reference,
+                first_name,
+                last_name,
+                class_applied,
+            )
+            for admin in User.objects.filter(school=school, role="school_admin"):
+                if admin.phone:
+                    send_sms(admin.phone, admin_msg)
+        except Exception:
+            logger.warning("Failed to send admission application SMS to school admins", exc_info=True)
+
+        if application.parent_phone:
             try:
-                from datetime import datetime
-                dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
-                
-                school = None
-                if school_id:
-                    school = School.objects.filter(id=school_id, is_active=True).first()
-                
-                application = AdmissionApplication.objects.create(
-                    school=school,
-                    first_name=first_name,
-                    last_name=last_name,
-                    date_of_birth=dob_date,
-                    gender=gender,
-                    previous_school=previous_school,
-                    class_applied_for=class_applied,
-                    parent_first_name=parent_first,
-                    parent_last_name=parent_last,
-                    parent_phone=parent_phone,
-                    parent_email=parent_email,
-                    parent_occupation=parent_occupation,
-                    address=address,
-                    medical_conditions=medical,
-                    reason_for_applying=reason,
-                    status='pending'
+                from messaging.utils import send_sms
+
+                from operations.admission_sms import admission_parent_confirmation_message
+
+                send_sms(
+                    application.parent_phone,
+                    admission_parent_confirmation_message(
+                        request, school.name, application.public_reference
+                    ),
                 )
-                
-                # Try to send SMS notification to school admin
-                try:
-                    from messaging.utils import send_sms
-                    msg = f"New Admission Application: {first_name} {last_name} for {class_applied}"
-                    if school:
-                        admins = User.objects.filter(school=school, role='school_admin')
-                        for admin in admins:
-                            if admin.phone:
-                                send_sms(admin.phone, msg)
-                except Exception:
-                    logger.warning("Failed to send admission application SMS notification", exc_info=True)
-                    pass
-                
-                return render(request, 'operations/admission_success.html', {
-                    'application': application,
-                    'schools': schools
-                })
-            except ValueError:
-                pass
-    
-    return render(request, 'operations/admission_apply.html', {'schools': schools})
+            except Exception:
+                logger.warning("Failed to send admission reference SMS to parent", exc_info=True)
+
+        return render(
+            request,
+            "operations/admission_success.html",
+            {"application": application, "schools": schools},
+        )
+
+    return render(request, "operations/admission_apply.html", {"schools": schools})
 
 
 @login_required
@@ -1926,66 +1997,78 @@ def admission_approve(request, pk):
         create_account = request.POST.get('create_account') == 'on'
         admission_number = request.POST.get('admission_number', '').strip()
         initial_password = request.POST.get('initial_password', '').strip()
-        
-        # Approve the application
-        application.status = 'approved'
-        application.reviewed_by = request.user
-        application.reviewed_at = timezone.now()
-        application.save()
-        
+
+        from django.contrib import messages
+        from django.utils.crypto import get_random_string as _rnd
+
         student = None
-        
-        # Create student account if requested
+
         if create_account and application.school:
-            # Generate admission number if not provided
-            if not admission_number:
-                last_student = Student.objects.filter(school=application.school).order_by('-id').first()
-                next_num = int(last_student.admission_number.split('-')[-1]) + 1 if last_student and last_student.admission_number else 1
-                admission_number = f"{application.school.name[:3].upper()}-{timezone.now().year}-{next_num:04d}"
-            
-            from django.utils.crypto import get_random_string as _rnd
-            username = f"parent{application.id}"
-            parent_pw = initial_password or _rnd(12)
-            parent_user = User.objects.create(
-                username=username,
-                first_name=application.parent_first_name,
-                last_name=application.parent_last_name,
-                email=application.parent_email or f"{username}@school.local",
-                phone=application.parent_phone,
-                role='parent',
-                school=application.school,
-                password=make_password(parent_pw),
-                must_change_password=True,
+            try:
+                with transaction.atomic():
+                    application.status = 'approved'
+                    application.reviewed_by = request.user
+                    application.reviewed_at = timezone.now()
+                    application.save()
+
+                    if not admission_number:
+                        admission_number = _admission_next_number(application.school)
+
+                    parent_username = _admission_unique_username(f"pg-{application.public_reference}")
+                    student_username = _admission_unique_username(f"st-{application.public_reference}")
+                    parent_pw = initial_password or _rnd(12)
+                    student_pw = initial_password or _rnd(12)
+
+                    parent_user = User.objects.create(
+                        username=parent_username,
+                        first_name=application.parent_first_name,
+                        last_name=application.parent_last_name,
+                        email=application.parent_email or '',
+                        phone=application.parent_phone,
+                        role='parent',
+                        school=application.school,
+                        password=make_password(parent_pw),
+                        must_change_password=True,
+                    )
+
+                    student_user = User.objects.create(
+                        username=student_username,
+                        first_name=application.first_name,
+                        last_name=application.last_name,
+                        role='student',
+                        school=application.school,
+                        password=make_password(student_pw),
+                        must_change_password=True,
+                    )
+
+                    student = Student.objects.create(
+                        user=student_user,
+                        school=application.school,
+                        admission_number=admission_number,
+                        class_name=application.class_applied_for,
+                        parent=parent_user,
+                        date_enrolled=timezone.now().date(),
+                    )
+
+                    application.created_student = student
+                    application.save(update_fields=['created_student'])
+            except IntegrityError:
+                logger.warning("Admission approve account creation failed", exc_info=True)
+                messages.error(
+                    request,
+                    "Could not create accounts (duplicate username or admission number). Adjust details and try again.",
+                )
+                return redirect('operations:admission_approve', pk=application.pk)
+
+            credential_msg = (
+                f"Welcome! Your child has been admitted to {application.school.name}. "
+                f"Parent login: {parent_username} Password: {parent_pw}. "
+                f"Student login: {student_username} Password: {student_pw}"
             )
-
-            student_pw = initial_password or _rnd(12)
-            student_user = User.objects.create(
-                username=f"student{application.id}",
-                first_name=application.first_name,
-                last_name=application.last_name,
-                role='student',
-                school=application.school,
-                password=make_password(student_pw),
-                must_change_password=True,
-            )
-
-            student = Student.objects.create(
-                user=student_user,
-                school=application.school,
-                admission_number=admission_number,
-                class_name=application.class_applied_for,
-                parent=parent_user,
-                date_enrolled=timezone.now().date()
-            )
-
-            application.created_student = student
-            application.save()
-
             sms_sent = False
-            email_sent = False
-            credential_msg = f"Welcome! Your child has been admitted to {application.school.name}. Parent login: {username}, Password: {parent_pw}"
             try:
                 from messaging.utils import send_sms
+
                 if application.parent_phone:
                     send_sms(application.parent_phone, credential_msg)
                     sms_sent = True
@@ -1995,6 +2078,7 @@ def admission_approve(request, pk):
             if not sms_sent and application.parent_email:
                 try:
                     from django.core.mail import send_mail
+
                     send_mail(
                         f"Admission Approved - {application.school.name}",
                         credential_msg,
@@ -2002,12 +2086,23 @@ def admission_approve(request, pk):
                         [application.parent_email],
                         fail_silently=True,
                     )
-                    email_sent = True
                 except Exception:
                     logger.warning("Failed to send admission approval email", exc_info=True)
-        
-        from django.contrib import messages
-        messages.success(request, f'Application approved! {"Student account created." if student else ""}')
+
+            messages.success(request, "Application approved! Student and parent accounts created.")
+        else:
+            application.status = 'approved'
+            application.reviewed_by = request.user
+            application.reviewed_at = timezone.now()
+            application.save()
+            if create_account and not application.school:
+                messages.warning(
+                    request,
+                    "Application approved. Accounts were not created because no school is set on this application.",
+                )
+            else:
+                messages.success(request, "Application approved!")
+
         return redirect('operations:admission_list')
     
     return render(request, 'operations/admission_approve.html', {
@@ -2042,15 +2137,36 @@ def admission_reject(request, pk):
         application.rejection_reason = reason
         application.save()
         
-        # Notify parent
+        msg = (
+            f"Admission update (ref {application.public_reference}): Application for "
+            f"{application.first_name} was not successful. "
+            f"{reason or 'Please contact the school for details.'}"
+        )
+        sms_sent = False
         try:
             from messaging.utils import send_sms
-            msg = f"Admission Update: Your application for {application.first_name} has been declined. Reason: {reason or 'Please contact school for details.'}"
-            send_sms(application.parent_phone, msg)
+
+            if application.parent_phone:
+                send_sms(application.parent_phone, msg)
+                sms_sent = True
         except Exception:
             logger.warning("Failed to send admission rejection SMS to parent", exc_info=True)
-            pass
-        
+
+        if not sms_sent and application.parent_email:
+            try:
+                from django.core.mail import send_mail
+
+                school_name = application.school.name if application.school else "School"
+                send_mail(
+                    f"Admission update — {school_name}",
+                    msg,
+                    None,
+                    [application.parent_email],
+                    fail_silently=True,
+                )
+            except Exception:
+                logger.warning("Failed to send admission rejection email to parent", exc_info=True)
+
         from django.contrib import messages
         messages.success(request, 'Application rejected.')
         return redirect('operations:admission_list')
@@ -2061,10 +2177,19 @@ def admission_reject(request, pk):
 
 
 def admission_track(request):
-    """Public page: applicants can check status using phone + applicant name."""
+    """Public page: check status by application reference (preferred) or phone + name."""
     application = None
     searched = False
-    if request.GET.get("phone") or request.GET.get("name"):
+    ref = (request.GET.get("ref") or "").strip()
+    if ref:
+        searched = True
+        application = (
+            AdmissionApplication.objects.select_related("school")
+            .filter(public_reference__iexact=ref)
+            .order_by("-applied_at")
+            .first()
+        )
+    elif request.GET.get("phone") or request.GET.get("name"):
         searched = True
         phone = request.GET.get("phone", "").strip()
         name = request.GET.get("name", "").strip()
@@ -2431,9 +2556,9 @@ def expense_list(request):
 @login_required
 def expense_create(request):
     """Create a new expense."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_expense_records
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:expense_list')
     
     categories = ExpenseCategory.objects.filter(school=school)
@@ -2492,9 +2617,9 @@ def expense_detail(request, pk):
 @login_required
 def expense_edit(request, pk):
     """Edit an expense."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_expense_records
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:expense_list')
     
     expense = get_object_or_404(Expense, pk=pk, school=school)
@@ -2533,9 +2658,9 @@ def expense_edit(request, pk):
 @login_required
 def expense_delete(request, pk):
     """Delete an expense."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_expense_records
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:expense_list')
     
     expense = get_object_or_404(Expense, pk=pk, school=school)
@@ -2570,9 +2695,9 @@ def budget_list(request):
 @login_required
 def budget_create(request):
     """Create a new budget."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_expense_records
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:budget_list')
     
     categories = ExpenseCategory.objects.filter(school=school)
@@ -2608,9 +2733,9 @@ def budget_create(request):
 @login_required
 def budget_edit(request, pk):
     """Edit a budget."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_expense_records
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:budget_list')
     
     budget = get_object_or_404(Budget, pk=pk, school=school)
@@ -2643,9 +2768,9 @@ def budget_edit(request, pk):
 @login_required
 def budget_delete(request, pk):
     """Delete a budget."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_expense_records
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:budget_list')
     
     budget = get_object_or_404(Budget, pk=pk, school=school)
@@ -3434,17 +3559,44 @@ def online_exam_results(request):
     passed_count = 0
     failed_count = 0
     
-    exam_id = request.GET.get('exam')
+    exam_id = request.GET.get("exam")
+    pass_rate = 0
+    avg_score = 0
+    highest_score = 0
+    students_with_results = 0
+    attempt_rows_count = 0
     if exam_id:
         selected_exam = OnlineExam.objects.filter(id=exam_id, school=school).first()
         if selected_exam:
-            attempts = ExamAttempt.objects.filter(exam=selected_exam, is_completed=True).select_related(
-                'student', 'student__user'
-            ).order_by('-submitted_at')
-            
-            # Calculate pass/fail counts
-            passed_count = attempts.filter(score__gte=selected_exam.passing_marks).count()
-            failed_count = attempts.filter(score__lt=selected_exam.passing_marks).count()
+            attempts = list(
+                ExamAttempt.objects.filter(exam=selected_exam, is_completed=True)
+                .select_related('student', 'student__user')
+                .order_by('student__user__last_name', 'student__user__first_name', '-submitted_at')
+            )
+            attempt_rows_count = len(attempts)
+            from collections import defaultdict
+
+            by_student = defaultdict(list)
+            for a in attempts:
+                by_student[a.student_id].append(a)
+            students_with_results = len(by_student)
+            tm = float(selected_exam.total_marks or 0) or 1.0
+            pass_line = float(selected_exam.passing_marks)
+            passed_count = 0
+            failed_count = 0
+            best_pcts = []
+            for sid, lst in by_student.items():
+                best = max(float(x.score or 0) for x in lst)
+                pct = (best / tm) * 100
+                best_pcts.append(pct)
+                if best >= pass_line:
+                    passed_count += 1
+                else:
+                    failed_count += 1
+            if students_with_results:
+                pass_rate = (passed_count / students_with_results) * 100
+                avg_score = sum(best_pcts) / len(best_pcts)
+                highest_score = max(best_pcts)
     
     # Get unique classes and subjects for filter dropdowns
     school_classes = sorted(set(OnlineExam.objects.filter(school=school).values_list('class_level', flat=True)))
@@ -3460,88 +3612,319 @@ def online_exam_results(request):
         'class_filter': class_filter,
         'subject_filter': subject_filter,
         'passed_count': passed_count,
-        'failed_count': failed_count
+        'failed_count': failed_count,
+        'pass_rate': pass_rate,
+        'avg_score': avg_score,
+        'highest_score': highest_score,
+        'students_with_results': students_with_results,
+        'attempt_rows_count': attempt_rows_count,
     })
 
 
 @login_required
 def online_exam_allow_retake(request, attempt_id):
-    """Allow a student to retake an exam."""
+    """Reopen this attempt so the student can submit again (same attempt number)."""
     from accounts.permissions import user_can_manage_school
     
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    attempt = get_object_or_404(ExamAttempt, pk=attempt_id)
-    
-    if attempt.exam.school != school:
-        return redirect('home')
+    attempt = get_object_or_404(
+        ExamAttempt.objects.select_related('student__user', 'exam'),
+        pk=attempt_id,
+        exam__school=school,
+    )
     
     if request.method == 'POST':
         attempt.is_completed = False
         attempt.score = None
         attempt.submitted_at = None
-        attempt.save()
-        
-        # Delete old answers
+        attempt.save(update_fields=['is_completed', 'score', 'submitted_at'])
         ExamAnswer.objects.filter(attempt=attempt).delete()
+        invalidate_pending_essay_attempt_cache(school.pk)
         
         from django.contrib import messages
-        messages.success(request, f'Retake allowed for {attempt.student.user.get_full_name()}')
+        messages.success(
+            request,
+            f'Attempt #{attempt.attempt_number} reopened for {attempt.student.user.get_full_name()}.',
+        )
         return redirect('operations:online_exam_results')
     
     return render(request, 'operations/confirm_delete.html', {
-        'object': attempt, 'type': 'allow retake for this exam'
+        'object': attempt, 'type': 'reopen this exam attempt (same attempt #)'
+    })
+
+
+@login_required
+def online_exam_attempt_delete(request, attempt_id):
+    """Remove an attempt record (frees a slot when max attempts is exhausted)."""
+    from accounts.permissions import user_can_manage_school
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+
+    attempt = get_object_or_404(
+        ExamAttempt.objects.select_related('exam', 'student__user'),
+        pk=attempt_id,
+        exam__school=school,
+    )
+    exam_pk = attempt.exam_id
+    student_label = attempt.student.user.get_full_name() or attempt.student.user.username
+
+    if request.method == 'POST':
+        attempt.delete()
+        invalidate_pending_essay_attempt_cache(school.pk)
+        messages.success(request, f'Deleted attempt for {student_label}.')
+        return redirect(f"{reverse('operations:online_exam_results')}?exam={exam_pk}")
+
+    return render(request, 'operations/confirm_delete.html', {
+        'object': attempt,
+        'type': f'delete attempt #{attempt.attempt_number} permanently',
+    })
+
+
+def _safe_internal_path_redirect(next_path, fallback_url_name, fallback_kwargs=None):
+    """Redirect to same-host relative path only (open redirect safe)."""
+    from django.shortcuts import redirect
+    from django.urls import reverse
+
+    p = (next_path or "").strip()
+    if p.startswith("/") and not p.startswith("//"):
+        return redirect(p)
+    fk = fallback_kwargs or {}
+    return redirect(reverse(fallback_url_name, kwargs=fk))
+
+
+@login_required
+def online_exam_essay_queue(request):
+    """
+    School-wide list of completed attempts that still have ungraded essay responses.
+    """
+    from accounts.permissions import user_can_manage_school
+    from django.db.models import Count, Q
+
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect("home")
+
+    exam_filter = (request.GET.get("exam") or "").strip()
+    class_filter = (request.GET.get("class") or "").strip()
+
+    qs = (
+        ExamAttempt.objects.filter(is_completed=True, exam__school=school)
+        .annotate(
+            pending_essays=Count(
+                "answers",
+                filter=Q(
+                    answers__question__question_type="essay",
+                    answers__teacher_reviewed=False,
+                ),
+            )
+        )
+        .filter(pending_essays__gt=0)
+        .select_related("exam", "student__user")
+    )
+    if exam_filter.isdigit():
+        qs = qs.filter(exam_id=int(exam_filter))
+    if class_filter:
+        qs = qs.filter(student__class_name=class_filter)
+
+    attempts = qs.order_by("submitted_at")
+
+    exam_options = OnlineExam.objects.filter(school=school).order_by("-start_time")[:200]
+    class_names = sorted(
+        {c for c in Student.objects.filter(school=school).values_list("class_name", flat=True) if c}
+    )
+
+    return render(
+        request,
+        "operations/online_exam_essay_queue.html",
+        {
+            "school": school,
+            "attempts": attempts,
+            "exam_options": exam_options,
+            "class_names": class_names,
+            "filter_exam": exam_filter,
+            "filter_class": class_filter,
+        },
+    )
+
+
+@login_required
+def online_exam_grade_attempt(request, attempt_id):
+    """Enter marks for essay (and adjust) answers for one attempt."""
+    from accounts.permissions import user_can_manage_school
+    from django.contrib import messages
+    from decimal import Decimal, InvalidOperation
+
+    school = _get_school(request)
+    if not school or not user_can_manage_school(request.user):
+        return redirect('home')
+
+    attempt = get_object_or_404(
+        ExamAttempt.objects.select_related('exam', 'student__user'),
+        pk=attempt_id,
+        exam__school=school,
+        is_completed=True,
+    )
+
+    next_path = (request.POST.get("next") or request.GET.get("next") or "").strip()
+
+    if request.method == 'POST':
+        for key, raw in request.POST.items():
+            if not key.startswith('marks_'):
+                continue
+            aid = key.replace('marks_', '')
+            ans = ExamAnswer.objects.filter(
+                pk=aid, attempt=attempt, question__exam=attempt.exam
+            ).select_related('question').first()
+            if not ans:
+                continue
+            try:
+                val = Decimal(str(raw).strip() or '0')
+            except InvalidOperation:
+                continue
+            qm = ans.question.marks
+            if val < 0:
+                val = Decimal('0')
+            if val > qm:
+                val = qm
+            ans.marks_obtained = val
+            ans.is_correct = val >= qm and qm > 0
+            ans.teacher_reviewed = True
+            ans.save(update_fields=['marks_obtained', 'is_correct', 'teacher_reviewed'])
+        _recalculate_exam_attempt_score(attempt)
+        invalidate_pending_essay_attempt_cache(attempt.exam.school_id)
+        messages.success(request, 'Marks saved.')
+        return _safe_internal_path_redirect(
+            next_path,
+            'operations:online_exam_grade_attempt',
+            {'attempt_id': attempt.pk},
+        )
+
+    essay_answers = list(
+        ExamAnswer.objects.filter(attempt=attempt, question__question_type='essay')
+        .select_related('question')
+        .order_by('question__order', 'pk')
+    )
+    return render(request, 'operations/online_exam_grade_attempt.html', {
+        'attempt': attempt,
+        'essay_answers': essay_answers,
+        'school': school,
+        'next_path': next_path,
     })
 
 
 @login_required
 def online_exam_export_results(request, exam_id):
-    """Export exam results to CSV."""
+    """Export exam results to CSV or Excel."""
     from accounts.permissions import user_can_manage_school
     import csv
     from django.http import HttpResponse
+    from core.export_utils import export_to_excel
     
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
     exam = get_object_or_404(OnlineExam, pk=exam_id, school=school)
-    attempts = ExamAttempt.objects.filter(exam=exam, is_completed=True).select_related(
+    from django.db.models import Count
+
+    attempts_qs = ExamAttempt.objects.filter(exam=exam, is_completed=True).select_related(
         'student', 'student__user'
-    ).order_by('student__user__last_name', 'student__user__first_name')
-    
-    # Create CSV response
+    ).order_by('student__user__last_name', 'student__user__first_name', 'attempt_number')
+    attempt_list = list(attempts_qs)
+
+    per_student_done = {
+        r["student_id"]: r["c"]
+        for r in ExamAttempt.objects.filter(exam=exam, is_completed=True)
+        .values("student_id")
+        .annotate(c=Count("id"))
+    }
+
+    rows_mode = (request.GET.get("rows") or "all").lower()
+    if rows_mode == "best" and attempt_list:
+        best_by_student = {}
+        for a in attempt_list:
+            sid = a.student_id
+            sc = float(a.score or 0)
+            ts = a.submitted_at or a.started_at
+            if sid not in best_by_student:
+                best_by_student[sid] = a
+                continue
+            old = best_by_student[sid]
+            old_sc = float(old.score or 0)
+            old_ts = old.submitted_at or old.started_at
+            if sc > old_sc or (
+                sc == old_sc and ts and old_ts and ts > old_ts
+            ):
+                best_by_student[sid] = a
+        attempt_list = sorted(
+            best_by_student.values(),
+            key=lambda x: (
+                (x.student.user.last_name or "").lower(),
+                (x.student.user.first_name or "").lower(),
+            ),
+        )
+
+    rows = []
+    for attempt in attempt_list:
+        tm = float(exam.total_marks or 0) or 1.0
+        percentage = (float(attempt.score or 0) / tm) * 100
+        status = 'Passed' if (attempt.score or 0) >= exam.passing_marks else 'Failed'
+        n_done = per_student_done.get(attempt.student_id, 1)
+        if rows_mode == "best":
+            basis = f"Best of {n_done} attempt(s); row is attempt #{attempt.attempt_number}"
+        else:
+            basis = f"This row = attempt #{attempt.attempt_number} of {n_done} completed"
+        rows.append({
+            'student_name': attempt.student.user.get_full_name() or attempt.student.user.username,
+            'admission_number': attempt.student.admission_number or 'N/A',
+            'class_name': attempt.student.class_name or 'N/A',
+            'attempt_number': attempt.attempt_number,
+            'score': float(attempt.score or 0),
+            'total_marks': float(exam.total_marks),
+            'percentage': round(percentage, 1),
+            'status': status,
+            'submitted_at': attempt.submitted_at.strftime('%Y-%m-%d %H:%M') if attempt.submitted_at else 'N/A',
+            'record_basis': basis,
+        })
+
+    fmt = (request.GET.get('format') or 'csv').lower()
+    suffix = "_best_per_student" if rows_mode == "best" else "_all_attempts"
+    base = f"exam_results_{exam.title.replace(' ', '_')}_{exam.start_time.strftime('%Y%m%d')}{suffix}"
+
+    if fmt == 'excel':
+        fields = [
+            ('Student Name', 'student_name'),
+            ('Admission Number', 'admission_number'),
+            ('Class', 'class_name'),
+            ('Attempt #', 'attempt_number'),
+            ('Score', 'score'),
+            ('Total Marks', 'total_marks'),
+            ('Percentage', 'percentage'),
+            ('Status', 'status'),
+            ('Submitted At', 'submitted_at'),
+            ('Record basis', 'record_basis'),
+        ]
+        return export_to_excel(rows, fields, filename=f'{base}.xlsx', sheet_name='Results')
+
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="exam_results_{exam.title.replace(" ", "_")}_{exam.start_time.strftime("%Y%m%d")}.csv"'
-    
+    response['Content-Disposition'] = f'attachment; filename="{base}.csv"'
     writer = csv.writer(response)
     writer.writerow([
-        'Student Name',
-        'Admission Number',
-        'Class',
-        'Score',
-        'Total Marks',
-        'Percentage',
-        'Status',
-        'Submitted At'
+        'Student Name', 'Admission Number', 'Class', 'Attempt #', 'Score', 'Total Marks',
+        'Percentage', 'Status', 'Submitted At', 'Record basis',
     ])
-    
-    for attempt in attempts:
-        percentage = (attempt.score / exam.total_marks * 100) if exam.total_marks > 0 else 0
-        status = 'Passed' if attempt.score >= exam.passing_marks else 'Failed'
+    for r in rows:
         writer.writerow([
-            attempt.student.user.get_full_name(),
-            attempt.student.admission_number or 'N/A',
-            attempt.student.class_name or 'N/A',
-            attempt.score or 0,
-            exam.total_marks,
-            f'{percentage:.1f}%',
-            status,
-            attempt.submitted_at.strftime('%Y-%m-%d %H:%M') if attempt.submitted_at else 'N/A'
+            r['student_name'], r['admission_number'], r['class_name'], r['attempt_number'],
+            r['score'], r['total_marks'], f"{r['percentage']:.1f}%", r['status'], r['submitted_at'],
+            r['record_basis'],
         ])
-    
     return response
 
 
@@ -4410,9 +4793,9 @@ def expense_category_list(request):
 @login_required
 def expense_category_create(request):
     """Create expense category."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_expense_records
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:expense_category_list')
     
     if request.method == 'POST':
@@ -5420,6 +5803,64 @@ def my_submissions(request):
 
 # ==================== ONLINE EXAMS ====================
 
+def _online_exam_timer_seconds_remaining(exam, attempt, now):
+    """Remaining seconds: min(per-attempt duration left, exam end time)."""
+    duration = int(exam.duration_minutes) * 60
+    elapsed = int((now - attempt.started_at).total_seconds())
+    by_duration = max(0, duration - elapsed)
+    if exam.end_time:
+        by_end = max(0, int((exam.end_time - now).total_seconds()))
+        return min(by_duration, by_end)
+    return by_duration
+
+
+def _online_exam_past_time_policy(exam, attempt, now, grace_sec=120):
+    """True if submit is after duration+grace or after exam end (server clock)."""
+    duration = int(exam.duration_minutes) * 60
+    elapsed = (now - attempt.started_at).total_seconds()
+    if elapsed > duration + grace_sec:
+        return True
+    if exam.end_time and now > exam.end_time:
+        return True
+    return False
+
+
+def _grade_online_exam_response(question, raw_value):
+    """Auto-marking for MCQ / T-F / exact short text; essays stored with 0 marks."""
+    val = (raw_value or "").strip()
+    ca = (question.correct_answer or "").strip()
+    qtp = question.question_type
+    if qtp in ("multiple_choice", "true_false"):
+        ok = bool(ca) and val.upper() == ca.upper()
+        return ok, question.marks if ok else 0
+    if qtp == "short_answer":
+        ok = bool(ca) and val.lower() == ca.lower()
+        return ok, question.marks if ok else 0
+    return False, 0
+
+
+def _recalculate_exam_attempt_score(attempt):
+    from django.db.models import Sum
+
+    total = ExamAnswer.objects.filter(attempt=attempt).aggregate(s=Sum("marks_obtained"))["s"] or 0
+    ExamAttempt.objects.filter(pk=attempt.pk).update(score=total)
+
+
+def _exam_attempt_needs_essay_grading(attempt):
+    return ExamAnswer.objects.filter(
+        attempt=attempt,
+        question__question_type="essay",
+        teacher_reviewed=False,
+    ).exists()
+
+
+def _next_exam_attempt_number(exam, student):
+    from django.db.models import Max
+
+    m = ExamAttempt.objects.filter(exam=exam, student=student).aggregate(mx=Max("attempt_number"))["mx"]
+    return (m or 0) + 1
+
+
 @login_required
 def online_exam_list(request):
     """List online exams."""
@@ -5448,11 +5889,42 @@ def online_exam_list(request):
     if subject_filter:
         exams = exams.filter(subject_id=subject_filter)
     
-    exams = exams.select_related('subject', 'created_by').order_by('-start_time')[:100]
+    exams = list(exams.select_related('subject', 'created_by').order_by('-start_time')[:100])
     
     # Get unique classes and subjects for filter dropdowns
     school_classes = sorted(set(OnlineExam.objects.filter(school=school).values_list('class_level', flat=True)))
     subjects = Subject.objects.filter(school=school).order_by('name')
+
+    exam_student_meta = {}
+    if not is_staff:
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student and exams:
+            eids = [e.pk for e in exams]
+            from collections import defaultdict
+
+            by_exam = defaultdict(
+                lambda: {"completed": 0, "incomplete": False, "best": None, "last_done_pk": None}
+            )
+            qs = ExamAttempt.objects.filter(exam_id__in=eids, student=student)
+            for a in qs:
+                row = by_exam[a.exam_id]
+                if not a.is_completed:
+                    row["incomplete"] = True
+                else:
+                    row["completed"] += 1
+                    sc = float(a.score or 0)
+                    if row["best"] is None or sc > row["best"]:
+                        row["best"] = sc
+            for a in qs.filter(is_completed=True).order_by("-submitted_at", "-pk"):
+                row = by_exam[a.exam_id]
+                if row["last_done_pk"] is None:
+                    row["last_done_pk"] = a.pk
+            for e in exams:
+                row = by_exam[e.pk]
+                cap = max(1, int(e.max_attempts_per_student or 1))
+                row["max_attempts"] = cap
+                row["can_take_more"] = row["incomplete"] or row["completed"] < cap
+                exam_student_meta[e.pk] = row
     
     return render(request, 'operations/online_exam_list.html', {
         'exams': exams,
@@ -5461,7 +5933,8 @@ def online_exam_list(request):
         'school_classes': school_classes,
         'subjects': subjects,
         'class_filter': class_filter,
-        'subject_filter': subject_filter
+        'subject_filter': subject_filter,
+        'exam_student_meta': exam_student_meta,
     })
 
 
@@ -5481,13 +5954,21 @@ def online_exam_create(request):
     
     if request.method == 'POST':
         from datetime import datetime
+        from decimal import Decimal, InvalidOperation
+
         title = request.POST.get('title', '').strip()
         subject_id = request.POST.get('subject')
         class_level = request.POST.get('class_level', '').strip()
         exam_type = request.POST.get('exam_type', 'quiz')
         duration = request.POST.get('duration', 30)
-        total_marks = request.POST.get('total_score', 100)
-        passing = request.POST.get('passing_marks', 50)
+        instructions = request.POST.get('instructions', '').strip()
+        try:
+            total_marks = Decimal(request.POST.get('total_score') or '100')
+            passing = Decimal(request.POST.get('passing_marks') or '50')
+        except InvalidOperation:
+            total_marks, passing = Decimal('100'), Decimal('50')
+        max_attempts = int(request.POST.get('max_attempts_per_student') or '1')
+        max_attempts = max(1, min(max_attempts, 50))
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
         show_results = request.POST.get('show_results') == 'on'
@@ -5498,18 +5979,23 @@ def online_exam_create(request):
                 try:
                     start = datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
                     end = datetime.strptime(end_time, '%Y-%m-%dT%H:%M')
-                    
-                    exam = OnlineExam.objects.create(
-                        school=school, title=title, subject=subject,
-                        class_level=class_level, exam_type=exam_type,
-                        duration_minutes=int(duration), total_marks=int(total_marks),
-                        passing_marks=int(passing), start_time=start, end_time=end,
-                        show_results_immediately=show_results,
-                        created_by=request.user, status='draft'
-                    )
-                    from django.contrib import messages
-                    messages.success(request, 'Exam created! Add questions next.')
-                    return redirect('operations:online_exam_detail', pk=exam.pk)
+                    if passing > total_marks:
+                        from django.contrib import messages
+                        messages.error(request, 'Passing marks cannot exceed total marks.')
+                    else:
+                        exam = OnlineExam.objects.create(
+                            school=school, title=title, subject=subject,
+                            class_level=class_level, exam_type=exam_type,
+                            duration_minutes=int(duration), total_marks=total_marks,
+                            passing_marks=passing, start_time=start, end_time=end,
+                            show_results_immediately=show_results,
+                            max_attempts_per_student=max_attempts,
+                            instructions=instructions,
+                            created_by=request.user, status='draft'
+                        )
+                        from django.contrib import messages
+                        messages.success(request, 'Exam created! Add questions next.')
+                        return redirect('operations:online_exam_detail', pk=exam.pk)
                 except Exception:
                     pass
     
@@ -5528,11 +6014,23 @@ def online_exam_detail(request, pk):
     
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     questions = ExamQuestion.objects.filter(exam=exam).order_by('order')
+    from django.db.models import Sum
+
+    qmarks = questions.aggregate(s=Sum("marks"))["s"]
+    pending_essays = ExamAnswer.objects.filter(
+        attempt__exam=exam,
+        question__question_type="essay",
+        teacher_reviewed=False,
+        attempt__is_completed=True,
+    ).count()
     
     return render(request, 'operations/online_exam_detail.html', {
         'exam': exam,
         'questions': questions,
-        'school': school
+        'school': school,
+        'question_marks_sum': qmarks,
+        'marks_mismatch': qmarks is not None and exam.total_marks != qmarks,
+        'pending_essay_grades': pending_essays,
     })
 
 
@@ -5558,10 +6056,15 @@ def online_exam_add_question(request, pk):
         order = exam.questions.count() + 1
         
         if question_text:
+            ca = correct.strip()
+            if q_type in ("multiple_choice", "true_false"):
+                ca = ca.upper()[:200]
+            else:
+                ca = ca[:200]
             ExamQuestion.objects.create(
                 exam=exam, question_text=question_text, question_type=q_type,
                 marks=marks, option_a=option_a, option_b=option_b,
-                option_c=option_c, option_d=option_d, correct_answer=correct.upper(),
+                option_c=option_c, option_d=option_d, correct_answer=ca,
                 order=order
             )
             from django.contrib import messages
@@ -5584,16 +6087,27 @@ def online_exam_edit(request, pk):
     
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     subjects = Subject.objects.filter(school=school).order_by('name')
+    school_classes = sorted(
+        set(Student.objects.filter(school=school).values_list('class_name', flat=True))
+    )
     
     if request.method == 'POST':
         from datetime import datetime
+        from decimal import Decimal, InvalidOperation
+
         title = request.POST.get('title', '').strip()
         subject_id = request.POST.get('subject')
         class_level = request.POST.get('class_level', '').strip()
         exam_type = request.POST.get('exam_type', 'quiz')
         duration = request.POST.get('duration', 30)
-        total_marks = request.POST.get('total_score', 100)
-        passing = request.POST.get('passing_marks', 50)
+        instructions = request.POST.get('instructions', '').strip()
+        try:
+            total_marks = Decimal(request.POST.get('total_score') or '100')
+            passing = Decimal(request.POST.get('passing_marks') or '50')
+        except InvalidOperation:
+            total_marks, passing = exam.total_marks, exam.passing_marks
+        max_attempts = int(request.POST.get('max_attempts_per_student') or '1')
+        max_attempts = max(1, min(max_attempts, 50))
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
         show_results = request.POST.get('show_results') == 'on'
@@ -5604,22 +6118,27 @@ def online_exam_edit(request, pk):
                 try:
                     start = datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
                     end = datetime.strptime(end_time, '%Y-%m-%dT%H:%M')
-                    
-                    exam.title = title
-                    exam.subject = subject
-                    exam.class_level = class_level
-                    exam.exam_type = exam_type
-                    exam.duration_minutes = int(duration)
-                    exam.total_marks = int(total_marks)
-                    exam.passing_marks = int(passing)
-                    exam.start_time = start
-                    exam.end_time = end
-                    exam.show_results_immediately = show_results
-                    exam.save()
-                    
-                    from django.contrib import messages
-                    messages.success(request, 'Exam updated!')
-                    return redirect('operations:online_exam_detail', pk=exam.pk)
+                    if passing > total_marks:
+                        from django.contrib import messages
+                        messages.error(request, 'Passing marks cannot exceed total marks.')
+                    else:
+                        exam.title = title
+                        exam.subject = subject
+                        exam.class_level = class_level
+                        exam.exam_type = exam_type
+                        exam.duration_minutes = int(duration)
+                        exam.total_marks = total_marks
+                        exam.passing_marks = passing
+                        exam.start_time = start
+                        exam.end_time = end
+                        exam.show_results_immediately = show_results
+                        exam.max_attempts_per_student = max_attempts
+                        exam.instructions = instructions
+                        exam.save()
+                        
+                        from django.contrib import messages
+                        messages.success(request, 'Exam updated!')
+                        return redirect('operations:online_exam_detail', pk=exam.pk)
                 except Exception:
                     pass
     
@@ -5639,11 +6158,12 @@ def online_exam_delete(request, pk):
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     
     if request.method == 'POST':
+        invalidate_pending_essay_attempt_cache(school.pk)
         exam.delete()
         from django.contrib import messages
         messages.success(request, 'Exam deleted!')
         return redirect('operations:online_exam_list')
-    
+
     return render(request, 'operations/confirm_delete.html', {
         'object': exam, 'type': 'online exam'
     })
@@ -5652,6 +6172,7 @@ def online_exam_delete(request, pk):
 @login_required
 def online_exam_publish(request, pk):
     """Publish an online exam."""
+    from django.contrib import messages
     from accounts.permissions import is_school_admin
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_admin(request.user)):
@@ -5660,9 +6181,14 @@ def online_exam_publish(request, pk):
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     
     if request.method == 'POST':
+        if not exam.questions.exists():
+            messages.error(request, 'Add at least one question before publishing.')
+            return redirect('operations:online_exam_detail', pk=exam.pk)
+        if exam.passing_marks > exam.total_marks:
+            messages.error(request, 'Passing marks cannot exceed total marks. Edit the exam first.')
+            return redirect('operations:online_exam_detail', pk=exam.pk)
         exam.status = 'published'
         exam.save(update_fields=['status'])
-        from django.contrib import messages
         messages.success(request, 'Exam published! Students can now see it.')
         return redirect('operations:online_exam_detail', pk=exam.pk)
     
@@ -5674,6 +6200,8 @@ def online_exam_publish(request, pk):
 @login_required
 def online_exam_take(request, pk):
     """Take online exam (students)."""
+    from django.contrib import messages
+
     school = _get_school(request)
     if not school:
         return redirect('home')
@@ -5687,65 +6215,174 @@ def online_exam_take(request, pk):
     
     if not student:
         return redirect('home')
-    
-    # Check if already attempted
-    attempt = ExamAttempt.objects.filter(exam=exam, student=student).first()
-    if attempt and attempt.is_completed:
-        from django.contrib import messages
-        messages.warning(request, 'You have already completed this exam.')
-        return redirect('operations:online_exam_result', pk=attempt.pk)
-    
-    # Create attempt if not exists
-    if not attempt:
-        attempt = ExamAttempt.objects.create(exam=exam, student=student)
+
+    def _class_allowed():
+        target = (exam.class_level or "").strip()
+        if not target:
+            return True
+        return (student.class_name or "").strip().lower() == target.lower()
+
+    now = timezone.now()
+    if exam.status != 'published':
+        messages.error(request, 'This exam is not available yet.')
+        return redirect('operations:online_exam_list')
+    if now < exam.start_time:
+        messages.info(
+            request,
+            f"This exam opens at {exam.start_time.strftime('%Y-%m-%d %H:%M')}.",
+        )
+        return redirect('operations:online_exam_list')
+    if now > exam.end_time:
+        messages.error(request, 'The deadline for this exam has passed.')
+        return redirect('operations:online_exam_list')
+    if not _class_allowed():
+        messages.error(request, "This exam is not assigned to your class.")
+        return redirect('operations:online_exam_list')
+
+    max_try = max(1, int(exam.max_attempts_per_student or 1))
+    incomplete = (
+        ExamAttempt.objects.filter(exam=exam, student=student, is_completed=False)
+        .order_by("-started_at")
+        .first()
+    )
+    completed_n = ExamAttempt.objects.filter(exam=exam, student=student, is_completed=True).count()
+
+    if incomplete:
+        attempt = incomplete
+    elif completed_n >= max_try:
+        last = (
+            ExamAttempt.objects.filter(exam=exam, student=student, is_completed=True)
+            .order_by("-submitted_at", "-pk")
+            .first()
+        )
+        messages.warning(
+            request,
+            f"You have used all {max_try} attempt(s) for this exam.",
+        )
+        if last:
+            return redirect('operations:online_exam_result', pk=last.pk)
+        return redirect('operations:online_exam_list')
+    else:
+        nxt = _next_exam_attempt_number(exam, student)
+        try:
+            attempt = ExamAttempt.objects.create(
+                exam=exam, student=student, attempt_number=nxt, is_completed=False
+            )
+        except IntegrityError:
+            attempt = (
+                ExamAttempt.objects.filter(exam=exam, student=student, is_completed=False)
+                .order_by("-started_at")
+                .first()
+            )
+            if not attempt:
+                messages.error(request, "Could not start the exam. Please try again.")
+                return redirect("operations:online_exam_list")
     
     questions = ExamQuestion.objects.filter(exam=exam).order_by('order')
     
     if request.method == 'POST':
-        for key, value in request.POST.items():
-            if key.startswith('answer_'):
-                q_id = key.replace('answer_', '')
-                question = ExamQuestion.objects.filter(id=q_id, exam=exam).first()
-                if question:
-                    is_correct = (value.upper() == question.correct_answer.upper())
-                    marks = question.marks if is_correct else 0
-                    ExamAnswer.objects.update_or_create(
-                        attempt=attempt, question=question,
-                        defaults={'answer_given': value, 'is_correct': is_correct, 'marks_obtained': marks}
-                    )
-        
-        # Calculate total score
-        total = attempt.answers.aggregate(Sum('marks_obtained'))['marks_obtained__sum'] or 0
-        attempt.score = total
-        attempt.is_completed = True
-        attempt.submitted_at = timezone.now()
-        attempt.save()
-        
-        from django.contrib import messages
+        now_submit = timezone.now()
+        attempt.refresh_from_db()
+        if attempt.is_completed:
+            messages.info(request, 'This exam was already submitted.')
+            return redirect('operations:online_exam_result', pk=attempt.pk)
+
+        late_submit = _online_exam_past_time_policy(exam, attempt, now_submit)
+
+        with transaction.atomic():
+            attempt_locked = ExamAttempt.objects.select_for_update().get(pk=attempt.pk)
+            if attempt_locked.is_completed:
+                return redirect('operations:online_exam_result', pk=attempt.pk)
+
+            for key, value in request.POST.items():
+                if key.startswith('answer_'):
+                    q_id = key.replace('answer_', '')
+                    question = ExamQuestion.objects.filter(id=q_id, exam=exam).first()
+                    if question:
+                        is_correct, marks = _grade_online_exam_response(question, value)
+                        text = (value or "")[:500]
+                        reviewed = question.question_type != "essay"
+                        ExamAnswer.objects.update_or_create(
+                            attempt=attempt_locked,
+                            question=question,
+                            defaults={
+                                'answer_given': text,
+                                'is_correct': is_correct,
+                                'marks_obtained': marks,
+                                'teacher_reviewed': reviewed,
+                            },
+                        )
+
+            total = (
+                ExamAnswer.objects.filter(attempt=attempt_locked).aggregate(
+                    Sum('marks_obtained')
+                )['marks_obtained__sum']
+                or 0
+            )
+            attempt_locked.score = total
+            attempt_locked.is_completed = True
+            attempt_locked.submitted_at = now_submit
+            attempt_locked.save()
+
+        if late_submit:
+            messages.warning(
+                request,
+                'The allowed time window had ended on the server; your answers were still saved.',
+            )
+        invalidate_pending_essay_attempt_cache(exam.school_id)
         messages.success(request, f'Exam submitted! Score: {total}')
         return redirect('operations:online_exam_result', pk=attempt.pk)
-    
+
+    timer_seconds = _online_exam_timer_seconds_remaining(exam, attempt, timezone.now())
     return render(request, 'operations/online_exam_take.html', {
-        'exam': exam, 'questions': questions, 'attempt': attempt, 'school': school
+        'exam': exam,
+        'questions': questions,
+        'attempt': attempt,
+        'school': school,
+        'exam_timer_seconds': timer_seconds,
+        'exam_instructions': (exam.instructions or "").strip(),
     })
 
 
 @login_required
 def online_exam_result(request, pk):
     """View exam attempt result."""
+    from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
     if not school:
         return redirect('home')
     
-    attempt = get_object_or_404(ExamAttempt, pk=pk)
+    attempt = get_object_or_404(
+        ExamAttempt.objects.select_related('exam', 'student', 'student__user'),
+        pk=pk,
+        exam__school=school,
+    )
     
-    if attempt.student.user != request.user and not user_can_manage_school(request.user):
+    is_staff = user_can_manage_school(request.user)
+    if attempt.student.user != request.user and not is_staff:
         return redirect('home')
     
     answers = ExamAnswer.objects.filter(attempt=attempt).select_related('question')
+    show_scores = attempt.exam.show_results_immediately or is_staff
+    needs_essay_grading = _exam_attempt_needs_essay_grading(attempt)
+
+    other_attempts = []
+    if attempt.student.user == request.user or is_staff:
+        other_attempts = list(
+            ExamAttempt.objects.filter(exam=attempt.exam, student=attempt.student, is_completed=True)
+            .exclude(pk=attempt.pk)
+            .order_by("-submitted_at")
+        )
     
     return render(request, 'operations/online_exam_result.html', {
-        'attempt': attempt, 'answers': answers, 'school': school
+        'attempt': attempt,
+        'answers': answers,
+        'school': school,
+        'show_scores': show_scores,
+        'needs_essay_grading': needs_essay_grading,
+        'can_grade': is_staff,
+        'other_attempts': other_attempts,
     })
 
 

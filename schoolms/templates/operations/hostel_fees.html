@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static custom_filters %}
 
 {% block title %}Hostel Fees - {{ school.name }}{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
+{% include "operations/includes/services_quick_nav.html" %}
 <div class="container mx-auto px-4 py-8">
     <!-- Header -->
     <div class="mb-6 flex justify-between items-center">
@@ -34,11 +36,11 @@
         </div>
         <div class="bg-white rounded-lg shadow p-4">
             <p class="text-gray-500 text-sm">Total Collected</p>
-            <p class="text-2xl font-bold text-green-600">{{ total_collected|default:"GHS 0.00" }}</p>
+            <p class="text-2xl font-bold text-green-600">{{ total_collected|default:0|format_ghs }}</p>
         </div>
         <div class="bg-white rounded-lg shadow p-4">
             <p class="text-gray-500 text-sm">Total Outstanding</p>
-            <p class="text-2xl font-bold text-red-600">{{ total_outstanding|default:"GHS 0.00" }}</p>
+            <p class="text-2xl font-bold text-red-600">{{ total_outstanding|default:0|format_ghs }}</p>
         </div>
         <div class="bg-white rounded-lg shadow p-4">
             <p class="text-gray-500 text-sm">Collection Rate</p>
@@ -105,9 +107,9 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ fee.hostel.name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ fee.term }} - {{ fee.academic_year }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-gray-900">GHS {{ fee.amount }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-green-600">GHS {{ fee.amount_paid|default:"0.00" }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-red-600">GHS {{ fee.balance|default:"0.00" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-900">{{ fee.amount|format_ghs }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-green-600">{{ fee.amount_paid|default:0|format_ghs }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-red-600">{{ fee.balance|default:0|format_ghs }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         {% if fee.status == 'paid' %}
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Paid</span>

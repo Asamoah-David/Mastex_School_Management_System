@@ -127,10 +127,10 @@ class HostelAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(AdmissionApplication)
 class AdmissionApplicationAdmin(admin.ModelAdmin):
-    list_display = ("first_name", "last_name", "class_applied_for", "status", "applied_at", "school")
+    list_display = ("public_reference", "first_name", "last_name", "class_applied_for", "status", "applied_at", "school")
     list_select_related = ("school",)
     list_filter = ("school", "status", "class_applied_for")
-    search_fields = ("first_name", "last_name", "parent_phone", "parent_email")
+    search_fields = ("public_reference", "first_name", "last_name", "parent_phone", "parent_email")
 
 
 @admin.register(Certificate)

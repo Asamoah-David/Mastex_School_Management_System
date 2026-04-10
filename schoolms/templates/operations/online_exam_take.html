@@ -17,7 +17,7 @@
         <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">💻</div>
         <div>
             <h2 style="margin: 0; color: var(--text-main);">{{ exam.title }}</h2>
-            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Online Exam - Answer all questions</p>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Timer syncs with the server (attempt start &amp; exam end).</p>
         </div>
     </div>
     
@@ -27,9 +27,7 @@
             <span style="font-size: 1.5rem;">⏱️</span>
             <span style="font-size: 1rem; font-weight: 500;">Time Remaining:</span>
         </div>
-        <div id="timerDisplay" style="font-size: 1.5rem; font-weight: 700; font-family: monospace;">
-            {{ exam.duration_minutes }}:00
-        </div>
+        <div id="timerDisplay" style="font-size: 1.5rem; font-weight: 700; font-family: monospace;">--:--</div>
     </div>
     
     <div style="background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;">
@@ -50,11 +48,22 @@
                 <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">✅ Passing</p>
                 <p style="margin: 0.25rem 0 0; font-weight: 600;">{{ exam.passing_marks }}</p>
             </div>
+            <div>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">🔁 Attempt</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 600;">#{{ attempt.attempt_number }} of up to {{ exam.max_attempts_per_student }}</p>
+            </div>
         </div>
     </div>
     
+    {% if exam_instructions %}
+    <div style="background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+        <strong style="color: #eab308;">Instructions</strong>
+        <p style="margin: 0.5rem 0 0; white-space: pre-wrap; color: var(--text-main);">{{ exam_instructions }}</p>
+    </div>
+    {% endif %}
+    
     {% if questions %}
-    <form method="POST" id="examForm">
+    <form method="POST" id="examForm" onsubmit="return confirmSubmit();">
         {% csrf_token %}
         <input type="hidden" name="action" value="submit_exam">
         
@@ -67,25 +76,50 @@
                 </div>
                 
                 <p style="font-size: 1rem; margin-bottom: 1rem; color: var(--text-main);">{{ question.question_text }}</p>
-                
+                {% if question.question_type == 'short_answer' %}
+                <textarea name="answer_{{ question.id }}" rows="3" maxlength="500" style="width:100%;padding:0.65rem;border-radius:0.5rem;border:1px solid rgba(148,163,184,0.45);background:rgba(15,23,42,0.85);color:var(--text-main);" placeholder="Type your answer (exact match to model answer if set by teacher)"></textarea>
+                {% elif question.question_type == 'essay' %}
+                <textarea name="answer_{{ question.id }}" rows="5" maxlength="500" style="width:100%;padding:0.65rem;border-radius:0.5rem;border:1px solid rgba(148,163,184,0.45);background:rgba(15,23,42,0.85);color:var(--text-main);" placeholder="Written response (marked manually by your teacher)"></textarea>
+                <p style="font-size:0.78rem;color:var(--text-soft);margin:0.35rem 0 0;">Essay items are submitted for review; auto-score may be zero until graded.</p>
+                {% elif question.question_type == 'true_false' %}
                 <div style="display: grid; gap: 0.5rem;">
                     <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
-                        <input type="radio" name="answer_{{ question.id }}" value="A" required>
+                        <input type="radio" name="answer_{{ question.id }}" value="A">
+                        <span><strong>A.</strong> {{ question.option_a|default:"True" }}</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="answer_{{ question.id }}" value="B">
+                        <span><strong>B.</strong> {{ question.option_b|default:"False" }}</span>
+                    </label>
+                </div>
+                {% else %}
+                <div style="display: grid; gap: 0.5rem;">
+                    {% if question.option_a %}
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="answer_{{ question.id }}" value="A">
                         <span><strong>A.</strong> {{ question.option_a }}</span>
                     </label>
+                    {% endif %}
+                    {% if question.option_b %}
                     <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
                         <input type="radio" name="answer_{{ question.id }}" value="B">
                         <span><strong>B.</strong> {{ question.option_b }}</span>
                     </label>
+                    {% endif %}
+                    {% if question.option_c %}
                     <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
                         <input type="radio" name="answer_{{ question.id }}" value="C">
                         <span><strong>C.</strong> {{ question.option_c }}</span>
                     </label>
+                    {% endif %}
+                    {% if question.option_d %}
                     <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.5); border-radius: 0.5rem; cursor: pointer;">
                         <input type="radio" name="answer_{{ question.id }}" value="D">
                         <span><strong>D.</strong> {{ question.option_d }}</span>
                     </label>
+                    {% endif %}
                 </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -108,9 +142,7 @@
 </div>
 
 <script>
-// Countdown Timer
-const durationMinutes = {{ exam.duration_minutes }};
-let totalSeconds = durationMinutes * 60;
+let totalSeconds = {{ exam_timer_seconds|default:0 }};
 let timerInterval;
 let isSubmitted = false;
 
@@ -121,62 +153,65 @@ const submitBtn = document.getElementById('submitBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 
 function updateTimer() {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
+    if (!timerDisplay) return;
+    const show = Math.max(0, totalSeconds);
+    const minutes = Math.floor(show / 60);
+    const seconds = show % 60;
     timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    
-    // Warning colors
-    if (totalSeconds <= 60) {
-        timerCard.style.background = 'linear-gradient(135deg, #dc2626, #ef4444)';
-        timerDisplay.style.color = '#fff';
-    } else if (totalSeconds <= 300) {
-        timerCard.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
+    if (timerCard) {
+        if (show <= 60) {
+            timerCard.style.background = 'linear-gradient(135deg, #dc2626, #ef4444)';
+            timerDisplay.style.color = '#fff';
+        } else if (show <= 300) {
+            timerCard.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
+        }
     }
-    
-    if (totalSeconds <= 0) {
+    if (totalSeconds <= 0 && examForm && !isSubmitted) {
         clearInterval(timerInterval);
         autoSubmit();
+        return;
     }
-    
     totalSeconds--;
 }
 
 function autoSubmit() {
-    if (!isSubmitted) {
+    if (!isSubmitted && examForm) {
         isSubmitted = true;
         examForm.submit();
     }
 }
 
 function confirmSubmit() {
-    const unanswered = [];
-    const radios = document.querySelectorAll('input[type="radio"]');
-    const questionIds = [...new Set([...radios].map(r => r.name))];
-    
-    questionIds.forEach(qId => {
-        const checked = document.querySelector(`input[name="${qId}"]:checked`);
-        if (!checked) {
-            unanswered.push(qId);
+    const names = [];
+    if (examForm) {
+        examForm.querySelectorAll('[name^="answer_"]').forEach(function(el) {
+            if (names.indexOf(el.name) === -1) names.push(el.name);
+        });
+    }
+    let unanswered = 0;
+    names.forEach(function(name) {
+        const first = document.querySelector('[name="' + name + '"]');
+        if (!first) return;
+        if (first.type === 'radio') {
+            if (!document.querySelector('input[name="' + name + '"]:checked')) unanswered++;
+        } else {
+            if (!(first.value || '').trim()) unanswered++;
         }
     });
-    
-    if (unanswered.length > 0) {
-        const confirmMsg = `You have ${unanswered.length} unanswered question(s). Are you sure you want to submit?`;
-        if (!confirm(confirmMsg)) {
-            return false;
-        }
+    if (unanswered > 0) {
+        if (!confirm('You have ' + unanswered + ' unanswered question(s). Submit anyway?')) return false;
     }
-    
     if (!isSubmitted) {
         isSubmitted = true;
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Submitting...';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+        }
         return true;
     }
     return false;
 }
 
-// Disable cancel button when submitting
 if (cancelBtn) {
     cancelBtn.addEventListener('click', function(e) {
         if (!confirm('Are you sure you want to cancel? Your progress will be lost.')) {
@@ -185,11 +220,11 @@ if (cancelBtn) {
     });
 }
 
-// Start the timer
-timerInterval = setInterval(updateTimer, 1000);
-updateTimer();
+if (timerDisplay && examForm) {
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+}
 
-// Confirm before leaving page
 window.addEventListener('beforeunload', function(e) {
     if (!isSubmitted) {
         e.preventDefault();

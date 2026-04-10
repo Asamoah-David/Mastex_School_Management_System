@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+{% block title %}Expense · {{ school.name }}{% endblock %}
+{% block page_title %}Expense detail{% endblock %}
+{% block page_subtitle %}{{ expense.description }}{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+<div class="content-card">
+    <div class="button-row" style="margin-bottom:1rem;">
+        <a href="{% url 'operations:expense_list' %}" class="btn btn-secondary">← Expenses</a>
+        {% if can_manage_school_expense_records %}
+        <a href="{% url 'operations:expense_edit' expense.pk %}" class="btn btn-primary">Edit</a>
+        <a href="{% url 'operations:expense_delete' expense.pk %}" class="btn btn-danger">Delete</a>
+        {% endif %}
+    </div>
+    <dl style="display:grid;grid-template-columns:auto 1fr;gap:0.5rem 1.5rem;max-width:32rem;">
+        <dt style="color:var(--text-soft, #94a3b8);">Date</dt>
+        <dd style="margin:0;">{{ expense.expense_date|date:"F j, Y" }}</dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Amount</dt>
+        <dd style="margin:0;"><strong>{{ expense.amount|format_ghs }}</strong></dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Category</dt>
+        <dd style="margin:0;">{{ expense.category.name|default:"—" }}</dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Description</dt>
+        <dd style="margin:0;">{{ expense.description }}</dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Vendor</dt>
+        <dd style="margin:0;">{{ expense.vendor|default:"—" }}</dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Payment method</dt>
+        <dd style="margin:0;">{{ expense.get_payment_method_display }}</dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Receipt #</dt>
+        <dd style="margin:0;">{{ expense.receipt_number|default:"—" }}</dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Recorded by</dt>
+        <dd style="margin:0;">{% if expense.recorded_by %}{{ expense.recorded_by.get_full_name|default:expense.recorded_by.username }}{% else %}—{% endif %}</dd>
+        <dt style="color:var(--text-soft, #94a3b8);">Created</dt>
+        <dd style="margin:0;">{{ expense.created_at|date:"Y-m-d H:i" }}</dd>
+    </dl>
+</div>
+{% endblock %}

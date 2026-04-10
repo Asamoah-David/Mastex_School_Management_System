@@ -326,6 +326,7 @@ def export_admissions(request):
     apps = apps.select_related("school", "reviewed_by").order_by("-applied_at")
     
     fields = [
+        ("Reference", "public_reference"),
         ("Applied At", "applied_at"),
         ("First Name", "first_name"),
         ("Last Name", "last_name"),

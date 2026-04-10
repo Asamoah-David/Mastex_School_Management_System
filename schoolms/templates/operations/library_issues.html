@@ -2,13 +2,16 @@
 {% block title %}Library Issues - {{ school.name }}{% endblock %}
 {% block page_title %}Library Issues{% endblock %}
 {% block content %}
+{% include "operations/includes/services_quick_nav.html" %}
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>Library Issues</h2>
+        {% if can_export_data %}
         <div class="gap-2 d-flex">
             <a href="{% url 'operations:export_library_issues' %}?format=csv" class="btn btn-success">📥 CSV</a>
             <a href="{% url 'operations:export_library_issues' %}?format=excel" class="btn btn-success">📊 Excel</a>
         </div>
+        {% endif %}
     </div>
     {% if issues %}
     <table>

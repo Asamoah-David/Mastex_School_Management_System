@@ -21,52 +21,72 @@
         </div>
     </div>
     
+    <p style="color: var(--text-soft); font-size: 0.9rem; margin-bottom: 1rem;">Attempt <strong>#{{ attempt.attempt_number }}</strong> of up to {{ attempt.exam.max_attempts_per_student }}</p>
+
+    {% if show_scores %}
     <div style="background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; text-align: center;">
             <div>
-                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">Your Score</p>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">Score</p>
                 <p style="margin: 0.25rem 0 0; font-weight: 700; font-size: 1.5rem; color: #22c55e;">{{ attempt.score }} / {{ attempt.exam.total_marks }}</p>
             </div>
             <div>
                 <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">Percentage</p>
-                <p style="margin: 0.25rem 0 0; font-weight: 700; font-size: 1.5rem;">{{ attempt.score|default:0|add:0 }}</p>
+                <p style="margin: 0.25rem 0 0; font-weight: 700; font-size: 1.5rem;">
+                    {% if attempt.exam.total_marks %}
+                    {% widthratio attempt.score attempt.exam.total_marks 100 %}%
+                    {% else %}—{% endif %}
+                </p>
             </div>
             <div>
-                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">Passing Marks</p>
+                <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">Passing marks</p>
                 <p style="margin: 0.25rem 0 0; font-weight: 700; font-size: 1.5rem;">{{ attempt.exam.passing_marks }}</p>
             </div>
             <div>
                 <p style="color: var(--text-soft); font-size: 0.85rem; margin: 0;">Status</p>
                 <p style="margin: 0.25rem 0 0; font-weight: 700; font-size: 1.5rem;">
-                    {% if attempt.score >= attempt.exam.passing_marks %}
-                    <span style="color: #22c55e;">✅ PASSED</span>
+                    {% if needs_essay_grading %}
+                    <span style="color: #eab308;">⏳ Provisional (essays pending)</span>
+                    {% elif attempt.score >= attempt.exam.passing_marks %}
+                    <span style="color: #22c55e;">✅ Passed</span>
                     {% else %}
-                    <span style="color: #ef4444;">❌ FAILED</span>
+                    <span style="color: #ef4444;">❌ Not passed</span>
                     {% endif %}
                 </p>
             </div>
         </div>
     </div>
+    {% else %}
+    <div style="background: rgba(30, 41, 59, 0.5); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid rgba(234, 179, 8, 0.35);">
+        <p style="margin: 0; color: var(--text-main);">Your answers were submitted successfully. Detailed scores are hidden until your school releases them for this exam.</p>
+    </div>
+    {% endif %}
+
+    {% if can_grade %}
+    <div style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+        <a href="{% url 'operations:online_exam_grade_attempt' attempt.pk %}" class="btn btn-warning">✏️ Grade essays</a>
+    </div>
+    {% endif %}
     
-    {% if answers %}
+    {% if answers and show_scores %}
     <div style="margin-bottom: 1.5rem;">
-        <h3 style="color: #22c55e; margin-bottom: 1rem;">📝 Answer Review</h3>
+        <h3 style="color: #22c55e; margin-bottom: 1rem;">📝 Answer review</h3>
         
         {% for answer in answers %}
-        <div style="background: rgba(30, 41, 59, 0.3); border-radius: 0.75rem; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid {% if answer.is_correct %}#22c55e{% else %}#ef4444{% endif %};">
+        <div style="background: rgba(30, 41, 59, 0.3); border-radius: 0.75rem; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid {% if answer.question.question_type == 'essay' and not answer.teacher_reviewed %}#eab308{% elif answer.question.question_type == 'essay' %}#6366f1{% elif answer.is_correct %}#22c55e{% else %}#ef4444{% endif %};">
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
                 <strong>Question {{ forloop.counter }}</strong>
-                <span style="padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.85rem; background: {% if answer.is_correct %}#22c55e{% else %}#ef4444{% endif %}; color: white;">
-                    {% if answer.is_correct %}Correct{% else %}Incorrect{% endif %}
+                <span style="padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.85rem; background: {% if answer.question.question_type == 'essay' and not answer.teacher_reviewed %}#ca8a04{% elif answer.question.question_type == 'essay' %}#4f46e5{% elif answer.is_correct %}#22c55e{% else %}#ef4444{% endif %}; color: white;">
+                    {% if answer.question.question_type == 'essay' and not answer.teacher_reviewed %}Pending review{% elif answer.question.question_type == 'essay' %}Graded{% elif answer.is_correct %}Correct{% else %}Incorrect{% endif %}
                 </span>
             </div>
             <p style="color: var(--text-main); margin-bottom: 0.5rem;">{{ answer.question.question_text }}</p>
             <p style="color: var(--text-soft); font-size: 0.9rem;">
-                <strong>Your Answer:</strong> {{ answer.answer_given }}
+                <strong>Your answer:</strong> {{ answer.answer_given }}
             </p>
-            {% if not answer.is_correct %}
+            {% if not answer.is_correct and answer.question.question_type != 'essay' %}
             <p style="color: #22c55e; font-size: 0.9rem;">
-                <strong>Correct Answer:</strong> {{ answer.question.correct_answer }}
+                <strong>Correct answer:</strong> {{ answer.question.correct_answer }}
             </p>
             {% endif %}
             <p style="color: var(--text-soft); font-size: 0.85rem; margin-top: 0.25rem;">
@@ -77,9 +97,20 @@
     </div>
     {% endif %}
     
+    {% if other_attempts %}
+    <div style="margin-bottom: 1.25rem;">
+        <h4 style="color: var(--text-soft); font-size: 0.9rem;">Other attempts</h4>
+        <ul style="margin: 0.35rem 0 0; padding-left: 1.25rem;">
+            {% for oa in other_attempts %}
+            <li><a href="{% url 'operations:online_exam_result' oa.pk %}">Attempt #{{ oa.attempt_number }} — {{ oa.submitted_at|date:"M j, Y H:i" }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     <div class="button-row">
         <a href="{% url 'operations:online_exam_list' %}" class="btn btn-primary">
-            ← Back to Exams
+            ← Back to exams
         </a>
     </div>
 </div>

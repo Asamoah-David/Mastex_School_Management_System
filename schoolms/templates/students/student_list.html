@@ -12,7 +12,9 @@
 <div class="button-row">
     <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register new student</a>
     <a href="{% url 'students:bulk_student_status' %}" class="btn btn-warning">📊 Bulk Status</a>
+    {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
     <a href="{% url 'students:graduate_class' %}" class="btn btn-success">🎓 Graduate Class</a>
+    {% endif %}
     <a href="{% url 'operations:export_students' %}?format=csv" class="btn btn-info">📥 CSV</a>
     <a href="{% url 'operations:export_students' %}?format=excel" class="btn btn-info">📊 Excel</a>
 </div>
@@ -21,18 +23,22 @@
 <div class="card" style="margin-top: 0.5rem; padding: 1rem;">
     <h4 style="margin: 0 0 0.75rem 0; color: #9ca3af;">🎯 Quick Class Actions</h4>
     <div class="button-row" style="flex-wrap: wrap; gap: 0.5rem;">
+        {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
         <a href="{% url 'students:bulk_student_status' %}?status=graduated" class="btn btn-success btn-sm">
             🎓 Graduate Class
         </a>
+        {% endif %}
         <a href="{% url 'students:bulk_student_status' %}?status=withdrawn" class="btn btn-warning btn-sm">
             📤 Withdraw Class
         </a>
         <a href="{% url 'students:bulk_student_status' %}?status=dismissed" class="btn btn-danger btn-sm">
             🚫 Dismiss/Expel Class
         </a>
+        {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
         <a href="{% url 'students:promote_students' %}" class="btn btn-primary btn-sm">
-            📈 Promote Students
+            📈 Promote class
         </a>
+        {% endif %}
     </div>
     <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #6b7280;">
         Click any button above to bulk update ALL students in a class. 
@@ -78,7 +84,9 @@
                         <td>{% if s.parent %}{{ s.parent.get_full_name|default:s.parent.username }}{% else %}—{% endif %}</td>
                         <td>
                             <a href="{% url 'students:student_detail' s.pk %}" class="btn btn-secondary btn-sm">View</a>
-                            <a href="{% url 'students:student_delete' s.pk %}" class="btn btn-danger btn-sm">Delete</a>
+                            {% if s.status == "active" or s.status == "suspended" %}
+                            <a href="{% url 'students:student_exit' s.pk %}" class="btn btn-danger btn-sm">Exit</a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

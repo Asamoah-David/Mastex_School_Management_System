@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Record Hostel Fee · Mastex SchoolOS{% endblock %}
 {% block page_title %}Record Hostel Fee{% endblock %}
 {% block page_subtitle %}Record hostel fee payment for a student{% endblock %}
@@ -42,7 +43,7 @@
                 <select name="hostel" id="hostel" required>
                     <option value="">Select Hostel</option>
                     {% for hostel in hostels %}
-                    <option value="{{ hostel.id }}" data-fee="{{ hostel.fee_per_term }}">{{ hostel.name }} (GH₵{{ hostel.fee_per_term|floatformat:2 }})</option>
+                    <option value="{{ hostel.id }}" data-fee="{{ hostel.fee_per_term }}">{{ hostel.name }} ({{ hostel.fee_per_term|format_ghs }})</option>
                     {% endfor %}
                 </select>
                 <small class="form-error" id="hostelError"></small>
@@ -62,11 +63,11 @@
             
             <!-- Amount -->
             <div class="form-group" style="grid-column: 1 / -1;">
-                <label class="required">💰 Amount (GH₵)</label>
+                <label class="required">💰 Amount (GHS)</label>
                 <input type="number" name="amount" id="amount" required step="0.01" min="0" value="0.00"
                        placeholder="0.00">
                 <small class="form-error" id="amountError"></small>
-                <small id="amountDisplay" class="form-text" style="color: #22c55e;">GH₵ 0.00</small>
+                <small id="amountDisplay" class="form-text" style="color: #22c55e;">GHS 0.00</small>
             </div>
         </div>
         
@@ -145,9 +146,9 @@ function updateAmountDisplay() {
     const amount = document.getElementById('amount').value;
     const display = document.getElementById('amountDisplay');
     if (amount && !isNaN(amount)) {
-        display.textContent = 'GH₵ ' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        display.textContent = 'GHS ' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     } else {
-        display.textContent = 'GH₵ 0.00';
+        display.textContent = 'GHS 0.00';
     }
 }
 

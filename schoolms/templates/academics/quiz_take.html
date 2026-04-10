@@ -1,44 +1,136 @@
 {% extends "base.html" %}
+{% block title %}Take Quiz · {{ quiz.title }}{% endblock %}
+{% block page_title %}{{ quiz.title }}{% endblock %}
+{% block page_subtitle %}{{ quiz.subject.name }} · {{ quiz.duration_minutes }} min{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>{{ quiz.title }}</h2>
-    <p><strong>Subject:</strong> {{ quiz.subject.name }} | <strong>Duration:</strong> {{ quiz.duration_minutes }} mins</p>
-    
-    <form method="post">
+<div class="content-card">
+    <p style="margin:0 0 1rem;font-size:0.88rem;color:var(--text-secondary);">
+        Answer every question. The timer matches the server: it counts down from when you started this attempt.
+    </p>
+    <div id="quizTimerBar" style="background:linear-gradient(135deg,#1e40af,#3b82f6);border-radius:0.75rem;padding:0.85rem 1rem;margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;color:#fff;">
+        <span style="font-weight:600;">Time remaining</span>
+        <span id="quizTimerDisplay" style="font-family:ui-monospace,monospace;font-size:1.25rem;font-weight:700;">--:--</span>
+    </div>
+
+    <form method="post" id="quizForm" onsubmit="return confirmQuizSubmit();">
         {% csrf_token %}
         {% for question in questions %}
-        <div class="card mb-3">
-            <div class="card-header">
-                <strong>Question {{ forloop.counter }}</strong> ({{ question.marks }} mark)
+        <div class="content-card" style="margin-bottom:1rem;padding:1rem 1.1rem;">
+            <div style="margin-bottom:0.65rem;">
+                <span class="tag tag-success" style="font-size:0.72rem;">Q{{ forloop.counter }}</span>
+                <span style="font-size:0.8rem;color:var(--text-secondary);margin-left:0.35rem;">{{ question.marks }} mark{{ question.marks|pluralize }}</span>
             </div>
-            <div class="card-body">
-                <p>{{ question.question_text }}</p>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="A" id="q{{ question.pk }}_a">
-                    <label class="form-check-label" for="q{{ question.pk }}_a">A. {{ question.option_a }}</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="B" id="q{{ question.pk }}_b">
-                    <label class="form-check-label" for="q{{ question.pk }}_b">B. {{ question.option_b }}</label>
-                </div>
+            <p style="margin:0 0 1rem;color:var(--text-main);">{{ question.question_text }}</p>
+
+            {% if question.question_type == 'short_answer' %}
+            <textarea name="q_{{ question.pk }}" rows="3" class="form-control" style="width:100%;padding:0.6rem;border-radius:0.5rem;border:1px solid var(--border-default);background:var(--surface-input);color:var(--text-main);" placeholder="Your answer"></textarea>
+            {% elif question.question_type == 'true_false' %}
+            <div style="display:grid;gap:0.45rem;">
+                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
+                    <input type="radio" name="q_{{ question.pk }}" value="A">
+                    <span><strong>A.</strong> {{ question.option_a|default:"True" }}</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
+                    <input type="radio" name="q_{{ question.pk }}" value="B">
+                    <span><strong>B.</strong> {{ question.option_b|default:"False" }}</span>
+                </label>
+            </div>
+            {% else %}
+            <div style="display:grid;gap:0.45rem;">
+                {% if question.option_a %}
+                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
+                    <input type="radio" name="q_{{ question.pk }}" value="A">
+                    <span><strong>A.</strong> {{ question.option_a }}</span>
+                </label>
+                {% endif %}
+                {% if question.option_b %}
+                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
+                    <input type="radio" name="q_{{ question.pk }}" value="B">
+                    <span><strong>B.</strong> {{ question.option_b }}</span>
+                </label>
+                {% endif %}
                 {% if question.option_c %}
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="C" id="q{{ question.pk }}_c">
-                    <label class="form-check-label" for="q{{ question.pk }}_c">C. {{ question.option_c }}</label>
-                </div>
+                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
+                    <input type="radio" name="q_{{ question.pk }}" value="C">
+                    <span><strong>C.</strong> {{ question.option_c }}</span>
+                </label>
                 {% endif %}
                 {% if question.option_d %}
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="q_{{ question.pk }}" value="D" id="q{{ question.pk }}_d">
-                    <label class="form-check-label" for="q{{ question.pk }}_d">D. {{ question.option_d }}</label>
-                </div>
+                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
+                    <input type="radio" name="q_{{ question.pk }}" value="D">
+                    <span><strong>D.</strong> {{ question.option_d }}</span>
+                </label>
                 {% endif %}
             </div>
+            {% endif %}
         </div>
         {% endfor %}
-        <button type="submit" class="btn btn-success btn-lg">Submit Quiz</button>
-        <a href="{% url 'academics:quiz_list' %}" class="btn btn-secondary btn-lg">Cancel</a>
+
+        <div class="button-row" style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary btn-lg" id="quizSubmitBtn">Submit quiz</button>
+            <a href="{% url 'academics:quiz_list' %}" class="btn btn-secondary" id="quizCancelBtn">Cancel</a>
+        </div>
     </form>
 </div>
+
+<script>
+(function() {
+    var totalSeconds = {{ quiz_timer_seconds|default:0 }};
+    var form = document.getElementById('quizForm');
+    var display = document.getElementById('quizTimerDisplay');
+    var bar = document.getElementById('quizTimerBar');
+    var submitBtn = document.getElementById('quizSubmitBtn');
+    var done = false;
+
+    function tick() {
+        if (!display) return;
+        var m = Math.floor(Math.max(0, totalSeconds) / 60);
+        var s = Math.max(0, totalSeconds) % 60;
+        display.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        if (totalSeconds <= 60 && bar) {
+            bar.style.background = 'linear-gradient(135deg,#b91c1c,#ef4444)';
+        } else if (totalSeconds <= 300 && bar) {
+            bar.style.background = 'linear-gradient(135deg,#b45309,#f59e0b)';
+        }
+        if (totalSeconds <= 0 && form && !done) {
+            done = true;
+            form.submit();
+            return;
+        }
+        totalSeconds--;
+    }
+
+    window.confirmQuizSubmit = function() {
+        var names = [];
+        document.querySelectorAll('[name^="q_"]').forEach(function(el) {
+            if (names.indexOf(el.name) === -1) names.push(el.name);
+        });
+        var empty = 0;
+        names.forEach(function(name) {
+            var first = document.querySelector('[name="' + name + '"]');
+            if (!first) return;
+            if (first.type === 'radio') {
+                if (!document.querySelector('input[name="' + name + '"]:checked')) empty++;
+            } else {
+                if (!(first.value || '').trim()) empty++;
+            }
+        });
+        if (empty > 0) {
+            if (!confirm('You have ' + empty + ' unanswered question(s). Submit anyway?')) return false;
+        }
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting…';
+        }
+        done = true;
+        return true;
+    };
+
+    if (display) {
+        setInterval(tick, 1000);
+        tick();
+    }
+})();
+</script>
 {% endblock %}

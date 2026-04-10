@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load custom_filters %}
 
 {% block content %}
 <div class="container-fluid">
@@ -26,8 +27,8 @@
             <div class="card border-primary">
                 <div class="card-body text-center">
                     <h5 class="card-title text-primary">School Fees</h5>
-                    <h4>GHS {{ school_fees_total|floatformat:2 }}</h4>
-                    <small>Outstanding: GHS {{ school_fees_outstanding|floatformat:2 }}</small>
+                    <h4>{{ school_fees_total|format_ghs }}</h4>
+                    <small>Outstanding: {{ school_fees_outstanding|format_ghs }}</small>
                 </div>
             </div>
         </div>
@@ -35,7 +36,7 @@
             <div class="card border-success">
                 <div class="card-body text-center">
                     <h5 class="card-title text-success">Canteen</h5>
-                    <h4>GHS {{ canteen_total|floatformat:2 }}</h4>
+                    <h4>{{ canteen_total|format_ghs }}</h4>
                     <small>{{ canteen|length }} Purchases</small>
                 </div>
             </div>
@@ -44,7 +45,7 @@
             <div class="card border-warning">
                 <div class="card-body text-center">
                     <h5 class="card-title text-warning">Bus</h5>
-                    <h4>GHS {{ bus_total|floatformat:2 }}</h4>
+                    <h4>{{ bus_total|format_ghs }}</h4>
                     <small>Total Paid</small>
                 </div>
             </div>
@@ -53,7 +54,7 @@
             <div class="card border-info">
                 <div class="card-body text-center">
                     <h5 class="card-title text-info">Textbooks</h5>
-                    <h4>GHS {{ textbook_total|floatformat:2 }}</h4>
+                    <h4>{{ textbook_total|format_ghs }}</h4>
                     <small>{{ textbooks|length }} Purchases</small>
                 </div>
             </div>
@@ -105,11 +106,11 @@
                                 {% for fee in school_fees %}
                                 <tr data-fee-id="{{ fee.id }}" data-balance="{{ fee.remaining_balance|floatformat:2 }}">
                                     <td>{{ fee.term|default:"School Fee" }}</td>
-                                    <td>GHS {{ fee.amount|floatformat:2 }}</td>
-                                    <td>GHS {{ fee.amount_paid|floatformat:2|default:"0.00" }}</td>
+                                    <td>{{ fee.amount|format_ghs }}</td>
+                                    <td>{{ fee.amount_paid|default:0|format_ghs }}</td>
                                     <td>
                                         {% if fee.remaining_balance > 0 %}
-                                        <span class="badge bg-danger">GHS {{ fee.remaining_balance|floatformat:2 }}</span>
+                                        <span class="badge bg-danger">{{ fee.remaining_balance|format_ghs }}</span>
                                         {% else %}
                                         <span class="badge bg-success">Paid</span>
                                         {% endif %}
@@ -157,7 +158,7 @@
                                 {% for payment in canteen %}
                                 <tr>
                                     <td>{{ payment.payment_date|date:"d M Y" }}</td>
-                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.amount|format_ghs }}</td>
                                     <td>{{ payment.description|default:"-" }}</td>
                                     <td>
                                         <a href="{% url 'operations:generate_receipt' 'canteen' payment.id %}" class="btn btn-sm btn-primary">
@@ -200,7 +201,7 @@
                                 <tr>
                                     <td>{{ payment.route.name|default:"-" }}</td>
                                     <td>{{ payment.term_period|default:"-" }}</td>
-                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.amount|format_ghs }}</td>
                                     <td>
                                         {% if payment.paid %}
                                         <span class="badge bg-success">Paid</span>
@@ -254,7 +255,7 @@
                                     <td>{{ sale.sale_date|date:"d M Y" }}</td>
                                     <td>{{ sale.textbook.title }}</td>
                                     <td>{{ sale.quantity }}</td>
-                                    <td>GHS {{ sale.amount|floatformat:2 }}</td>
+                                    <td>{{ sale.amount|format_ghs }}</td>
                                     <td>
                                         <a href="{% url 'operations:generate_receipt' 'textbook' sale.id %}" class="btn btn-sm btn-primary">
                                             <i class="bi bi-receipt"></i> Receipt
@@ -307,6 +308,11 @@
 
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script>
+function formatGhsClient(n) {
+    var x = parseFloat(n);
+    if (isNaN(x)) return '—';
+    return 'GHS ' + x.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 let paymentModal;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -315,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function payFee(feeId, balance) {
     document.getElementById('feeId').value = feeId;
-    document.getElementById('paymentAmount').textContent = 'GHS ' + balance.toFixed(2);
+    document.getElementById('paymentAmount').textContent = formatGhsClient(balance);
     document.getElementById('amountToPay').value = balance.toFixed(2);
     document.getElementById('paymentAmountInput').value = balance.toFixed(2);
     paymentModal.show();

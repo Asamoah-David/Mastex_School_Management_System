@@ -2,8 +2,14 @@
 {% block title %}Expense Categories - {{ school.name }}{% endblock %}
 {% block page_title %}Expense Categories{% endblock %}
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="content-card">
-    <h2>📂 Expense Categories</h2>
+    <div class="d-flex justify-between align-center mb-3">
+        <h2 style="margin:0;">📂 Expense categories</h2>
+        {% if can_manage_school_expense_records %}
+        <a href="{% url 'operations:expense_category_create' %}" class="btn btn-primary">➕ Add category</a>
+        {% endif %}
+    </div>
     {% if categories %}
     <table class="data-table">
         <thead><tr><th>Name</th><th>Description</th></tr></thead>

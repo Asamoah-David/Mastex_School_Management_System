@@ -475,10 +475,14 @@ def school_dashboard(request):
         ]
     else:
         quick_actions = [
+            {"label": "Services hub", "url": reverse("operations:services_hub"), "icon": "🏫"},
             {"label": "Add Student", "url": reverse("students:student_register"), "icon": "👤"},
-            {"label": "Record Payment", "url": reverse("finance:fee_list"), "icon": "💰"},
-            {"label": "Mark Attendance", "url": reverse("operations:attendance_mark"), "icon": "📋"},
-            {"label": "Send Announcement", "url": reverse("messaging:send_message"), "icon": "📢"},
+            {"label": "School fees", "url": reverse("finance:fee_list"), "icon": "📋"},
+            {"label": "Record payment", "url": reverse("operations:record_payment"), "icon": "💳"},
+            {"label": "Mark attendance", "url": reverse("operations:attendance_mark"), "icon": "✅"},
+            {"label": "Send announcement", "url": reverse("messaging:send_message"), "icon": "📢"},
+            {"label": "Public apply link", "url": reverse("operations:admission_apply"), "icon": "🌐"},
+            {"label": "Track application", "url": reverse("operations:admission_track"), "icon": "🔎"},
         ]
 
     context = {

@@ -67,10 +67,32 @@
             
             <!-- Total Score -->
             <div class="form-group">
-                <label class="required">🎯 Total Score</label>
-                <input type="number" name="total_score" id="total_score" required min="1" value="{{ exam.total_marks|default:'100' }}">
-                <small class="form-text">Sum of all question marks</small>
+                <label class="required">🎯 Total marks</label>
+                <input type="number" name="total_score" id="total_score" required min="1" step="0.01" value="{{ exam.total_marks|default:'100' }}">
+                <small class="form-text">Official paper total (should match the sum of question marks)</small>
                 <small class="form-error" id="scoreError"></small>
+            </div>
+            
+            <div class="form-group">
+                <label class="required">✅ Passing marks</label>
+                <input type="number" name="passing_marks" id="passing_marks" required min="0" step="0.01" value="{{ exam.passing_marks|default:'50' }}">
+                <small class="form-text">Minimum score (same scale as total marks) to pass</small>
+                <small class="form-error" id="passingError"></small>
+            </div>
+            
+            <div class="form-group">
+                <label class="required">🔁 Max attempts per student</label>
+                <input type="number" name="max_attempts_per_student" id="max_attempts_per_student" required min="1" max="50" value="{{ exam.max_attempts_per_student|default:'1' }}">
+                <small class="form-text">How many times a student may submit a completed attempt (e.g. 3 for practice tests)</small>
+            </div>
+            
+            <div class="form-group">
+                <label>📂 Exam type</label>
+                <select name="exam_type" id="exam_type" class="searchable-select" data-placeholder="Type...">
+                    <option value="quiz" {% if not exam or exam.exam_type == 'quiz' %}selected{% endif %}>Quiz</option>
+                    <option value="test" {% if exam.exam_type == 'test' %}selected{% endif %}>Test</option>
+                    <option value="exam" {% if exam.exam_type == 'exam' %}selected{% endif %}>Exam</option>
+                </select>
             </div>
             
             <!-- Start Time -->
@@ -109,7 +131,7 @@
         
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
-                💾 Create Exam
+                💾 {% if exam %}Save exam{% else %}Create exam{% endif %}
             </button>
             <a href="{% url 'operations:online_exam_list' %}" class="btn btn-secondary">
                 ↩️ Cancel
@@ -151,9 +173,19 @@ function validateExamForm() {
         isValid = false;
     }
     
-    if (!totalScore || parseInt(totalScore) < 1) {
+    if (!totalScore || parseFloat(totalScore) < 1) {
         document.getElementById('total_score').classList.add('error');
-        document.getElementById('scoreError').textContent = 'Please enter a valid total score';
+        document.getElementById('scoreError').textContent = 'Please enter a valid total marks (at least 1)';
+        isValid = false;
+    }
+    const passing = document.getElementById('passing_marks').value;
+    if (passing === '' || parseFloat(passing) < 0) {
+        document.getElementById('passing_marks').classList.add('error');
+        document.getElementById('passingError').textContent = 'Enter a valid passing mark';
+        isValid = false;
+    } else if (parseFloat(passing) > parseFloat(totalScore || '0')) {
+        document.getElementById('passing_marks').classList.add('error');
+        document.getElementById('passingError').textContent = 'Passing marks cannot exceed total marks';
         isValid = false;
     }
     

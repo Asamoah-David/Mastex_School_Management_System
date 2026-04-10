@@ -320,6 +320,43 @@
     list-style: none;
 }
 
+.auth-public-admission {
+    margin-top: 1.15rem;
+    padding: 0.9rem 1rem;
+    border-radius: var(--radius-lg, 0.85rem);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.auth-public-admission-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.35rem;
+}
+
+.auth-public-admission-lead {
+    margin: 0 0 0.75rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.auth-public-admission-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.auth-public-admission-actions .btn {
+    flex: 1 1 auto;
+    min-width: 8.5rem;
+    justify-content: center;
+    text-align: center;
+}
+
 .auth-card-footnote {
     margin-top: 1rem;
     font-size: 0.8rem;

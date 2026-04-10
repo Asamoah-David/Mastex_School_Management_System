@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Services hub · {{ school.name }}{% endblock %}
+{% block page_title %}Services hub{% endblock %}
+{% block page_subtitle %}Canteen, transport, textbooks, hostel, library, and school fees — quick links for staff.{% endblock %}
+{% block content %}
+
+<p class="text-soft" style="margin:0 0 1.25rem; font-size:0.9rem; color:var(--text-soft, #94a3b8);">{{ school.name }}</p>
+
+<div class="content-card" style="margin-bottom:1.5rem;">
+    <h3 style="margin:0 0 0.75rem; font-size:1rem;">Staff areas</h3>
+    <div class="dashboard-grid-4" style="gap:0.75rem;">
+        <a href="{% url 'operations:library_catalog' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4DA;</div>
+            <strong>Library</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Catalog, issues, manage</div>
+        </a>
+        <a href="{% url 'operations:canteen_list' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F37D;</div>
+            <strong>Canteen</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Items &amp; payments</div>
+        </a>
+        <a href="{% url 'operations:bus_list' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F68C;</div>
+            <strong>Transport</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Routes &amp; payments</div>
+        </a>
+        <a href="{% url 'operations:textbook_list' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4D5;</div>
+            <strong>Textbooks</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Stock &amp; sales</div>
+        </a>
+        <a href="{% url 'operations:hostel_list' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F3E0;</div>
+            <strong>Hostel</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Rooms, fees, assignments</div>
+        </a>
+        <a href="{% url 'finance:fee_list' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4B0;</div>
+            <strong>School fees</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Fee balances &amp; export</div>
+        </a>
+    </div>
+</div>
+
+<div class="content-card">
+    <h3 style="margin:0 0 0.75rem; font-size:1rem;">Parent / student portals</h3>
+    <p style="font-size:0.85rem; color:var(--text-soft, #94a3b8); margin:0 0 0.75rem;">Share these for online payments and self-service.</p>
+    <ul style="margin:0; padding-left:1.2rem; line-height:1.8; font-size:0.9rem;">
+        <li><a href="{% url 'finance:parent_fee_list' %}">Parent school fees</a></li>
+        <li><a href="{% url 'operations:canteen_my' %}">Canteen (student/parent)</a></li>
+        <li><a href="{% url 'operations:bus_my' %}">Transport (student/parent)</a></li>
+        <li><a href="{% url 'operations:textbook_my' %}">Textbooks (student/parent)</a></li>
+        <li><a href="{% url 'operations:hostel_my' %}">Hostel (student/parent)</a></li>
+        <li><a href="{% url 'operations:library_my_issues' %}">My library issues</a></li>
+    </ul>
+</div>
+
+<div class="content-card" style="margin-top:1.5rem;">
+    <h3 style="margin:0 0 0.75rem; font-size:1rem;">Governance &amp; oversight</h3>
+    <p style="font-size:0.85rem; color:var(--text-soft, #94a3b8); margin:0 0 0.75rem;">Audit trails, settings, and consolidated registers — same tools as your main navigation, grouped for control-room use.</p>
+    <div class="dashboard-grid-4" style="gap:0.75rem;">
+        {% if user.is_superuser or user.role == "super_admin" or user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" %}
+        <a href="{% url 'operations:activity_log_list' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4CB;</div>
+            <strong>Activity log</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Sign-ins and notable actions</div>
+        </a>
+        {% endif %}
+        {% if user.is_superuser or user.role == "super_admin" or user.role == "school_admin" %}
+        <a href="{% url 'audit:dashboard' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F50D;</div>
+            <strong>Audit dashboard</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Model-level change history</div>
+        </a>
+        {% endif %}
+        {% if user.is_superuser or user.role == "school_admin" %}
+        <a href="{% url 'schools:school_settings' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x2699;&#xFE0F;</div>
+            <strong>School settings</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Branding, year, Paystack</div>
+        </a>
+        {% endif %}
+        {% if can_manage_finance %}
+        <a href="{% url 'operations:payment_dashboard' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4E6;</div>
+            <strong>Payment register</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Fees, canteen, bus, hostel, books</div>
+        </a>
+        <a href="{% url 'operations:financial_reports_page' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4CA;</div>
+            <strong>Financial reports</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Budgets, expenses, trends</div>
+        </a>
+        {% endif %}
+        {% if can_export_data %}
+        <a href="{% url 'operations:export_all_data' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
+            <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4E5;</div>
+            <strong>Export school data</strong>
+            <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">ZIP / CSV bundle (permissioned)</div>
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="content-card" style="margin-top:1.5rem;">
+    <h3 style="margin:0 0 0.75rem; font-size:1rem;">Exports (CSV / Excel)</h3>
+    <p style="font-size:0.85rem; color:var(--text-soft, #94a3b8); margin:0 0 0.75rem;">Requires export permission. Use list pages for date filters where available.</p>
+    <ul style="margin:0; padding-left:1.2rem; line-height:1.8; font-size:0.9rem;">
+        <li><a href="{% url 'operations:export_canteen_payments' %}?format=csv">Canteen payments</a> · <a href="{% url 'operations:export_canteen_payments' %}?format=excel">Excel</a></li>
+        <li><a href="{% url 'operations:export_bus_payments' %}?format=csv">Bus payments</a> · <a href="{% url 'operations:export_bus_payments' %}?format=excel">Excel</a></li>
+        <li><a href="{% url 'operations:export_textbook_sales' %}?format=csv">Textbook sales</a> · <a href="{% url 'operations:export_textbook_sales' %}?format=excel">Excel</a></li>
+        <li><a href="{% url 'operations:export_hostel_fees' %}?format=csv">Hostel fees</a> · <a href="{% url 'operations:export_hostel_fees' %}?format=excel">Excel</a></li>
+        <li><a href="{% url 'operations:export_fees' %}?format=csv">School fees</a> · <a href="{% url 'operations:export_fees' %}?format=excel">Excel</a></li>
+        <li><a href="{% url 'operations:export_library_books' %}?format=csv">Library books</a> · <a href="{% url 'operations:export_library_books' %}?format=excel">Excel</a></li>
+        <li><a href="{% url 'operations:export_library_issues' %}?format=csv">Library issues</a> · <a href="{% url 'operations:export_library_issues' %}?format=excel">Excel</a></li>
+    </ul>
+</div>
+{% endblock %}

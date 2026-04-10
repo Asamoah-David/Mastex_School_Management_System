@@ -17,6 +17,15 @@
     <button type="submit" class="btn btn-primary">Sign in</button>
 </form>
 
+<div class="auth-public-admission" role="region" aria-label="Online admission">
+    <div class="auth-public-admission-label">No account yet?</div>
+    <p class="auth-public-admission-lead">Submit an application online or check status with your reference number.</p>
+    <div class="auth-public-admission-actions">
+        <a href="{% url 'operations:admission_apply' %}" class="btn btn-primary btn-sm">Apply for admission</a>
+        <a href="{% url 'operations:admission_track' %}" class="btn btn-secondary btn-sm">Track application</a>
+    </div>
+</div>
+
 <p class="auth-card-footnote">
     Credentials are issued by your <strong>school</strong> or <strong>platform administrator</strong>.
     There is no public self-registration for student and parent accounts.

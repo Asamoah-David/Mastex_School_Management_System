@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
+{% load custom_filters %}
+
+{% block title %}Student payments · {{ student.user.get_full_name }}{% endblock %}
+{% block page_title %}Student payment history{% endblock %}
+{% block page_subtitle %}{{ student.admission_number }}{% endblock %}
 
 {% block content %}
+{% include "includes/finance_subnav.html" %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-person-badge"></i> Payment History - {{ student.user.get_full_name }}</h2>
@@ -31,7 +37,7 @@
                             <strong>Admission No:</strong> {{ student.admission_number }}
                         </div>
                         <div class="col-md-3">
-                            <strong>Overall Total:</strong> <span class="text-success">GHS {{ overall_total|floatformat:2 }}</span>
+                            <strong>Overall Total:</strong> <span class="text-success">{{ overall_total|format_ghs }}</span>
                         </div>
                     </div>
                 </div>
@@ -45,8 +51,8 @@
             <div class="card border-primary">
                 <div class="card-body text-center">
                     <h5 class="card-title text-primary">School Fees</h5>
-                    <h4>GHS {{ school_fees_total|floatformat:2 }}</h4>
-                    <small>Paid: GHS {{ school_fees_paid|floatformat:2 }} | Outstanding: GHS {{ school_fees_outstanding|floatformat:2 }}</small>
+                    <h4>{{ school_fees_total|format_ghs }}</h4>
+                    <small>Paid: {{ school_fees_paid|format_ghs }} | Outstanding: {{ school_fees_outstanding|format_ghs }}</small>
                 </div>
             </div>
         </div>
@@ -54,7 +60,7 @@
             <div class="card border-success">
                 <div class="card-body text-center">
                     <h5 class="card-title text-success">Canteen</h5>
-                    <h4>GHS {{ canteen_total|floatformat:2 }}</h4>
+                    <h4>{{ canteen_total|format_ghs }}</h4>
                     <small>{{ canteen|length }} Transactions</small>
                 </div>
             </div>
@@ -63,7 +69,7 @@
             <div class="card border-warning">
                 <div class="card-body text-center">
                     <h5 class="card-title text-warning">Bus</h5>
-                    <h4>GHS {{ bus_total|floatformat:2 }}</h4>
+                    <h4>{{ bus_total|format_ghs }}</h4>
                     <small>Total Bus Payments</small>
                 </div>
             </div>
@@ -72,7 +78,7 @@
             <div class="card border-info">
                 <div class="card-body text-center">
                     <h5 class="card-title text-info">Textbooks</h5>
-                    <h4>GHS {{ textbook_total|floatformat:2 }}</h4>
+                    <h4>{{ textbook_total|format_ghs }}</h4>
                     <small>{{ textbooks|length }} Purchases</small>
                 </div>
             </div>
@@ -119,7 +125,7 @@
                                 {% for fee in school_fees %}
                                 <tr>
                                     <td>{{ fee.term }}</td>
-                                    <td>GHS {{ fee.amount|floatformat:2 }}</td>
+                                    <td>{{ fee.amount|format_ghs }}</td>
                                     <td>
                                         {% with paid=0 %}
                                         {% for payment in fee.feeperpayment_set.all %}
@@ -127,11 +133,11 @@
                                                 {% with paid=paid|add:payment.amount %}{% endwith %}
                                             {% endif %}
                                         {% endfor %}
-                                        GHS {{ paid|floatformat:2 }}
+                                        {{ paid|format_ghs }}
                                         {% endwith %}
                                     </td>
                                     <td>
-                                        <span class="badge bg-danger">GHS {{ fee.balance_due|floatformat:2|default:"0.00" }}</span>
+                                        <span class="badge bg-danger">{{ fee.balance_due|default:0|format_ghs }}</span>
                                     </td>
                                     <td>
                                         <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#fee-{{ fee.id }}">
@@ -173,7 +179,7 @@
                                 {% for payment in canteen %}
                                 <tr>
                                     <td>{{ payment.payment_date|date:"d M Y" }}</td>
-                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.amount|format_ghs }}</td>
                                     <td>{{ payment.description|default:"-" }}</td>
                                     <td>{{ payment.recorded_by.get_full_name|default:"-" }}</td>
                                     <td>
@@ -218,7 +224,7 @@
                                 <tr>
                                     <td>{{ payment.route.name|default:"-" }}</td>
                                     <td>{{ payment.term_period|default:"-" }}</td>
-                                    <td>GHS {{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.amount|format_ghs }}</td>
                                     <td>
                                         {% if payment.paid %}
                                         <span class="badge bg-success">Paid</span>
@@ -275,7 +281,7 @@
                                     <td>{{ sale.sale_date|date:"d M Y" }}</td>
                                     <td>{{ sale.textbook.title }}</td>
                                     <td>{{ sale.quantity }}</td>
-                                    <td>GHS {{ sale.amount|floatformat:2 }}</td>
+                                    <td>{{ sale.amount|format_ghs }}</td>
                                     <td>
                                         <a href="{% url 'operations:generate_receipt' 'textbook' sale.id %}" class="btn btn-sm btn-primary">
                                             <i class="bi bi-receipt"></i> Receipt

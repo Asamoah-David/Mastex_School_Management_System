@@ -4,7 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.conf.urls import handler404, handler500
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.generic import RedirectView
 from django.db import connection
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -13,17 +13,50 @@ from students.views import portal
 from schools.views import school_register
 from accounts.views import home
 
+# Minimal HTML fallbacks if template rendering fails (DB / template issues).
+_FALLBACK_404_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Not found</title></head>
+<body style="font-family:system-ui;padding:2rem;background:#020617;color:#e2e8f8;"><p>Page not found.</p>
+<p><a href="/" style="color:#4ade80;">Home</a> · <a href="/accounts/login/" style="color:#4ade80;">Sign in</a></p></body></html>"""
+
+_FALLBACK_500_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Error</title></head>
+<body style="font-family:system-ui;padding:2rem;background:#020617;color:#e2e8f8;"><p>Something went wrong. Please try again shortly.</p>
+<p><a href="/" style="color:#4ade80;">Home</a></p></body></html>"""
+
 
 def custom_404(request, exception):
     if request.path.startswith("/api/"):
-        return JsonResponse({"error": "Not found"}, status=404)
-    return render(request, "404.html", status=404)
+        r = JsonResponse({"error": "Not found"}, status=404)
+        r["Cache-Control"] = "no-store"
+        return r
+    try:
+        response = render(request, "404.html", status=404)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except Exception:
+        return HttpResponse(
+            _FALLBACK_404_HTML,
+            status=404,
+            content_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 def custom_500(request):
     if request.path.startswith("/api/"):
-        return JsonResponse({"error": "Internal server error"}, status=500)
-    return render(request, "500.html", status=500)
+        r = JsonResponse({"error": "Internal server error"}, status=500)
+        r["Cache-Control"] = "no-store"
+        return r
+    try:
+        response = render(request, "500.html", status=500)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except Exception:
+        return HttpResponse(
+            _FALLBACK_500_HTML,
+            status=500,
+            content_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 def health_check(request):
