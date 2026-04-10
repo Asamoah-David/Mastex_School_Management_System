@@ -35,7 +35,15 @@ def env_float(name, default):
 # ---------------------------------------------------------------------------
 # Core
 # ---------------------------------------------------------------------------
-DEBUG = env_bool("DEBUG", default=True)
+# On Railway/Render/Fly, default DEBUG off if unset (avoids accidental prod debug).
+_platform_detected = bool(
+    os.getenv("RAILWAY_ENVIRONMENT")
+    or os.getenv("RAILWAY_PROJECT_ID")
+    or os.getenv("RENDER")
+    or os.getenv("RENDER_EXTERNAL_HOSTNAME")
+    or os.getenv("FLY_APP_NAME")
+)
+DEBUG = env_bool("DEBUG", default=not _platform_detected)
 
 SECRET_KEY = env("SECRET_KEY", default="unsafe-local-secret" if DEBUG else None)
 if not DEBUG and SECRET_KEY == "unsafe-local-secret":
@@ -273,7 +281,25 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+    # Who can hit /api/schema/, /api/docs/, /api/redoc/ (see API_DOCS_* below)
+    "SERVE_AUTHENTICATION": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
 }
+
+# OpenAPI / Swagger: off entirely, or authenticated-only in production (default).
+API_DOCS_ENABLED = env_bool("API_DOCS_ENABLED", True)
+# When False with DEBUG off, schema is only reachable by logged-in users (session or Bearer JWT).
+API_DOCS_PUBLIC = env_bool("API_DOCS_PUBLIC", DEBUG)
+if API_DOCS_PUBLIC:
+    SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"] = [
+        "rest_framework.permissions.AllowAny",
+    ]
+else:
+    SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"] = [
+        "rest_framework.permissions.IsAuthenticated",
+    ]
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),

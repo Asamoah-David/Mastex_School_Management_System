@@ -53,10 +53,16 @@ urlpatterns = [
     # API auth
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    # API docs
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
-    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+]
+
+if settings.API_DOCS_ENABLED:
+    urlpatterns += [
+        path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+        path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+        path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+    ]
+
+urlpatterns += [
     # App includes
     path("accounts/", include("accounts.urls")),
     path("", include("django.contrib.auth.urls")),
