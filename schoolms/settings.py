@@ -419,6 +419,11 @@ else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
 
+# TLS is at the edge; SECURE_SSL_REDIRECT stays False so in-container probes are not 301'd.
+SILENCED_SYSTEM_CHECKS = []
+if not DEBUG and _tls_terminating_proxy:
+    SILENCED_SYSTEM_CHECKS.append("security.W008")
+
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_AGE = 60 * 60 * 12  # 12 hours
