@@ -346,8 +346,23 @@ for _host in ALLOWED_HOSTS:
         if origin not in CSRF_TRUSTED_ORIGINS:
             CSRF_TRUSTED_ORIGINS.append(origin)
 
+# TLS is terminated at the platform edge (Railway, Render, Fly). In-container
+# probes (e.g. Railway → http://0.0.0.0:PORT/health/) have no
+# X-Forwarded-Proto; SECURE_SSL_REDIRECT would 301 every healthcheck and fail deploys.
+_tls_terminating_proxy = bool(
+    os.getenv("RAILWAY_ENVIRONMENT")
+    or os.getenv("RAILWAY_PROJECT_ID")
+    or os.getenv("RENDER")
+    or os.getenv("RENDER_EXTERNAL_HOSTNAME")
+    or os.getenv("FLY_APP_NAME")
+    or env_bool("BEHIND_TLS_TERMINATING_PROXY", False)
+)
+
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = env_bool(
+        "SECURE_SSL_REDIRECT",
+        not _tls_terminating_proxy,
+    )
     SECURE_HSTS_SECONDS = 31_536_000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
