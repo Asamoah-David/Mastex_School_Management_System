@@ -80,6 +80,8 @@ urlpatterns = [
     path("canteen/my/", payment_views.canteen_my, name="canteen_my"),
     path("canteen/pay/", payment_views.canteen_initiate_payment, name="canteen_initiate_payment"),
     path("canteen/verify/", payment_views.canteen_payment_verify, name="canteen_payment_verify"),
+    path("canteen/preorder/", advanced_views.canteen_preorder_page, name="canteen_preorder"),
+    path("canteen/preorder/create/", advanced_views.create_preorder, name="canteen_preorder_create"),
     
     # Bus/Transport (Student/Parent Portal with Paystack)
     path("bus/", views.bus_list, name="bus_list"),
@@ -344,6 +346,9 @@ urlpatterns = [
     path("behavior-tracker/record/", advanced_views.record_behavior, name="record_behavior"),
     path("behavior-tracker/student/<int:student_id>/", advanced_views.student_behavior_history, name="student_behavior_history"),
     
+    # School-wide performance rankings (attendance + results blend)
+    path("school-rankings/", advanced_views.class_rankings_page, name="school_rankings"),
+
     # Financial Reports
     path("financial-reports/", advanced_views.financial_reports_page, name="financial_reports_page"),
     path("financial-reports/budget-vs-actual/", advanced_views.budget_vs_actual, name="budget_vs_actual"),

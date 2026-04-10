@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Canteen pre-order · {{ school.name }}{% endblock %}
+{% block page_title %}Canteen pre-order{% endblock %}
+{% block page_subtitle %}Choose a student, pick items, and place an order (recorded as a canteen payment){% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="content-card">
+            <h5 class="mb-3">Order details</h5>
+            {% if preorder_students %}
+            <div class="mb-3">
+                <label class="form-label">Student</label>
+                <select id="preorderStudent" class="form-select">
+                    {% for s in preorder_students %}
+                    <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} — {{ s.class_name|default:"—" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% else %}
+            <p class="text-muted">No active students are linked to your account for this school. Staff can select any student after linking records.</p>
+            {% endif %}
+            <div class="mb-3">
+                <label class="form-label">Order date</label>
+                <input type="date" id="preorderDate" class="form-control">
+            </div>
+            <button type="button" class="btn btn-primary w-100" id="submitPreorder" {% if not preorder_students or not menu_items %}disabled{% endif %}>Place pre-order</button>
+            <p id="preorderResult" class="small mt-3 mb-0"></p>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="content-card">
+            <h5 class="mb-3">Menu</h5>
+            {% if menu_items %}
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th class="text-end">Price</th>
+                            <th style="width:6rem;">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in menu_items %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            <td class="text-end">{{ item.price }}</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm preorder-qty" min="0" value="0" data-item-id="{{ item.id }}">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No items are available. Ask the school to add canteen items.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const dateEl = document.getElementById('preorderDate');
+    if (dateEl && !dateEl.value) {
+        dateEl.value = new Date().toISOString().slice(0, 10);
+    }
+    const csrftoken = document.cookie.match(/csrftoken=([^;]+)/);
+    const token = csrftoken ? csrftoken[1] : '';
+
+    document.getElementById('submitPreorder')?.addEventListener('click', function() {
+        const out = document.getElementById('preorderResult');
+        const sel = document.getElementById('preorderStudent');
+        if (!sel) {
+            out.textContent = 'No student available.';
+            out.className = 'small mt-3 mb-0 text-danger';
+            return;
+        }
+        const studentId = sel.value;
+        const items = [];
+        document.querySelectorAll('.preorder-qty').forEach(function(inp) {
+            const q = parseInt(inp.value, 10) || 0;
+            if (q > 0) {
+                items.push({ item_id: parseInt(inp.dataset.itemId, 10), quantity: q });
+            }
+        });
+        if (!items.length) {
+            out.textContent = 'Select at least one item with quantity greater than zero.';
+            out.className = 'small mt-3 mb-0 text-warning';
+            return;
+        }
+        out.textContent = 'Submitting…';
+        out.className = 'small mt-3 mb-0 text-muted';
+        fetch("{% url 'operations:canteen_preorder_create' %}", {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': token
+            },
+            body: JSON.stringify({
+                student_id: parseInt(studentId, 10),
+                order_date: dateEl ? dateEl.value : null,
+                items: items
+            })
+        })
+        .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+        .then(function(res) {
+            if (res.data.success) {
+                out.textContent = res.data.message + ' Total: ' + res.data.total + ' (ref #' + res.data.order_id + ')';
+                out.className = 'small mt-3 mb-0 text-success';
+                document.querySelectorAll('.preorder-qty').forEach(function(inp) { inp.value = 0; });
+            } else {
+                out.textContent = res.data.error || 'Request failed.';
+                out.className = 'small mt-3 mb-0 text-danger';
+            }
+        })
+        .catch(function() {
+            out.textContent = 'Network error.';
+            out.className = 'small mt-3 mb-0 text-danger';
+        });
+    });
+})();
+</script>
+{% endblock %}

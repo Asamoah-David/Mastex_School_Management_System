@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Add timetable slot · {{ school.name }}{% endblock %}
+{% block page_title %}New timetable slot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Class name</label>
+                            <input type="text" name="class_name" class="form-control" required placeholder="e.g. JHS 1A">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Day</label>
+                                <select name="day" class="form-select" required>
+                                    <option value="monday">Monday</option>
+                                    <option value="tuesday">Tuesday</option>
+                                    <option value="wednesday">Wednesday</option>
+                                    <option value="thursday">Thursday</option>
+                                    <option value="friday">Friday</option>
+                                    <option value="saturday">Saturday</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Period number</label>
+                                <input type="number" name="period_number" class="form-control" min="1" max="20" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Subject</label>
+                            <select name="subject" class="form-select" required>
+                                <option value="">—</option>
+                                {% for s in subjects %}
+                                <option value="{{ s.id }}">{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Teacher (optional)</label>
+                            <select name="teacher" class="form-select">
+                                <option value="">—</option>
+                                {% for t in teachers %}
+                                <option value="{{ t.id }}">{{ t.get_full_name|default:t.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Start time</label>
+                                <input type="time" name="start_time" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">End time</label>
+                                <input type="time" name="end_time" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Room</label>
+                            <input type="text" name="room" class="form-control" maxlength="50">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save slot</button>
+                        <a href="{% url 'operations:timetable_view' %}" class="btn btn-link">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

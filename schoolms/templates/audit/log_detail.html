@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block page_title %}Log entry #{{ log.pk }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-3">
+        <a href="{% url 'audit:dashboard' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left"></i> Back to activity logs
+        </a>
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-info-circle"></i> Audit log detail</h5>
+        </div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Time</dt>
+                <dd class="col-sm-9">{{ log.timestamp }}</dd>
+                <dt class="col-sm-3">User</dt>
+                <dd class="col-sm-9">{% if log.user %}{{ log.user.get_full_name|default:log.user.username }}{% else %}<em>System</em>{% endif %}</dd>
+                <dt class="col-sm-3">Action</dt>
+                <dd class="col-sm-9"><span class="badge bg-secondary">{{ log.get_action_display }}</span></dd>
+                <dt class="col-sm-3">Model</dt>
+                <dd class="col-sm-9">{{ log.model_name }}</dd>
+                <dt class="col-sm-3">Object ID</dt>
+                <dd class="col-sm-9">{{ log.object_id|default:"—" }}</dd>
+                <dt class="col-sm-3">Object</dt>
+                <dd class="col-sm-9">{{ log.object_repr|default:"—" }}</dd>
+                <dt class="col-sm-3">School</dt>
+                <dd class="col-sm-9">{% if log.school %}{{ log.school.name }}{% else %}—{% endif %}</dd>
+                <dt class="col-sm-3">IP address</dt>
+                <dd class="col-sm-9">{{ log.ip_address|default:"—" }}</dd>
+                <dt class="col-sm-3">User agent</dt>
+                <dd class="col-sm-9 text-break small">{{ log.user_agent|default:"—" }}</dd>
+                <dt class="col-sm-3">Changes</dt>
+                <dd class="col-sm-9">
+                    {% if log.changes %}
+                    <pre class="bg-light p-2 rounded small mb-0" style="max-height: 320px; overflow: auto;">{{ log.changes }}</pre>
+                    {% else %}
+                    —
+                    {% endif %}
+                </dd>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

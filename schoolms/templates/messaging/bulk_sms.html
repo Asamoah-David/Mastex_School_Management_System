@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk SMS · {{ school.name }}{% endblock %}
+{% block page_title %}Bulk SMS{% endblock %}
+{% block page_subtitle %}Send SMS to parents or students by class{% endblock %}
+
+{% block content %}
+<p class="mb-3 small"><a href="{% url 'messaging:sms_history' %}">SMS log</a> · <a href="{% url 'messaging:message_history' %}">All message log</a></p>
+<div class="row">
+    <div class="col-lg-4 mb-3">
+        <div class="content-card">
+            <h5 class="mb-3">Recipients</h5>
+            <p class="small text-muted">Parents with phone: <strong>{{ total_parents }}</strong></p>
+            <p class="small text-muted">Students: <strong>{{ total_students }}</strong></p>
+            <div class="mb-3">
+                <label class="form-label">Audience</label>
+                <select id="recipientType" class="form-select">
+                    <option value="all_parents">All parents (with phone)</option>
+                    <option value="all_students">All students (with phone)</option>
+                    <option value="class_parents">Parents in class</option>
+                    <option value="class_students">Students in class</option>
+                </select>
+            </div>
+            {% if classes %}
+            <div class="mb-3">
+                <label class="form-label">Class (when filtered)</label>
+                <select id="className" class="form-select">
+                    <option value="">—</option>
+                    {% for c in classes %}
+                    <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <button type="button" class="btn btn-outline-primary w-100" id="loadRecipients">Load recipient list</button>
+            <p id="recipientSummary" class="small mt-2 text-muted mb-0"></p>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="content-card">
+            <h5 class="mb-3">Message</h5>
+            <textarea id="smsBody" class="form-control mb-2" rows="4" maxlength="160" placeholder="Max 160 characters"></textarea>
+            <div class="small text-muted mb-3"><span id="charCount">0</span> / 160</div>
+            <button type="button" class="btn btn-primary" id="sendBulk">Send SMS</button>
+            <div id="sendResult" class="mt-3 small"></div>
+            <hr>
+            <h6 class="mb-2">Preview (first 50)</h6>
+            <div id="recipientList" class="border rounded p-2 bg-light" style="max-height: 280px; overflow: auto;">
+                <span class="text-muted">Load recipients to see numbers here.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+        || (document.cookie.match(/csrftoken=([^;]+)/) || [])[1];
+    let loadedRecipients = [];
+
+    document.getElementById('smsBody').addEventListener('input', function() {
+        document.getElementById('charCount').textContent = this.value.length;
+    });
+
+    document.getElementById('loadRecipients').addEventListener('click', function() {
+        const type = document.getElementById('recipientType').value;
+        const className = document.getElementById('className')?.value || '';
+        let url = "{% url 'messaging:get_recipients' %}?type=" + encodeURIComponent(type);
+        if (className) url += "&class=" + encodeURIComponent(className);
+        fetch(url, { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                loadedRecipients = data.recipients || [];
+                document.getElementById('recipientSummary').textContent =
+                    loadedRecipients.length ? loadedRecipients.length + " recipient(s) loaded." : "No recipients match.";
+                const box = document.getElementById('recipientList');
+                if (!loadedRecipients.length) {
+                    box.innerHTML = '<span class="text-muted">No recipients.</span>';
+                    return;
+                }
+                box.innerHTML = '<ul class="list-unstyled mb-0 small">' +
+                    loadedRecipients.slice(0, 50).map(r =>
+                        '<li>' + (r.name || '') + ' — ' + (r.phone || '') + '</li>'
+                    ).join('') + '</ul>';
+            })
+            .catch(() => {
+                document.getElementById('recipientSummary').textContent = 'Failed to load recipients.';
+            });
+    });
+
+    document.getElementById('sendBulk').addEventListener('click', function() {
+        const message = document.getElementById('smsBody').value.trim();
+        const out = document.getElementById('sendResult');
+        if (!message) { out.textContent = 'Enter a message.'; return; }
+        if (!loadedRecipients.length) { out.textContent = 'Load recipients first.'; return; }
+        fetch("{% url 'messaging:send_bulk_sms' %}", {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({ message: message, recipients: loadedRecipients })
+        })
+            .then(r => r.json())
+            .then(data => {
+                out.textContent = data.message || data.error || JSON.stringify(data);
+                out.className = data.success ? 'mt-3 small text-success' : 'mt-3 small text-danger';
+            })
+            .catch(() => { out.textContent = 'Request failed.'; out.className = 'mt-3 small text-danger'; });
+    });
+})();
+</script>
+<form style="display:none;">{% csrf_token %}</form>
+{% endblock %}

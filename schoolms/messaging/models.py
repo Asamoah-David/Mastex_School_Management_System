@@ -79,3 +79,42 @@ class BroadcastNotification(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class OutboundCommLog(models.Model):
+    """Record of staff bulk SMS/email sends for history screens."""
+
+    CHANNEL_CHOICES = [
+        ("sms", "SMS"),
+        ("email", "Email"),
+    ]
+
+    school = models.ForeignKey(
+        "schools.School",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="outbound_comm_logs",
+    )
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="outbound_comm_logs",
+    )
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES)
+    subject = models.CharField(max_length=255, blank=True)
+    message_preview = models.TextField(blank=True)
+    sent_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    recipient_summary = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["school", "-created_at"], name="idx_outbound_sch_created"),
+        ]
+
+    def __str__(self):
+        return f"{self.channel} {self.created_at} ({self.sent_count} ok)"

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ alumni.first_name }} {{ alumni.last_name }} · Alumni{% endblock %}
+{% block page_title %}Alumni profile{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-3">
+        <a href="{% url 'operations:alumni_list' %}" class="btn btn-outline-secondary btn-sm">← Back to alumni</a>
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h4 class="mb-0">{{ alumni.first_name }} {{ alumni.last_name }}</h4>
+            <small class="text-muted">Class {{ alumni.class_name }} · Graduated {{ alumni.graduation_year }}</small>
+        </div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-md-3">Admission #</dt>
+                <dd class="col-md-9">{{ alumni.admission_number }}</dd>
+                <dt class="col-md-3">Graduation date</dt>
+                <dd class="col-md-9">{{ alumni.graduation_date|default:"—" }}</dd>
+                <dt class="col-md-3">Occupation</dt>
+                <dd class="col-md-9">{{ alumni.current_occupation|default:"—" }}</dd>
+                <dt class="col-md-3">Institution</dt>
+                <dd class="col-md-9">{{ alumni.current_institution|default:"—" }}</dd>
+                <dt class="col-md-3">Phone</dt>
+                <dd class="col-md-9">{{ alumni.contact_phone|default:"—" }}</dd>
+                <dt class="col-md-3">Email</dt>
+                <dd class="col-md-9">{{ alumni.contact_email|default:"—" }}</dd>
+                <dt class="col-md-3">Address</dt>
+                <dd class="col-md-9">{{ alumni.address|default:"—"|linebreaksbr }}</dd>
+                <dt class="col-md-3">Active member</dt>
+                <dd class="col-md-9">{% if alumni.is_active_member %}Yes{% else %}No{% endif %}</dd>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

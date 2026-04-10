@@ -12,6 +12,9 @@ from django.utils import timezone
 from students.models import Student
 from schools.models import School
 from services.sms_service import send_sms
+from accounts.permissions import user_can_manage_school
+
+from .models import OutboundCommLog
 
 
 @login_required
@@ -26,6 +29,10 @@ def bulk_sms_page(request):
     
     if not school:
         messages.error(request, 'No school associated with your account.')
+        return redirect('home')
+
+    if not request.user.is_superuser and not user_can_manage_school(request.user):
+        messages.error(request, 'You do not have permission to use bulk SMS.')
         return redirect('home')
     
     # Get classes for filtering
@@ -56,6 +63,9 @@ def get_recipients(request):
     
     if not school:
         return JsonResponse({'error': 'No school found'}, status=400)
+
+    if not request.user.is_superuser and not user_can_manage_school(request.user):
+        return JsonResponse({'error': 'Not permitted'}, status=403)
     
     recipient_type = request.GET.get('type')  # 'all_parents', 'class_parents', 'all_students', 'class_students'
     class_name = request.GET.get('class')
@@ -131,6 +141,9 @@ def send_bulk_sms(request):
     
     if not school:
         return JsonResponse({'success': False, 'error': 'No school found'}, status=400)
+
+    if not request.user.is_superuser and not user_can_manage_school(request.user):
+        return JsonResponse({'success': False, 'error': 'Not permitted'}, status=403)
     
     import json
     try:
@@ -165,6 +178,19 @@ def send_bulk_sms(request):
                 except Exception as e:
                     failed_count += 1
                     failed_numbers.append(phone)
+
+        try:
+            OutboundCommLog.objects.create(
+                school=school,
+                sender=request.user,
+                channel='sms',
+                message_preview=(message[:2000] if message else ''),
+                sent_count=success_count,
+                failed_count=failed_count,
+                recipient_summary=f"bulk SMS · {len(recipients)} recipient(s)",
+            )
+        except Exception:
+            pass
         
         return JsonResponse({
             'success': True,
@@ -193,10 +219,18 @@ def sms_history(request):
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
-    
-    # For now, we'll show a simple template
-    # In production, you'd have an SMSLog model
+
+    if not request.user.is_superuser and not user_can_manage_school(request.user):
+        messages.error(request, 'You do not have permission to view SMS history.')
+        return redirect('home')
+
+    logs = (
+        OutboundCommLog.objects.filter(school=school, channel='sms')
+        .select_related('sender')
+        .order_by('-created_at')[:200]
+    )
     context = {
         'school': school,
+        'logs': logs,
     }
     return render(request, 'messaging/sms_history.html', context)

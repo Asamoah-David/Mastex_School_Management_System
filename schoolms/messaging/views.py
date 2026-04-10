@@ -7,6 +7,7 @@ from accounts.permissions import user_can_manage_school
 from students.models import Student, SchoolClass
 from schools.models import School
 from .utils import send_sms
+from .models import OutboundCommLog
 
 
 from core.utils import can_manage as _user_can_manage_school, get_school
@@ -327,6 +328,24 @@ def send_message(request):
                 messages.error(request, error_summary)
         else:
             messages.error(request, "No recipients found. Please ensure parents/students/teachers have valid phone numbers and emails.")
+
+        if sent_count or failed_count:
+            try:
+                OutboundCommLog.objects.create(
+                    school=school,
+                    sender=request.user,
+                    channel=message_type if message_type in ("sms", "email") else "sms",
+                    subject=subject if message_type == "email" else "",
+                    message_preview=(message[:2000] if message else ""),
+                    sent_count=sent_count,
+                    failed_count=failed_count,
+                    recipient_summary=(
+                        f"{recipient_type}"
+                        + (f" · class {send_class_filter.name}" if send_class_filter else "")
+                    )[:255],
+                )
+            except Exception:
+                logger.exception("OutboundCommLog create failed")
         
         return redirect("messaging:send_message")
     
@@ -347,7 +366,16 @@ def message_history(request):
     if not school:
         return redirect("home")
 
-    return render(request, "messaging/message_history.html", {"school": school})
+    logs = (
+        OutboundCommLog.objects.filter(school=school)
+        .select_related("sender")
+        .order_by("-created_at")[:200]
+    )
+    return render(
+        request,
+        "messaging/message_history.html",
+        {"school": school, "logs": logs},
+    )
 
 
 @login_required

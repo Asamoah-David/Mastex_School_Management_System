@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}{{ subject.name }} · {{ school.name }}{% endblock %}
+{% block page_title %}{{ subject.name }}{% endblock %}
+{% block page_subtitle %}Course overview, quizzes, and homework{% endblock %}
+
+{% block content %}
+<div class="content-card mb-3">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <p class="text-muted mb-1">{{ school.name }}</p>
+            {% if subject.is_core %}
+            <span class="badge bg-primary">Core</span>
+            {% else %}
+            <span class="badge bg-secondary">Elective</span>
+            {% endif %}
+            {% if subject.description %}
+            <p class="mt-3 mb-0">{{ subject.description }}</p>
+            {% endif %}
+        </div>
+        <a href="{% url 'academics:course_list' %}" class="btn btn-outline-secondary btn-sm">← Back to courses</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="content-card h-100">
+            <h4 class="mb-3">Recent quizzes</h4>
+            {% if quizzes %}
+            <ul class="list-group list-group-flush">
+                {% for q in quizzes %}
+                <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                    <span>{{ q.title }}</span>
+                    <small class="text-muted">{{ q.class_name }}</small>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">No quizzes linked to this subject yet.</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="content-card h-100">
+            <h4 class="mb-3">Recent homework</h4>
+            {% if homeworks %}
+            <ul class="list-group list-group-flush">
+                {% for h in homeworks %}
+                <li class="list-group-item px-0">
+                    <strong>{{ h.title }}</strong>
+                    <div class="small text-muted">Due {{ h.due_date }}{% if h.class_name %} · {{ h.class_name }}{% endif %}</div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">No homework for this subject yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

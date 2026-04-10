@@ -16,6 +16,44 @@ from operations.models import (
     StudentAttendance, Expense, Budget, CanteenItem, CanteenPayment,
     DisciplineIncident, BehaviorPoint
 )
+from accounts.permissions import user_can_manage_school
+
+
+def _can_access_canteen_preorder(user):
+    if user.is_superuser:
+        return True
+    role = getattr(user, "role", None)
+    if role in ("parent", "student"):
+        return True
+    return user_can_manage_school(user)
+
+
+def _preorder_students_queryset(user, school):
+    if not school:
+        return Student.objects.none()
+    qs = Student.objects.filter(school=school, status="active").select_related("user")
+    if user.is_superuser or user_can_manage_school(user):
+        return qs.order_by("class_name", "user__last_name", "user__first_name")
+    role = getattr(user, "role", None)
+    if role == "parent":
+        return qs.filter(parent=user).order_by("user__last_name", "user__first_name")
+    if role == "student":
+        return qs.filter(user=user)
+    return Student.objects.none()
+
+
+def _user_may_preorder_for(user, student, school):
+    if user.is_superuser:
+        return True
+    if student.school_id != school.id:
+        return False
+    if user_can_manage_school(user):
+        return True
+    if getattr(user, "role", None) == "parent" and student.parent_id == user.id:
+        return True
+    if getattr(user, "role", None) == "student" and student.user_id == user.id:
+        return True
+    return False
 
 
 # ==================== BEHAVIOR TRACKER ====================
@@ -146,13 +184,18 @@ def canteen_preorder_page(request):
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
+
+    if not _can_access_canteen_preorder(request.user):
+        messages.error(request, 'You do not have access to canteen pre-order.')
+        return redirect('home')
     
-    # Get menu items
     items = CanteenItem.objects.filter(school=school, is_available=True)
+    preorder_students = _preorder_students_queryset(request.user, school)
     
     context = {
         'school': school,
         'menu_items': items,
+        'preorder_students': preorder_students,
     }
     return render(request, 'operations/canteen_preorder.html', context)
 
@@ -171,25 +214,35 @@ def create_preorder(request):
     
     if not school:
         return JsonResponse({'success': False, 'error': 'No school found'}, status=400)
+
+    if not _can_access_canteen_preorder(request.user):
+        return JsonResponse({'success': False, 'error': 'Not permitted'}, status=403)
     
     import json
     try:
         data = json.loads(request.body)
         student_id = data.get('student_id')
         items = data.get('items', [])  # [{item_id, quantity}]
-        order_date = data.get('order_date')
+        order_date = data.get('order_date') or timezone.now().date().isoformat()
         
         if not student_id or not items:
             return JsonResponse({'success': False, 'error': 'Missing data'}, status=400)
         
         student = get_object_or_404(Student, id=student_id, school=school)
+        if not _user_may_preorder_for(request.user, student, school):
+            return JsonResponse({'success': False, 'error': 'Not allowed to order for this student'}, status=403)
         
         total_amount = 0
         order_items = []
         
         for item_data in items:
-            item = get_object_or_404(CanteenItem, id=item_data['item_id'], school=school)
+            raw_id = item_data.get('item_id')
+            if raw_id is None:
+                return JsonResponse({'success': False, 'error': 'Invalid line item'}, status=400)
+            item = get_object_or_404(CanteenItem, id=raw_id, school=school, is_available=True)
             quantity = int(item_data.get('quantity', 1))
+            if quantity < 1:
+                return JsonResponse({'success': False, 'error': 'Invalid quantity'}, status=400)
             amount = item.price * quantity
             total_amount += amount
             order_items.append({
@@ -198,20 +251,21 @@ def create_preorder(request):
                 'amount': amount
             })
         
-        # Create pre-order (for now, just create payment record)
-        # In production, you'd have a PreOrder model
         item_list = ', '.join([f"{i['quantity']}x {i['item'].name}" for i in order_items])
+        desc = f"Pre-order for {order_date}: {item_list}"[:255]
         payment = CanteenPayment.objects.create(
+            school=school,
             student=student,
             amount=total_amount,
-            description=f"Pre-order for {order_date}: {item_list}",
-            payment_method='prepaid'
+            description=desc,
+            recorded_by=request.user,
+            payment_status='completed',
         )
         
         return JsonResponse({
             'success': True,
             'message': 'Pre-order placed successfully!',
-            'total': total_amount,
+            'total': str(total_amount),
             'order_id': payment.id
         })
         
@@ -321,6 +375,12 @@ def get_financial_data(request):
 @login_required
 def class_rankings_page(request):
     """Show class rankings based on performance."""
+    from core.utils import can_manage
+
+    if not request.user.is_superuser and not can_manage(request):
+        messages.error(request, 'You do not have permission to view school rankings.')
+        return redirect('home')
+
     school = getattr(request.user, 'school', None)
     if request.user.is_superuser:
         school_id = request.session.get('current_school_id')

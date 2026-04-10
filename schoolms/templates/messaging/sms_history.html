@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}SMS history · {{ school.name }}{% endblock %}
+{% block page_title %}Bulk SMS history{% endblock %}
+{% block page_subtitle %}SMS sends (including bulk){% endblock %}
+
+{% block content %}
+<div class="content-card mb-3">
+    <a href="{% url 'messaging:bulk_sms_page' %}" class="btn btn-primary btn-sm">Bulk SMS</a>
+    <a href="{% url 'messaging:message_history' %}" class="btn btn-outline-secondary btn-sm">All channels</a>
+</div>
+
+<div class="content-card">
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>By</th>
+                    <th>Summary</th>
+                    <th>Sent / failed</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="text-nowrap small">{{ log.created_at }}</td>
+                    <td class="small">{% if log.sender %}{{ log.sender.get_full_name|default:log.sender.username }}{% else %}—{% endif %}</td>
+                    <td class="small">{{ log.recipient_summary|default:"—" }}</td>
+                    <td class="small">{{ log.sent_count }} / {{ log.failed_count }}</td>
+                    <td class="small text-break" style="max-width:18rem;">{{ log.message_preview|truncatewords:30 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">No SMS sends logged yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

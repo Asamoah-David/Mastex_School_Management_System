@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Class rankings · {{ school.name }}{% endblock %}
+{% block page_title %}Class rankings{% endblock %}
+{% block page_subtitle %}{% if current_term %}Current term: {{ current_term.name }}{% else %}All terms (no current term set){% endif %}{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    {% if rankings %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Student</th>
+                    <th class="text-end">Avg score</th>
+                    <th class="text-end">Subjects</th>
+                    <th class="text-end">Attendance %</th>
+                    <th class="text-end">Overall</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rankings %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ row.student.user.get_full_name|default:row.student.user.username }}</td>
+                    <td class="text-end">{{ row.avg_score }}</td>
+                    <td class="text-end">{{ row.subjects_taken }}</td>
+                    <td class="text-end">{{ row.attendance_rate }}</td>
+                    <td class="text-end"><strong>{{ row.overall_score }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-muted mb-0">Overall score blends academics (70%) and attendance (30%) for ranking purposes.</p>
+    {% else %}
+    <p class="text-muted mb-0">No students found for this school.</p>
+    {% endif %}
+</div>
+{% endblock %}

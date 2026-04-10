@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Message history · {{ school.name }}{% endblock %}
+{% block page_title %}Message history{% endblock %}
+{% block page_subtitle %}SMS and email broadcasts logged from this screen{% endblock %}
+
+{% block content %}
+<div class="content-card mb-3">
+    <a href="{% url 'messaging:send_message' %}" class="btn btn-primary btn-sm">Send message</a>
+    <a href="{% url 'messaging:bulk_sms_page' %}" class="btn btn-outline-secondary btn-sm">Bulk SMS</a>
+    <a href="{% url 'messaging:sms_history' %}" class="btn btn-outline-secondary btn-sm">SMS-only log</a>
+</div>
+
+<div class="content-card">
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Channel</th>
+                    <th>By</th>
+                    <th>Recipients</th>
+                    <th>Sent / failed</th>
+                    <th>Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="text-nowrap small">{{ log.created_at }}</td>
+                    <td><span class="badge bg-secondary">{{ log.get_channel_display }}</span></td>
+                    <td class="small">{% if log.sender %}{{ log.sender.get_full_name|default:log.sender.username }}{% else %}—{% endif %}</td>
+                    <td class="small">{{ log.recipient_summary|default:"—" }}</td>
+                    <td class="small">{{ log.sent_count }} / {{ log.failed_count }}</td>
+                    <td class="small text-break" style="max-width:14rem;">{% if log.subject %}<strong>{{ log.subject }}</strong><br>{% endif %}{{ log.message_preview|truncatewords:25 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">No sends recorded yet. Use <a href="{% url 'messaging:send_message' %}">Send message</a> or bulk SMS; successful and partial sends are logged here.</p>
+    {% endif %}
+</div>
+{% endblock %}

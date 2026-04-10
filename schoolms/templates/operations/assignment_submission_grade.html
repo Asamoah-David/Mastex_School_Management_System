@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Grade submission · {{ school.name }}{% endblock %}
+{% block page_title %}Grade assignment{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-3">
+        <a href="{% url 'operations:assignment_submission_list' %}" class="btn btn-outline-secondary btn-sm">← Submissions</a>
+    </div>
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h5 class="card-title">{{ submission.homework.title }}</h5>
+            <p class="text-muted mb-1">
+                <strong>Student:</strong> {{ submission.student.user.get_full_name|default:submission.student.user.username }}
+            </p>
+            <p class="text-muted mb-0"><strong>Submitted:</strong> {{ submission.submitted_at }} · <strong>Status:</strong> {{ submission.get_status_display }}</p>
+        </div>
+    </div>
+    <div class="card shadow-sm mb-3">
+        <div class="card-header">Submission</div>
+        <div class="card-body">
+            {% if submission.submission_text %}
+            <pre class="bg-light p-3 rounded small mb-0">{{ submission.submission_text }}</pre>
+            {% else %}
+            <p class="text-muted mb-0">No text submitted.</p>
+            {% endif %}
+            {% if submission.file_path %}
+            <p class="mt-2 mb-0 small"><strong>File:</strong> {{ submission.file_path }}</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-header">Grade</div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Grade</label>
+                    <input type="text" name="grade" class="form-control" value="{{ submission.grade }}" required
+                           placeholder="e.g. 85 or A">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Feedback</label>
+                    <textarea name="feedback" class="form-control" rows="4">{{ submission.feedback }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Save grade</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

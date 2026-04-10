@@ -674,6 +674,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'academics:predictive_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F52E;</span><div class="nav-item-label"><span class="nav-item-title">Predictions</span></div></a></li>
                                 <li><a href="{% url 'academics:trend_analysis' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C9;</span><div class="nav-item-label"><span class="nav-item-title">Trends</span></div></a></li>
                                 <li><a href="{% url 'academics:ai_comment_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F916;</span><div class="nav-item-label"><span class="nav-item-title">AI Comments</span></div></a></li>
+                                <li><a href="{% url 'operations:school_rankings' %}" class="nav-item"><span class="nav-item-icon">&#x1F3C6;</span><div class="nav-item-label"><span class="nav-item-title">School rankings</span><span class="nav-item-sub">Attendance + results blend</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -706,6 +707,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E2;</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Fees, canteen, transport…</span></div></a></li>
                                 <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
                                 <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F37D;</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">&#x1F961;</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span><span class="nav-item-sub">Place orders for students</span></div></a></li>
                                 <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F68C;</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
                                 <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E0;</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4D5;</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
@@ -746,6 +748,9 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E4;</span><div class="nav-item-label"><span class="nav-item-title">Broadcast SMS / Email</span><span class="nav-item-sub">Parents, students, teachers</span></div></a></li>
+                                <li><a href="{% url 'messaging:bulk_sms_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F1;</span><div class="nav-item-label"><span class="nav-item-title">Bulk SMS</span></div></a></li>
+                                <li><a href="{% url 'messaging:message_history' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DC;</span><div class="nav-item-label"><span class="nav-item-title">Message log</span></div></a></li>
+                                <li><a href="{% url 'messaging:sms_history' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DD;</span><div class="nav-item-label"><span class="nav-item-title">SMS log</span></div></a></li>
                                 <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">&#x1F4AC;</span><div class="nav-item-label"><span class="nav-item-title">Messages</span><span class="nav-item-sub">Chat with staff and parents</span></div></a></li>
                             </ul>
                         </div>
@@ -850,6 +855,7 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💵</span><div class="nav-item-label"><span class="nav-item-title">School Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:canteen_my' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen Fees</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">🥡</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span></div></a></li>
                                 <li><a href="{% url 'operations:bus_my' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>
@@ -923,6 +929,7 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'finance:parent_fee_list' %}" class="nav-item"><span class="nav-item-icon">💵</span><div class="nav-item-label"><span class="nav-item-title">School Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:canteen_my' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen Fees</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">🥡</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span></div></a></li>
                                 <li><a href="{% url 'operations:bus_my' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>

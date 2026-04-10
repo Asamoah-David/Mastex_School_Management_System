@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Timetable conflicts · {{ school.name }}{% endblock %}
+{% block page_title %}Timetable conflicts{% endblock %}
+{% block page_subtitle %}Unresolved clashes{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="mb-3">
+        <a href="{% url 'operations:timetable_view' %}" class="btn btn-outline-secondary btn-sm">← Timetable</a>
+    </div>
+    {% if conflicts %}
+    <div class="list-group">
+        {% for c in conflicts %}
+        <div class="list-group-item">
+            <div class="d-flex w-100 justify-content-between">
+                <h6 class="mb-1">{{ c.conflict_type }}</h6>
+                <small class="text-muted">{{ c.created_at }}</small>
+            </div>
+            <p class="mb-2 small">{{ c.description }}</p>
+            <div class="row small text-muted">
+                <div class="col-md-6">
+                    <strong>Slot 1:</strong> {{ c.slot_1.class_name }} · {{ c.slot_1.get_day_display }} P{{ c.slot_1.period_number }}
+                    · {{ c.slot_1.subject.name }}{% if c.slot_1.room %} · {{ c.slot_1.room }}{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <strong>Slot 2:</strong> {{ c.slot_2.class_name }} · {{ c.slot_2.get_day_display }} P{{ c.slot_2.period_number }}
+                    · {{ c.slot_2.subject.name }}{% if c.slot_2.room %} · {{ c.slot_2.room }}{% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">No unresolved conflicts.</p>
+    {% endif %}
+</div>
+{% endblock %}

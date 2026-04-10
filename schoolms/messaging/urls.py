@@ -15,6 +15,7 @@ urlpatterns = [
     
     # Bulk SMS
     path("bulk-sms/", bulk_sms_views.bulk_sms_page, name="bulk_sms_page"),
+    path("bulk-sms/recipients/", bulk_sms_views.get_recipients, name="get_recipients"),
     path("bulk-sms/send/", bulk_sms_views.send_bulk_sms, name="send_bulk_sms"),
     path("bulk-sms/history/", bulk_sms_views.sms_history, name="sms_history"),
 ]
