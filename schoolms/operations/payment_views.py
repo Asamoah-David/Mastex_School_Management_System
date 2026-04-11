@@ -853,7 +853,7 @@ def payment_dashboard(request):
     school = getattr(request.user, 'school', None)
     if not school:
         messages.error(request, "School not found")
-        return redirect('dashboard')
+        return redirect('accounts:dashboard')
     
     # Get filter parameters
     date_filter = request.GET.get('date_filter', 'all')
@@ -1141,7 +1141,7 @@ def record_payment(request):
     school = getattr(request.user, 'school', None)
     if not school:
         messages.error(request, "School not found")
-        return redirect('dashboard')
+        return redirect('accounts:dashboard')
     
     if request.method == 'POST':
         student_id = request.POST.get('student_id')
@@ -1637,7 +1637,7 @@ def send_payment_reminder(request):
     school = getattr(request.user, 'school', None)
     if not school:
         messages.error(request, "School not found")
-        return redirect('dashboard')
+        return redirect('accounts:dashboard')
     
     if request.method == 'POST':
         student_ids = request.POST.getlist('student_ids')
