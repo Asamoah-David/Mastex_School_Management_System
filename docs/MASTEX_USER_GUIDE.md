@@ -4,7 +4,7 @@
 
 This manual is written for **schools that use Mastex SchoolOS**: leadership, teachers, finance, support staff, parents, and students. It explains what the product does, how to work with it daily, and how to get help. It does **not** describe internal engineering tools — your team uses **one school portal** for everyday work.
 
-**Printable handbook (styled, print-to-PDF, interface tour with screen mockups):** [handbook/index.html](handbook/index.html) — see [handbook/README.md](handbook/README.md) for **print-to-PDF** and **`python manage.py capture_handbook_screenshots`** (Playwright PNGs + auto-embed). Optional manual PNGs: [handbook/images/README.md](handbook/images/README.md).
+**Printable handbook** ([handbook/index.html](handbook/index.html)): includes **step-by-step user manuals by role** (parents, students, teachers, bursar, admin, admissions, librarian, etc.) in the **User manual** chapter — open the file in a browser and jump to `#user-manual`, or use the **Contents** list. For print-to-PDF and maintainer screenshot tooling, see [handbook/README.md](handbook/README.md) and [handbook/images/README.md](handbook/images/README.md).
 
 ---
 

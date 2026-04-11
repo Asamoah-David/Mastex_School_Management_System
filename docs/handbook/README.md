@@ -1,6 +1,6 @@
 # Mastex SchoolOS — Printable Handbook
 
-This folder contains **`index.html`**, a self-contained, professionally styled handbook for **schools** (training, parent orientation, and procurement). It intentionally does **not** describe internal platform-operator tools. **Mastex Technologies** — [mastexedu.online](https://mastexedu.online) · mastex.digital.world@gmail.com · WhatsApp +233 544 789 716 — is the product vendor for demos, licensing, and platform support.
+This folder contains **`index.html`**, a self-contained, professionally styled handbook for **schools** (training, parent orientation, and procurement). It includes a **User manual** section with **numbered steps by role** (everyone, parents, students, teachers, accountant, school admin, admission officer, librarian, and more) plus a **capability catalogue** for boards and PTAs. It intentionally does **not** describe internal platform-operator tools. **Mastex Technologies** — [mastexedu.online](https://mastexedu.online) · mastex.digital.world@gmail.com · WhatsApp +233 544 789 716 — is the product vendor for demos, licensing, and platform support.
 
 ## Generate a PDF
 

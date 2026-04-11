@@ -426,6 +426,200 @@
       line-height: 1.2;
     }
 
+    /* ----- Capability catalogue (detailed features) ----- */
+    .cap-lead {
+      font-size: 1.05rem;
+      color: var(--ink-soft);
+      margin: 0 0 1rem;
+      max-width: 68ch;
+    }
+    .cap-nav {
+      margin: 0 0 1.35rem;
+      padding: 0.9rem 1.05rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 0.55rem;
+      font-size: 0.82rem;
+    }
+    .cap-nav strong {
+      color: var(--accent);
+      display: block;
+      margin-bottom: 0.4rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .cap-nav ul {
+      margin: 0;
+      padding: 0 0 0 1.15rem;
+      column-count: 2;
+      column-gap: 1.75rem;
+    }
+    .cap-nav li { margin: 0.15rem 0; }
+    @media print {
+      .cap-nav ul { column-count: 1; }
+    }
+    .feat-item {
+      margin: 1rem 0;
+      padding: 1rem 1.15rem 1.15rem;
+      border: 1px solid var(--line);
+      border-radius: 0.55rem;
+      background: linear-gradient(180deg, #fff 0%, var(--surface) 100%);
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .feat-item h3 {
+      margin: 0 0 0.35rem;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.12rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    .feat-tagline {
+      font-size: 0.86rem;
+      color: var(--muted);
+      font-style: italic;
+      margin: 0 0 0.7rem;
+      border-left: 3px solid var(--brand-bright);
+      padding-left: 0.7rem;
+      max-width: 62ch;
+    }
+    .feat-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem 1.35rem;
+      margin-top: 0.45rem;
+      font-size: 0.87rem;
+    }
+    @media (max-width: 720px) {
+      .feat-grid-2 { grid-template-columns: 1fr; }
+    }
+    .feat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--brand);
+      font-weight: 700;
+      margin: 0 0 0.2rem;
+    }
+    .feat-item .feat-highlights { margin: 0.5rem 0 0; padding-left: 1rem; }
+    .feat-item .feat-highlights li { margin: 0.22rem 0; color: var(--ink-soft); }
+    .cap-summary {
+      margin: 1.35rem 0 1rem;
+      padding: 1.05rem 1.2rem;
+      background: linear-gradient(135deg, var(--accent) 0%, #1e293b 100%);
+      color: #e2e8f0;
+      border-radius: 0.55rem;
+      border-left: 4px solid var(--brand-bright);
+      break-inside: avoid;
+    }
+    .cap-summary h3 {
+      margin: 0 0 0.45rem;
+      font-size: 0.95rem;
+      color: #86efac;
+      font-family: "DM Sans", sans-serif;
+      font-weight: 700;
+    }
+    .cap-summary p { margin: 0; font-size: 0.87rem; line-height: 1.55; color: #cbd5e1; }
+    @media print {
+      .cap-summary {
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--brand);
+      }
+      .cap-summary h3 { color: var(--brand); }
+      .cap-summary p { color: var(--ink-soft); }
+    }
+
+    /* ----- User manual (step-by-step) ----- */
+    .manual-intro {
+      font-size: 0.95rem;
+      color: var(--ink-soft);
+      margin: 0 0 1.1rem;
+      max-width: 68ch;
+    }
+    .manual-nav {
+      margin: 0 0 1.25rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 0.5rem;
+      font-size: 0.82rem;
+    }
+    .manual-nav strong {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--accent);
+      font-size: 0.76rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .manual-nav ul {
+      margin: 0;
+      padding: 0 0 0 1.1rem;
+      column-count: 2;
+      column-gap: 1.5rem;
+    }
+    .manual-nav li { margin: 0.12rem 0; }
+    @media print {
+      .manual-nav ul { column-count: 1; }
+    }
+    .manual-block {
+      margin: 1.15rem 0;
+      padding: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .manual-block > h3 {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.2rem;
+      color: var(--accent);
+      margin: 0 0 0.5rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid var(--brand-soft);
+    }
+    .manual-task {
+      margin: 0.85rem 0;
+      padding: 0.75rem 0.9rem;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 0.45rem;
+      break-inside: avoid;
+    }
+    .manual-task h4 {
+      margin: 0 0 0.45rem;
+      font-size: 0.92rem;
+      color: var(--brand);
+      font-weight: 700;
+    }
+    .manual-steps {
+      margin: 0;
+      padding-left: 1.15rem;
+      font-size: 0.88rem;
+      color: var(--ink-soft);
+      line-height: 1.5;
+    }
+    .manual-steps li { margin: 0.28rem 0; }
+    .manual-steps strong { color: var(--ink); }
+    .manual-tip {
+      margin: 0.5rem 0 0;
+      padding: 0.45rem 0.55rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      background: var(--surface);
+      border-radius: 0.35rem;
+      border-left: 3px solid var(--brand-bright);
+    }
+    .manual-block--page {
+      page-break-before: always;
+      break-before: page;
+      margin-top: 0.25rem;
+    }
+    @media screen {
+      .manual-block--page { margin-top: 2rem; padding-top: 0.5rem; border-top: 1px solid var(--line); }
+    }
+
     /* ----- Product UI figures (CSS mockups + optional real PNG) ----- */
     .product-fig {
       margin: 1.35rem 0 1.6rem;
@@ -770,19 +964,21 @@
           <div class="cover-mark">M</div>
           <p class="edition">Official user handbook</p>
           <h1>Mastex SchoolOS</h1>
-          <p class="tagline">One connected platform for academics, finance, operations, and family engagement.</p>
+          <p class="tagline">The school operating system that turns scattered paperwork into a single, trusted portal — from online admission and digital learning to exams, fees, and parent confidence.</p>
           <p class="publisher">Mastex Technologies</p>
           <p class="founder-line">Education software you can grow with · <a href="https://mastexedu.online" target="_blank" rel="noopener">mastexedu.online</a> · <a href="mailto:mastex.digital.world@gmail.com">Email</a> · <a href="https://wa.me/233544789716" target="_blank" rel="noopener">WhatsApp</a></p>
         </div>
         <div class="cover-mid">
           <h2 class="doc-title">School user &amp; orientation manual</h2>
-          <p class="doc-sub">Written for <strong>your school</strong>: leadership, teachers, finance, support staff, parents, and students. Everything you need to adopt, train, and use Mastex SchoolOS day to day — without technical jargon.</p>
+          <p class="doc-sub">Written for <strong>your school</strong>: leadership, teachers, finance, support staff, parents, and students. Includes a full <strong>user manual</strong> with <strong>numbered steps</strong> by role so everyday tasks are easy to follow — plus strategy, benefits, and support contacts.</p>
           <ul class="cover-highlights">
-            <li>One secure portal per school — roles see only what they should</li>
-            <li>Fees, services, and online payments (Paystack) with clear history for families</li>
-            <li>Full academic cycle: timetables, homework, results, report cards, online exams &amp; classes</li>
-            <li>Operations that match real schools: admissions, attendance, library, health, events, messaging</li>
-            <li>Automatic in-app alerts and optional SMS — fewer “we didn’t know” moments</li>
+            <li>One secure portal per school — role-based menus; no accidental exposure of payroll or sensitive data</li>
+            <li>Online admission: public apply &amp; track, staff pipeline, and clean hand-off into enrolled students</li>
+            <li>Digital learning stack: timetables, homework with attachments, online classes, quizzes &amp; online exams</li>
+            <li>Finance that parents understand: fee structures, partial payments, Paystack checkout, expenses &amp; budgets</li>
+            <li>Operations that match real schools: attendance (incl. QR flows), absence requests, library, canteen, bus, hostel, inventory</li>
+            <li>Student life &amp; engagement: sports, clubs, discipline, health, events, PT meetings, certificates &amp; ID cards</li>
+            <li>In-app notifications plus optional SMS — families see fees, homework, and announcements without chasing staff</li>
           </ul>
           <div class="cover-devices" aria-hidden="true">
             <div class="mini-frame">
@@ -843,7 +1039,7 @@
     <!-- ========== WHY MASTEX ========== -->
     <section class="page page--break" id="why">
       <h2>Why Mastex SchoolOS</h2>
-      <p class="lead">Schools run on information that moves between classrooms, offices, and homes. When that information lives in notebooks, WhatsApp threads, and separate spreadsheets, mistakes multiply and parents lose trust. Mastex SchoolOS is a <strong>single, secure web application</strong> built around your school’s real workflows — so leaders can govern, staff can execute, and families can see what matters, in one place.</p>
+      <p class="lead">Schools run on information that moves between classrooms, offices, and homes. When that information lives in notebooks, WhatsApp threads, and separate spreadsheets, mistakes multiply and parents lose trust. <strong>Mastex SchoolOS</strong> is a <strong>single, secure web application</strong> built around your school’s real workflows — from <strong>online admission</strong> and <strong>digital classes</strong> to <strong>exams</strong>, <strong>fees</strong>, and <strong>parent transparency</strong> — so leaders can govern, staff can execute, and families see what matters in one branded portal.</p>
 
       <div class="pill-row">
         <span class="pill">One portal</span>
@@ -888,6 +1084,10 @@
         <li><span>4</span><span><strong>Better academic oversight.</strong> Results hubs, report cards, exam tools, and analytics help leadership spot trends early instead of only at term end.</span></li>
         <li><span>5</span><span><strong>Safer, fairer operations.</strong> Role-based menus mean a class teacher does not see the whole payroll; an audit trail supports accountability where your school enables it.</span></li>
         <li><span>6</span><span><strong>Professional image.</strong> A modern portal signals that your school invests in organisation and communication — a factor parents notice when choosing or staying.</span></li>
+        <li><span>7</span><span><strong>Admission season under control.</strong> Online applications and status tracking shrink front-desk queues; your pipeline becomes searchable instead of a pile of folders.</span></li>
+        <li><span>8</span><span><strong>Learning continuity beyond the wall.</strong> Homework, online classes, and online exams give structured digital touchpoints — especially valuable for revision, catch-up, and blended weeks.</span></li>
+        <li><span>9</span><span><strong>Fewer exam and results disputes.</strong> Centralised schedules, marks, and report cards give leadership a defensible trail from classroom entry to parent view.</span></li>
+        <li><span>10</span><span><strong>Services revenue you can actually reconcile.</strong> Canteen, transport, hostel, and textbooks sit beside core fees so the bursar sees one financial picture per family.</span></li>
       </ul>
       <h3>Who should read this handbook before go-live</h3>
       <ul>
@@ -933,6 +1133,16 @@
         <p class="situation"><strong>Situation:</strong> Parents do not see one picture of what they owe across services.</p>
         <p class="outcome"><strong>With Mastex:</strong> The <strong>services hub</strong> and linked modules bring canteen, transport, hostel, and textbook charges into the same ecosystem as core fees, with <strong>payment history</strong> for the family.</p>
       </div>
+      <div class="scenario">
+        <h4>Scenario: “We want online classes but we are tired of random Zoom links in WhatsApp.”</h4>
+        <p class="situation"><strong>Situation:</strong> Meeting links scatter across chats; some parents miss them; there is no single timetable-aligned record.</p>
+        <p class="outcome"><strong>With Mastex:</strong> Staff schedule <strong>online classes</strong> in the academic workflow; students and parents open sessions from the same portal as <strong>timetables</strong> and <strong>homework</strong> — fewer “wrong link” moments and a more professional impression.</p>
+      </div>
+      <div class="scenario">
+        <h4>Scenario: “Paper-based tests do not scale — but we fear cheating if we go online.”</h4>
+        <p class="situation"><strong>Situation:</strong> Printing, invigilation, and marking bind staff time; leadership wants faster feedback loops.</p>
+        <p class="outcome"><strong>With Mastex:</strong> <strong>Online exams</strong> and <strong>quizzes</strong> (where your school enables them) sit alongside traditional <strong>exam schedules</strong> and <strong>results</strong>. Combine with clear policy (supervised sittings, timed attempts, question banks) so digital assessment becomes a tool — not a shortcut.</p>
+      </div>
     </section>
 
     <!-- ========== FAQ ========== -->
@@ -950,6 +1160,12 @@
 
       <h3>Can we start with only some modules?</h3>
       <p>Yes. Many schools begin with <strong>students + fees + parent portal</strong>, then add attendance, homework, library, or services. Feature visibility can follow your rollout plan.</p>
+
+      <h3>How does online admission work for parents who are not tech-savvy?</h3>
+      <p>The public <strong>apply</strong> and <strong>track</strong> pages use plain language and work in an ordinary phone browser — no app store required. Your school still sets expectations (help desk hours, required documents). The payoff is shorter queues and fewer repeated “what is my status?” calls.</p>
+
+      <h3>Are online exams and quizzes secure enough for high-stakes testing?</h3>
+      <p>They are tools in a <strong>policy mix</strong>. Many schools use online quizzes for frequent checks and supervised digital sittings for larger assessments, while keeping some paper finals. Mastex SchoolOS provides structure; <strong>your leadership</strong> defines invigilation, device rules, and attempt limits. We recommend pairing digital assessment with clear academic integrity communication to parents.</p>
 
       <h3>How do online payments reach the school?</h3>
       <p>When you enable <strong>Paystack</strong> and subaccounts in <strong>School settings</strong>, card payments route according to the arrangement your leadership sets with your bank and Paystack. The bursar still reconciles against the <strong>payment dashboard</strong> and fee lists.</p>
@@ -1035,8 +1251,10 @@
         <li><a href="#partner">Why Mastex Technologies</a></li>
         <li><a href="#support-path">Support: school vs Mastex Technologies</a></li>
         <li><a href="#platform">Platform at a glance</a></li>
+        <li><a href="#capabilities">Capability catalogue — features, benefits &amp; outcomes</a></li>
         <li><a href="#ui-tour">Interface tour (product screens)</a></li>
         <li><a href="#getting-started">Getting started</a></li>
+        <li><a href="#user-manual">User manual — step-by-step guides (by role)</a></li>
         <li><a href="#notifications">Notifications &amp; messaging</a></li>
         <li><a href="#roles">Roles &amp; access</a></li>
         <li><a href="#role-detail">What each role can do (detailed)</a></li>
@@ -1069,10 +1287,336 @@
       <p class="footnote">Some menu items appear only when your school enables a feature (for example sports, clubs, academic calendar, school events, or parent–teacher meetings).</p>
     </section>
 
+    <!-- ========== CAPABILITY CATALOGUE (detailed) ========== -->
+    <section class="page page--break" id="capabilities">
+      <h2>Capability catalogue — features, benefits &amp; how they upgrade your school</h2>
+      <p class="cap-lead">The table above summarises <em>areas</em>. This chapter is the <strong>sales-quality detail</strong> decision-makers, boards, and PTA councils expect: what each capability does, who uses it, and the concrete improvements you should plan messaging around. Features can be switched on per school as your rollout matures.</p>
+
+      <div class="cap-summary">
+        <h3>Why this section exists</h3>
+        <p>Parents do not buy “a database.” They buy <strong>peace of mind</strong> — fees they can pay online, homework they can see, and a school that looks organised. Mastex SchoolOS is written to earn that trust feature by feature, without forcing every school to adopt everything on day one.</p>
+      </div>
+
+      <nav class="cap-nav" aria-label="Jump to capability sections">
+        <strong>In this catalogue</strong>
+        <ul>
+          <li><a href="#cap-admissions">Admissions &amp; enrollment</a></li>
+          <li><a href="#cap-learning">Digital learning &amp; homework</a></li>
+          <li><a href="#cap-assessment">Exams, quizzes &amp; results</a></li>
+          <li><a href="#cap-planning">Timetables, calendar &amp; terms</a></li>
+          <li><a href="#cap-finance">Finance, fees &amp; online payments</a></li>
+          <li><a href="#cap-attendance">Attendance, absence &amp; wellbeing</a></li>
+          <li><a href="#cap-services">Library, services &amp; inventory</a></li>
+          <li><a href="#cap-life">Student life, events &amp; engagement</a></li>
+          <li><a href="#cap-comms">Notifications, SMS &amp; messaging</a></li>
+          <li><a href="#cap-hr">Staff, leave &amp; payroll tools</a></li>
+          <li><a href="#cap-insights">Dashboards, analytics &amp; AI</a></li>
+        </ul>
+      </nav>
+
+      <article class="feat-item" id="cap-admissions">
+        <h3>Admissions &amp; online enrollment</h3>
+        <p class="feat-tagline">Replace paper piles and “please call the office” with a structured digital front door that still feels personal.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>Public online application</strong> — families apply without an account; your school controls required fields and documents.</li>
+              <li><strong>Application tracking</strong> — reference-based status lookup reduces repeated phone calls during peak season.</li>
+              <li><strong>Internal admission pipeline</strong> — staff review, interview, document, and decision states in one workflow.</li>
+              <li><strong>Hand-off to enrollment</strong> — successful applicants become student records without retyping names, classes, and guardians.</li>
+              <li>Optional <strong>SMS / notification hooks</strong> (where configured) to nudge applicants or staff at key steps.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Shorter queues</strong> at the front office during intake windows.</li>
+              <li><strong>Clear audit trail</strong> of who applied, when, and how the decision evolved — valuable for disputes and governance.</li>
+              <li><strong>More professional brand</strong> — prospective parents compare you to schools that still use only paper forms.</li>
+              <li><strong>Faster revenue recognition</strong> when acceptance fees and first-term charges tie cleanly to the new record.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Admission officers, school leadership, front desk, parents (public flows).</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-learning">
+        <h3>Digital learning, online classes &amp; homework</h3>
+        <p class="feat-tagline">Give teaching and learning a consistent digital layer — not a parallel universe in private chats.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>Homework</strong> — set tasks with deadlines; attach files where needed; parents and students see expectations in one place.</li>
+              <li><strong>Online classes / meetings</strong> — schedule live sessions aligned with your academic structure so links live beside timetables and subjects.</li>
+              <li><strong>Student &amp; parent visibility</strong> — the same portal that shows fees also shows what must be done academically.</li>
+              <li>Works alongside <strong>timetables</strong> and <strong>calendar</strong> so digital learning is anchored to the real week, not ad hoc.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Less WhatsApp fatigue</strong> for teachers — instructions are official, dated, and retrievable.</li>
+              <li><strong>Better support for absent learners</strong> — structured catch-up instead of “ask a friend.”</li>
+              <li><strong>Stronger parent partnership</strong> — guardians see workload before report day surprises them.</li>
+              <li><strong>Blended-ready posture</strong> — weather closures, revision weeks, or extension programmes scale without reinventing comms each time.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Teachers, students, parents, academic leadership.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-assessment">
+        <h3>Exams, online exams, quizzes &amp; results</h3>
+        <p class="feat-tagline">Move from scattered mark sheets to an assessment system leadership can trust and parents can understand.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>Exam scheduling</strong> — halls, dates, and papers organised so staff and students share one plan.</li>
+              <li><strong>Quizzes &amp; online exams</strong> — digital attempts with controls that your academic policy defines (timing, attempts, review).</li>
+              <li><strong>Results hub &amp; grade workflows</strong> — marks flow toward consolidated views instead of isolated spreadsheets.</li>
+              <li><strong>Report cards</strong> — generated with consistent branding and structure term after term.</li>
+              <li><strong>Performance analytics</strong> — trends by class, subject, or cohort where your school enables deeper views.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Faster feedback loops</strong> — shorter path from sitting to published outcomes.</li>
+              <li><strong>Reduced transcription error</strong> — fewer mismatches between class record and bursar-facing standing.</li>
+              <li><strong>Defensible academic governance</strong> — leadership can show how results were produced, not only the final letter grade.</li>
+              <li><strong>Modern assessment mix</strong> — combine paper and online where each format fits best.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Teachers, HODs, exams office, leadership, students &amp; parents (published views).</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-planning">
+        <h3>Timetables, academic calendar &amp; terms</h3>
+        <p class="feat-tagline">When the week is visible, everything else — fees, exams, events — lands with less friction.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li>Class and teacher <strong>timetables</strong> with conflict-aware planning where your configuration supports it.</li>
+              <li><strong>Academic calendar</strong> — terms, holidays, and key dates visible to staff and families.</li>
+              <li>Alignment hooks for <strong>homework</strong>, <strong>online classes</strong>, and <strong>events</strong> so the portal reads as one story.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Fewer clashes</strong> between tests, trips, and fee deadlines.</li>
+              <li><strong>Less calendar chaos</strong> for parents managing multiple children.</li>
+              <li><strong>Professional operations</strong> — the same information front desk and teachers quote.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Academic office, teachers, students, parents.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-finance">
+        <h3>Finance — fees, services, expenses &amp; online payments</h3>
+        <p class="feat-tagline">Make money visible, collectible, and explainable — the heart of parent trust.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>Fee structures</strong> by class or scope; generation of student charges from structures.</li>
+              <li><strong>Partial payments</strong>, offline recording, and consolidated <strong>payment history</strong>.</li>
+              <li><strong>Paystack</strong> checkout for families when your school configures keys and subaccounts responsibly.</li>
+              <li><strong>Expenses &amp; budgets</strong> for leadership-grade visibility of outflows.</li>
+              <li><strong>Financial reports</strong> for bursar and board conversations.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Higher collection rates</strong> when balances are always visible and payable online.</li>
+              <li><strong>Shorter fee disputes</strong> — receipts and history are in-system, not lost on phones.</li>
+              <li><strong>Cleaner audits</strong> — adjustments map to logged-in users and dated records.</li>
+              <li><strong>Strategic planning</strong> — tie income trends to enrollment and academic calendar decisions.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Bursar, accountant, leadership, parents, students (balances).</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-attendance">
+        <h3>Attendance, absence requests &amp; wellbeing</h3>
+        <p class="feat-tagline">Safety and accountability start with knowing who is on campus — and why someone is not.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>Student attendance</strong> with daily workflows; <strong>QR</strong> flows where your school adopts them.</li>
+              <li><strong>Teacher attendance</strong> for HR and supervision patterns.</li>
+              <li><strong>Absence requests</strong> — parents or students submit; staff approve with a trail.</li>
+              <li><strong>Health records &amp; visits</strong> (school nurse role) for structured medical notes.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Safeguarding posture</strong> — faster answers to “was this learner in class?”</li>
+              <li><strong>Data-driven follow-up</strong> on chronic absenteeism before exams.</li>
+              <li><strong>Less paper</strong> for leave-of-absence notes that get lost in bags.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Teachers, attendance officers, nurses, parents, leadership.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-services">
+        <h3>Library, optional services &amp; inventory</h3>
+        <p class="feat-tagline">Everything beyond tuition — canteen, bus, hostel, textbooks — still has to reconcile.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>Services hub</strong> as the front door to optional programmes.</li>
+              <li><strong>Library</strong> cataloguing, issues, returns, and overdue visibility.</li>
+              <li><strong>Canteen, transport, hostel, textbooks</strong> modules (as enabled) with charges visible to families.</li>
+              <li><strong>Inventory</strong> where schools track stock and movements.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>One financial story per family</strong> — fewer “we paid that already” arguments across silos.</li>
+              <li><strong>Operational discipline</strong> — library and inventory losses shrink when issues are tracked.</li>
+              <li><strong>Upside revenue</strong> — optional services become easier to sell when payment is frictionless.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Bursar, librarians, transport/canteen leads, parents.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-life">
+        <h3>Student life — sports, clubs, discipline, certificates &amp; events</h3>
+        <p class="feat-tagline">Holistic education is not only GPA — it is character, participation, and celebration.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>Sports &amp; clubs</strong> with join flows and limits where configured.</li>
+              <li><strong>Discipline &amp; behaviour</strong> tracking for consistent follow-up.</li>
+              <li><strong>School events</strong> and <strong>academic calendar</strong> entries families can plan around.</li>
+              <li><strong>Certificates &amp; ID cards</strong> generated from live records — less manual design work each term.</li>
+              <li><strong>PT meetings</strong> booking and visibility for parent engagement.</li>
+              <li><strong>Alumni</strong> continuity when graduates should stay in the institutional story.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Richer parent experience</strong> — the portal reflects the whole child, not only invoices.</li>
+              <li><strong>Marketing content</strong> — events and achievements are documented in-system.</li>
+              <li><strong>Governance</strong> — discipline records are structured instead of anecdotal.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Coaches, club patrons, leadership, parents, students.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-comms">
+        <h3>Notifications, SMS, announcements &amp; messaging</h3>
+        <p class="feat-tagline">Reach families where they are — without losing the official record.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li><strong>In-app notifications</strong> for fees, homework, results, approvals, and announcements.</li>
+              <li><strong>SMS</strong> via integrated providers (e.g. mNotify) when credits and templates are configured.</li>
+              <li><strong>Announcements</strong> and <strong>broadcast</strong> tools for school-wide or targeted comms.</li>
+              <li><strong>Internal messaging</strong> for staff or parent–teacher dialogue where policy allows.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Higher read rates</strong> on critical messages than paper alone.</li>
+              <li><strong>Accountability</strong> — what was sent, when, and to which audience.</li>
+              <li><strong>Crisis resilience</strong> — urgent closures or fee reminders propagate faster.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Leadership, communications lead, teachers, parents.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-hr">
+        <h3>Staff management, leave &amp; payroll disbursement</h3>
+        <p class="feat-tagline">Respect staff with the same digital seriousness you show parents.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li>Staff directories, contracts, and HR-related records where your school uses them.</li>
+              <li><strong>Leave requests</strong> and approval flows with a visible status.</li>
+              <li><strong>Payroll registration &amp; disbursement</strong> tooling (including Paystack payout paths where enabled and permitted).</li>
+              <li><strong>Role changes</strong> logged so access matches responsibility.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Less payroll confusion</strong> — staff see structured payslips and history.</li>
+              <li><strong>Fairer HR process</strong> — leave and approvals are not stuck in one inbox.</li>
+              <li><strong>Retention signal</strong> — organised HR is part of employer brand for teachers.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Headteacher, HR/admin, finance, staff members.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="feat-item" id="cap-insights">
+        <h3>Dashboards, analytics &amp; AI assistant</h3>
+        <p class="feat-tagline">Turn operational data into decisions — not only reports filed away after meetings.</p>
+        <div class="feat-grid-2">
+          <div>
+            <p class="feat-label">What it includes</p>
+            <ul class="feat-highlights">
+              <li>Role-aware <strong>dashboards</strong> with KPIs for enrolment, attendance, fees, and academic signals.</li>
+              <li><strong>Performance analytics</strong>, trends, and comparative views where enabled.</li>
+              <li><strong>AI assistant</strong> for authorised users when your school switches it on — accelerates drafting and lookup inside policy.</li>
+              <li><strong>Audit / activity</strong> views for leadership where configured — supports oversight without micromanagement.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="feat-label">Benefits for your school</p>
+            <ul class="feat-highlights">
+              <li><strong>Earlier intervention</strong> — spot fee leakage, attendance drops, or subject stress before term end.</li>
+              <li><strong>Board-ready narratives</strong> backed by figures from the same system parents use.</li>
+              <li><strong>Modern positioning</strong> — stakeholders see you as data-informed, not only tradition-led.</li>
+            </ul>
+            <p class="feat-label" style="margin-top:0.65rem;">Primary users</p>
+            <p style="margin:0;color:var(--ink-soft);font-size:0.87rem;">Leadership, heads of department, bursar, data-minded teachers.</p>
+          </div>
+        </div>
+      </article>
+
+      <div class="callout" style="margin-top:1.25rem;">
+        <p><strong>Rollout tip for boards:</strong> You do not need every module on day one. The winning pattern is <strong>students + fees + parent portal + notifications</strong> first, then <strong>admissions</strong>, <strong>attendance</strong>, <strong>homework</strong>, and <strong>online exams</strong> in phases — each phase advertised to parents as a visible upgrade.</p>
+      </div>
+    </section>
+
     <!-- ========== UI TOUR (visual product tour) ========== -->
     <section class="page page--break" id="ui-tour">
       <h2>Inside the product — interface tour</h2>
-      <p class="lead">Mastex SchoolOS uses a <strong>modern dark interface</strong> with green accent highlights, a <strong>top bar</strong> (search, profile, notifications), and a <strong>sidebar</strong> grouped by domain (People, Academics, Finance, and so on). The figures below show <strong>real screens</strong> captured from a disposable demo database via <code>python manage.py capture_handbook_screenshots</code> (see <code>docs/handbook/README.md</code>). To refresh images or swap in your school’s own PNGs, use the same command or follow <code>docs/handbook/images/README.md</code>.</p>
+      <p class="lead">Mastex SchoolOS uses a <strong>modern dark interface</strong> with green accent highlights, a <strong>top bar</strong> (search, profile, notifications), and a <strong>sidebar</strong> grouped by domain (People, Academics, Finance, and so on). The figures below show <strong>real product screens</strong> from a demonstration setup so you can see how leadership, finance, parents, sign-in, and notifications look in practice. Your live school site will show your own data and branding.</p>
 
       <figure class="product-fig">
         <div class="product-fig__frame">
@@ -1208,10 +1752,6 @@
         </div>
         <figcaption><strong>Figure 5.</strong> Bell icon and notification stream: parents and staff see fee events, homework, and school announcements without refreshing email.</figcaption>
       </figure>
-
-      <div class="callout">
-        <p><strong>Using real screenshots in proposals:</strong> Run your live school site at <strong>1280–1440px</strong> width, capture PNGs with no personal pupil names visible (or blur), and save them as <code>docs/handbook/images/01-…05-…png</code>. Uncomment the matching <code>&lt;img&gt;</code> lines in <code>index.html</code>; the layout automatically prefers your photo over the mockup.</p>
-      </div>
     </section>
 
     <!-- ========== GETTING STARTED ========== -->
@@ -1224,7 +1764,7 @@
       <h3>Signing in</h3>
       <ol>
         <li>Open the site and choose <strong>Sign in</strong> (or go to <code>/accounts/login/</code>).</li>
-        <li>Enter the <strong>email</strong> and <strong>password</strong> your school issued.</li>
+        <li>Enter the <strong>username</strong> (and <strong>password</strong>) your school issued — often aligned with the email on file.</li>
         <li>After login you land on a <strong>dashboard</strong> suited to your role.</li>
       </ol>
       <p>If you forget your password, use <strong>password reset</strong> from the login page when your school has email delivery configured.</p>
@@ -1250,6 +1790,436 @@
         <li>ICT lead: create two test accounts (teacher + parent) and walk through <strong>timetable</strong>, <strong>homework</strong>, and <strong>notifications</strong>.</li>
         <li>Send a short SMS or WhatsApp template: “Fees and news are on [URL]. Use the email we have on file to sign in; use Forgot password if needed.”</li>
       </ol>
+    </section>
+
+    <!-- ========== USER MANUAL (step-by-step by role) ========== -->
+    <section class="page page--break" id="user-manual">
+      <h2>User manual — step-by-step guides (by role)</h2>
+      <p class="manual-intro">Use this chapter as your <strong>day-to-day how-to</strong>. Steps describe what you do in the <strong>menus and screens</strong> of Mastex SchoolOS. Exact labels may match your school’s wording; if a menu is missing, your school may have turned that feature off — ask your <strong>school administrator</strong>. For sign-in basics, see <a href="#getting-started">Getting started</a> above.</p>
+
+      <nav class="manual-nav" aria-label="Jump to user manual sections">
+        <strong>Jump to your role or topic</strong>
+        <ul>
+          <li><a href="#manual-everyone">Everyone (first steps)</a></li>
+          <li><a href="#manual-parent">Parents &amp; guardians</a></li>
+          <li><a href="#manual-student">Students</a></li>
+          <li><a href="#manual-teacher">Teachers</a></li>
+          <li><a href="#manual-accountant">Accountant / bursar</a></li>
+          <li><a href="#manual-admin">School admin / headteacher</a></li>
+          <li><a href="#manual-admission">Admission officer</a></li>
+          <li><a href="#manual-librarian">Librarian</a></li>
+          <li><a href="#manual-deputy">Deputy head / HOD / admin assistant</a></li>
+          <li><a href="#manual-nurse">School nurse</a></li>
+          <li><a href="#manual-stuck">If something goes wrong</a></li>
+        </ul>
+      </nav>
+
+      <div class="callout" style="margin-bottom:1rem;">
+        <p><strong>How to read the steps:</strong> We use <strong>→</strong> to mean “then open or choose.” Always use your school’s real web address. Keep this PDF or printout near the staff room or bursar’s desk for quick answers.</p>
+      </div>
+
+      <div class="manual-block" id="manual-everyone">
+        <h3>Everyone — first steps in the system</h3>
+
+        <div class="manual-task">
+          <h4>Sign in</h4>
+          <ol class="manual-steps">
+            <li>Open your school’s website in <strong>Chrome, Edge, Firefox, or Safari</strong>.</li>
+            <li>Tap or click <strong>Sign in</strong> (or open the login page your school shared).</li>
+            <li>Enter your <strong>username</strong> and <strong>password</strong> exactly as issued (watch capital letters).</li>
+            <li>Wait for your <strong>dashboard</strong> to load — it matches your role (parent, teacher, etc.).</li>
+          </ol>
+          <p class="manual-tip"><strong>Tip:</strong> If the page shows a short “Preparing…” splash, wait one second before clicking — the sign-in button must be clickable.</p>
+        </div>
+
+        <div class="manual-task">
+          <h4>Forgot password</h4>
+          <ol class="manual-steps">
+            <li>On the login page, click <strong>Forgot password</strong> (or similar).</li>
+            <li>Enter the <strong>email address</strong> your school has on file (often the same as your username or linked to it).</li>
+            <li>Check your email inbox (and spam folder) for reset instructions.</li>
+            <li>Choose a <strong>new password</strong> you do not use on other websites.</li>
+          </ol>
+          <p class="manual-tip">If no email arrives, your school may not have mail configured — contact the <strong>school office</strong> or ICT lead, not Mastex Technologies first.</p>
+        </div>
+
+        <div class="manual-task">
+          <h4>Profile, password change, sign out</h4>
+          <ol class="manual-steps">
+            <li>Click your <strong>name or profile</strong> in the top-right corner.</li>
+            <li>Open <strong>Profile</strong> or <strong>Edit profile</strong> to update phone or details if your school allows it.</li>
+            <li>Use <strong>Change password</strong> anytime you suspect someone else saw your password.</li>
+            <li>Click <strong>Sign out</strong> when finished on a shared computer (computer lab, reception PC).</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Notifications (bell)</h4>
+          <ol class="manual-steps">
+            <li>Look for the <strong>bell</strong> icon in the top bar.</li>
+            <li>Click it to see recent alerts (fees, homework, announcements, approvals).</li>
+            <li>Open <strong>View all</strong> for the full notification list when you need history.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Find features in the sidebar</h4>
+          <ol class="manual-steps">
+            <li>On a computer, read the <strong>left sidebar</strong> — sections group related items (e.g. Academics, Finance).</li>
+            <li>On a phone, open the <strong>menu</strong> (often ☰) to see the same groups.</li>
+            <li>Use <strong>Search</strong> in the header when your role has it — type a student name or keyword.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-parent">
+        <h3>Parents &amp; guardians</h3>
+
+        <div class="manual-task">
+          <h4>See all your children and their overview</h4>
+          <ol class="manual-steps">
+            <li>Sign in → open <strong>Dashboard</strong> or <strong>Children overview</strong> (wording may vary).</li>
+            <li>Confirm each child listed is correct; if a child is missing, contact the <strong>school office</strong> to link your account.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Check school fees and balances</h4>
+          <ol class="manual-steps">
+            <li>Open the sidebar → <strong>Fees</strong> or <strong>School fees</strong> (or <strong>Finance</strong> group).</li>
+            <li>Select the <strong>child</strong> if you have more than one.</li>
+            <li>Read <strong>amount due</strong>, <strong>amount paid</strong>, and any <strong>outstanding balance</strong>.</li>
+            <li>Open <strong>Payment history</strong> when you need receipts or past transactions.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Pay fees online (Paystack)</h4>
+          <ol class="manual-steps">
+            <li>From <strong>School fees</strong>, find the fee with an outstanding balance.</li>
+            <li>Click <strong>Pay</strong>, <strong>Pay online</strong>, or similar.</li>
+            <li>Complete the <strong>Paystack</strong> checkout (card or mobile money as offered).</li>
+            <li>Wait for success — then check <strong>notifications</strong> and <strong>payment history</strong> for confirmation.</li>
+          </ol>
+          <p class="manual-tip">If Paystack is not shown, your school may use <strong>cash or bank only</strong> — pay at the bursar and ask them to record it in the system.</p>
+        </div>
+
+        <div class="manual-task">
+          <h4>View homework and academic work</h4>
+          <ol class="manual-steps">
+            <li>Sidebar → <strong>Academics</strong> → <strong>Homework</strong> (or your child’s homework list).</li>
+            <li>Open each task to see <strong>instructions</strong>, <strong>due date</strong>, and any <strong>attachments</strong>.</li>
+            <li>Use <strong>Submissions</strong> where shown to confirm your child uploaded work if required.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>View results and report-related information</h4>
+          <ol class="manual-steps">
+            <li>Sidebar → <strong>Results</strong> or <strong>Children’s results</strong> (under Academics).</li>
+            <li>Select the <strong>child</strong> and the <strong>term</strong> or assessment when asked.</li>
+            <li>When the school publishes <strong>report cards</strong>, open them from the same academic area when visible.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Request absence for your child</h4>
+          <ol class="manual-steps">
+            <li>Sidebar → <strong>Absence</strong> or <strong>Absence request</strong> (sometimes under Students or General).</li>
+            <li>Choose the <strong>child</strong>, <strong>dates</strong>, and <strong>reason</strong>; submit the form.</li>
+            <li>Watch the <strong>bell</strong> for <strong>approved</strong> or <strong>rejected</strong>; follow up at the office if it stays pending.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Parent–teacher meetings, events, announcements</h4>
+          <ol class="manual-steps">
+            <li><strong>PT meetings:</strong> open the PT meeting section → choose a <strong>slot</strong> or session your school offers → confirm.</li>
+            <li><strong>Events &amp; calendar:</strong> open <strong>Calendar</strong> or <strong>Events</strong> to see school dates.</li>
+            <li><strong>Announcements:</strong> open <strong>Announcements</strong> for official notices; do not rely only on WhatsApp.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Optional services (canteen, bus, hostel, textbooks)</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>Services hub</strong> or the specific item (Canteen, Transport, etc.) from the sidebar.</li>
+            <li>Follow the on-screen steps to <strong>order</strong>, <strong>register</strong>, or <strong>pay</strong> as your school configured.</li>
+            <li>Check <strong>Payment history</strong> for service charges alongside school fees.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-student">
+        <h3>Students</h3>
+
+        <div class="manual-task">
+          <h4>Daily routine: timetable and homework</h4>
+          <ol class="manual-steps">
+            <li>Sign in → open <strong>My timetable</strong> or <strong>Timetable</strong> to see today’s lessons.</li>
+            <li>Open <strong>Homework</strong> → note <strong>due dates</strong> and download any <strong>attachments</strong>.</li>
+            <li>Submit homework online when your teacher expects an upload — use the <strong>Submit</strong> or upload control on the task.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Check your own fees</h4>
+          <ol class="manual-steps">
+            <li>Sidebar → <strong>School fees</strong> or <strong>Fees</strong>.</li>
+            <li>Read your <strong>balance</strong>; speak with your guardian before the deadline if payment is needed.</li>
+            <li>Use <strong>Payment history</strong> to see what was already paid.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Online classes, quizzes, and online exams</h4>
+          <ol class="manual-steps">
+            <li>When your teacher schedules an <strong>online class</strong>, open it from <strong>Online classes</strong> or the link shown next to your timetable — join at the scheduled time.</li>
+            <li>For <strong>quizzes</strong> or <strong>online exams</strong>, open the assessment from the Academics area → read instructions → start only when allowed.</li>
+            <li><strong>Submit</strong> before the timer ends if a time limit applies; ask your teacher immediately if the page freezes.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Absence request, library, ID and certificates</h4>
+          <ol class="manual-steps">
+            <li><strong>Absence:</strong> submit a request the way your school requires (before or on the day) and watch for approval in notifications.</li>
+            <li><strong>Library:</strong> open <strong>My library books</strong> to see what you borrowed and when to return.</li>
+            <li><strong>ID / certificates:</strong> open <strong>My ID card</strong> or <strong>My certificates</strong> when the school has issued them.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-teacher">
+        <h3>Teachers</h3>
+
+        <div class="manual-task">
+          <h4>Start the day: timetable and attendance</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>My timetable</strong> to confirm class, room, and period.</li>
+            <li>Open <strong>Mark attendance</strong> (or <strong>Student attendance</strong>) for your class.</li>
+            <li>Mark each learner <strong>present</strong>, <strong>absent</strong>, <strong>late</strong>, or <strong>excused</strong> as your school defines.</li>
+            <li>If your school uses <strong>QR attendance</strong>, open the scanner tool and follow the on-screen flow.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Set homework</h4>
+          <ol class="manual-steps">
+            <li>Sidebar → <strong>Homework</strong> → <strong>Create</strong> or <strong>New homework</strong>.</li>
+            <li>Choose <strong>class</strong> or group, write <strong>instructions</strong>, set <strong>due date</strong>, attach files if needed.</li>
+            <li><strong>Save</strong> or <strong>Publish</strong> so parents and students see it immediately.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Results, assessments, and scores</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>Results</strong>, <strong>Upload results</strong>, or <strong>Assessment scores</strong> (labels depend on your school).</li>
+            <li>Select <strong>class</strong> and <strong>subject</strong> → enter marks according to school policy.</li>
+            <li><strong>Save</strong>; double-check before leadership publishes to parents.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Online classes, quizzes, exams</h4>
+          <ol class="manual-steps">
+            <li><strong>Online classes:</strong> create or open a scheduled session → paste or generate the meeting link → ensure students see it in their portal.</li>
+            <li><strong>Quizzes / online exams:</strong> use the exams or quiz tools your menu shows → set duration and attempts if applicable → publish when ready.</li>
+            <li><strong>Grading:</strong> open <strong>Grade essays</strong> or marking views when your school uses them.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Announcements and messages</h4>
+          <ol class="manual-steps">
+            <li>Use <strong>Announcements</strong> for whole-class or school-visible notices (when you have permission).</li>
+            <li>Use <strong>Messages</strong> for conversations your school approves — keep learning instructions on homework where possible.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-accountant">
+        <h3>Accountant / bursar</h3>
+
+        <div class="manual-task">
+          <h4>Set up or review fee structures</h4>
+          <ol class="manual-steps">
+            <li>Sidebar → <strong>Finance</strong> → <strong>Fee structure</strong> (or similar).</li>
+            <li>Create or edit structures for <strong>class</strong>, <strong>amount</strong>, and <strong>term</strong> as your school requires.</li>
+            <li>Use <strong>Generate fees</strong> (if shown) to create charges for students from a structure.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Work the school fees list</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>School fees</strong> → use filters (<strong>unpaid</strong>, <strong>partial</strong>, <strong>paid</strong>) to prioritise follow-up.</li>
+            <li>For cash or bank payments, use <strong>Record payment</strong> / <strong>Mark paid</strong> / <strong>Partial payment</strong> as appropriate.</li>
+            <li>Always tie actions to the correct <strong>student</strong> and <strong>fee row</strong>.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Payment dashboard and reports</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>Payment dashboard</strong> for a consolidated view of inflows (with filters if offered).</li>
+            <li>Open <strong>Financial reports</strong> for leadership or board packs.</li>
+            <li>Use <strong>Expenses</strong> and <strong>Budgets</strong> when your school tracks outflows in the same system.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Paystack (online payments)</h4>
+          <ol class="manual-steps">
+            <li>Confirm with leadership that <strong>School settings</strong> has correct Paystack / subaccount details.</li>
+            <li>Test a <strong>small parent payment</strong> with a volunteer before advertising to all families.</li>
+            <li>Reconcile Paystack settlements with the <strong>fee list</strong> and bank statements regularly.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-admin">
+        <h3>School administrator / headteacher</h3>
+
+        <div class="manual-task">
+          <h4>First-time school setup (essentials)</h4>
+          <ol class="manual-steps">
+            <li>Sign in → open <strong>School settings</strong> or <strong>School profile</strong> (under Administration or Schools).</li>
+            <li>Set <strong>school name</strong>, <strong>logo</strong>, <strong>academic year</strong>, and contact details parents will recognise.</li>
+            <li>Confirm which <strong>features</strong> are visible (your implementation plan may turn modules on in phases).</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Create or manage staff accounts</h4>
+          <ol class="manual-steps">
+            <li>People → <strong>Staff</strong> or <strong>User management</strong> → <strong>Add staff</strong> / <strong>Register</strong>.</li>
+            <li>Enter <strong>name</strong>, <strong>email</strong>, <strong>username</strong>, <strong>role</strong> (teacher, accountant, etc.).</li>
+            <li>Issue a <strong>temporary password</strong> or use the school’s password policy; ask staff to change it on first login if enforced.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Students, parents, and classes</h4>
+          <ol class="manual-steps">
+            <li>Maintain accurate <strong>student records</strong> and <strong>class assignments</strong>; use <strong>Promote class</strong> at year-end per school policy.</li>
+            <li>Link each student to the correct <strong>parent account</strong> so fees and reports show in the right portal.</li>
+            <li>Use <strong>Alumni</strong> or exit workflows when learners leave — keeps active lists clean.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Oversight dashboards</h4>
+          <ol class="manual-steps">
+            <li>Open your <strong>School dashboard</strong> daily for enrolment, attendance, fee, and academic indicators.</li>
+            <li>Use <strong>Analytics</strong> menus for deeper views when enabled.</li>
+            <li>Use <strong>Audit</strong> or activity tools only if your role includes them — for governance, not routine spying.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-admission">
+        <h3>Admission officer</h3>
+
+        <div class="manual-task">
+          <h4>Process applications from the pipeline</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>Applications</strong> or <strong>Admissions</strong> from the sidebar.</li>
+            <li>Open one application → review details and documents → update <strong>status</strong> (e.g. under review, interview, offered).</li>
+            <li>Add internal notes your school agrees on so the next officer can continue without phone handoffs.</li>
+            <li>When an applicant is accepted, follow your school’s steps to <strong>create or link the student record</strong>.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Help families who applied online</h4>
+          <ol class="manual-steps">
+            <li>Remind families they can <strong>track</strong> with the <strong>reference number</strong> from their application.</li>
+            <li>If they cannot find the form, send the exact <strong>link</strong> from your school’s home page (apply / track).</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-librarian">
+        <h3>Librarian</h3>
+
+        <div class="manual-task">
+          <h4>Catalogue and circulation</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>Services hub</strong> → <strong>Library</strong> (or direct Library menu).</li>
+            <li>Use <strong>Manage library</strong> / <strong>Catalog</strong> to add or edit books.</li>
+            <li>For each loan: <strong>Issue</strong> to a student → set <strong>due date</strong> → confirm.</li>
+            <li>On return, use <strong>Return</strong> or close the issue so fines and availability stay accurate.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-deputy">
+        <h3>Deputy head, HOD, admin assistant, general staff</h3>
+
+        <div class="manual-task">
+          <h4>Deputy head / HOD</h4>
+          <ol class="manual-steps">
+            <li>Use <strong>Students</strong> and <strong>Staff</strong> lists for oversight; open <strong>Attendance</strong> summaries for patterns.</li>
+            <li>Support <strong>Homework</strong> and <strong>Timetable</strong> quality across departments.</li>
+            <li>Open <strong>Financial reports</strong> or <strong>Payments</strong> only when your role includes them — coordinate with the bursar for interpretation.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Admin assistant</h4>
+          <ol class="manual-steps">
+            <li>Help maintain <strong>directories</strong> (staff, parents, students) under direction of leadership.</li>
+            <li>Post or update <strong>Announcements</strong> and <strong>Documents</strong> when authorised.</li>
+            <li>Direct visitors to <strong>Services hub</strong> for canteen, transport, or other sign-ups.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>General staff</h4>
+          <ol class="manual-steps">
+            <li>Use <strong>My timetable</strong> and <strong>Announcements</strong> as your main daily tools.</li>
+            <li>Open <strong>Students</strong> only for legitimate school work; never share portal passwords.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="manual-block manual-block--page" id="manual-nurse">
+        <h3>School nurse</h3>
+
+        <div class="manual-task">
+          <h4>Health records and visits</h4>
+          <ol class="manual-steps">
+            <li>Open <strong>Health records</strong> or <strong>Health visits</strong> from your menu (often under Student life or Operations).</li>
+            <li>Select the <strong>student</strong> → record the visit: symptoms, action taken, follow-up if your form includes it.</li>
+            <li>Save so leadership has a consistent log for safeguarding and parent conversations — never replace official medical care.</li>
+          </ol>
+          <p class="manual-tip">Only access records for learners you are authorised to support; follow your school’s confidentiality policy.</p>
+        </div>
+      </div>
+
+      <div class="manual-block" id="manual-stuck">
+        <h3>If something goes wrong</h3>
+
+        <div class="manual-task">
+          <h4>Quick checks (try these first)</h4>
+          <ol class="manual-steps">
+            <li>Refresh the page or try another <strong>browser</strong>.</li>
+            <li>Confirm <strong>Wi‑Fi or mobile data</strong> is working on another site.</li>
+            <li>Check <strong>Caps Lock</strong> and your <strong>username</strong> (not email, unless your school uses email as username).</li>
+            <li>Clear old sessions: <strong>Sign out</strong> fully, then sign in again.</li>
+          </ol>
+        </div>
+
+        <div class="manual-task">
+          <h4>Who to contact</h4>
+          <ol class="manual-steps">
+            <li><strong>Wrong class, missing child, password for one user, fee question:</strong> your <strong>school office</strong> or <strong>school administrator</strong>.</li>
+            <li><strong>Whole school cannot log in or site error for everyone:</strong> school ICT lead first, then <strong>Mastex Technologies</strong> if the platform is confirmed down — see <a href="#support-path">Support</a> in this handbook.</li>
+          </ol>
+        </div>
+      </div>
     </section>
 
     <!-- ========== NOTIFICATIONS ========== -->
