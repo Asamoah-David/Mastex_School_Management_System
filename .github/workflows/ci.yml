@@ -50,6 +50,7 @@ jobs:
       - name: Django system check (deployment)
         run: python manage.py check --deploy
 
+      # Fails if models changed without committed migrations (common Railway blocker).
       - name: No missing migrations
         run: python manage.py makemigrations --check --dry-run
 
