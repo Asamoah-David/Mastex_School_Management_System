@@ -18,6 +18,7 @@ from .models import (
     StudentAchievement,
     StudentActivity,
     StudentDiscipline,
+    StudentClearance,
     AbsenceRequest,
 )
 from .student_lifecycle import (
@@ -83,6 +84,8 @@ def parent_dashboard(request):
                 "attendance_by_child": {},
                 "terms": [],
                 "exam_types": [],
+                "exam_schedule": [],
+                "recent_payments": [],
             })
         
         # Get fees for all children
@@ -644,7 +647,9 @@ def student_detail(request, pk):
     if not school:
         return redirect("home")
     student = get_object_or_404(
-        Student.objects.select_related("user", "parent", "school"), pk=pk, school=school
+        Student.objects.select_related("user", "parent", "school", "clearance_record"),
+        pk=pk,
+        school=school,
     )
     return render(request, "students/student_detail.html", {"student": student})
 
@@ -801,6 +806,36 @@ def student_delete(request, pk):
 
 
 @login_required
+def student_clearance(request, pk):
+    """Record leaver clearance (fees, library, ID, discipline) before exit."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    student = get_object_or_404(Student.objects.select_related("user"), pk=pk, school=school)
+    clearance, _ = StudentClearance.objects.get_or_create(student=student)
+
+    if request.method == "POST":
+        clearance.fees_cleared = request.POST.get("fees_cleared") == "on"
+        clearance.library_cleared = request.POST.get("library_cleared") == "on"
+        clearance.id_card_returned = request.POST.get("id_card_returned") == "on"
+        clearance.discipline_cleared = request.POST.get("discipline_cleared") == "on"
+        clearance.notes = request.POST.get("notes", "").strip()
+        clearance.updated_by = request.user
+        clearance.save()
+        messages.success(request, "Clearance checklist saved.")
+        return redirect("students:student_clearance", pk=pk)
+
+    return render(
+        request,
+        "students/student_clearance.html",
+        {"student": student, "clearance": clearance},
+    )
+
+
+@login_required
 def student_exit(request, pk):
     """
     Process student exit with specific reason - allows graduating, withdrawing,
@@ -813,7 +848,15 @@ def student_exit(request, pk):
     if not school:
         return redirect("home")
     
-    student = get_object_or_404(Student, pk=pk, school=school)
+    student = get_object_or_404(
+        Student.objects.select_related("user", "parent", "clearance_record"),
+        pk=pk,
+        school=school,
+    )
+    StudentClearance.objects.get_or_create(student=student)
+    student = Student.objects.select_related("user", "parent", "clearance_record").get(
+        pk=student.pk, school=school
+    )
 
     if request.method == "GET":
         if student.status not in ("active", "suspended"):
@@ -843,6 +886,19 @@ def student_exit(request, pk):
         if exit_reason not in status_map:
             messages.error(request, "Please select a valid exit reason.")
             return redirect("students:student_exit", pk=pk)
+
+        clearance = getattr(student, "clearance_record", None)
+        if clearance and not clearance.is_complete:
+            if not (
+                request.POST.get("clearance_override") == "on"
+                and is_school_leadership(request.user)
+            ):
+                messages.error(
+                    request,
+                    "Leaver clearance is not complete. Use the clearance page to tick all items, "
+                    "or use the leadership override on this form if you are authorised.",
+                )
+                return redirect("students:student_clearance", pk=pk)
 
         with transaction.atomic():
             student.status = new_status

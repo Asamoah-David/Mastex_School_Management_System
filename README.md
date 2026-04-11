@@ -1,9 +1,10 @@
-# Management School Management System
+# Mastex SchoolOS
 
-A modern **cloud-based School Management System** built with Django.
-This platform helps schools manage **students, fees, payments, communication, and administrative tasks** from a centralized dashboard.
+**Mastex SchoolOS** is a modern, **cloud-based school management system** (Django) from **Mastex Technologies**. It helps schools run **students, fees, academics, operations, and parent engagement** from one secure portal — designed for real school workflows, not generic CRM bolt-ons.
 
-The system is designed as a **Software-as-a-Service (SaaS)** platform, enabling schools to automate operations, reduce manual work, and improve communication with parents.
+**Product site:** [mastexedu.online](https://mastexedu.online) · **Product owner:** Asamoah David · **Email:** mastex.digital.world@gmail.com · **WhatsApp:** [+233 544 789 716](https://wa.me/233544789716)
+
+The platform suits **Software-as-a-Service (SaaS)** deployment: schools automate administration, collect fees with optional **Paystack** checkout, and keep families informed with in-app notifications and optional SMS.
 
 ---
 
@@ -189,6 +190,12 @@ ADMIN_PHONE=
 
 ---
 
+## Documentation
+
+- **Printable handbook (PDF-ready, school-facing, UI tour mockups + optional real screenshots):** open [docs/handbook/index.html](docs/handbook/index.html) in Chrome/Edge → Print → Save as PDF — see [docs/handbook/README.md](docs/handbook/README.md) (includes **`python manage.py capture_handbook_screenshots`** for Playwright captures) and [docs/handbook/images/README.md](docs/handbook/images/README.md)
+- **School user manual (Markdown):** [docs/MASTEX_USER_GUIDE.md](docs/MASTEX_USER_GUIDE.md) (roles, scenarios, support vs Mastex provider)
+- **Deployment:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (environment variables, CI/CD, logging, Sentry, backups)
+
 ## Deployment
 
 **Full guide:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (environment variables, CI/CD, logging, Sentry, backups).  
@@ -219,7 +226,13 @@ This project is open source and available under the MIT License.
 
 ---
 
-## Author
+## Mastex Technologies
 
-Developed by **Asamoah David**
-Computer Science Student | Full Stack Developer | Data Scientist
+**Mastex SchoolOS** is developed and product-managed by **Mastex Technologies**.
+
+- **Website:** [https://mastexedu.online](https://mastexedu.online)  
+- **Founder & Product Owner:** Asamoah David  
+- **Email:** mastex.digital.world@gmail.com  
+- **WhatsApp:** [+233 544 789 716](https://wa.me/233544789716)  
+
+For school licensing, demos, implementation, or platform support, use the contacts above.

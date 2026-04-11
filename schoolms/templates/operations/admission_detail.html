@@ -13,7 +13,7 @@
             <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">{{ application.class_applied_for }}{% if application.school %} · {{ application.school.name }}{% endif %}</p>
         </div>
         <div style="text-align: right;">
-            <span class="badge {% if application.status == 'pending' %}badge-warning{% elif application.status == 'approved' %}badge-success{% elif application.status == 'rejected' %}badge-danger{% else %}badge-info{% endif %}" style="font-size: 0.85rem;">
+            <span class="badge {% if application.status == 'pending' %}badge-warning{% elif application.status == 'approved' %}badge-success{% elif application.status == 'rejected' %}badge-danger{% elif application.status == 'withdrawn' %}badge-secondary{% else %}badge-info{% endif %}" style="font-size: 0.85rem;">
                 {{ application.get_status_display }}
             </span>
             <p style="margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--text-soft);">Applied {{ application.applied_at|date:"M j, Y H:i" }}</p>
@@ -82,12 +82,34 @@
     </div>
     {% endif %}
 
+    {% if application.status not in admission_terminal_statuses %}
+    <div class="content-card" style="margin-top: 1.25rem; max-width: 520px;">
+        <h3 style="margin: 0 0 0.75rem; font-size: 1rem;">Pipeline</h3>
+        <p style="margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-soft);">Move the application through your internal stages. Guardians with a portal account matching this application’s email receive an in-app update.</p>
+        <form method="post" action="{% url 'operations:admission_set_status' application.pk %}" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end;">
+            {% csrf_token %}
+            <div>
+                <label style="display: block; font-size: 0.75rem; color: var(--text-soft); margin-bottom: 0.25rem;">New status</label>
+                <select name="status" class="form-control" required>
+                    {% for value, label in admission_status_choices %}
+                    {% if value in admission_pipeline_statuses %}
+                    <option value="{{ value }}" {% if application.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Update status</button>
+        </form>
+    </div>
+    {% endif %}
+
     <div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
-        {% if application.status == 'pending' %}
-        <a href="{% url 'operations:admission_approve' application.pk %}" class="btn btn-success">Approve</a>
+        {% if application.status not in admission_terminal_statuses and application.status != 'withdrawn' %}
+        <a href="{% url 'operations:admission_approve' application.pk %}" class="btn btn-success">Approve &amp; enrol</a>
         <a href="{% url 'operations:admission_reject' application.pk %}" class="btn btn-danger">Reject</a>
         {% endif %}
         <a href="{% url 'operations:admission_list' %}" class="btn btn-secondary">Back to list</a>
+        <a href="{% url 'operations:admission_pipeline' %}" class="btn btn-secondary">Pipeline board</a>
     </div>
 </div>
 {% endblock %}

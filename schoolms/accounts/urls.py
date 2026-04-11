@@ -75,6 +75,13 @@ urlpatterns = [
     path("users/", user_management, name="user_management"),
     path("staff/", staff_list, name="staff_list"),
     path("staff/payroll-register/", hr_views.staff_payroll_register, name="staff_payroll_register"),
+    path("staff/payroll-bulk/", hr_views.staff_payroll_bulk_record, name="staff_payroll_bulk_record"),
+    path(
+        "staff/payroll/payment/<int:payment_id>/payslip/",
+        hr_views.staff_payroll_payslip,
+        name="staff_payroll_payslip",
+    ),
+    path("my-payroll/", hr_views.staff_my_payroll, name="staff_my_payroll"),
     path("staff/<int:pk>/payroll-export/", hr_views.staff_payroll_export_user, name="staff_payroll_export_user"),
     path("staff/<int:pk>/payroll/disburse/", hr_views.staff_payroll_disburse, name="staff_payroll_disburse"),
     path("staff/<int:pk>/payout-profile/", hr_views.staff_payout_profile_save, name="staff_payout_profile_save"),

@@ -71,6 +71,18 @@
                                    value="{{ filters.user }}">
                         </div>
 
+                        {% if can_view_all and audit_schools %}
+                        <div class="mb-3">
+                            <label class="form-label">School</label>
+                            <select name="school_id" class="form-select">
+                                <option value="">All schools</option>
+                                {% for s in audit_schools %}
+                                <option value="{{ s.id }}" {% if filters.school_id == s.id|stringformat:"d" %}selected{% endif %}>{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
                         <!-- Date Range -->
                         <div class="mb-3">
                             <label class="form-label">Date From</label>

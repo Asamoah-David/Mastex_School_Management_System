@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mastex SchoolOS — School Handbook | Mastex Technologies</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0c1222;
+      --ink-soft: #3d4a63;
+      --muted: #64748b;
+      --line: #c8d0dc;
+      --surface: #f8fafc;
+      --card: #ffffff;
+      --brand: #15803d;
+      --brand-bright: #22c55e;
+      --brand-soft: #ecfdf5;
+      --accent: #0f172a;
+    }
+
+    * { box-sizing: border-box; }
+    html { font-size: 11pt; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      background: #e8ecf2;
+    }
+
+    /* ----- Screen preview chrome ----- */
+    .preview-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(90deg, var(--accent), #1e3a5f);
+      color: #e2e8f0;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.85rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1.5rem;
+      border-bottom: 3px solid var(--brand-bright);
+    }
+    .preview-bar strong { color: #fff; }
+    .preview-bar kbd {
+      background: rgba(255,255,255,0.12);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    @media print {
+      .preview-bar { display: none !important; }
+    }
+
+    .handbook {
+      max-width: 210mm;
+      margin: 0 auto;
+      background: var(--card);
+      box-shadow: 0 4px 48px rgba(15, 23, 42, 0.12);
+    }
+    @media print {
+      .handbook { box-shadow: none; max-width: none; margin: 0; }
+      body { background: #fff; }
+    }
+
+    /* ----- Cover ----- */
+    .cover {
+      min-height: 297mm;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: var(--card);
+      page-break-after: always;
+      break-after: page;
+    }
+    .cover-top {
+      background: linear-gradient(145deg, var(--accent) 0%, #1e293b 42%, #0f172a 100%);
+      color: #f1f5f9;
+      padding: 2.75rem 2.25rem 3.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover-top::before {
+      content: "";
+      position: absolute;
+      top: -30%;
+      right: -15%;
+      width: 70%;
+      height: 90%;
+      background: radial-gradient(ellipse, rgba(34, 197, 94, 0.22) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .cover-mark {
+      width: 3.25rem;
+      height: 3.25rem;
+      border-radius: 1rem;
+      background: linear-gradient(135deg, var(--brand-bright), var(--brand));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.35rem;
+      color: #022c22;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 12px 40px rgba(34, 197, 94, 0.35);
+    }
+    .cover h1 {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 2.65rem;
+      font-weight: 700;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+    .cover .edition {
+      font-size: 0.95rem;
+      color: #94a3b8;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .cover .tagline {
+      font-size: 1.2rem;
+      color: #cbd5e1;
+      font-weight: 500;
+      max-width: 28ch;
+      margin: 0;
+    }
+    .cover-mid {
+      padding: 2.5rem 2.25rem 2rem;
+      flex: 1;
+    }
+    .cover-mid .doc-title {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.85rem;
+      color: var(--accent);
+      margin: 0 0 0.5rem;
+    }
+    .cover-mid .doc-sub {
+      color: var(--muted);
+      margin: 0 0 1.5rem;
+      font-size: 1.02rem;
+    }
+    .cover-highlights {
+      display: grid;
+      gap: 0.65rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .cover-highlights li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.98rem;
+      color: var(--ink-soft);
+    }
+    .cover-highlights li::before {
+      content: "✓";
+      flex-shrink: 0;
+      color: var(--brand);
+      font-weight: 800;
+    }
+    .cover-bottom {
+      padding: 1.5rem 2.25rem 2.25rem;
+      border-top: 4px solid var(--brand-bright);
+      background: var(--brand-soft);
+    }
+    .cover-bottom .placeholder {
+      font-size: 0.9rem;
+      color: var(--brand);
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+    }
+    .cover-bottom .hint {
+      font-size: 0.82rem;
+      color: var(--ink-soft);
+      margin: 0;
+    }
+    .cover .publisher {
+      margin: 1.35rem 0 0;
+      font-size: 0.78rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #86efac;
+      font-weight: 700;
+    }
+    .cover .founder-line {
+      margin: 0.4rem 0 0;
+      font-size: 0.88rem;
+      color: #94a3b8;
+      max-width: 36ch;
+    }
+    .cover .founder-line a {
+      color: #bbf7d0;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .cover .founder-line a:hover { text-decoration: underline; }
+
+    .contact-card {
+      margin-top: 1rem;
+      padding: 1rem 1.15rem;
+      border-radius: 0.55rem;
+      border: 1px solid rgba(34, 197, 94, 0.45);
+      background: linear-gradient(135deg, #fff 0%, var(--brand-soft) 100%);
+      break-inside: avoid;
+    }
+    .contact-card p { margin: 0.25rem 0; font-size: 0.92rem; color: var(--ink); }
+    .contact-card a { color: var(--brand); font-weight: 600; }
+
+    /* ----- Inner pages ----- */
+    .page {
+      padding: 1.75rem 2.25rem 2.5rem;
+      page-break-after: auto;
+    }
+    .page--break {
+      page-break-before: always;
+      break-before: page;
+    }
+
+    h2 {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0 0 1rem;
+      padding-bottom: 0.45rem;
+      border-bottom: 2px solid var(--brand-bright);
+    }
+    h3 {
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 1.35rem 0 0.5rem;
+    }
+    h4 {
+      font-size: 0.98rem;
+      font-weight: 600;
+      color: var(--ink-soft);
+      margin: 1rem 0 0.35rem;
+    }
+    p { margin: 0 0 0.75rem; color: var(--ink-soft); }
+    p.lead {
+      font-size: 1.05rem;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    ul, ol { margin: 0.35rem 0 0.85rem 1.2rem; padding: 0; color: var(--ink-soft); }
+    li { margin: 0.28rem 0; }
+    strong { color: var(--ink); font-weight: 600; }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin: 0.75rem 0 1rem;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: var(--brand-soft);
+      color: var(--brand);
+      border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 0.65rem;
+      padding: 1rem 1.1rem;
+      background: var(--surface);
+      break-inside: avoid;
+    }
+    .card h4 { margin-top: 0; color: var(--accent); }
+    .card p:last-child { margin-bottom: 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0.75rem 0 1.25rem;
+      break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 0.45rem 0.55rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--accent);
+      color: #f8fafc;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tr:nth-child(even) td { background: #fafbfc; }
+
+    .toc { margin: 0.5rem 0 1rem; }
+    .toc a { color: var(--brand); text-decoration: none; font-weight: 500; }
+    .toc a:hover { text-decoration: underline; }
+    .toc li { margin: 0.35rem 0; }
+    @media print { .toc a { color: #000; text-decoration: none; } }
+
+    .callout {
+      border-left: 4px solid var(--brand-bright);
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      background: var(--brand-soft);
+      border-radius: 0 0.5rem 0.5rem 0;
+      break-inside: avoid;
+    }
+    .callout p { margin: 0; font-size: 0.95rem; color: var(--ink); }
+
+    .footnote {
+      font-size: 0.78rem;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      margin-top: 1.5rem;
+      padding-top: 0.75rem;
+    }
+
+    .back {
+      page-break-before: always;
+      break-before: page;
+      min-height: 60vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 2rem 2.25rem 2.5rem;
+      background: linear-gradient(to top, var(--brand-soft), #fff);
+    }
+    .back .logo-line {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .back .logo-line .mark {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 0.75rem;
+      background: linear-gradient(135deg, var(--brand-bright), var(--brand));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #022c22;
+    }
+    .back h2 { border: none; margin: 0; padding: 0; font-size: 1.35rem; }
+    .back p { font-size: 0.9rem; margin: 0.35rem 0 0; }
+
+    .role-block {
+      margin: 0.85rem 0;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: 0.5rem;
+      break-inside: avoid;
+    }
+    .role-block h4 {
+      margin: 0 0 0.45rem;
+      font-size: 0.95rem;
+      color: var(--accent);
+    }
+    .role-block ul { margin: 0; }
+
+    .scenario {
+      margin: 1rem 0;
+      padding: 1rem 1.1rem;
+      border-radius: 0.55rem;
+      border: 1px solid var(--line);
+      background: linear-gradient(135deg, #fff 0%, var(--surface) 100%);
+      break-inside: avoid;
+    }
+    .scenario h4 {
+      margin: 0 0 0.4rem;
+      font-size: 0.95rem;
+      color: var(--accent);
+    }
+    .scenario .situation { font-size: 0.88rem; color: var(--muted); margin: 0 0 0.35rem; }
+    .scenario .outcome { margin: 0; font-size: 0.92rem; color: var(--ink-soft); }
+    .scenario .outcome strong { color: var(--brand); }
+
+    .benefit-list {
+      margin: 0.5rem 0 1rem;
+      padding: 0;
+      list-style: none;
+    }
+    .benefit-list li {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.65rem;
+      align-items: start;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid #e8edf3;
+      font-size: 0.92rem;
+      color: var(--ink-soft);
+    }
+    .benefit-list li span:first-child {
+      font-weight: 800;
+      color: var(--brand);
+      font-size: 1.05rem;
+      line-height: 1.2;
+    }
+
+    /* ----- Product UI figures (CSS mockups + optional real PNG) ----- */
+    .product-fig {
+      margin: 1.35rem 0 1.6rem;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .product-fig figcaption {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+      line-height: 1.45;
+    }
+    .product-fig figcaption strong { color: var(--ink); }
+    .product-fig__frame {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.55);
+      box-shadow:
+        0 4px 6px rgba(15, 23, 42, 0.06),
+        0 18px 48px rgba(15, 23, 42, 0.14);
+      background: #0f172a;
+      position: relative;
+    }
+    .product-fig__shot {
+      display: block;
+      width: 100%;
+      height: auto;
+      vertical-align: top;
+      position: relative;
+      z-index: 2;
+    }
+    .product-fig__frame:has(.product-fig__shot) .ui-mock { display: none !important; }
+
+    .ui-mock {
+      font-size: 9px;
+      color: #94a3b8;
+      line-height: 1.2;
+      -webkit-font-smoothing: antialiased;
+    }
+    .ui-mock .bm-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: linear-gradient(to bottom, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.99));
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .ui-mock .bm-dots { display: flex; gap: 5px; flex-shrink: 0; }
+    .ui-mock .bm-dots span {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #475569;
+    }
+    .ui-mock .bm-dots span:nth-child(1) { background: #f87171; }
+    .ui-mock .bm-dots span:nth-child(2) { background: #fbbf24; }
+    .ui-mock .bm-dots span:nth-child(3) { background: #4ade80; }
+    .ui-mock .bm-url {
+      flex: 1;
+      background: rgba(2, 6, 23, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: #cbd5e1;
+      font-size: 8.5px;
+      letter-spacing: 0.02em;
+    }
+    .ui-mock .bm-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(15, 23, 42, 0.98);
+      border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+    }
+    .ui-mock .bm-brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      color: #e2e8f0;
+      font-size: 9px;
+    }
+    .ui-mock .bm-logo {
+      width: 22px;
+      height: 22px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #4ade80, #16a34a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #022c22;
+      font-weight: 800;
+      font-size: 11px;
+    }
+    .ui-mock .bm-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #94a3b8;
+      font-size: 8px;
+    }
+    .ui-mock .bm-bell {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #4ade80;
+      font-size: 11px;
+    }
+    .ui-mock .bm-body {
+      display: grid;
+      grid-template-columns: 118px 1fr;
+      min-height: 168px;
+    }
+    .ui-mock .bm-side {
+      background: rgba(30, 41, 59, 0.95);
+      border-right: 1px solid rgba(148, 163, 184, 0.12);
+      padding: 8px 6px;
+    }
+    .ui-mock .bm-sec {
+      font-size: 6.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #22c55e;
+      margin: 6px 4px 4px;
+      font-weight: 700;
+    }
+    .ui-mock .bm-nav {
+      padding: 4px 6px;
+      margin: 2px 0;
+      border-radius: 4px;
+      font-size: 7.5px;
+      color: #94a3b8;
+    }
+    .ui-mock .bm-nav.is-active {
+      background: rgba(34, 197, 94, 0.12);
+      color: #e5ffe9;
+      border: 1px solid rgba(34, 197, 94, 0.25);
+    }
+    .ui-mock .bm-main {
+      padding: 10px 12px;
+      background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+    }
+    .ui-mock .bm-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+    .ui-mock .bm-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .ui-mock .bm-kpi {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .ui-mock .bm-kpi .v {
+      font-size: 14px;
+      font-weight: 800;
+      color: #4ade80;
+      line-height: 1;
+    }
+    .ui-mock .bm-kpi .l {
+      font-size: 6.5px;
+      color: #94a3b8;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .ui-mock .bm-table-wrap {
+      margin-top: 8px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+    }
+    .ui-mock .bm-th {
+      display: grid;
+      grid-template-columns: 1fr 0.7fr 0.9fr;
+      gap: 4px;
+      padding: 5px 8px;
+      background: rgba(15, 23, 42, 0.95);
+      font-size: 6.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .ui-mock .bm-tr {
+      display: grid;
+      grid-template-columns: 1fr 0.7fr 0.9fr;
+      gap: 4px;
+      padding: 6px 8px;
+      font-size: 7.5px;
+      color: #cbd5e1;
+      border-top: 1px solid rgba(148, 163, 184, 0.08);
+      background: rgba(30, 41, 59, 0.35);
+    }
+    .ui-mock .bm-tr:nth-child(even) { background: rgba(15, 23, 42, 0.4); }
+    .ui-mock .bm-tag {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 6.5px;
+      font-weight: 700;
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+    }
+    .ui-mock .bm-card {
+      max-width: 200px;
+      margin: 0 auto;
+      background: rgba(30, 41, 59, 0.75);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .ui-mock .bm-card h5 {
+      margin: 0 0 8px;
+      font-size: 9px;
+      color: #f1f5f9;
+      font-weight: 700;
+    }
+    .ui-mock .bm-bal {
+      font-size: 18px;
+      font-weight: 800;
+      color: #4ade80;
+    }
+    .ui-mock .bm-btn {
+      margin-top: 10px;
+      padding: 7px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 7.5px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #22c55e, #15803d);
+      color: #022c22;
+    }
+    .ui-mock .bm-drop {
+      position: absolute;
+      top: 6px;
+      right: 10px;
+      width: 130px;
+      background: rgba(30, 41, 59, 0.98);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      z-index: 3;
+    }
+    .ui-mock .bm-drop .row {
+      padding: 5px 4px;
+      font-size: 7px;
+      color: #e2e8f0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+    .ui-mock .bm-drop .row:last-child { border: none; }
+    .ui-mock--notify .bm-bar { position: relative; }
+    .ui-mock--notify .bm-body { grid-template-columns: 1fr; min-height: 140px; }
+    .ui-mock--notify .bm-main { position: relative; padding-top: 4px; min-height: 130px; }
+    .ui-mock--login .bm-body { grid-template-columns: 1fr; min-height: 140px; }
+    .ui-mock--login .bm-login {
+      max-width: 180px;
+      margin: 12px auto;
+      padding: 14px;
+      background: rgba(30, 41, 59, 0.85);
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .ui-mock--login .bm-in {
+      height: 10px;
+      margin: 6px 0;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 4px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .ui-mock--login .bm-in-lg { height: 14px; }
+    .cover-devices {
+      margin-top: 1.25rem;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .cover-devices .mini-frame {
+      width: 112px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid rgba(148, 163, 184, 0.35);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+      transform: rotate(-2deg);
+    }
+    .cover-devices .mini-frame:nth-child(2) {
+      width: 88px;
+      transform: rotate(3deg);
+    }
+    .cover-devices .mini-frame .ui-mock .bm-body { min-height: 100px; grid-template-columns: 72px 1fr; }
+    .cover-devices .mini-frame:nth-child(2) .ui-mock .bm-body { grid-template-columns: 1fr; min-height: 118px; }
+
+    @page {
+      size: A4;
+      margin: 16mm 18mm 20mm 18mm;
+    }
+    @media print {
+      html { font-size: 10.5pt; }
+      .cover-top,
+      th,
+      .back,
+      .product-fig__frame,
+      .ui-mock {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      h2, h3, h4, .role-block, .callout, .card, .product-fig { break-inside: avoid; page-break-inside: avoid; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.75em; color: #666; }
+      .toc a::after { content: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="preview-bar no-print">
+    <strong>Printable handbook</strong>
+    <span>Press <kbd>Ctrl</kbd>+<kbd>P</kbd> / <kbd>Cmd</kbd>+<kbd>P</kbd> → <strong>Save as PDF</strong> · Paper: <strong>A4</strong> · Turn on <strong>Background graphics</strong> for full cover styling.</span>
+  </div>
+
+  <div class="handbook">
+
+    <!-- ========== COVER ========== -->
+    <section class="cover" id="cover">
+      <div>
+        <div class="cover-top">
+          <div class="cover-mark">M</div>
+          <p class="edition">Official user handbook</p>
+          <h1>Mastex SchoolOS</h1>
+          <p class="tagline">One connected platform for academics, finance, operations, and family engagement.</p>
+          <p class="publisher">Mastex Technologies</p>
+          <p class="founder-line">Education software you can grow with · <a href="https://mastexedu.online" target="_blank" rel="noopener">mastexedu.online</a> · <a href="mailto:mastex.digital.world@gmail.com">Email</a> · <a href="https://wa.me/233544789716" target="_blank" rel="noopener">WhatsApp</a></p>
+        </div>
+        <div class="cover-mid">
+          <h2 class="doc-title">School user &amp; orientation manual</h2>
+          <p class="doc-sub">Written for <strong>your school</strong>: leadership, teachers, finance, support staff, parents, and students. Everything you need to adopt, train, and use Mastex SchoolOS day to day — without technical jargon.</p>
+          <ul class="cover-highlights">
+            <li>One secure portal per school — roles see only what they should</li>
+            <li>Fees, services, and online payments (Paystack) with clear history for families</li>
+            <li>Full academic cycle: timetables, homework, results, report cards, online exams &amp; classes</li>
+            <li>Operations that match real schools: admissions, attendance, library, health, events, messaging</li>
+            <li>Automatic in-app alerts and optional SMS — fewer “we didn’t know” moments</li>
+          </ul>
+          <div class="cover-devices" aria-hidden="true">
+            <div class="mini-frame">
+              <div class="ui-mock">
+                <div class="bm-top"><div class="bm-dots"><span></span><span></span><span></span></div><div class="bm-url">https://yourschool.mastexedu.online</div></div>
+                <div class="bm-bar"><div class="bm-brand"><div class="bm-logo">M</div> Mastex SchoolOS</div><div class="bm-tools"><span class="bm-bell">🔔</span></div></div>
+                <div class="bm-body">
+                  <div class="bm-side">
+                    <div class="bm-sec">People</div>
+                    <div class="bm-nav is-active">Students</div>
+                    <div class="bm-nav">Staff</div>
+                    <div class="bm-sec">Finance</div>
+                    <div class="bm-nav">School fees</div>
+                  </div>
+                  <div class="bm-main">
+                    <div class="bm-title">Dashboard</div>
+                    <div class="bm-kpis">
+                      <div class="bm-kpi"><div class="v">1.2k</div><div class="l">Students</div></div>
+                      <div class="bm-kpi"><div class="v">GHS</div><div class="l">Fees tracked</div></div>
+                      <div class="bm-kpi"><div class="v">Live</div><div class="l">Portal</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mini-frame">
+              <div class="ui-mock">
+                <div class="bm-top"><div class="bm-dots"><span></span><span></span><span></span></div><div class="bm-url">Parent portal</div></div>
+                <div class="bm-bar"><div class="bm-brand"><div class="bm-logo">M</div> Fees</div></div>
+                <div class="bm-body">
+                  <div class="bm-main" style="padding:12px;">
+                    <div class="bm-card" style="margin:0;max-width:none;">
+                      <h5>School fees</h5>
+                      <div class="bm-bal">GHS 240.00</div>
+                      <div style="font-size:7px;color:#94a3b8;margin-top:4px;">Balance due</div>
+                      <div class="bm-btn">Pay with Paystack</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cover-bottom">
+        <p class="placeholder">Your school name — write here before printing</p>
+        <p class="hint">Edition: April 2026 (adjust as needed). One handbook per school deployment.</p>
+        <p class="hint" style="margin-top:0.85rem;padding-top:0.75rem;border-top:1px solid rgba(21,128,61,0.25);">
+          <strong>Mastex Technologies</strong> — Mastex SchoolOS<br />
+          <span style="display:block;margin-top:0.35rem;">Founder &amp; Product Owner: Asamoah David</span>
+          <span style="display:block;margin-top:0.35rem;"><a href="https://mastexedu.online" target="_blank" rel="noopener" style="color:var(--brand);font-weight:600;">mastexedu.online</a></span>
+          <span style="display:block;margin-top:0.25rem;">WhatsApp: <a href="https://wa.me/233544789716" target="_blank" rel="noopener" style="color:var(--brand);font-weight:600;">+233 544 789 716</a></span>
+          <span style="display:block;margin-top:0.25rem;">Email: <a href="mailto:mastex.digital.world@gmail.com" style="color:var(--brand);font-weight:600;">mastex.digital.world@gmail.com</a></span>
+        </p>
+      </div>
+    </section>
+
+    <!-- ========== WHY MASTEX ========== -->
+    <section class="page page--break" id="why">
+      <h2>Why Mastex SchoolOS</h2>
+      <p class="lead">Schools run on information that moves between classrooms, offices, and homes. When that information lives in notebooks, WhatsApp threads, and separate spreadsheets, mistakes multiply and parents lose trust. Mastex SchoolOS is a <strong>single, secure web application</strong> built around your school’s real workflows — so leaders can govern, staff can execute, and families can see what matters, in one place.</p>
+
+      <div class="pill-row">
+        <span class="pill">One portal</span>
+        <span class="pill">Role-based access</span>
+        <span class="pill">Parent transparency</span>
+        <span class="pill">Audit-ready activity</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>For leadership</h4>
+          <p>Visibility across enrolment, attendance, results, and fees without chasing files. Promote classes, run admissions, review analytics, and apply policy through permissions — not informal password sharing.</p>
+        </div>
+        <div class="card">
+          <h4>For teachers</h4>
+          <p>Attendance, homework, results, and exams follow a consistent rhythm. Less duplication of data entry; parents hear through announcements and messages instead of only report day.</p>
+        </div>
+        <div class="card">
+          <h4>For finance teams</h4>
+          <p>Fee structures, partial payments, cash or bank recording, and consolidated payment views sit next to expenses and budgets. Families pay online with card when your school enables Paystack.</p>
+        </div>
+        <div class="card">
+          <h4>For families</h4>
+          <p>Parents and students open the same school-branded site: timetables, homework, results, balances, and optional services. In-app notifications reduce “no one told us” complaints.</p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <p><strong>Built for schools, not adapted from generic business software.</strong> Canteen, transport, hostel, textbooks, library loans, PT meetings, certificates, and ID cards reflect how your institution actually operates.</p>
+      </div>
+      <p style="margin-top:1.25rem;font-size:0.9rem;color:var(--muted);">Mastex SchoolOS is a product of <strong>Mastex Technologies</strong>, led by <strong>Asamoah David</strong>. Schools work directly with us for licensing, onboarding, and ongoing platform support.</p>
+    </section>
+
+    <!-- ========== BENEFITS ========== -->
+    <section class="page page--break" id="benefits">
+      <h2>What your school gains (outcomes you can expect)</h2>
+      <p>Below is what schools typically report after standardising on Mastex SchoolOS. Your exact timeline depends on training and how completely you move processes into the system.</p>
+      <ul class="benefit-list">
+        <li><span>1</span><span><strong>Less administrative drag.</strong> One source of truth for student records, class lists, and fee balances reduces repeated data capture and conflicting versions.</span></li>
+        <li><span>2</span><span><strong>Faster fee collection.</strong> Clear balances, payment history, and optional online checkout mean fewer disputes and shorter queues at the bursar’s window.</span></li>
+        <li><span>3</span><span><strong>Stronger parent relationships.</strong> Timetables, homework, results, and announcements are visible on demand; optional SMS reinforces urgent messages.</span></li>
+        <li><span>4</span><span><strong>Better academic oversight.</strong> Results hubs, report cards, exam tools, and analytics help leadership spot trends early instead of only at term end.</span></li>
+        <li><span>5</span><span><strong>Safer, fairer operations.</strong> Role-based menus mean a class teacher does not see the whole payroll; an audit trail supports accountability where your school enables it.</span></li>
+        <li><span>6</span><span><strong>Professional image.</strong> A modern portal signals that your school invests in organisation and communication — a factor parents notice when choosing or staying.</span></li>
+      </ul>
+      <h3>Who should read this handbook before go-live</h3>
+      <ul>
+        <li><strong>Headteacher / school admin</strong> — owns adoption, assigns roles, approves communication policy.</li>
+        <li><strong>Bursar / accountant</strong> — owns fee structures, Paystack setup with leadership, and reconciliation habits.</li>
+        <li><strong>ICT or admin lead</strong> — trains staff, distributes parent letters with login instructions.</li>
+        <li><strong>Teachers</strong> — skim “Teacher” and “Notifications” sections; depth comes with weekly use.</li>
+      </ul>
+    </section>
+
+    <!-- ========== SCENARIOS ========== -->
+    <section class="page page--break" id="scenarios">
+      <h2>Real-world scenarios (before &amp; after)</h2>
+      <p>These examples help boards and parent associations understand why a unified system matters. They map directly to features inside SchoolOS.</p>
+
+      <div class="scenario">
+        <h4>Scenario: “Parents say they never knew fees were due.”</h4>
+        <p class="situation"><strong>Situation:</strong> Notices on paper or informal channels; some guardians travel or use different phone numbers.</p>
+        <p class="outcome"><strong>With Mastex:</strong> Fees appear on the parent portal with running balances; <strong>in-app notifications</strong> fire when new charges or payments post; optional <strong>SMS</strong> reinforces critical reminders if your school switches that on.</p>
+      </div>
+      <div class="scenario">
+        <h4>Scenario: “Report day is chaos — long queues for printed slips.”</h4>
+        <p class="situation"><strong>Situation:</strong> Results are prepared in isolation; parents only see outcomes once per term on paper.</p>
+        <p class="outcome"><strong>With Mastex:</strong> Teachers enter or upload results in workflow; parents follow <strong>children’s results</strong> online; <strong>report cards</strong> can be generated systematically. Parents still attend meetings — but without surprise about the numbers.</p>
+      </div>
+      <div class="scenario">
+        <h4>Scenario: “We cannot prove who approved a discount or a refund.”</h4>
+        <p class="situation"><strong>Situation:</strong> Adjustments happen verbally or in private spreadsheets.</p>
+        <p class="outcome"><strong>With Mastex:</strong> Fee actions are tied to logged-in users; leadership uses <strong>school fees</strong> screens and, where enabled, <strong>audit</strong> views to review sensitive activity. Your processes stay transparent to authorised reviewers.</p>
+      </div>
+      <div class="scenario">
+        <h4>Scenario: “Admission season overwhelms the front office.”</h4>
+        <p class="situation"><strong>Situation:</strong> Forms on paper, phone calls for status, manual lists.</p>
+        <p class="outcome"><strong>With Mastex:</strong> Public <strong>apply</strong> and <strong>track</strong> flows reduce “what is my status?” calls; admission staff use the <strong>applications</strong> pipeline; successful applicants flow into student records without retyping everything.</p>
+      </div>
+      <div class="scenario">
+        <h4>Scenario: “Teachers spend evenings answering the same homework questions on WhatsApp.”</h4>
+        <p class="situation"><strong>Situation:</strong> Instructions exist only in the classroom or scattered chats.</p>
+        <p class="outcome"><strong>With Mastex:</strong> Homework is posted with deadlines; students and parents use <strong>homework</strong> views; <strong>messages</strong> keep school communication inside the platform when your policy prefers that.</p>
+      </div>
+      <div class="scenario">
+        <h4>Scenario: “Optional services (bus, canteen) are tracked in different notebooks.”</h4>
+        <p class="situation"><strong>Situation:</strong> Parents do not see one picture of what they owe across services.</p>
+        <p class="outcome"><strong>With Mastex:</strong> The <strong>services hub</strong> and linked modules bring canteen, transport, hostel, and textbook charges into the same ecosystem as core fees, with <strong>payment history</strong> for the family.</p>
+      </div>
+    </section>
+
+    <!-- ========== FAQ ========== -->
+    <section class="page page--break" id="faq">
+      <h2>Questions schools ask before buying or going live</h2>
+
+      <h3>Do parents and students need to install an app?</h3>
+      <p>No. Mastex SchoolOS runs in a web browser on phone, tablet, or computer. Your school may suggest “Add to Home Screen” for convenience — that is still the same website.</p>
+
+      <h3>Is our data only visible to our school?</h3>
+      <p>Your users see the students, fees, and records that belong to <strong>your school’s workspace</strong>. Staff and parents from another school on the same product installation cannot browse your data.</p>
+
+      <h3>What happens if the internet is unreliable?</h3>
+      <p>Like any cloud system, Mastex SchoolOS needs connectivity at the moment of use. Many schools batch critical work for peak hours and train staff to retry when links drop. <strong>Mastex Technologies</strong> can advise on hosting and uptime expectations in your agreement.</p>
+
+      <h3>Can we start with only some modules?</h3>
+      <p>Yes. Many schools begin with <strong>students + fees + parent portal</strong>, then add attendance, homework, library, or services. Feature visibility can follow your rollout plan.</p>
+
+      <h3>How do online payments reach the school?</h3>
+      <p>When you enable <strong>Paystack</strong> and subaccounts in <strong>School settings</strong>, card payments route according to the arrangement your leadership sets with your bank and Paystack. The bursar still reconciles against the <strong>payment dashboard</strong> and fee lists.</p>
+
+      <h3>What training is required?</h3>
+      <p>Leadership and finance need deeper onboarding; teachers need a short session on attendance and homework; parents need a one-page sheet with your web address and how to reset passwords. This handbook supports all three.</p>
+
+      <h3>Who builds and supports Mastex SchoolOS?</h3>
+      <p><strong>Mastex Technologies</strong> — an education-technology team focused on school operations and family engagement. The product owner is <strong>Asamoah David</strong>. Product site: <a href="https://mastexedu.online" target="_blank" rel="noopener">mastexedu.online</a>. For demos, licensing, implementation, or platform issues beyond your school admin team: <a href="mailto:mastex.digital.world@gmail.com">mastex.digital.world@gmail.com</a> · <a href="https://wa.me/233544789716" target="_blank" rel="noopener">WhatsApp +233 544 789 716</a>.</p>
+    </section>
+
+    <!-- ========== PARTNER ========== -->
+    <section class="page page--break" id="partner">
+      <h2>Why schools choose Mastex Technologies</h2>
+      <p class="lead">Buying software is not only about features — it is about <strong>who answers the phone</strong> when term starts and <strong>who evolves the product</strong> as your needs grow. Mastex Technologies pairs Mastex SchoolOS with a direct relationship to the people who build it.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Depth without clutter</h4>
+          <p>Finance, academics, admissions, services, and parent comms in one architecture — so you are not duct-taping five apps together.</p>
+        </div>
+        <div class="card">
+          <h4>Built for real school days</h4>
+          <p>Flows match how bursars, registrars, teachers, and parents actually work — from partial fee payments to absence requests to online exams.</p>
+        </div>
+        <div class="card">
+          <h4>Transparent escalation</h4>
+          <p>Your ICT lead and headteacher handle day-to-day configuration. Mastex Technologies handles hosting, upgrades, and defects — with a clear email line to the product owner.</p>
+        </div>
+        <div class="card">
+          <h4>Room to grow</h4>
+          <p>Start with students and fees; turn on attendance, library, and services when you are ready. The same platform scales with you.</p>
+        </div>
+      </div>
+
+      <h3>Typical next step for decision-makers</h3>
+      <p>Request a <strong>guided walkthrough</strong> (fees + parent portal + academics in one session). Bring your bursar and an academic lead — you will see how one login experience replaces scattered processes.</p>
+
+      <div class="contact-card">
+        <p><strong>Mastex Technologies</strong> — Mastex SchoolOS</p>
+        <p>Website: <a href="https://mastexedu.online" target="_blank" rel="noopener">https://mastexedu.online</a></p>
+        <p>Founder &amp; Product Owner: <strong>Asamoah David</strong></p>
+        <p>Email: <a href="mailto:mastex.digital.world@gmail.com">mastex.digital.world@gmail.com</a></p>
+        <p>WhatsApp: <a href="https://wa.me/233544789716" target="_blank" rel="noopener">+233 544 789 716</a></p>
+        <p style="margin-top:0.65rem;font-size:0.85rem;color:var(--ink-soft);">We respond to serious enquiries from schools, trusts, and diocesan offices. Include your institution name, approximate enrolment, and what you want to fix first (fees, academics, or whole-school rollout).</p>
+      </div>
+    </section>
+
+    <!-- ========== SUPPORT PATH ========== -->
+    <section class="page page--break" id="support-path">
+      <h2>Support: your school first, Mastex Technologies for the platform</h2>
+      <p class="lead">Day to day, <strong>everything your school needs is inside your own portal</strong> — the same site where teachers and parents sign in. There is no separate “hidden” screen that your headteacher must learn for ordinary work.</p>
+
+      <h3>What your school handles internally</h3>
+      <ul>
+        <li>Creating and disabling <strong>user accounts</strong> and assigning <strong>roles</strong> (through your school admin menus).</li>
+        <li>Resetting access, linking a student to the correct <strong>parent</strong>, and checking that email addresses are correct.</li>
+        <li>Configuring <strong>school settings</strong>: branding, academic year, Paystack keys (with your finance lead), and which optional features appear.</li>
+        <li>Operational decisions: fee amounts, approval of absence, admission outcomes, and message content to families.</li>
+      </ul>
+
+      <h3>When to contact Mastex Technologies</h3>
+      <p>Primary contacts: <a href="https://mastexedu.online" target="_blank" rel="noopener">mastexedu.online</a> · <a href="mailto:mastex.digital.world@gmail.com">mastex.digital.world@gmail.com</a> · <a href="https://wa.me/233544789716" target="_blank" rel="noopener">WhatsApp +233 544 789 716</a> (Asamoah David, Founder &amp; Product Owner). Reach out for example when:</p>
+      <ul>
+        <li>The site does not load, returns an error for <strong>everyone</strong>, or a school-wide function stops working after your local internet is ruled out.</li>
+        <li>You need a <strong>new school year</strong> rollout, major data import, or change that touches the whole platform.</li>
+        <li>You want to <strong>expand modules</strong>, adjust hosting, or discuss backup and security expectations.</li>
+        <li>Something feels like a <strong>defect</strong> in the product rather than a wrong click or missing permission.</li>
+      </ul>
+      <div class="callout">
+        <p><strong>You do not need to know how the product is built behind the scenes.</strong> The same way you expect a bank to fix its app when it fails for all customers, you contact <strong>Mastex Technologies</strong> for platform-level problems — and your <strong>school administrator</strong> for everyday access and configuration inside your school.</p>
+      </div>
+    </section>
+
+    <!-- ========== TOC ========== -->
+    <section class="page page--break" id="toc">
+      <h2>Contents</h2>
+      <ol class="toc">
+        <li><a href="#why">Why Mastex SchoolOS</a></li>
+        <li><a href="#benefits">Outcomes &amp; who should read this</a></li>
+        <li><a href="#scenarios">Real-world scenarios</a></li>
+        <li><a href="#faq">Questions before buying or go-live</a></li>
+        <li><a href="#partner">Why Mastex Technologies</a></li>
+        <li><a href="#support-path">Support: school vs Mastex Technologies</a></li>
+        <li><a href="#platform">Platform at a glance</a></li>
+        <li><a href="#ui-tour">Interface tour (product screens)</a></li>
+        <li><a href="#getting-started">Getting started</a></li>
+        <li><a href="#notifications">Notifications &amp; messaging</a></li>
+        <li><a href="#roles">Roles &amp; access</a></li>
+        <li><a href="#role-detail">What each role can do (detailed)</a></li>
+        <li><a href="#urls">Web addresses (reference)</a></li>
+        <li><a href="#tips">Best practices &amp; daily help</a></li>
+      </ol>
+    </section>
+
+    <!-- ========== PLATFORM ========== -->
+    <section class="page page--break" id="platform">
+      <h2>Platform at a glance</h2>
+      <p>Mastex SchoolOS is a <strong>web application</strong>. You use it through a browser; there is nothing to install on a parent’s phone beyond choosing “Add to Home Screen” if your school promotes that.</p>
+
+      <h3>Core capability areas</h3>
+      <table>
+        <thead>
+          <tr><th>Area</th><th>Examples</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>People</strong></td><td>Students, parents, staff, classes, promotion, alumni, admissions pipeline</td></tr>
+          <tr><td><strong>Academics</strong></td><td>Timetables, homework, results, report cards, exam schedules, online classes, quizzes, analytics</td></tr>
+          <tr><td><strong>Finance</strong></td><td>School fees (GHS), Paystack payments, payment dashboard, expenses, budgets, reports</td></tr>
+          <tr><td><strong>Operations</strong></td><td>Attendance (including QR flows), absence requests, services hub, library, canteen, bus, hostel, textbooks, inventory</td></tr>
+          <tr><td><strong>Student life</strong></td><td>Sports, clubs, discipline, behaviour points, health records, events, certificates, ID cards</td></tr>
+          <tr><td><strong>Communications</strong></td><td>In-app notifications, SMS (mNotify), broadcast email/SMS, internal chat, announcements</td></tr>
+          <tr><td><strong>Tools</strong></td><td>AI assistant (where configured), auto timetable / seating helpers; optional activity review for authorised school leadership</td></tr>
+        </tbody>
+      </table>
+
+      <p class="footnote">Some menu items appear only when your school enables a feature (for example sports, clubs, academic calendar, school events, or parent–teacher meetings).</p>
+    </section>
+
+    <!-- ========== UI TOUR (visual product tour) ========== -->
+    <section class="page page--break" id="ui-tour">
+      <h2>Inside the product — interface tour</h2>
+      <p class="lead">Mastex SchoolOS uses a <strong>modern dark interface</strong> with green accent highlights, a <strong>top bar</strong> (search, profile, notifications), and a <strong>sidebar</strong> grouped by domain (People, Academics, Finance, and so on). The figures below show <strong>real screens</strong> captured from a disposable demo database via <code>python manage.py capture_handbook_screenshots</code> (see <code>docs/handbook/README.md</code>). To refresh images or swap in your school’s own PNGs, use the same command or follow <code>docs/handbook/images/README.md</code>.</p>
+
+      <figure class="product-fig">
+        <div class="product-fig__frame">
+          <img class="product-fig__shot" src="images/01-leadership-dashboard.png" alt="Mastex SchoolOS — leadership dashboard with sidebar navigation and metric cards." width="1200" height="675" decoding="async" />
+          <div class="ui-mock">
+            <div class="bm-top"><div class="bm-dots"><span></span><span></span><span></span></div><div class="bm-url">https://yourschool.mastexedu.online · signed in</div></div>
+            <div class="bm-bar">
+              <div class="bm-brand"><div class="bm-logo">M</div> Mastex SchoolOS</div>
+              <div class="bm-tools">Search… · Profile ▾ · <span class="bm-bell">🔔</span></div>
+            </div>
+            <div class="bm-body">
+              <div class="bm-side">
+                <div class="bm-sec">People</div>
+                <div class="bm-nav">User management</div>
+                <div class="bm-nav is-active">Students</div>
+                <div class="bm-nav">Staff</div>
+                <div class="bm-sec">Academics</div>
+                <div class="bm-nav">Results hub</div>
+                <div class="bm-nav">Timetable</div>
+                <div class="bm-sec">Finance</div>
+                <div class="bm-nav">School fees</div>
+              </div>
+              <div class="bm-main">
+                <div class="bm-title">School overview</div>
+                <div class="bm-kpis">
+                  <div class="bm-kpi"><div class="v">842</div><div class="l">Active students</div></div>
+                  <div class="bm-kpi"><div class="v">94%</div><div class="l">Fee clearance</div></div>
+                  <div class="bm-kpi"><div class="v">12</div><div class="l">Open requests</div></div>
+                </div>
+                <p style="margin:8px 0 0;font-size:7.5px;color:#64748b;">Recent activity · announcements · quick links match your role</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><strong>Figure 1.</strong> Leadership / admin experience: browser window, your school URL, branded header with notifications, sectioned sidebar, and dashboard-style summary tiles.</figcaption>
+      </figure>
+
+      <figure class="product-fig">
+        <div class="product-fig__frame">
+          <img class="product-fig__shot" src="images/02-school-fees.png" alt="Mastex SchoolOS school fees list with balances." width="1200" height="675" decoding="async" />
+          <div class="ui-mock">
+            <div class="bm-top"><div class="bm-dots"><span></span><span></span><span></span></div><div class="bm-url">School fees · finance module</div></div>
+            <div class="bm-bar"><div class="bm-brand"><div class="bm-logo">M</div> School fees</div><div class="bm-tools">Export · Filter</div></div>
+            <div class="bm-body" style="grid-template-columns:1fr;">
+              <div class="bm-main">
+                <div class="bm-title">Fee balances (sample)</div>
+                <div class="bm-table-wrap">
+                  <div class="bm-th"><span>Student</span><span>Class</span><span>Balance</span></div>
+                  <div class="bm-tr"><span>Ama K. · #2041</span><span>Form 2A</span><span>GHS 450.00</span></div>
+                  <div class="bm-tr"><span>Kwesi M. · #1988</span><span>Form 3B</span><span><span class="bm-tag">Paid</span></span></div>
+                  <div class="bm-tr"><span>Efua T. · #2102</span><span>Form 1C</span><span>GHS 120.00</span></div>
+                </div>
+                <p style="margin:8px 0 0;font-size:7px;color:#64748b;">Staff record offline / partial payments; parents see their own children only.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><strong>Figure 2.</strong> Finance team view: structured fee list with balances in <strong>GHS</strong>, status tags, and tools your bursar uses daily.</figcaption>
+      </figure>
+    </section>
+
+    <section class="page page--break" id="ui-tour-b">
+      <h2 style="border:none;padding:0;margin:0 0 0.5rem;font-size:1.15rem;color:var(--muted);">Interface tour (continued)</h2>
+
+      <figure class="product-fig">
+        <div class="product-fig__frame">
+          <img class="product-fig__shot" src="images/03-parent-fees.png" alt="Mastex SchoolOS parent school fees and Paystack payment." width="1200" height="675" decoding="async" />
+          <div class="ui-mock">
+            <div class="bm-top"><div class="bm-dots"><span></span><span></span><span></span></div><div class="bm-url">Parent · School fees</div></div>
+            <div class="bm-bar"><div class="bm-brand"><div class="bm-logo">M</div> My children’s fees</div><div class="bm-tools">Child ▾</div></div>
+            <div class="bm-body" style="grid-template-columns:1fr;">
+              <div class="bm-main" style="display:flex;align-items:flex-start;justify-content:center;padding:16px;">
+                <div class="bm-card">
+                  <h5>Term 2 · Tuition</h5>
+                  <div class="bm-bal">GHS 240.00</div>
+                  <div style="font-size:7px;color:#94a3b8;margin-top:4px;">Outstanding balance · Paystack enabled</div>
+                  <div class="bm-btn">Pay securely online</div>
+                  <div style="margin-top:10px;font-size:6.5px;color:#64748b;text-align:center;">Receipt emailed after successful payment</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><strong>Figure 3.</strong> Parent experience: clear balance, child selector, and <strong>Paystack</strong> checkout when the school has configured online payments.</figcaption>
+      </figure>
+
+      <figure class="product-fig">
+        <div class="product-fig__frame">
+          <img class="product-fig__shot" src="images/04-sign-in.png" alt="Mastex SchoolOS sign in page." width="1200" height="675" decoding="async" />
+          <div class="ui-mock ui-mock--login">
+            <div class="bm-top"><div class="bm-dots"><span></span><span></span><span></span></div><div class="bm-url">https://yourschool.mastexedu.online/accounts/login/</div></div>
+            <div class="bm-bar"><div class="bm-brand"><div class="bm-logo">M</div> Sign in</div><div class="bm-tools"></div></div>
+            <div class="bm-body">
+              <div class="bm-main">
+                <div class="bm-login">
+                  <div style="font-size:9px;font-weight:700;color:#f1f5f9;margin-bottom:8px;">Welcome back</div>
+                  <div style="font-size:6.5px;color:#94a3b8;margin-bottom:4px;">Email</div>
+                  <div class="bm-in bm-in-lg"></div>
+                  <div style="font-size:6.5px;color:#94a3b8;margin:8px 0 4px;">Password</div>
+                  <div class="bm-in bm-in-lg"></div>
+                  <div class="bm-btn" style="margin-top:12px;">Sign in</div>
+                  <div style="text-align:center;margin-top:8px;font-size:6.5px;color:#64748b;">Forgot password</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><strong>Figure 4.</strong> Secure entry point: school-branded login, password reset, and session tied to the email on file.</figcaption>
+      </figure>
+
+      <figure class="product-fig">
+        <div class="product-fig__frame">
+          <img class="product-fig__shot" src="images/05-notifications.png" alt="Mastex SchoolOS notification bell and inbox preview." width="1200" height="675" decoding="async" />
+          <div class="ui-mock ui-mock--notify">
+            <div class="bm-top"><div class="bm-dots"><span></span><span></span><span></span></div><div class="bm-url">In-app notifications</div></div>
+            <div class="bm-bar">
+              <div class="bm-brand"><div class="bm-logo">M</div> Portal</div>
+              <div class="bm-tools"><span class="bm-bell">🔔</span> 3</div>
+            </div>
+            <div class="bm-body">
+              <div class="bm-main">
+                <div class="bm-drop">
+                  <div style="font-size:7px;font-weight:700;color:#86efac;margin-bottom:6px;">Notifications</div>
+                  <div class="row">Fee payment received · GHS 100</div>
+                  <div class="row">Homework due tomorrow · Mathematics</div>
+                  <div class="row">Announcement · PTA meeting</div>
+                  <div style="margin-top:6px;font-size:6.5px;color:#22c55e;">View all →</div>
+                </div>
+                <div class="bm-title" style="opacity:0.35;">Page content</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><strong>Figure 5.</strong> Bell icon and notification stream: parents and staff see fee events, homework, and school announcements without refreshing email.</figcaption>
+      </figure>
+
+      <div class="callout">
+        <p><strong>Using real screenshots in proposals:</strong> Run your live school site at <strong>1280–1440px</strong> width, capture PNGs with no personal pupil names visible (or blur), and save them as <code>docs/handbook/images/01-…05-…png</code>. Uncomment the matching <code>&lt;img&gt;</code> lines in <code>index.html</code>; the layout automatically prefers your photo over the mockup.</p>
+      </div>
+    </section>
+
+    <!-- ========== GETTING STARTED ========== -->
+    <section class="page page--break" id="getting-started">
+      <h2>Getting started</h2>
+
+      <h3>Browser and access</h3>
+      <p>Use a current version of <strong>Chrome</strong>, <strong>Edge</strong>, <strong>Firefox</strong>, or <strong>Safari</strong>. Your school provides the <strong>website address</strong> (for example <code>https://yourschool.example.com</code>).</p>
+
+      <h3>Signing in</h3>
+      <ol>
+        <li>Open the site and choose <strong>Sign in</strong> (or go to <code>/accounts/login/</code>).</li>
+        <li>Enter the <strong>email</strong> and <strong>password</strong> your school issued.</li>
+        <li>After login you land on a <strong>dashboard</strong> suited to your role.</li>
+      </ol>
+      <p>If you forget your password, use <strong>password reset</strong> from the login page when your school has email delivery configured.</p>
+
+      <h3>Profile and security</h3>
+      <p>From the <strong>profile menu</strong> (top right): view or edit profile, change password, and sign out. Use <strong>one account per person</strong>; do not share passwords.</p>
+
+      <h3>Finding your way</h3>
+      <ul>
+        <li><strong>Sidebar</strong> — On large screens, features are grouped in collapsible sections (Dashboard, People, Academics, etc.).</li>
+        <li><strong>Search</strong> — When visible in the header, search jumps to students, fees, or other records your role may access.</li>
+        <li><strong>Services hub</strong> — A single entry point for many optional services (canteen, transport, hostel, and more).</li>
+      </ul>
+
+      <h3>Public admission (no login)</h3>
+      <p>Visitors can often <strong>apply</strong> for admission and <strong>track</strong> an application from the home page when your school enables those links.</p>
+
+      <h3>First-week checklist (school implementation team)</h3>
+      <ol>
+        <li>Confirm your school’s <strong>web address</strong> is on every letter to parents and on the notice board.</li>
+        <li>Headteacher or delegate: log in, open <strong>School settings</strong>, upload logo and verify academic year.</li>
+        <li>Bursar: confirm <strong>fee structures</strong> and test one <strong>parent fee</strong> view with a volunteer family.</li>
+        <li>ICT lead: create two test accounts (teacher + parent) and walk through <strong>timetable</strong>, <strong>homework</strong>, and <strong>notifications</strong>.</li>
+        <li>Send a short SMS or WhatsApp template: “Fees and news are on [URL]. Use the email we have on file to sign in; use Forgot password if needed.”</li>
+      </ol>
+    </section>
+
+    <!-- ========== NOTIFICATIONS ========== -->
+    <section class="page page--break" id="notifications">
+      <h2>Notifications &amp; messaging</h2>
+
+      <h3>In-app notifications</h3>
+      <p>The <strong>bell</strong> icon in the header shows recent alerts; open <strong>View all</strong> for the full list at <code>/notifications/</code>.</p>
+      <p>You may be notified when, for example:</p>
+      <ul>
+        <li>A <strong>result</strong> is posted or updated (parents)</li>
+        <li>A <strong>fee</strong> is assigned or a <strong>payment</strong> is recorded (parents)</li>
+        <li>An <strong>absence request</strong> is approved or rejected</li>
+        <li>The school publishes <strong>announcements</strong>, <strong>calendar</strong> entries, or <strong>events</strong> for your audience</li>
+      </ul>
+      <p>Very large announcements are sometimes throttled so the system stays fast for everyone; limits are set by <strong>Mastex Technologies</strong> or your school’s technical partner — not something parents or teachers adjust.</p>
+
+      <h3>SMS</h3>
+      <p>Optional <strong>SMS</strong> (for example fees or admissions) uses <strong>mNotify</strong> when the school has configured it. SMS is never a substitute for checking the portal for full detail.</p>
+
+      <h3>Chat and broadcasts</h3>
+      <p>Staff with permission can use <strong>internal messaging</strong> and <strong>broadcast</strong> tools (SMS / email) where enabled. Message history helps the school demonstrate what was sent and when.</p>
+    </section>
+
+    <!-- ========== ROLES TABLE ========== -->
+    <section class="page page--break" id="roles">
+      <h2>Roles &amp; access</h2>
+      <p>Every user has a <strong>primary role</strong>. Some accounts also have <strong>secondary roles</strong> (for example teacher plus librarian). If an action is blocked or a menu is missing, your role or school settings are the usual reasons.</p>
+
+      <table>
+        <thead>
+          <tr><th>Role</th><th>Typical purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Headteacher / School Admin</strong></td><td>Full management of your school (people, academics, finance, operations)</td></tr>
+          <tr><td><strong>Deputy Head / HOD</strong></td><td>Leadership subset: people, academics, attendance, some finance</td></tr>
+          <tr><td><strong>Teacher</strong></td><td>Classes, attendance, homework, results, exams, library, messages</td></tr>
+          <tr><td><strong>Accountant / Bursar</strong></td><td>Fees, payments, expenses, budgets, reports</td></tr>
+          <tr><td><strong>Librarian</strong></td><td>Catalog, issues, library management</td></tr>
+          <tr><td><strong>Admission Officer</strong></td><td>Applications pipeline, students, services hub</td></tr>
+          <tr><td><strong>School Nurse</strong></td><td>Health records and visits</td></tr>
+          <tr><td><strong>Admin Assistant</strong></td><td>Directories, documents, services hub, announcements</td></tr>
+          <tr><td><strong>Staff</strong></td><td>Directory, students, services hub, timetable, attendance support</td></tr>
+          <tr><td><strong>Parent</strong></td><td>Children’s academics, fees, services, absence, PT meetings, messages</td></tr>
+          <tr><td><strong>Student</strong></td><td>Own study tools, fees, library, exams, absence, ID &amp; certificates</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ========== ROLE DETAIL ========== -->
+    <section class="page page--break" id="role-detail">
+      <h2>What each role can do (detailed)</h2>
+      <p class="lead">These lists mirror the <strong>sidebar menus</strong> in Mastex SchoolOS. If an item is missing, your school may have turned that feature off or your account may need an extra <strong>secondary role</strong> (for example librarian) assigned by your school administrator.</p>
+
+      <div class="role-block">
+        <h4>School leadership (Headteacher / Admin)</h4>
+        <p style="margin:0 0 0.5rem;font-size:0.88rem;color:var(--muted);">This is the broadest school-side role: strategy, compliance, and oversight across people, learning, and money.</p>
+        <ul>
+          <li><strong>People:</strong> user management, staff, parents, students, alumni, classes, promote class, admissions</li>
+          <li><strong>Academics:</strong> results hub, report cards, homework, timetable, exam schedule, online exams, grade essays, online classes</li>
+          <li><strong>Analytics:</strong> performance, predictions, trends, AI comments, school rankings</li>
+          <li><strong>Attendance:</strong> students, teachers, absence request review (when permitted)</li>
+          <li><strong>Finance:</strong> school fees, payment dashboard, financial reports, expenses, budgets</li>
+          <li><strong>Services:</strong> services hub, library, canteen, transport, hostel, textbooks, inventory</li>
+          <li><strong>Student life:</strong> sports, clubs, discipline, behaviour, health</li>
+          <li><strong>Administration:</strong> calendar, announcements, events, certificates, ID cards, documents, PT meetings, audit log, school settings</li>
+          <li><strong>Communications &amp; tools:</strong> SMS/email broadcast, bulk SMS, logs, chat, auto timetable/seating, behaviour tracker, AI assistant, notifications</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Deputy Head &amp; HOD</h4>
+        <ul>
+          <li>Staff/students, promote class, results hub, homework, timetable</li>
+          <li>Student and teacher attendance, discipline, announcements</li>
+          <li>Services hub; selected finance views (e.g. payments, financial reports)</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Teacher</h4>
+        <ul>
+          <li>My timetable; mark attendance; QR scanner and summary where used</li>
+          <li>Homework (including create), submissions, results, upload results, assessment scores</li>
+          <li>Online exams, grade essays, online classes, quizzes, exam schedule</li>
+          <li>Library: services hub (if shown), catalog, my issues</li>
+          <li>Announcements, messages, my activities, leave (if enabled), AI assistant, notifications</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Accountant</h4>
+        <ul>
+          <li>Services hub; school fees list with mark paid / partial / offline payment</li>
+          <li>Payment dashboard, record payment, parent fees view</li>
+          <li>Financial reports, expenses, budgets; announcements, AI assistant, notifications</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Librarian</h4>
+        <ul>
+          <li>Services hub; book catalog; manage library; book issues</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Admission officer</h4>
+        <ul>
+          <li>Applications; students list; services hub</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>School nurse</h4>
+        <ul>
+          <li>Health records; health visits</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Admin assistant</h4>
+        <ul>
+          <li>Staff, parents, students; services hub</li>
+          <li>Announcements, documents, AI assistant, notifications</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>General staff</h4>
+        <ul>
+          <li>Staff and students lists; services hub; my timetable; announcements</li>
+          <li>Attendance-related items as shown in your menu</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Parent</h4>
+        <p style="margin:0 0 0.5rem;font-size:0.88rem;color:var(--muted);">Typical flow: open <strong>Children overview</strong> → check <strong>School fees</strong> → read <strong>Announcements</strong> → use <strong>Messages</strong> if the class teacher expects chat there.</p>
+        <ul>
+          <li><strong>Dashboard:</strong> children overview</li>
+          <li><strong>Academics:</strong> children’s results, homework, submissions, calendar, events</li>
+          <li><strong>Fees:</strong> school fees (Paystack when configured), canteen, pre-order, transport, hostel, textbooks, payment history</li>
+          <li><strong>Life:</strong> student life hub, activities, online exams</li>
+          <li><strong>General:</strong> announcements, messages, PT meetings, absence request and history, AI assistant, notifications</li>
+        </ul>
+      </div>
+
+      <div class="role-block">
+        <h4>Student</h4>
+        <p style="margin:0 0 0.5rem;font-size:0.88rem;color:var(--muted);">Encourage daily check of <strong>homework</strong> and <strong>notifications</strong>; fee balance is visible so students can align with guardians before deadlines.</p>
+        <ul>
+          <li><strong>Academics:</strong> timetable, homework, results, quizzes, calendar, events</li>
+          <li><strong>Fees:</strong> school fees and service fees; payment history</li>
+          <li><strong>Services:</strong> my library books</li>
+          <li><strong>Life:</strong> student life, clubs &amp; sports, online exams, online classes</li>
+          <li><strong>ID &amp; certificates:</strong> my ID card, my certificates</li>
+          <li><strong>General:</strong> announcements, absence request and list, AI assistant, notifications</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ========== URL REFERENCE ========== -->
+    <section class="page page--break" id="urls">
+      <h2>Web addresses (reference)</h2>
+      <p>Paths below are added <strong>after your school’s main web address</strong>. Most users never type them — they click menus. Trainers and ICT leads use this list for bookmarks and helpdesk scripts.</p>
+      <table>
+        <thead>
+          <tr><th>Path suffix (example)</th><th>What it is for</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>/accounts/</code></td><td>Sign-in, profile, dashboards, user management (school admin)</td></tr>
+          <tr><td><code>/students/</code></td><td>Student records, classes, parent/student portals, absence</td></tr>
+          <tr><td><code>/academics/</code></td><td>Results, homework, timetables, exams, analytics</td></tr>
+          <tr><td><code>/finance/</code></td><td>School fees, parent payment screens</td></tr>
+          <tr><td><code>/operations/</code></td><td>Admissions, attendance, services hub, library, events, and more</td></tr>
+          <tr><td><code>/messaging/</code></td><td>SMS / email broadcasts, chat, message history (as enabled)</td></tr>
+          <tr><td><code>/notifications/</code></td><td>In-app notification inbox</td></tr>
+          <tr><td><code>/audit/</code></td><td>Activity review for authorised leadership (where enabled)</td></tr>
+          <tr><td><code>/schools/</code></td><td>School profile &amp; settings (e.g. branding, year, payment keys)</td></tr>
+          <tr><td><code>/ai/</code></td><td>AI assistant (where your school turns it on)</td></tr>
+          <tr><td><code>/portal/</code></td><td>Shortcut portal entry (depends on role)</td></tr>
+        </tbody>
+      </table>
+      <p class="footnote">Platform engineering and multi-school operations are handled by <strong>Mastex Technologies</strong> — not screens your day-to-day users need. If something breaks for everyone at once, contact <a href="https://mastexedu.online" target="_blank" rel="noopener">mastexedu.online</a>, <a href="mailto:mastex.digital.world@gmail.com">email</a>, or <a href="https://wa.me/233544789716" target="_blank" rel="noopener">WhatsApp</a>; if one user cannot log in, start with your school administrator.</p>
+    </section>
+
+    <!-- ========== TIPS ========== -->
+    <section class="page page--break" id="tips">
+      <h2>Best practices &amp; daily help</h2>
+      <p>For <strong>who does what when something breaks</strong>, see <a href="#support-path">Support: your school first, Mastex Technologies for the platform</a> earlier in this handbook.</p>
+
+      <h3>Habits that keep data clean</h3>
+      <ol>
+        <li><strong>Keep phone and email accurate</strong> on every profile — SMS, password reset, and Paystack receipts depend on them.</li>
+        <li><strong>One login per person</strong> — never share passwords; create a second parent login if two guardians need separate access.</li>
+        <li><strong>Enter the official guardian email</strong> the first time; changing it later is easy but forgotten inboxes cause “I never got the reset” tickets.</li>
+        <li><strong>Check the bell (notifications)</strong> after paying fees or submitting absence — approvals and receipts land there.</li>
+        <li><strong>Use Services hub</strong> as the first stop for canteen, bus, hostel, and textbook money so balances stay in one ecosystem.</li>
+        <li><strong>Train front desk staff</strong> to say “log in to the school portal” instead of sending fee screenshots only — reduces disputes.</li>
+      </ol>
+
+      <h3>First-line help inside your school</h3>
+      <ul>
+        <li><strong>School administrator / ICT lead:</strong> passwords, roles, wrong class, student linked to wrong parent.</li>
+        <li><strong>Bursar:</strong> fee amounts, waivers recorded as adjustments, Paystack settlement questions with the bank.</li>
+        <li><strong>Class teacher:</strong> homework visibility, attendance correction same-day where policy allows.</li>
+      </ul>
+
+      <h3>Escalate to Mastex Technologies when…</h3>
+      <ul>
+        <li>The whole school cannot sign in, or pages show a server error for <strong>all</strong> users.</li>
+        <li>You need a planned upgrade, data migration, or new module enabled subscription-wide.</li>
+        <li>You believe the software itself is wrong after your admin has reproduced the issue.</li>
+      </ul>
+
+      <div class="callout">
+        <p><strong>Menus evolve.</strong> Your school may enable more modules over time. If this handbook and the live sidebar differ, trust the <strong>live menu</strong> — then ask <strong>Mastex Technologies</strong> for an updated PDF if you rely on printed copies.</p>
+      </div>
+    </section>
+
+    <!-- ========== BACK COVER ========== -->
+    <section class="back" id="closing">
+      <div class="logo-line">
+        <div class="mark">M</div>
+        <div>
+          <h2>Mastex SchoolOS</h2>
+          <p>Academics · Finance · Operations · Family engagement</p>
+        </div>
+      </div>
+      <div class="contact-card" style="margin-top:1.25rem;max-width:42ch;">
+        <p style="font-size:1rem;"><strong>Mastex Technologies</strong></p>
+        <p style="font-size:0.88rem;color:var(--ink-soft);">Mastex SchoolOS — school management software</p>
+        <p style="margin-top:0.5rem;"><a href="https://mastexedu.online" target="_blank" rel="noopener">https://mastexedu.online</a></p>
+        <p style="margin-top:0.65rem;"><strong>Asamoah David</strong><br /><span style="font-size:0.85rem;font-weight:500;">Founder &amp; Product Owner</span></p>
+        <p style="margin-top:0.45rem;"><a href="mailto:mastex.digital.world@gmail.com">mastex.digital.world@gmail.com</a></p>
+        <p style="margin-top:0.35rem;"><a href="https://wa.me/233544789716" target="_blank" rel="noopener">WhatsApp +233 544 789 716</a></p>
+      </div>
+      <p style="margin-top:1.25rem;font-size:0.88rem;color:var(--ink-soft);max-width:48ch;">
+        <strong>Your school’s portal URL</strong> (write in when printing):<br />
+        <span style="color:var(--muted);display:inline-block;margin-top:0.25rem;border-bottom:1px solid var(--line);min-width:18rem;">&nbsp;</span>
+      </p>
+      <p style="margin-top:0.85rem;font-size:0.8rem;color:var(--muted);max-width:46ch;">Serious schools deserve software that respects how they run. When you are ready to modernise fees, academics, and parent trust in one move — we are ready to talk.</p>
+    </section>
+
+  </div>
+</body>
+</html>

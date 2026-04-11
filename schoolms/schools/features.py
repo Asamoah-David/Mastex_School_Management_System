@@ -52,6 +52,7 @@ DEFAULT_FEATURE_KEYS: tuple[str, ...] = (
     # HR
     "staff_management",
     "leave_management",
+    "staff_paystack_transfers",
 )
 
 

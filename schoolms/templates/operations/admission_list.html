@@ -6,13 +6,27 @@
 <div class="content-card">
     <div class="d-flex justify-between align-center mb-3">
         <h2>📋 Admission Applications</h2>
-        <div class="gap-2 d-flex">
+        <div class="gap-2 d-flex" style="flex-wrap: wrap;">
+            <a href="{% url 'operations:admission_pipeline' %}" class="btn btn-primary">📌 Pipeline board</a>
             <a href="{% url 'operations:export_admissions' %}?format=csv" class="btn btn-success">📥 CSV</a>
             <a href="{% url 'operations:export_admissions' %}?format=excel" class="btn btn-success">📊 Excel</a>
             <a href="{% url 'operations:admission_apply' %}" class="btn btn-primary">🌐 Online Application Link</a>
             <a href="{% url 'operations:admission_apply' %}" class="btn btn-success">➕ New Application</a>
         </div>
     </div>
+
+    <form method="get" class="content-card" style="padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+        <div>
+            <label style="display: block; font-size: 0.75rem; color: var(--text-soft); margin-bottom: 0.25rem;">Status</label>
+            <select name="status" class="form-control" onchange="this.form.submit()">
+                <option value="">All statuses</option>
+                {% for value, label in admission_status_choices %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <noscript><button type="submit" class="btn btn-secondary">Filter</button></noscript>
+    </form>
     
     <div class="alert alert-info">
         <strong>📤 Share the Online Admission Link:</strong><br>
@@ -44,19 +58,11 @@
             <td>{{ app.parent_phone }}</td>
             <td>{{ app.applied_at|date:"M d, Y" }}</td>
             <td>
-                {% if app.status == 'pending' %}
-                <span class="badge badge-warning">Pending</span>
-                {% elif app.status == 'approved' %}
-                <span class="badge badge-success">Approved</span>
-                {% elif app.status == 'rejected' %}
-                <span class="badge badge-danger">Rejected</span>
-                {% else %}
-                <span class="badge badge-info">{{ app.status }}</span>
-                {% endif %}
+                <span class="badge {% if app.status == 'pending' %}badge-warning{% elif app.status == 'approved' %}badge-success{% elif app.status == 'rejected' %}badge-danger{% elif app.status == 'withdrawn' %}badge-secondary{% else %}badge-info{% endif %}">{{ app.get_status_display }}</span>
             </td>
             <td>
                 <a href="{% url 'operations:admission_detail' app.pk %}" class="btn btn-sm btn-info">👁️ View</a>
-                {% if app.status == 'pending' %}
+                {% if app.status != 'approved' and app.status != 'rejected' and app.status != 'withdrawn' %}
                 <a href="{% url 'operations:admission_approve' app.pk %}" class="btn btn-sm btn-success">✅ Approve</a>
                 <a href="{% url 'operations:admission_reject' app.pk %}" class="btn btn-sm btn-danger">❌ Reject</a>
                 {% endif %}

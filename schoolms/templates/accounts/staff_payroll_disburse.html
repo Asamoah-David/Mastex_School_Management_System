@@ -10,7 +10,13 @@
         <strong>Paystack</strong> sends money from your <strong>Paystack merchant balance</strong> to the staff MoMo or bank account you saved on their profile — enable with <code>PAYSTACK_STAFF_TRANSFERS_ENABLED=1</code> and ensure transfers are allowed on your Paystack account.
     </p>
     {% if not paystack_staff_enabled %}
-    <p style="margin:0.75rem 0 0; font-size:0.85rem; color:#fbbf24;">Paystack payouts are currently <strong>disabled</strong>. Offline methods below still work.</p>
+    <p style="margin:0.75rem 0 0; font-size:0.85rem; color:#fbbf24;">
+        {% if paystack_globally_configured %}
+        Paystack payouts are <strong>off for your school</strong> (school feature). Offline methods below still work.
+        {% else %}
+        Paystack payouts are currently <strong>disabled</strong> (environment / merchant settings). Offline methods below still work.
+        {% endif %}
+    </p>
     {% endif %}
 </div>
 

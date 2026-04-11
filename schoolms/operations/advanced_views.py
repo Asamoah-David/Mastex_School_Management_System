@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Sum, Avg, Count
+from django.db.models import Q, Sum, Avg, Count
 from datetime import timedelta
 
 from students.models import Student
@@ -19,6 +19,38 @@ from operations.models import (
 from accounts.permissions import user_can_manage_school, can_manage_finance
 from accounts.hr_models import StaffPayrollPayment
 from accounts.hr_utils import sync_expired_staff_contracts
+
+
+def _budget_vs_actual_rows(school, year: int):
+    """Match budget lines to expense totals by category for the calendar year."""
+    labels = {str(year)}
+    if getattr(school, "academic_year", None):
+        labels.add(school.academic_year)
+    budgets = (
+        Budget.objects.filter(school=school, academic_year__in=labels)
+        .select_related("category")
+        .order_by("category__name", "academic_year")
+    )
+    rows = []
+    for b in budgets:
+        ex = Expense.objects.filter(school=school, expense_date__year=year)
+        if b.category_id:
+            ex = ex.filter(category_id=b.category_id)
+        else:
+            ex = ex.filter(category__isnull=True)
+        actual = ex.aggregate(total=Sum("amount"))["total"] or 0
+        bud = float(b.allocated_amount)
+        act = float(actual)
+        rows.append(
+            {
+                "category": b.category.name if b.category else "Uncategorized",
+                "academic_year": b.academic_year,
+                "budgeted": bud,
+                "actual": act,
+                "variance": bud - act,
+            }
+        )
+    return rows
 
 
 def _can_access_canteen_preorder(user):
@@ -302,9 +334,13 @@ def financial_reports_dashboard(request):
     # Calculate totals
     expenses = Expense.objects.filter(school=school, expense_date__year=current_year)
     total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or 0
-    
-    budgets = Budget.objects.filter(school=school, academic_year=current_year)
+
+    budget_year_q = Q(academic_year=str(current_year))
+    if school.academic_year:
+        budget_year_q |= Q(academic_year=school.academic_year)
+    budgets = Budget.objects.filter(school=school).filter(budget_year_q)
     total_budget = budgets.aggregate(total=Sum('allocated_amount'))['total'] or 0
+    budget_vs_actual = _budget_vs_actual_rows(school, current_year)
     
     # Expenses by category
     expenses_by_category = expenses.values('category__name').annotate(
@@ -352,6 +388,7 @@ def financial_reports_dashboard(request):
         'staff_payroll_by_currency': staff_payroll_by_currency,
         'staff_payroll_monthly': staff_payroll_monthly,
         'staff_payroll_monthly_max': staff_payroll_monthly_max_int,
+        'budget_vs_actual': budget_vs_actual,
     }
     return render(request, 'operations/financial_reports.html', context)
 
@@ -379,9 +416,12 @@ def get_financial_data(request):
     expenses = Expense.objects.filter(school=school, expense_date__year=year)
     total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or 0
     
-    # Budget data
-    budgets = Budget.objects.filter(school=school, academic_year=year)
+    budget_year_q = Q(academic_year=str(year))
+    if school.academic_year:
+        budget_year_q |= Q(academic_year=school.academic_year)
+    budgets = Budget.objects.filter(school=school).filter(budget_year_q)
     total_budget = budgets.aggregate(total=Sum('allocated_amount'))['total'] or 0
+    budget_vs_actual = _budget_vs_actual_rows(school, year)
     
     # Expenses by category (same shape as dashboard template: category__name + total)
     expenses_by_category_rows = expenses.values("category__name").annotate(total=Sum("amount")).order_by("-total")
@@ -422,6 +462,7 @@ def get_financial_data(request):
             {"currency": row["currency"], "total": float(row["total"] or 0)} for row in payroll_by_currency
         ],
         'staff_payroll_monthly': payroll_monthly,
+        'budget_vs_actual': budget_vs_actual,
     })
 
 

@@ -639,15 +639,18 @@ def fee_list(request):
                     offline_amount = request.POST.get("offline_amount", str(fee.remaining_balance))
                     try:
                         amount = float(offline_amount)
-                        fee.amount_paid = float(fee.amount_paid) + amount
-                        fee.save()
-                        # Create payment record
+                        # Payment row first, then F() update so Fee post_save does not double-notify.
                         FeePayment.objects.create(
                             fee=fee,
                             amount=amount,
                             payment_method="offline",
-                            status="completed"
+                            status="completed",
                         )
+                        Fee.objects.filter(pk=fee.pk).update(
+                            amount_paid=models.F("amount_paid") + amount
+                        )
+                        fee.refresh_from_db()
+                        fee.save()
                         messages.success(request, f"Recorded offline payment of GHS {amount}.")
                     except (ValueError, TypeError):
                         messages.error(request, "Invalid amount.")

@@ -154,6 +154,8 @@ urlpatterns = [
     # Admission Applications
     path("admission/apply/", views.admission_apply, name="admission_apply"),
     path("admission/list/", views.admission_list, name="admission_list"),
+    path("admission/pipeline/", views.admission_pipeline, name="admission_pipeline"),
+    path("admission/<int:pk>/set-status/", views.admission_set_status, name="admission_set_status"),
     path("admission/<int:pk>/", views.admission_detail, name="admission_detail"),
     path("admission/<int:pk>/approve/", views.admission_approve, name="admission_approve"),
     path("admission/<int:pk>/reject/", views.admission_reject, name="admission_reject"),

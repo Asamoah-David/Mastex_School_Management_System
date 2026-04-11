@@ -15,10 +15,15 @@ _IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp"]
 class AdmissionApplication(models.Model):
     """Online admission applications from prospective students"""
     STATUS_CHOICES = (
-        ('pending', 'Pending Review'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-        ('waitlisted', 'Waitlisted'),
+        ("pending", "Pending review"),
+        ("under_review", "Under review"),
+        ("interview", "Interview / assessment"),
+        ("documents_pending", "Documents pending"),
+        ("offered", "Offer / provisional acceptance"),
+        ("waitlisted", "Waitlisted"),
+        ("withdrawn", "Withdrawn by applicant"),
+        ("approved", "Approved / enrolled"),
+        ("rejected", "Rejected"),
     )
     
     school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)  # School can be set if public form has school selection

@@ -10,7 +10,7 @@ from django.urls import reverse
 from academics.models import ExamType, Result, Subject, Term, Timetable
 from accounts.hr_models import StaffPayrollPayment
 from accounts.models import User
-from schools.models import School
+from schools.models import School, SchoolFeature
 from students.models import SchoolClass, Student
 
 
@@ -225,3 +225,162 @@ class StaffPayrollDisburseTests(TestCase):
         self.assertEqual(p.paystack_transfer_code, "TRF_xx1")
         self.assertTrue(p.reference.startswith("STF"))
         mock_transfer.assert_called_once()
+
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_dummy", PAYSTACK_STAFF_TRANSFERS_ENABLED=True)
+    @patch("finance.staff_payroll_paystack.paystack_service.initiate_transfer")
+    def test_paystack_blocked_when_school_feature_disabled(self, mock_transfer):
+        SchoolFeature.objects.create(
+            school=self.school, key="staff_paystack_transfers", enabled=False
+        )
+        self.teacher.payroll_momo_number = "0244000000"
+        self.teacher.payroll_momo_network = "MTN"
+        self.teacher.save(update_fields=["payroll_momo_number", "payroll_momo_network"])
+        self.client.login(username="pay_acct", password="pass12345")
+        url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
+        self.client.post(
+            url,
+            {
+                "disbursement_mode": "paystack_momo",
+                "period_label": "March 2026",
+                "paid_on": "2026-03-01",
+                "amount": "50.00",
+                "currency": "GHS",
+            },
+        )
+        mock_transfer.assert_not_called()
+        self.assertFalse(
+            StaffPayrollPayment.objects.filter(
+                user=self.teacher, period_label="March 2026"
+            ).exists()
+        )
+
+
+class StaffPayrollBulkAndPayslipTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Bulk PS School", subdomain="bulk-ps-sch-01")
+        cls.accountant = User.objects.create_user(
+            username="bulk_acct",
+            password="pass12345",
+            school=cls.school,
+            role="accountant",
+        )
+        cls.teacher_a = User.objects.create_user(
+            username="bulk_ta",
+            password="pass12345",
+            school=cls.school,
+            role="teacher",
+        )
+        cls.teacher_b = User.objects.create_user(
+            username="bulk_tb",
+            password="pass12345",
+            school=cls.school,
+            role="teacher",
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_bulk_record_creates_lines(self):
+        self.client.login(username="bulk_acct", password="pass12345")
+        url = reverse("accounts:staff_payroll_bulk_record")
+        r = self.client.post(
+            url,
+            {
+                "staff_ids": [str(self.teacher_a.pk), str(self.teacher_b.pk)],
+                "period_label": "April 2026",
+                "paid_on": "2026-04-01",
+                "default_amount": "300.00",
+                "currency": "GHS",
+                "method": "cash",
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(
+            StaffPayrollPayment.objects.filter(
+                school=self.school, period_label="April 2026"
+            ).count(),
+            2,
+        )
+
+    def test_staff_can_open_own_payslip(self):
+        pay = StaffPayrollPayment.objects.create(
+            school=self.school,
+            user=self.teacher_a,
+            period_label="May 2026",
+            amount=Decimal("100.00"),
+            currency="GHS",
+            paid_on="2026-05-01",
+            method="bank",
+            recorded_by=self.accountant,
+        )
+        self.client.login(username="bulk_ta", password="pass12345")
+        r = self.client.get(
+            reverse("accounts:staff_payroll_payslip", args=[pay.pk])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "May 2026")
+
+    def test_staff_cannot_open_others_payslip(self):
+        pay = StaffPayrollPayment.objects.create(
+            school=self.school,
+            user=self.teacher_a,
+            period_label="June 2026",
+            amount=Decimal("100.00"),
+            currency="GHS",
+            paid_on="2026-06-01",
+            method="bank",
+            recorded_by=self.accountant,
+        )
+        self.client.login(username="bulk_tb", password="pass12345")
+        r = self.client.get(
+            reverse("accounts:staff_payroll_payslip", args=[pay.pk])
+        )
+        self.assertEqual(r.status_code, 302)
+
+
+class TimetableOverlapTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="TT School", subdomain="tt-sch-ov-01")
+        cls.subj_a = Subject.objects.create(school=cls.school, name="Math")
+        cls.subj_b = Subject.objects.create(school=cls.school, name="English")
+        cls.admin = User.objects.create_user(
+            username="tt_admin",
+            password="pass12345",
+            school=cls.school,
+            role="school_admin",
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_rejects_overlapping_class_slot(self):
+        self.client.login(username="tt_admin", password="pass12345")
+        url = reverse("academics:timetable_create")
+        base = {
+            "class_name": "JHS 1A",
+            "day": "Monday",
+            "start_time": "08:00",
+            "end_time": "09:00",
+        }
+        r1 = self.client.post(
+            url,
+            {**base, "subject": str(self.subj_a.pk)},
+        )
+        self.assertEqual(r1.status_code, 302)
+        r2 = self.client.post(
+            url,
+            {
+                "class_name": "JHS 1A",
+                "day": "Monday",
+                "start_time": "08:30",
+                "end_time": "09:30",
+                "subject": str(self.subj_b.pk),
+            },
+        )
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(
+            Timetable.objects.filter(school=self.school, class_name="JHS 1A").count(),
+            1,
+        )

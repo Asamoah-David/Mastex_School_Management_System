@@ -17,11 +17,11 @@ from accounts.permissions import (
     is_super_admin,
     can_review_staff_leave,
 )
-from academics.models import Subject
+from academics.models import Subject, Timetable, Term
 from schools.models import School
 from students.models import Student, SchoolClass
-from finance.models import Fee, FeePayment
-from finance.staff_payroll_paystack import staff_paystack_transfers_enabled
+from finance.models import Fee, FeePayment, FeeStructure
+from finance.staff_payroll_paystack import school_staff_paystack_allowed
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
 from operations.activity import recent_activities_for_dashboard
 from core.pagination import paginate
@@ -469,7 +469,18 @@ def school_dashboard(request):
             expiry_button_text = "Renew Now"
     
     from operations.models import AdmissionApplication, LibraryIssue
-    pending_admissions = AdmissionApplication.objects.filter(school=school, status="pending").count()
+
+    _open_admission_statuses = (
+        "pending",
+        "under_review",
+        "interview",
+        "documents_pending",
+        "offered",
+        "waitlisted",
+    )
+    pending_admissions = AdmissionApplication.objects.filter(
+        school=school, status__in=_open_admission_statuses
+    ).count()
     overdue_books = LibraryIssue.objects.filter(school=school, return_date__isnull=True, due_date__lt=today).count()
     absent_today = attendance_stats["absent"]
 
@@ -502,6 +513,40 @@ def school_dashboard(request):
     attendance_trend_chart = build_attendance_trend(school, days=14)
     academic_insights = build_academic_insights(school)
     finance_insights = build_finance_insights(school, float(total_fees), float(paid_fees))
+
+    onboarding_checklist = []
+    show_onboarding_card = False
+    if user_can_manage_school(request.user) and school:
+        onboarding_checklist = [
+            {
+                "label": "Active fee structures",
+                "done": FeeStructure.objects.filter(school=school, is_active=True).exists(),
+                "url": reverse("finance:fee_structure_list"),
+            },
+            {
+                "label": "Enrolled students",
+                "done": total_students > 0,
+                "url": reverse("students:student_list"),
+            },
+            {
+                "label": "Teaching staff accounts",
+                "done": teachers_count > 0,
+                "url": reverse("accounts:staff_list"),
+            },
+            {
+                "label": "Current academic term",
+                "done": Term.objects.filter(school=school, is_current=True).exists(),
+                "url": None,
+            },
+            {
+                "label": "Class timetable entries",
+                "done": Timetable.objects.filter(school=school).exists(),
+                "url": reverse("academics:timetable_list"),
+            },
+        ]
+        done_n = sum(1 for x in onboarding_checklist if x["done"])
+        show_onboarding_card = bool(onboarding_checklist) and done_n < len(onboarding_checklist)
+
     subject_perf_chart = {
         "labels": [r["name"] for r in academic_insights.get("subject_avgs", [])],
         "values": [r["avg_pct"] for r in academic_insights.get("subject_avgs", [])],
@@ -569,6 +614,8 @@ def school_dashboard(request):
         "recent_notifications": recent_notifications,
         "unread_notification_count": unread_notification_count,
         "quick_actions": quick_actions,
+        "onboarding_checklist": onboarding_checklist,
+        "show_onboarding_card": show_onboarding_card,
     }
     return render(request, "accounts/school_dashboard.html", context)
 
@@ -765,7 +812,7 @@ def staff_detail(request, pk):
         "assigned_subject_ids": assigned_subject_ids,
         "contract_type_choices": StaffContract.CONTRACT_TYPES,
         "contract_status_choices": StaffContract.STATUS_CHOICES,
-        "paystack_staff_enabled": staff_paystack_transfers_enabled(),
+        "paystack_staff_enabled": school_staff_paystack_allowed(request),
     }
     school_obj = staff.school
     if school_obj:

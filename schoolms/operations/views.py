@@ -2074,7 +2074,91 @@ def admission_list(request):
         'school': school,
         'status_filter': status_filter,
         'page_obj': page_obj,
+        'admission_status_choices': AdmissionApplication.STATUS_CHOICES,
     })
+
+
+ADMISSION_TERMINAL_STATUSES = frozenset({"approved", "rejected"})
+ADMISSION_PIPELINE_STATUSES = frozenset(
+    {
+        "pending",
+        "under_review",
+        "interview",
+        "documents_pending",
+        "offered",
+        "waitlisted",
+        "withdrawn",
+    }
+)
+
+
+@login_required
+def admission_pipeline(request):
+    """Kanban-style board: applications grouped by pipeline status."""
+    from accounts.permissions import user_can_manage_school
+
+    school = _get_school(request)
+    if not user_can_manage_school(request.user) and not getattr(request.user, "is_super_admin", False):
+        return redirect("home")
+
+    qs = AdmissionApplication.objects.select_related("school", "reviewed_by").order_by("-applied_at")
+    if school:
+        qs = qs.filter(school=school)
+
+    columns = []
+    for value, label in AdmissionApplication.STATUS_CHOICES:
+        if value in ADMISSION_TERMINAL_STATUSES:
+            continue
+        columns.append(
+            {
+                "key": value,
+                "label": label,
+                "items": list(qs.filter(status=value)[:40]),
+            }
+        )
+
+    return render(
+        request,
+        "operations/admission_pipeline.html",
+        {"school": school, "columns": columns},
+    )
+
+
+@login_required
+def admission_set_status(request, pk):
+    """Move an application along the pipeline (non-terminal statuses only)."""
+    from accounts.permissions import user_can_manage_school
+    from django.contrib import messages
+
+    if request.method != "POST":
+        return redirect("operations:admission_detail", pk=pk)
+
+    school = _get_school(request)
+    if not user_can_manage_school(request.user) and not getattr(request.user, "is_super_admin", False):
+        return redirect("home")
+
+    if school:
+        application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
+    elif request.user.is_superuser or getattr(request.user, "is_super_admin", False):
+        application = get_object_or_404(AdmissionApplication, pk=pk)
+    else:
+        return redirect("home")
+
+    if application.status in ADMISSION_TERMINAL_STATUSES:
+        messages.error(request, "This application is already finalised. Use the list view.")
+        return redirect("operations:admission_detail", pk=pk)
+
+    new_status = (request.POST.get("status") or "").strip()
+    if new_status not in ADMISSION_PIPELINE_STATUSES:
+        messages.error(request, "Invalid pipeline status.")
+        return redirect("operations:admission_detail", pk=pk)
+
+    application.status = new_status
+    application.reviewed_by = request.user
+    application.reviewed_at = timezone.now()
+    application.save(update_fields=["status", "reviewed_by", "reviewed_at"])
+    messages.success(request, f"Status updated to {application.get_status_display()}.")
+    return redirect("operations:admission_detail", pk=pk)
 
 
 @login_required
@@ -2093,10 +2177,17 @@ def admission_detail(request, pk):
     else:
         return redirect('home')
 
-    return render(request, 'operations/admission_detail.html', {
-        'application': application,
-        'school': school
-    })
+    return render(
+        request,
+        "operations/admission_detail.html",
+        {
+            "application": application,
+            "school": school,
+            "admission_pipeline_statuses": ADMISSION_PIPELINE_STATUSES,
+            "admission_terminal_statuses": ADMISSION_TERMINAL_STATUSES,
+            "admission_status_choices": AdmissionApplication.STATUS_CHOICES,
+        },
+    )
 
 
 @login_required

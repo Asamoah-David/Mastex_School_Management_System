@@ -57,6 +57,29 @@
             <p class="form-help">Provide context that will be useful for records and future reference.</p>
         </div>
 
+        {% if student.clearance_record %}
+        <div class="alert {% if student.clearance_record.is_complete %}alert-info{% else %}alert-warning{% endif %}" style="margin: 1rem 0;">
+            <strong>Leaver clearance</strong>
+            {% if student.clearance_record.is_complete %}
+            <p style="margin: 0.35rem 0 0; font-size: 0.9rem;">All clearance items are complete.</p>
+            {% else %}
+            <p style="margin: 0.35rem 0 0; font-size: 0.9rem;">Incomplete — you will be redirected to the clearance page unless you use leadership override below.</p>
+            {% endif %}
+            <a href="{% url 'students:student_clearance' student.pk %}" class="btn btn-sm btn-secondary" style="margin-top: 0.5rem;">Open clearance</a>
+        </div>
+        {% else %}
+        <p style="font-size: 0.85rem; color: var(--text-soft); margin: 0.5rem 0;">Tip: use <a href="{% url 'students:student_clearance' student.pk %}">Leaver clearance</a> to record fees, library, and ID handover before exit.</p>
+        {% endif %}
+
+        {% if is_school_leadership %}
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="clearance_override" id="id_clearance_override">
+                <span><strong>Leadership override</strong> — allow exit even if clearance checklist is incomplete</span>
+            </label>
+        </div>
+        {% endif %}
+
         <div class="form-group">
             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                 <input type="checkbox" name="deactivate_parent" id="id_deactivate_parent">

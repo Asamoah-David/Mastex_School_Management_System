@@ -2,6 +2,7 @@
 Payment Views for Canteen, Bus, Textbooks, and Hostel with Paystack Integration
 """
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import F
 from django.contrib import messages
 from django.http import JsonResponse
 from django.urls import reverse
@@ -1159,16 +1160,14 @@ def record_payment(request):
                 messages.error(request, "Amount must be positive")
                 return redirect('operations:record_payment')
             
-            # Create payment record
-            payment = FeePayment.objects.create(
+            FeePayment.objects.create(
                 fee=fee,
                 amount=amount_decimal,
                 payment_method=payment_method,
-                status='completed'
+                status="completed",
             )
-            
-            # Update fee
-            fee.amount_paid += amount_decimal
+            Fee.objects.filter(pk=fee.pk).update(amount_paid=F("amount_paid") + amount_decimal)
+            fee.refresh_from_db()
             fee.save()
             
             messages.success(request, f"Payment of GHS {amount} recorded successfully")
@@ -1451,25 +1450,19 @@ def paystack_callback(request, fee_id):
         fee = Fee.objects.get(id=fee_id)
         
         if result.get('status') and result['data']['status'] == 'success':
-            # Create payment record
-            amount = float(result['data']['amount']) / 100  # Paystack returns kobo
-            
-            payment = FeePayment.objects.create(
+            amount = float(result["data"]["amount"]) / 100  # Paystack returns pesewas / kobo
+            FeePayment.objects.create(
                 fee=fee,
                 amount=amount,
                 paystack_reference=reference,
-                payment_method='card',
-                status='completed'
+                payment_method="card",
+                status="completed",
             )
-            
-            # Update fee
-            fee.amount_paid += amount
-            fee.paystack_reference = reference
-            
-            # Check if fee is fully paid
-            if fee.amount_paid >= fee.amount:
-                fee.status = 'paid'
-            
+            Fee.objects.filter(pk=fee.pk).update(
+                amount_paid=F("amount_paid") + amount,
+                paystack_reference=reference,
+            )
+            fee.refresh_from_db()
             fee.save()
             
             messages.success(request, "Payment successful!")
@@ -1536,15 +1529,15 @@ def paystack_webhook(request):
                         # Check if payment already exists to avoid duplicates
                         existing = FeePayment.objects.filter(paystack_reference=reference).exists()
                         if not existing:
-                            payment = FeePayment.objects.create(
+                            FeePayment.objects.create(
                                 fee=fee,
                                 amount=amount,
                                 paystack_reference=reference,
-                                payment_method='card',
-                                status='completed'
+                                payment_method="card",
+                                status="completed",
                             )
-                            
-                            fee.amount_paid += amount
+                            Fee.objects.filter(pk=fee.pk).update(amount_paid=F("amount_paid") + amount)
+                            fee.refresh_from_db()
                             fee.save()
                             logger.info(f"School fee payment recorded: fee_id={fee_id}, amount={amount}")
                         else:

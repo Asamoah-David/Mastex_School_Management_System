@@ -1,0 +1,4 @@
+# Optional: automated handbook screenshots (Playwright).
+# Install: pip install -r docs/handbook/requirements-capture.txt
+# Then:    python -m playwright install chromium
+playwright>=1.49.0,<2.0

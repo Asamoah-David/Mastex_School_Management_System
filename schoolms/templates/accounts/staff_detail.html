@@ -369,7 +369,7 @@
     </p>
     {% if staff_payroll %}
     <table class="table-like" style="width:100%; font-size:0.85rem; margin-bottom:1rem;">
-        <thead><tr><th>Period</th><th>Amount</th><th>Paid on</th><th>Method</th><th>Paystack</th><th>Reference</th></tr></thead>
+        <thead><tr><th>Period</th><th>Amount</th><th>Paid on</th><th>Method</th><th>Paystack</th><th>Reference</th><th></th></tr></thead>
         <tbody>
             {% for p in staff_payroll %}
             <tr>
@@ -379,6 +379,7 @@
                 <td>{{ p.get_method_display }}</td>
                 <td>{% if p.paystack_status %}{{ p.get_paystack_status_display }}{% if p.paystack_transfer_code %}<br><small style="color:#94a3b8;">{{ p.paystack_transfer_code }}</small>{% endif %}{% else %}—{% endif %}</td>
                 <td>{{ p.reference|default:"—" }}</td>
+                <td><a href="{% url 'accounts:staff_payroll_payslip' p.id %}" class="btn btn-sm btn-secondary" style="font-size:0.75rem;">Payslip</a></td>
             </tr>
             {% endfor %}
         </tbody>

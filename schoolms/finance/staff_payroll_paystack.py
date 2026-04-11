@@ -18,6 +18,18 @@ def staff_paystack_transfers_enabled() -> bool:
     )
 
 
+def school_staff_paystack_allowed(request) -> bool:
+    """
+    Global Paystack settings must be on; school feature `staff_paystack_transfers` can opt out.
+    Missing feature row defaults to enabled (see schools.features.is_feature_enabled).
+    """
+    if not staff_paystack_transfers_enabled():
+        return False
+    from schools.features import is_feature_enabled
+
+    return is_feature_enabled(request, "staff_paystack_transfers")
+
+
 def normalize_gh_phone(raw: str) -> str:
     digits = re.sub(r"\D", "", raw or "")
     if len(digits) == 10 and digits.startswith("0"):

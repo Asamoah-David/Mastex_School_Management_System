@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Payslip · {{ payment.period_label }}{% endblock %}
+{% block page_title %}Payslip{% endblock %}
+{% block page_subtitle %}{{ payment.user.get_full_name|default:payment.user.username }}{% endblock %}
+
+{% block content %}
+<style>
+@media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; color: #111 !important; }
+    .payslip-sheet { box-shadow: none !important; border: 1px solid #ccc !important; }
+}
+.payslip-sheet { max-width: 640px; margin: 0 auto; padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(148,163,184,0.35); background: var(--bg-surface, #fff); }
+.payslip-sheet h2 { margin: 0 0 0.25rem; font-size: 1.25rem; }
+.payslip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; font-size: 0.9rem; margin-top: 1rem; }
+.payslip-grid dt { color: var(--text-secondary, #64748b); margin: 0; }
+.payslip-grid dd { margin: 0; font-weight: 600; }
+</style>
+
+<div class="no-print button-row" style="margin-bottom:1rem;">
+    <a href="javascript:window.print()" class="btn btn-primary">Print / Save as PDF</a>
+    {% if user == payment.user %}
+    <a href="{% url 'accounts:staff_my_payroll' %}" class="btn btn-secondary">My payroll</a>
+    {% else %}
+    <a href="{% url 'accounts:staff_detail' payment.user_id %}" class="btn btn-secondary">Staff profile</a>
+    {% endif %}
+    <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-secondary">Register</a>
+</div>
+
+<div class="payslip-sheet">
+    <h2>{{ school.name }}</h2>
+    <p style="margin:0;color:var(--text-secondary);font-size:0.85rem;">Payment advice / payslip</p>
+    <dl class="payslip-grid">
+        <dt>Employee</dt><dd>{{ payment.user.get_full_name|default:payment.user.username }}</dd>
+        <dt>Period</dt><dd>{{ payment.period_label }}</dd>
+        <dt>Paid on</dt><dd>{{ payment.paid_on }}</dd>
+        <dt>Amount</dt><dd>{{ payment.amount }} {{ payment.currency }}</dd>
+        <dt>Method</dt><dd>{{ payment.get_method_display }}</dd>
+        <dt>Reference</dt><dd>{{ payment.reference|default:"—" }}</dd>
+        {% if payment.paystack_status %}
+        <dt>Paystack</dt><dd>{{ payment.get_paystack_status_display }}{% if payment.paystack_transfer_code %} · {{ payment.paystack_transfer_code }}{% endif %}</dd>
+        {% endif %}
+        {% if payment.recorded_by %}
+        <dt>Recorded by</dt><dd>{{ payment.recorded_by.get_full_name|default:payment.recorded_by.username }}</dd>
+        {% endif %}
+    </dl>
+    {% if payment.notes %}
+    <p style="margin-top:1rem;font-size:0.85rem;color:var(--text-secondary);"><strong>Notes:</strong> {{ payment.notes }}</p>
+    {% endif %}
+    <p style="margin-top:1.5rem;font-size:0.75rem;color:var(--text-secondary);">Generated from Mastex SchoolOS. For queries, contact your school administration.</p>
+</div>
+{% endblock %}

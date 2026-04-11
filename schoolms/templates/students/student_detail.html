@@ -72,6 +72,7 @@
         <a href="{% url 'students:student_reactivate' student.id %}" class="btn btn-success">Reactivate student</a>
     {% endif %}
     {% if student.status == "active" or student.status == "suspended" %}
+        <a href="{% url 'students:student_clearance' student.id %}" class="btn btn-secondary">Leaver clearance</a>
         <a href="{% url 'students:student_exit' student.id %}" class="btn btn-danger">Record exit / withdraw / dismiss</a>
     {% endif %}
     {% if request.user.is_superuser or request.user.is_super_admin %}

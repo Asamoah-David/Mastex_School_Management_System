@@ -1,3 +1,6 @@
+import csv
+
+from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -15,6 +18,47 @@ def _has_audit_access(user):
     return False, False
 
 
+def _audit_filters_from_request(request):
+    return {
+        "action": request.GET.get("action", ""),
+        "model": request.GET.get("model", ""),
+        "user": request.GET.get("user", ""),
+        "date_from": request.GET.get("date_from", ""),
+        "date_to": request.GET.get("date_to", ""),
+        "q": request.GET.get("q", ""),
+        "school_id": (request.GET.get("school_id") or "").strip(),
+    }
+
+
+def _filtered_audit_queryset(user, is_super, filters):
+    if is_super:
+        logs = AuditLog.objects.all()
+    else:
+        logs = AuditLog.objects.filter(school=user.school)
+
+    if is_super and filters["school_id"].isdigit():
+        logs = logs.filter(school_id=int(filters["school_id"]))
+
+    if filters["action"]:
+        logs = logs.filter(action=filters["action"])
+    if filters["model"]:
+        logs = logs.filter(model_name__icontains=filters["model"])
+    if filters["user"]:
+        logs = logs.filter(user__username__icontains=filters["user"])
+    if filters["date_from"]:
+        logs = logs.filter(timestamp__date__gte=filters["date_from"])
+    if filters["date_to"]:
+        logs = logs.filter(timestamp__date__lte=filters["date_to"])
+    if filters["q"]:
+        logs = logs.filter(
+            Q(object_repr__icontains=filters["q"])
+            | Q(user__username__icontains=filters["q"])
+            | Q(model_name__icontains=filters["q"])
+        )
+
+    return logs.select_related("user", "school").order_by("-timestamp")
+
+
 @login_required
 def audit_dashboard(request):
     """Audit log dashboard - superusers see all, school admins see their school's logs."""
@@ -23,52 +67,55 @@ def audit_dashboard(request):
     if not has_access:
         return redirect("home")
 
-    if is_super:
-        logs = AuditLog.objects.all()
-    else:
-        logs = AuditLog.objects.filter(school=user.school)
+    filters = _audit_filters_from_request(request)
+    logs = _filtered_audit_queryset(user, is_super, filters)
 
-    action_filter = request.GET.get("action", "")
-    model_filter = request.GET.get("model", "")
-    user_filter = request.GET.get("user", "")
-    date_from = request.GET.get("date_from", "")
-    date_to = request.GET.get("date_to", "")
-    search_query = request.GET.get("q", "")
-
-    if action_filter:
-        logs = logs.filter(action=action_filter)
-    if model_filter:
-        logs = logs.filter(model_name__icontains=model_filter)
-    if user_filter:
-        logs = logs.filter(user__username__icontains=user_filter)
-    if date_from:
-        logs = logs.filter(timestamp__date__gte=date_from)
-    if date_to:
-        logs = logs.filter(timestamp__date__lte=date_to)
-    if search_query:
-        logs = logs.filter(
-            Q(object_repr__icontains=search_query)
-            | Q(user__username__icontains=search_query)
-            | Q(model_name__icontains=search_query)
+    if request.GET.get("export") == "csv":
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="audit_log_export.csv"'
+        w = csv.writer(response)
+        w.writerow(
+            [
+                "timestamp",
+                "action",
+                "model_name",
+                "object_id",
+                "object_repr",
+                "username",
+                "school",
+                "ip_address",
+            ]
         )
-
-    logs = logs.select_related("user", "school").order_by("-timestamp")
+        for row in logs.iterator(chunk_size=500):
+            w.writerow(
+                [
+                    row.timestamp.isoformat() if row.timestamp else "",
+                    row.action,
+                    row.model_name,
+                    row.object_id or "",
+                    (row.object_repr or "").replace("\n", " ")[:500],
+                    row.user.username if row.user_id else "",
+                    row.school.name if row.school_id else "",
+                    row.ip_address or "",
+                ]
+            )
+        return response
 
     paginator = Paginator(logs, 50)
     page_obj = paginator.get_page(request.GET.get("page", 1))
+
+    audit_schools = []
+    if is_super:
+        from schools.models import School
+
+        audit_schools = list(School.objects.order_by("name").values("id", "name")[:300])
 
     context = {
         "page_obj": page_obj,
         "action_choices": [c[0] for c in AuditLog.ACTION_CHOICES],
         "can_view_all": is_super,
-        "filters": {
-            "action": action_filter,
-            "model": model_filter,
-            "user": user_filter,
-            "date_from": date_from,
-            "date_to": date_to,
-            "q": search_query,
-        },
+        "filters": filters,
+        "audit_schools": audit_schools,
     }
     return render(request, "audit/dashboard.html", context)
 

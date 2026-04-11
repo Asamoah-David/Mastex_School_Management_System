@@ -72,6 +72,40 @@ def admission_parent_confirmation_message(request, school_name: str, public_refe
     return _truncate_label(no_url, budget)
 
 
+def admission_track_sms_url(public_reference: str) -> str:
+    """Track URL for SMS (uses ADMISSION_SMS_PUBLIC_BASE_URL when set)."""
+    path = reverse("operations:admission_track") + "?" + urlencode({"ref": public_reference.strip()})
+    base = getattr(settings, "ADMISSION_SMS_PUBLIC_BASE_URL", None)
+    if isinstance(base, str):
+        base = base.strip().rstrip("/")
+    if base:
+        return f"{base}{path}"
+    return path
+
+
+def admission_status_change_message(
+    school_name: str, public_reference: str, status_display: str
+) -> str:
+    """SMS when pipeline status changes; URL included when it fits the budget."""
+    budget = _sms_char_budget()
+    sn = _truncate_label(school_name, 36)
+    ref = public_reference.strip()
+    st = _truncate_label(status_display, 40)
+    url = admission_track_sms_url(ref)
+    candidates = [
+        f"{sn}: admission {ref} → {st}. Track: {url}",
+        f"{sn} ref {ref}: {st}. {url}",
+        f"Admission {ref}: {st}. {url}",
+    ]
+    for body in candidates:
+        if len(body) <= budget:
+            return body
+    no_url = f"{sn}: admission {ref} is now {st}. Use Track on the school site with this ref."
+    if len(no_url) <= budget:
+        return no_url
+    return _truncate_label(no_url, budget)
+
+
 def admission_admin_new_application_message(
     public_reference: str,
     student_first: str,

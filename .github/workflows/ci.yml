@@ -63,5 +63,6 @@ jobs:
       - name: Collect static files
         run: python manage.py collectstatic --noinput
 
+      # Broaden beyond finance-only to catch regressions in accounts, payroll, and timetable.
       - name: Tests
-        run: python manage.py test finance.tests --verbosity 1
+        run: python manage.py test accounts.tests finance.tests students.tests operations.tests --verbosity 1

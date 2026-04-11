@@ -110,6 +110,7 @@ class SchoolFeature(models.Model):
         # HR
         ("staff_management", "Staff Management"),
         ("leave_management", "Leave Management"),
+        ("staff_paystack_transfers", "Staff payroll (Paystack transfers)"),
     )
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="features")

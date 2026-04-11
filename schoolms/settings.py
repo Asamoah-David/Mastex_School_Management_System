@@ -340,6 +340,13 @@ try:
     ADMISSION_SMS_MAX_CHARS = max(120, min(640, int(env("ADMISSION_SMS_MAX_CHARS", "300"))))
 except ValueError:
     ADMISSION_SMS_MAX_CHARS = 300
+# SMS when an admission application moves along the pipeline (requires SMS gateway).
+ADMISSION_STATUS_SMS_ENABLED = env_bool("ADMISSION_STATUS_SMS_ENABLED", True)
+
+try:
+    BULK_IN_APP_NOTIFICATION_CAP = max(100, min(5000, int(env("BULK_IN_APP_NOTIFICATION_CAP", "1500"))))
+except ValueError:
+    BULK_IN_APP_NOTIFICATION_CAP = 1500
 
 # Hard ceiling for any SMS body (after optional [school] prefix in SMSService); avoids huge payloads.
 try:

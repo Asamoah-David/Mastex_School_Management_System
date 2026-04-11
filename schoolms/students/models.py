@@ -108,6 +108,47 @@ class Student(models.Model):
         return self.status == "active" and bool(getattr(self.user, "is_active", True))
 
 
+class StudentClearance(models.Model):
+    """Leaver checklist (fees, library, ID, discipline) before exit processing."""
+
+    student = models.OneToOneField(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="clearance_record",
+    )
+    fees_cleared = models.BooleanField(default=False)
+    library_cleared = models.BooleanField(default=False)
+    id_card_returned = models.BooleanField(default=False)
+    discipline_cleared = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Student clearance"
+        verbose_name_plural = "Student clearances"
+
+    @property
+    def is_complete(self) -> bool:
+        return all(
+            (
+                self.fees_cleared,
+                self.library_cleared,
+                self.discipline_cleared,
+                self.id_card_returned,
+            )
+        )
+
+    def __str__(self):
+        return f"Clearance · {self.student_id}"
+
+
 class StudentAchievement(models.Model):
     """Track student achievements, awards, and activities"""
     ACHIEVEMENT_TYPES = (

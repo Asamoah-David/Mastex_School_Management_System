@@ -18,6 +18,22 @@
 </div>
 {% endif %}
 
+{% if show_onboarding_card and onboarding_checklist %}
+<div class="content-card dash-section" style="padding:1rem 1.1rem;border-left:3px solid #38bdf8;">
+    <h3 class="section-title" style="margin-bottom:0.5rem;">Getting started</h3>
+    <p style="margin:0 0 0.75rem;font-size:0.85rem;color:var(--text-secondary);">Complete these steps to stand up your school on the platform.</p>
+    <ul style="list-style:none;padding:0;margin:0;">
+        {% for item in onboarding_checklist %}
+        <li style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid rgba(148,163,184,0.12);font-size:0.9rem;">
+            <span style="font-size:1.1rem;">{% if item.done %}✅{% else %}⬜{% endif %}</span>
+            <span style="flex:1;">{{ item.label }}</span>
+            {% if item.url and not item.done %}<a href="{{ item.url }}" class="btn btn-sm btn-secondary" style="font-size:0.75rem;">Open</a>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <!-- Quick Actions -->
 {% if quick_actions %}
 <div class="dash-quick-row dash-section">
@@ -136,7 +152,7 @@
     {% if pending_admissions %}
     <a href="{% url 'operations:admission_list' %}" class="content-card attention-tile attention-tile--warning">
         <div class="attention-tile__value">{{ pending_admissions }}</div>
-        <div class="attention-tile__label">Pending Admissions</div>
+        <div class="attention-tile__label">Open admissions</div>
     </a>
     {% endif %}
     {% if overdue_books %}

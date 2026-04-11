@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" href="{% static 'favicon.png' %}">
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="theme-color" content="#22c55e">
-    <meta name="description" content="{% block meta_description %}Mastex SchoolOS — academics, finance, canteen, transport, hostel, library, and parent portals in one school ERP.{% endblock %}">
+    <meta name="description" content="{% block meta_description %}Mastex SchoolOS — academics, finance, canteen, transport, hostel, library, and parent portals in one school ERP. More at mastexedu.online.{% endblock %}">
     {% load feature_flags %}
     <title>{% block title %}School Management System{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -237,6 +237,8 @@
         .footer-links { display: flex; flex-wrap: wrap; gap: 0.65rem; }
         .footer-link { text-decoration: none; color: var(--text-soft); }
         .footer-link:hover { color: var(--text-main); }
+        .footer-contact a { color: #86efac; text-decoration: none; font-weight: 500; }
+        .footer-contact a:hover { color: #bbf7d0; text-decoration: underline; }
         .messages .message-box.success { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4); }
         .profile-menu { position: relative; }
         .profile-trigger {
@@ -1245,7 +1247,13 @@ background: rgba(2, 6, 23, 0.98);
             <div class="footer-inner">
                 <div>Mastex SchoolOS &mdash; modern school management platform.</div>
                 <div class="footer-links"><span class="badge-pill">Secure · Paystack · MNotify</span></div>
-                <div>Contact: mastex.digital.world@gmail.com | +233544789716</div>
+                <div class="footer-contact">
+                    <a href="https://mastexedu.online" target="_blank" rel="noopener noreferrer">mastexedu.online</a>
+                    <span aria-hidden="true"> · </span>
+                    <a href="mailto:mastex.digital.world@gmail.com">mastex.digital.world@gmail.com</a>
+                    <span aria-hidden="true"> · </span>
+                    <a href="https://wa.me/233544789716" target="_blank" rel="noopener noreferrer" title="WhatsApp">WhatsApp +233 544 789 716</a>
+                </div>
                 {% if user.is_authenticated %}
                 <div class="erp-footer-dock no-print" aria-label="Quick links">
                     <span class="erp-footer-dock__label">Quick</span>

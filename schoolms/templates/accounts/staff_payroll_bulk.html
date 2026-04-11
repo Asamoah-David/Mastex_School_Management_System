@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Bulk payroll · {{ school.name }}{% endblock %}
+{% block page_title %}Bulk record payroll{% endblock %}
+{% block page_subtitle %}Same period and date for multiple staff (offline methods only){% endblock %}
+
+{% block content %}
+<div class="content-card" style="margin-bottom:1rem;">
+    <p style="margin:0;font-size:0.9rem;color:var(--text-secondary);line-height:1.5;">
+        Select staff and enter a <strong>default amount</strong>. Optionally override per person using the amount field next to their name.
+        This creates ledger rows only — it does <strong>not</strong> send Paystack transfers. Use
+        <a href="{% url 'accounts:staff_payroll_register' %}">Payroll register</a> or pay per person for platform payouts.
+    </p>
+</div>
+
+<form method="post" class="content-card">
+    {% csrf_token %}
+    <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;margin-bottom:1rem;">
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-secondary);">Period label *</label>
+            <input type="text" name="period_label" required placeholder="e.g. March 2026" style="padding:0.45rem;min-width:12rem;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-secondary);">Paid on *</label>
+            <input type="date" name="paid_on" required style="padding:0.45rem;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-secondary);">Default amount *</label>
+            <input type="number" name="default_amount" step="0.01" min="0.01" required style="padding:0.45rem;width:8rem;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-secondary);">Currency</label>
+            <input type="text" name="currency" value="GHS" maxlength="8" style="padding:0.45rem;width:5rem;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-secondary);">Method</label>
+            <select name="method" style="padding:0.45rem;">
+                <option value="bank">Bank transfer</option>
+                <option value="cash">Cash</option>
+                <option value="mobile_money">Mobile money</option>
+                <option value="cheque">Cheque</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-secondary);">Reference prefix (optional)</label>
+            <input type="text" name="reference_prefix" placeholder="BATCH-" style="padding:0.45rem;min-width:8rem;">
+        </div>
+    </div>
+    <textarea name="notes" placeholder="Shared notes (optional)" rows="2" style="width:100%;padding:0.45rem;margin-bottom:1rem;"></textarea>
+
+    <h3 style="font-size:1rem;margin:0 0 0.75rem;">Staff</h3>
+    <div style="max-height:420px;overflow-y:auto;border:1px solid rgba(148,163,184,0.25);border-radius:8px;padding:0.5rem;">
+        {% for s in staff_list %}
+        <div style="display:flex;align-items:center;gap:0.75rem;padding:0.4rem 0;border-bottom:1px solid rgba(148,163,184,0.1);flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:0.35rem;cursor:pointer;flex:1;min-width:200px;">
+                <input type="checkbox" name="staff_ids" value="{{ s.id }}">
+                <span>{{ s.get_full_name|default:s.username }} <span style="color:var(--text-secondary);font-size:0.8rem;">({{ s.get_role_display }})</span></span>
+            </label>
+            <div style="display:flex;align-items:center;gap:0.35rem;">
+                <span style="font-size:0.75rem;color:var(--text-secondary);">Override amt</span>
+                <input type="number" name="amount_{{ s.id }}" step="0.01" min="0" placeholder="default" style="padding:0.35rem;width:7rem;">
+            </div>
+        </div>
+        {% empty %}
+        <p style="color:var(--text-secondary);">No active staff in this school.</p>
+        {% endfor %}
+    </div>
+
+    <div class="button-row mt-sm">
+        <button type="submit" class="btn btn-primary">Record selected</button>
+        <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

@@ -1269,6 +1269,22 @@ def report_cards_export_zip(request):
     return resp
 
 
+def _timetable_times_overlap(st_a, en_a, st_b, en_b) -> bool:
+    return st_a < en_b and st_b < en_a
+
+
+def _timetable_class_slot_conflicts(school, class_name, day_of_week, start_time, end_time, *, exclude_pk=None):
+    """Same class cannot have two lessons overlapping on the same day."""
+    qs = Timetable.objects.filter(school=school, class_name=class_name, day_of_week=day_of_week)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return [
+        row
+        for row in qs
+        if _timetable_times_overlap(start_time, end_time, row.start_time, row.end_time)
+    ]
+
+
 # Timetable
 @login_required
 def timetable_list(request):
@@ -1284,11 +1300,11 @@ def timetable_list(request):
     class_name = (request.GET.get("class_name") or "").strip()
     day = (request.GET.get("day") or "").strip()
 
-    qs = Timetable.objects.filter(school=school).select_related("subject").order_by("class_name", "day", "start_time")
+    qs = Timetable.objects.filter(school=school).select_related("subject").order_by("class_name", "day_of_week", "start_time")
     if class_name:
         qs = qs.filter(class_name=class_name)
     if day:
-        qs = qs.filter(day__iexact=day)
+        qs = qs.filter(day_of_week__iexact=day)
 
     classes = (
         Timetable.objects.filter(school=school)
@@ -1343,16 +1359,25 @@ def timetable_create(request):
             if not st or not et or st >= et:
                 messages.error(request, "Invalid time range.")
             else:
-                Timetable.objects.create(
-                    school=school,
-                    class_name=class_name,
-                    subject=subject,
-                    day=day,
-                    start_time=st,
-                    end_time=et,
-                )
-                messages.success(request, "Timetable entry created.")
-                return redirect("academics:timetable_list")
+                conflicts = _timetable_class_slot_conflicts(school, class_name, day, st, et)
+                if conflicts:
+                    subj = ", ".join(sorted({c.subject.name for c in conflicts}))[:200]
+                    messages.error(
+                        request,
+                        f"This class already has overlapping lesson(s) on {day}: {subj}. "
+                        "Adjust the time or remove the conflicting entry.",
+                    )
+                else:
+                    Timetable.objects.create(
+                        school=school,
+                        class_name=class_name,
+                        subject=subject,
+                        day_of_week=day,
+                        start_time=st,
+                        end_time=et,
+                    )
+                    messages.success(request, "Timetable entry created.")
+                    return redirect("academics:timetable_list")
 
     return render(
         request,
@@ -1392,7 +1417,7 @@ def timetable_my(request):
         items = (
             Timetable.objects.filter(school=school, class_name=class_name)
             .select_related("subject")
-            .order_by("day", "start_time")
+            .order_by("day_of_week", "start_time")
         ) if class_name else Timetable.objects.none()
         return render(
             request,
@@ -1418,7 +1443,7 @@ def timetable_my(request):
         items = (
             Timetable.objects.filter(school=school, class_name=class_name)
             .select_related("subject")
-            .order_by("day", "start_time")
+            .order_by("day_of_week", "start_time")
         ) if class_name else Timetable.objects.none()
         return render(
             request,

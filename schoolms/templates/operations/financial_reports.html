@@ -118,6 +118,39 @@
         </div>
     </div>
 
+    {% if budget_vs_actual %}
+    <div class="content-card" style="margin-top: 1.5rem;">
+        <h3 style="margin-top: 0;">📒 Budget vs actual ({{ current_year }} expenses)</h3>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0.75rem;">
+            Budget lines matched to your school’s academic year label or calendar year; “actual” sums expenses in <strong>{{ current_year }}</strong> by category.
+        </p>
+        <div style="overflow-x:auto;">
+            <table style="width:100%;font-size:0.88rem;border-collapse:collapse;">
+                <thead>
+                    <tr style="text-align:left;border-bottom:1px solid rgba(148,163,184,0.35);">
+                        <th style="padding:0.5rem 0;">Category</th>
+                        <th>Budget year</th>
+                        <th>Budgeted</th>
+                        <th>Actual</th>
+                        <th>Variance</th>
+                    </tr>
+                </thead>
+                <tbody id="budgetVsActualBody">
+                    {% for row in budget_vs_actual %}
+                    <tr style="border-bottom:1px solid rgba(148,163,184,0.15);">
+                        <td style="padding:0.45rem 0;">{{ row.category }}</td>
+                        <td>{{ row.academic_year }}</td>
+                        <td>{{ row.budgeted|floatformat:2 }}</td>
+                        <td>{{ row.actual|floatformat:2 }}</td>
+                        <td style="color:{% if row.variance >= 0 %}#22c55e{% else %}#ef4444{% endif %};">{{ row.variance|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     {% if staff_payroll_by_currency or staff_payroll_monthly %}
     <div class="content-card" style="margin-top: 1.5rem;">
         <h3 style="margin-top: 0;">&#x1F9D1;&#x200D;&#x1F4BC; Staff payroll ({{ current_year }})</h3>
@@ -187,6 +220,20 @@ function loadFinancialData(year) {
                     pc.appendChild(d);
                 });
             }
+            var bva = document.getElementById('budgetVsActualBody');
+            if (bva) {
+                bva.innerHTML = '';
+                if (data.budget_vs_actual && data.budget_vs_actual.length) {
+                    data.budget_vs_actual.forEach(function(r) {
+                        var tr = document.createElement('tr');
+                        tr.style.borderBottom = '1px solid rgba(148,163,184,0.15)';
+                        var vc = (r.variance >= 0) ? '#22c55e' : '#ef4444';
+                        tr.innerHTML = '<td style="padding:0.45rem 0;">' + (r.category || '') + '</td><td>' + (r.academic_year || '') + '</td><td>' + (r.budgeted != null ? r.budgeted.toFixed(2) : '') + '</td><td>' + (r.actual != null ? r.actual.toFixed(2) : '') + '</td><td style="color:' + vc + ';">' + (r.variance != null ? r.variance.toFixed(2) : '') + '</td>';
+                        bva.appendChild(tr);
+                    });
+                }
+            }
+
             var pm = document.getElementById('payrollMonthlyChart');
             if (pm && data.staff_payroll_monthly) {
                 var maxT = 0;

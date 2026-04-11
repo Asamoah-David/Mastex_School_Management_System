@@ -18,6 +18,7 @@ from django.utils.dateparse import parse_date
 from finance.staff_payroll_paystack import (
     initiate_staff_payroll_paystack_transfer,
     recipient_snapshot_for_route,
+    school_staff_paystack_allowed,
     staff_paystack_transfers_enabled,
 )
 
@@ -376,7 +377,8 @@ def staff_payroll_disburse(request, pk: int):
             {
                 "staff": staff,
                 "school": school,
-                "paystack_staff_enabled": staff_paystack_transfers_enabled(),
+                "paystack_staff_enabled": school_staff_paystack_allowed(request),
+                "paystack_globally_configured": staff_paystack_transfers_enabled(),
                 "paystack_currency": getattr(settings, "PAYSTACK_CURRENCY", "GHS"),
             },
         )
@@ -418,12 +420,19 @@ def staff_payroll_disburse(request, pk: int):
     method = method_map[mode]
 
     if mode.startswith("paystack_"):
-        if not staff_paystack_transfers_enabled():
-            messages.error(
-                request,
-                "Paystack staff transfers are disabled. Set PAYSTACK_STAFF_TRANSFERS_ENABLED=1 and ensure PAYSTACK_SECRET_KEY is set. "
-                "Transfers debit your Paystack merchant balance.",
-            )
+        if not school_staff_paystack_allowed(request):
+            if not staff_paystack_transfers_enabled():
+                messages.error(
+                    request,
+                    "Paystack staff transfers are disabled. Set PAYSTACK_STAFF_TRANSFERS_ENABLED=1 and ensure PAYSTACK_SECRET_KEY is set. "
+                    "Transfers debit your Paystack merchant balance.",
+                )
+            else:
+                messages.error(
+                    request,
+                    "Paystack staff payouts are turned off for your school. A platform admin can enable the "
+                    "“Staff payroll (Paystack transfers)” school feature.",
+                )
             return redirect("accounts:staff_payroll_disburse", pk=pk)
         route = "momo" if mode == "paystack_momo" else "bank"
         pay = StaffPayrollPayment(
@@ -581,8 +590,147 @@ def staff_payroll_register(request):
             "totals": totals,
             "expiring_contracts": expiring_contracts,
             "show_contract_expiry": _can_see_contract_expiry(request),
-            "paystack_staff_enabled": staff_paystack_transfers_enabled(),
+            "paystack_staff_enabled": school_staff_paystack_allowed(request),
         },
+    )
+
+
+@login_required
+def staff_payroll_bulk_record(request):
+    """
+    Record the same payroll period for many staff at once (offline methods only).
+    """
+    if not can_manage_finance(request.user):
+        messages.error(request, "You do not have permission to record bulk payroll.")
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    staff_qs = (
+        User.objects.filter(school=school, role__in=ALL_STAFF_ROLES, is_active=True)
+        .select_related("school")
+        .order_by("first_name", "last_name", "username")
+    )
+
+    if request.method == "POST":
+        raw_ids = request.POST.getlist("staff_ids")
+        period_label = request.POST.get("period_label", "").strip()
+        paid_raw = request.POST.get("paid_on", "").strip()
+        paid_on = parse_date(paid_raw) if paid_raw else None
+        default_amount_raw = request.POST.get("default_amount", "").strip().replace(",", "")
+        method = request.POST.get("method", "bank").strip()
+        valid_methods = {c[0] for c in StaffPayrollPayment.METHOD_CHOICES}
+        if method not in valid_methods:
+            method = "bank"
+        currency = (request.POST.get("currency") or "GHS").strip()[:8] or "GHS"
+        notes = request.POST.get("notes", "").strip()
+        reference_prefix = request.POST.get("reference_prefix", "").strip()[:80]
+
+        if not period_label or not paid_on:
+            messages.error(request, "Period label and payment date are required.")
+            return redirect("accounts:staff_payroll_bulk_record")
+
+        try:
+            default_amount = Decimal(default_amount_raw)
+        except (InvalidOperation, TypeError):
+            messages.error(request, "Enter a valid default amount.")
+            return redirect("accounts:staff_payroll_bulk_record")
+
+        if default_amount <= 0:
+            messages.error(request, "Default amount must be greater than zero.")
+            return redirect("accounts:staff_payroll_bulk_record")
+
+        id_set = set()
+        for x in raw_ids:
+            try:
+                id_set.add(int(x))
+            except (TypeError, ValueError):
+                continue
+
+        if not id_set:
+            messages.error(request, "Select at least one staff member.")
+            return redirect("accounts:staff_payroll_bulk_record")
+
+        eligible = set(staff_qs.filter(pk__in=id_set).values_list("pk", flat=True))
+        created = 0
+        for uid in sorted(eligible):
+            amt_raw = (request.POST.get(f"amount_{uid}", "") or "").strip().replace(",", "")
+            try:
+                amount = Decimal(amt_raw) if amt_raw else default_amount
+            except (InvalidOperation, TypeError):
+                amount = default_amount
+            if amount <= 0:
+                continue
+            ref = f"{reference_prefix} {uid}".strip() if reference_prefix else ""
+            StaffPayrollPayment.objects.create(
+                school=school,
+                user_id=uid,
+                period_label=period_label,
+                amount=amount,
+                currency=currency,
+                paid_on=paid_on,
+                method=method,
+                reference=ref[:120],
+                notes=notes,
+                recorded_by=request.user,
+                paystack_status="",
+                recipient_snapshot="",
+            )
+            created += 1
+
+        if created:
+            messages.success(request, f"Recorded {created} payroll line(s).")
+        else:
+            messages.warning(request, "No payroll lines were created. Check amounts and selections.")
+        return redirect("accounts:staff_payroll_register")
+
+    return render(
+        request,
+        "accounts/staff_payroll_bulk.html",
+        {"school": school, "staff_list": staff_qs},
+    )
+
+
+@login_required
+def staff_payroll_payslip(request, payment_id: int):
+    pay = get_object_or_404(
+        StaffPayrollPayment.objects.select_related("school", "user", "recorded_by"),
+        pk=payment_id,
+    )
+    viewer = request.user
+    allowed = False
+    if viewer == pay.user:
+        allowed = True
+    elif can_manage_finance(viewer) and getattr(viewer, "school", None) == pay.school:
+        allowed = True
+    elif viewer.is_superuser or getattr(viewer, "is_super_admin", False):
+        allowed = True
+
+    if not allowed:
+        return redirect("home")
+
+    return render(
+        request,
+        "accounts/staff_payroll_payslip.html",
+        {"payment": pay, "school": pay.school},
+    )
+
+
+@login_required
+def staff_my_payroll(request):
+    """Staff: view own payroll lines and open printable payslips."""
+    if getattr(request.user, "role", None) not in ALL_STAFF_ROLES:
+        return redirect("home")
+    payments = (
+        StaffPayrollPayment.objects.filter(user=request.user)
+        .select_related("school")
+        .order_by("-paid_on", "-id")[:120]
+    )
+    return render(
+        request,
+        "accounts/staff_my_payroll.html",
+        {"payments": payments},
     )
 
 

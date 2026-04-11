@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Admission pipeline{% endblock %}
+{% block page_title %}Admission pipeline{% endblock %}
+{% block page_subtitle %}Applications by stage (open statuses){% endblock %}
+
+{% block content %}
+<div class="content-card" style="margin-bottom: 1rem;">
+    <a href="{% url 'operations:admission_list' %}" class="btn btn-secondary">Table view</a>
+    <a href="{% url 'operations:admission_apply' %}" class="btn btn-secondary">Public apply form</a>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; align-items: start;">
+    {% for col in columns %}
+    <div class="content-card" style="padding: 0.75rem;">
+        <h3 style="margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--text-main);">{{ col.label }}</h3>
+        <p style="margin: 0 0 0.75rem; font-size: 0.75rem; color: var(--text-soft);">{{ col.items|length }} shown</p>
+        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+            {% for app in col.items %}
+            <li style="padding: 0.5rem 0.6rem; border-radius: 8px; background: rgba(148,163,184,0.12); font-size: 0.82rem;">
+                <a href="{% url 'operations:admission_detail' app.pk %}" style="font-weight: 600; color: var(--text-main);">{{ app.first_name }} {{ app.last_name }}</a>
+                <div style="color: var(--text-soft); font-size: 0.72rem; margin-top: 0.2rem;">{{ app.class_applied_for }} · {{ app.public_reference }}</div>
+            </li>
+            {% empty %}
+            <li style="color: var(--text-soft); font-size: 0.85rem;">No applications</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

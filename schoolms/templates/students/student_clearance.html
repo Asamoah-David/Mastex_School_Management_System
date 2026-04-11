@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Leaver clearance · {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
+{% block page_title %}Leaver clearance{% endblock %}
+{% block page_subtitle %}{{ student.admission_number }} · {{ student.class_name|default:"—" }}{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width: 640px;">
+    <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1rem;">
+        Tick each area when cleared. <strong>Student exit</strong> is blocked until all items are checked, unless school leadership uses the override on the exit form.
+    </p>
+    <form method="post">
+        {% csrf_token %}
+        <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="fees_cleared" {% if clearance.fees_cleared %}checked{% endif %}>
+                <span>Fees / finance clearance</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="library_cleared" {% if clearance.library_cleared %}checked{% endif %}>
+                <span>Library (no outstanding books)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="discipline_cleared" {% if clearance.discipline_cleared %}checked{% endif %}>
+                <span>Discipline / conduct clearance</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="id_card_returned" {% if clearance.id_card_returned %}checked{% endif %}>
+                <span>ID card / property returned</span>
+            </label>
+        </div>
+        <div style="margin-top: 1rem;">
+            <label style="display: block; font-size: 0.8rem; color: var(--text-soft); margin-bottom: 0.25rem;">Notes</label>
+            <textarea name="notes" rows="3" class="form-control" style="width: 100%;">{{ clearance.notes }}</textarea>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Save clearance</button>
+            <a href="{% url 'students:student_detail' student.pk %}" class="btn btn-secondary">Back to student</a>
+            {% if student.status == 'active' or student.status == 'suspended' %}
+            <a href="{% url 'students:student_exit' student.pk %}" class="btn btn-secondary">Go to exit</a>
+            {% endif %}
+        </div>
+    </form>
+    {% if clearance.is_complete %}
+    <p style="margin-top: 1rem; font-size: 0.85rem; color: #4ade80;">✓ All clearance items are complete.</p>
+    {% else %}
+    <p style="margin-top: 1rem; font-size: 0.85rem; color: #fbbf24;">Clearance incomplete — exit will redirect here until done or leadership overrides.</p>
+    {% endif %}
+</div>
+{% endblock %}
