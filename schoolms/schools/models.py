@@ -93,6 +93,7 @@ class SchoolFeature(models.Model):
         ("id_cards", "ID Cards"),
         ("health_records", "Health Records"),
         ("discipline", "Discipline & Behavior"),
+        ("academic_calendar", "Academic Calendar"),
         ("school_events", "School Events"),
         ("sports", "Sports"),
         ("clubs", "Clubs & Activities"),

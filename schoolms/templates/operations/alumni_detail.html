@@ -2,37 +2,45 @@
 
 {% block title %}{{ alumni.first_name }} {{ alumni.last_name }} · Alumni{% endblock %}
 {% block page_title %}Alumni profile{% endblock %}
+{% block page_subtitle %}{{ alumni.class_name|default:"—" }} · Class of {{ alumni.graduation_year }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="mb-3">
-        <a href="{% url 'operations:alumni_list' %}" class="btn btn-outline-secondary btn-sm">← Back to alumni</a>
-    </div>
-    <div class="card shadow-sm">
-        <div class="card-header">
-            <h4 class="mb-0">{{ alumni.first_name }} {{ alumni.last_name }}</h4>
-            <small class="text-muted">Class {{ alumni.class_name }} · Graduated {{ alumni.graduation_year }}</small>
+<div class="button-row dash-section">
+    <a href="{% url 'operations:alumni_list' %}" class="btn btn-secondary btn-sm">← Back to alumni</a>
+    {% if user_can_manage_school or user.is_superuser %}
+    <a href="{% url 'operations:alumni_edit' alumni.pk %}" class="btn btn-primary btn-sm">Edit</a>
+    {% endif %}
+</div>
+
+<div class="content-card">
+    <div class="dashboard-grid dashboard-grid-2" style="gap:1rem;">
+        <div class="card card-flush">
+            <div class="card-header"><span class="card-header-title">Identity</span></div>
+            <div class="card-body">
+                <div class="stat-row"><span class="stat-row-label">Name</span><span class="stat-row-value">{{ alumni.first_name }} {{ alumni.last_name }}</span></div>
+                <div class="stat-row"><span class="stat-row-label">Admission #</span><span class="stat-row-value">{{ alumni.admission_number }}</span></div>
+                <div class="stat-row"><span class="stat-row-label">Graduation</span><span class="stat-row-value">{{ alumni.graduation_year }}{% if alumni.graduation_date %} · {{ alumni.graduation_date|date:"M j, Y" }}{% endif %}</span></div>
+                {% if alumni.student_id %}
+                <div class="stat-row"><span class="stat-row-label">Student record</span><span class="stat-row-value">Linked (ID {{ alumni.student_id }})</span></div>
+                {% endif %}
+            </div>
         </div>
-        <div class="card-body">
-            <dl class="row mb-0">
-                <dt class="col-md-3">Admission #</dt>
-                <dd class="col-md-9">{{ alumni.admission_number }}</dd>
-                <dt class="col-md-3">Graduation date</dt>
-                <dd class="col-md-9">{{ alumni.graduation_date|default:"—" }}</dd>
-                <dt class="col-md-3">Occupation</dt>
-                <dd class="col-md-9">{{ alumni.current_occupation|default:"—" }}</dd>
-                <dt class="col-md-3">Institution</dt>
-                <dd class="col-md-9">{{ alumni.current_institution|default:"—" }}</dd>
-                <dt class="col-md-3">Phone</dt>
-                <dd class="col-md-9">{{ alumni.contact_phone|default:"—" }}</dd>
-                <dt class="col-md-3">Email</dt>
-                <dd class="col-md-9">{{ alumni.contact_email|default:"—" }}</dd>
-                <dt class="col-md-3">Address</dt>
-                <dd class="col-md-9">{{ alumni.address|default:"—"|linebreaksbr }}</dd>
-                <dt class="col-md-3">Active member</dt>
-                <dd class="col-md-9">{% if alumni.is_active_member %}Yes{% else %}No{% endif %}</dd>
-            </dl>
+        <div class="card card-flush">
+            <div class="card-header"><span class="card-header-title">After school</span></div>
+            <div class="card-body">
+                <div class="stat-row"><span class="stat-row-label">Occupation</span><span class="stat-row-value">{{ alumni.current_occupation|default:"—" }}</span></div>
+                <div class="stat-row"><span class="stat-row-label">Institution</span><span class="stat-row-value">{{ alumni.current_institution|default:"—" }}</span></div>
+                <div class="stat-row"><span class="stat-row-label">Phone</span><span class="stat-row-value">{{ alumni.contact_phone|default:"—" }}</span></div>
+                <div class="stat-row"><span class="stat-row-label">Email</span><span class="stat-row-value">{{ alumni.contact_email|default:"—" }}</span></div>
+                <div class="stat-row"><span class="stat-row-label">Active member</span><span class="stat-row-value">{% if alumni.is_active_member %}Yes{% else %}No{% endif %}{% if alumni.membership_year %} ({{ alumni.membership_year }}){% endif %}</span></div>
+            </div>
         </div>
     </div>
+    {% if alumni.address %}
+    <div class="card" style="margin-top:1rem;">
+        <div class="card-header"><span class="card-header-title">Address</span></div>
+        <div class="card-body"><p style="margin:0;white-space:pre-wrap;">{{ alumni.address }}</p></div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

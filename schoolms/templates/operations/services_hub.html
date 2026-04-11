@@ -60,21 +60,21 @@
     <h3 style="margin:0 0 0.75rem; font-size:1rem;">Governance &amp; oversight</h3>
     <p style="font-size:0.85rem; color:var(--text-soft, #94a3b8); margin:0 0 0.75rem;">Audit trails, settings, and consolidated registers — same tools as your main navigation, grouped for control-room use.</p>
     <div class="dashboard-grid-4" style="gap:0.75rem;">
-        {% if user.is_superuser or user.role == "super_admin" or user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" %}
+        {% if user.is_superuser or user.role == "super_admin" or is_school_leadership %}
         <a href="{% url 'operations:activity_log_list' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
             <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F4CB;</div>
             <strong>Activity log</strong>
             <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Sign-ins and notable actions</div>
         </a>
         {% endif %}
-        {% if user.is_superuser or user.role == "super_admin" or user.role == "school_admin" %}
+        {% if user.is_superuser or user.role == "super_admin" or is_school_leadership %}
         <a href="{% url 'audit:dashboard' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
             <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x1F50D;</div>
             <strong>Audit dashboard</strong>
             <div style="font-size:0.8rem; color:var(--text-soft, #94a3b8); margin-top:0.25rem;">Model-level change history</div>
         </a>
         {% endif %}
-        {% if user.is_superuser or user.role == "school_admin" %}
+        {% if user.is_superuser or is_school_leadership %}
         <a href="{% url 'schools:school_settings' %}" class="content-card" style="text-decoration:none; padding:1rem; margin:0;">
             <div style="font-size:1.35rem; margin-bottom:0.35rem;">&#x2699;&#xFE0F;</div>
             <strong>School settings</strong>

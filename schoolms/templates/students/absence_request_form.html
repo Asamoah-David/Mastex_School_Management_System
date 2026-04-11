@@ -7,8 +7,13 @@
     {% csrf_token %}
     <div class="form-grid">
         <div class="form-group">
-            <label for="id_date">Date of absence</label>
+            <label for="id_date">First day absent *</label>
             <input type="date" id="id_date" name="date" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label for="id_end_date">Last day absent (optional)</label>
+            <input type="date" id="id_end_date" name="end_date" class="form-control" title="Leave blank for a single day">
+            <small style="color:var(--text-muted);font-size:.78rem;">Leave blank if only one day.</small>
         </div>
         <div class="form-group full-width">
             <label for="id_reason">Reason</label>

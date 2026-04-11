@@ -14,7 +14,7 @@
                 All events for {{ school.name }} ordered by date.
             </p>
         </div>
-        {% if user.is_superuser or user.is_staff_member %}
+        {% if can_manage_academic_calendar %}
         <a href="{% url 'operations:calendar_create' %}" class="btn btn-primary">+ Add event</a>
         {% endif %}
     </div>
@@ -28,7 +28,7 @@
                     <th>Title</th>
                     <th>Type</th>
                     <th>Details</th>
-                    {% if user.is_superuser or user.is_staff_member %}
+                    {% if can_manage_academic_calendar %}
                     <th>Actions</th>
                     {% endif %}
                 </tr>
@@ -45,9 +45,10 @@
                     <td>{{ event.title }}</td>
                     <td><span class="tag">{{ event.get_event_type_display }}</span></td>
                     <td>{{ event.description|default:"—"|truncatewords:16 }}</td>
-                    {% if user.is_superuser or user.is_staff_member %}
-                    <td>
-                        <form method="post" action="{% url 'operations:calendar_delete' event.pk %}">
+                    {% if can_manage_academic_calendar %}
+                    <td class="table-actions">
+                        <a href="{% url 'operations:calendar_edit' event.pk %}" class="btn btn-sm btn-warning">Edit</a>
+                        <form method="post" action="{% url 'operations:calendar_delete' event.pk %}" style="display:inline;">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger btn-sm"
                                     onclick="return confirm('Delete this event?');">
@@ -64,7 +65,7 @@
     {% else %}
     <div class="empty-state">
         No calendar events have been created yet.
-        {% if user.is_superuser or user.is_staff_member %}
+        {% if can_manage_academic_calendar %}
         Use the "Add event" button to create your first term, exam, or holiday.
         {% endif %}
     </div>

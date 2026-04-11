@@ -35,6 +35,7 @@ DEFAULT_FEATURE_KEYS: tuple[str, ...] = (
     "id_cards",
     "health_records",
     "discipline",
+    "academic_calendar",
     "school_events",
     "sports",
     "clubs",

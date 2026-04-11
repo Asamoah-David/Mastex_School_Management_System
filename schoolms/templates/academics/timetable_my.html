@@ -41,7 +41,7 @@
     <div class="empty-state">No timetable entries for {{ class_name }} yet.</div>
 {% endif %}
 
-{% if user.is_superuser or user.role == "school_admin" or user.role == "teacher" or user.role == "staff" %}
+{% if user.is_superuser or is_school_leadership or user.role == "teacher" or user.role == "staff" %}
     <div class="button-row mt-sm">
         <a class="btn btn-secondary" href="{% url 'academics:timetable_list' %}">Manage timetable</a>
     </div>

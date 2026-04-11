@@ -1,79 +1,93 @@
 {% extends "base.html" %}
 
-{% block title %}Create Club - Mastex SchoolOS{% endblock %}
+{% block title %}{% if club %}Edit club{% else %}Create club{% endif %} · Mastex SchoolOS{% endblock %}
 
-{% block page_title %}Create Club{% endblock %}
-{% block page_subtitle %}Clubs Management{% endblock %}
+{% block page_title %}{{ form_title|default:"Club" }}{% endblock %}
+{% block page_subtitle %}Clubs management{% endblock %}
 
 {% block content %}
 <div class="content-card">
-    <h2 style="margin-top: 0; color: var(--accent);">🎭 Create Club</h2>
-    
-    <form method="POST">
+    <h2 style="margin-top: 0; color: var(--accent);">{% if club %}✏️ Edit club{% else %}🎭 Create club{% endif %}</h2>
+
+    <form method="POST" action="{% if club %}{% url 'operations:club_edit' club.pk %}{% else %}{% url 'operations:club_create' %}{% endif %}">
         {% csrf_token %}
-        
+
         <div style="margin-bottom: 1rem;">
-            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Club Name *</label>
-            <input type="text" name="name" required placeholder="e.g., Drama Club, Science Club, Debating Society" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Club name *</label>
+            <input type="text" name="name" required value="{% if club %}{{ club.name }}{% endif %}" placeholder="e.g., Debate, Robotics" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
         </div>
-        
+
         <div style="margin-bottom: 1rem;">
             <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Category</label>
             <select name="category" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-                <option value="academic">Academic</option>
-                <option value="arts">Arts</option>
-                <option value="sports">Sports</option>
-                <option value="music">Music</option>
-                <option value="technology">Technology</option>
-                <option value="social">Social Service</option>
-                <option value="other">Other</option>
+                <option value="academic" {% if not club %}selected{% elif club.category == 'academic' %}selected{% endif %}>Academic</option>
+                <option value="sports" {% if club and club.category == 'sports' %}selected{% endif %}>Sports</option>
+                <option value="arts" {% if club and club.category == 'arts' %}selected{% endif %}>Arts &amp; culture</option>
+                <option value="science" {% if club and club.category == 'science' %}selected{% endif %}>Science &amp; tech</option>
+                <option value="social" {% if club and club.category == 'social' %}selected{% endif %}>Social service</option>
+                <option value="religious" {% if club and club.category == 'religious' %}selected{% endif %}>Religious</option>
+                <option value="other" {% if club and club.category == 'other' %}selected{% endif %}>Other</option>
             </select>
         </div>
-        
+
         <div style="margin-bottom: 1rem;">
-            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Sponsor / Teacher</label>
-            <select name="sponsor" title="Select Sponsor" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-                <option value="">Select Sponsor</option>
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Sponsor / teacher</label>
+            <select name="sponsor" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+                <option value="">Select sponsor</option>
                 {% for teacher in teachers %}
-                <option value="{{ teacher.id }}">{{ teacher.get_full_name }}</option>
+                <option value="{{ teacher.id }}" {% if club and club.sponsor_id == teacher.id %}selected{% endif %}>{{ teacher.get_full_name }}</option>
                 {% endfor %}
             </select>
         </div>
-        
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
             <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Meeting Day</label>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Meeting day</label>
                 <select name="meeting_day" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-                    <option value="">Select Day</option>
-                    <option value="Monday">Monday</option>
-                    <option value="Tuesday">Tuesday</option>
-                    <option value="Wednesday">Wednesday</option>
-                    <option value="Thursday">Thursday</option>
-                    <option value="Friday">Friday</option>
-                    <option value="Saturday">Saturday</option>
+                    <option value="">Select day</option>
+                    <option value="Monday" {% if club and club.meeting_day == 'Monday' %}selected{% endif %}>Monday</option>
+                    <option value="Tuesday" {% if club and club.meeting_day == 'Tuesday' %}selected{% endif %}>Tuesday</option>
+                    <option value="Wednesday" {% if club and club.meeting_day == 'Wednesday' %}selected{% endif %}>Wednesday</option>
+                    <option value="Thursday" {% if club and club.meeting_day == 'Thursday' %}selected{% endif %}>Thursday</option>
+                    <option value="Friday" {% if club and club.meeting_day == 'Friday' %}selected{% endif %}>Friday</option>
+                    <option value="Saturday" {% if club and club.meeting_day == 'Saturday' %}selected{% endif %}>Saturday</option>
+                    <option value="Sunday" {% if club and club.meeting_day == 'Sunday' %}selected{% endif %}>Sunday</option>
                 </select>
             </div>
             <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Meeting Time</label>
-                <input type="time" name="meeting_time" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Meeting time</label>
+                <input type="time" name="meeting_time" value="{% if club and club.meeting_time %}{{ club.meeting_time|time:'H:i' }}{% endif %}" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
             </div>
         </div>
-        
+
         <div style="margin-bottom: 1rem;">
             <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Description</label>
-            <textarea name="description" rows="3" placeholder="Describe the club..." style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);"></textarea>
+            <textarea name="description" rows="3" placeholder="Describe the club…" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">{% if club %}{{ club.description }}{% endif %}</textarea>
         </div>
-        
+
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Max members</label>
+            <input type="number" name="max_members" min="1" step="1" placeholder="No limit" value="{% if club and club.max_members %}{{ club.max_members }}{% endif %}" style="width: 100%; max-width: 12rem; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
+            <p style="color: var(--text-soft); font-size: 0.8rem; margin: 0.35rem 0 0;">Leave empty for no cap (approved members only).</p>
+        </div>
+
         <div style="margin-bottom: 1rem;">
             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="checkbox" name="is_active" checked style="width: 18px; height: 18px;">
-                <span>Active / Currently Running</span>
+                <input type="checkbox" name="join_requires_approval" {% if club and club.join_requires_approval %}checked{% endif %} style="width: 18px; height: 18px;">
+                <span>Student self-join requires sponsor / leadership approval</span>
             </label>
         </div>
-        
+
+        <div style="margin-bottom: 1rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="is_active" {% if not club or club.is_active %}checked{% endif %} style="width: 18px; height: 18px;">
+                <span>Active / currently running</span>
+            </label>
+        </div>
+
         <div class="button-row">
-            <button type="submit" class="btn btn-primary">Create Club</button>
-            <a href="{% url 'operations:club_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{% if club %}Save{% else %}Create club{% endif %}</button>
+            <a href="{% if club %}{% url 'operations:club_detail' club.pk %}{% else %}{% url 'operations:club_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

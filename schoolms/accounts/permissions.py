@@ -79,6 +79,19 @@ def is_school_admin(user):
     return _is_authenticated(user) and _has(user, "school_admin")
 
 
+def is_school_leadership(user):
+    """
+    School-level executive roles: headteacher, deputy head, HOD.
+    Use for ERP actions where authority should be delegated beyond the headteacher alone.
+    Platform super-admins and Django superusers are included.
+    """
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "hod")
+
+
 def is_deputy_head(user):
     return _is_authenticated(user) and _has(user, "deputy_head")
 
@@ -170,6 +183,14 @@ def user_can_manage_school(user):
     return _has_any(user, *ALL_STAFF_ROLES) and bool(getattr(user, "school_id", None))
 
 
+def can_manage_school_programming(user):
+    """
+    Academic calendar entries, school-wide events, and PT meeting schedules.
+    Same role set as ``is_school_leadership``.
+    """
+    return is_school_leadership(user)
+
+
 def can_bulk_promote_students(user):
     """
     Whole-class cohort actions: promote all active students to another class_name,
@@ -178,9 +199,7 @@ def can_bulk_promote_students(user):
     """
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or getattr(user, "is_superuser", False):
-        return True
-    return _has_any(user, "school_admin", "deputy_head", "hod")
+    return is_school_leadership(user)
 
 
 # --- Academic content -------------------------------------------------
@@ -229,10 +248,37 @@ def can_view_reports(user):
 
 # --- Department-specific capabilities --------------------------------
 
+def can_review_absence_requests(user):
+    """Approve or reject student absence — leadership and class teachers (not e.g. librarian-only)."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return can_manage_school(user)
+
+
+def can_review_staff_leave(user):
+    """Approve or reject staff leave — leadership roles."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "hod")
+
+
+def can_access_staff_leave_portal(user):
+    """Submit and track own leave — any school staff with a linked school."""
+    if not _is_authenticated(user) or not getattr(user, "school_id", None):
+        return False
+    if _has(user, "student") or _has(user, "parent"):
+        return False
+    return is_staff_member(user)
+
+
 def can_manage_finance(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
     return _has(user, "accountant")
 
@@ -252,7 +298,7 @@ def can_manage_school_expense_records(user):
 def can_manage_library(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
     return _has(user, "librarian")
 
@@ -260,7 +306,7 @@ def can_manage_library(user):
 def can_manage_admissions(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
     return _has(user, "admission_officer")
 
@@ -268,7 +314,7 @@ def can_manage_admissions(user):
 def can_manage_health(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
     return _has(user, "school_nurse")
 
@@ -276,7 +322,7 @@ def can_manage_health(user):
 def can_manage_inventory(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
     return _has(user, "admin_assistant")
 
@@ -284,17 +330,17 @@ def can_manage_inventory(user):
 def can_manage_hostel(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
-    return _has_any(user, "deputy_head", "admin_assistant")
+    return _has(user, "admin_assistant")
 
 
 def can_manage_transport(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
-    return _has_any(user, "deputy_head", "admin_assistant")
+    return _has(user, "admin_assistant")
 
 
 def user_can_access_services_hub(user):
@@ -343,9 +389,9 @@ def can_manage_exam_halls(user):
 def can_manage_id_cards(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
-    return _has_any(user, "deputy_head", "admin_assistant", "admission_officer")
+    return _has_any(user, "admin_assistant", "admission_officer")
 
 
 def can_view_all_departments(user):
@@ -353,13 +399,13 @@ def can_view_all_departments(user):
         return False
     if is_super_admin(user):
         return True
-    return _has_any(user, "school_admin", "deputy_head")
+    return is_school_leadership(user)
 
 
 def can_approve_admissions(user):
     if not _is_authenticated(user):
         return False
-    if is_super_admin(user) or is_school_admin(user):
+    if is_super_admin(user) or is_school_leadership(user):
         return True
     return _has(user, "admission_officer")
 

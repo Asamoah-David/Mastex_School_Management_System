@@ -12,7 +12,7 @@
 </div>
 {% endif %}
 
-{% if user.role == "school_admin" or user.is_superuser %}
+{% if is_school_leadership or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:sport_create' %}" class="btn btn-primary">+ Add Sport</a>
 </div>
@@ -46,6 +46,7 @@
                 <td>
                     <a href="{% url 'operations:sport_detail' sport.id %}" class="btn btn-secondary btn-sm">View</a>
                     {% if can_manage %}
+                    <a href="{% url 'operations:sport_edit' sport.id %}" class="btn btn-secondary btn-sm">Edit</a>
                     <a href="{% url 'operations:sport_delete' sport.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this sport?');">Delete</a>
                     {% endif %}
                 </td>
@@ -56,7 +57,7 @@
     {% else %}
     <div class="empty-state">
         <p>No sports configured yet.</p>
-        {% if user.role == "school_admin" or user.is_superuser %}
+        {% if is_school_leadership or user.is_superuser %}
         <a href="{% url 'operations:sport_create' %}" class="btn btn-primary mt-sm">Add First Sport</a>
         {% else %}
         <p style="color: var(--text-soft); font-size: 0.8rem;">Contact your administrator to add sports.</p>

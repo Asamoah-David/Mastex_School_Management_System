@@ -7,7 +7,7 @@
 {% block content %}
 {% include "includes/finance_subnav.html" %}
 <div class="content-card">
-    {% if school and user.role == "school_admin" or user.is_superuser %}
+    {% if user.is_superuser or school and is_school_leadership %}
     <div style="margin-bottom:1rem;">
         <a href="{% url 'finance:fee_structure_create' %}" class="btn btn-primary">➕ Add Fee Type</a>
     </div>
@@ -27,7 +27,7 @@
                     <td>{{ s.term|default:"Any" }}</td>
                     <td>{{ s.is_active|yesno:"Yes,No" }}</td>
                     <td>
-                        {% if school and user.role == "school_admin" or user.is_superuser %}
+                        {% if user.is_superuser or school and is_school_leadership %}
                         <a href="{% url 'finance:fee_structure_edit' s.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                         <a href="{% url 'finance:fee_structure_delete' s.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this fee structure?');">🗑️ Delete</a>
                         <a href="{% url 'finance:generate_fees' s.pk %}" class="btn btn-sm btn-success" onclick="return confirm('Generate fees for all students in this class?');">📋 Generate Fees</a>

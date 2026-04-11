@@ -3,45 +3,98 @@
 
 {% block title %}My Activities{% endblock %}
 
-{% block page_title %}My Activities{% endblock %}
-{% block page_subtitle %}Sports and clubs you participate in{% endblock %}
+{% block page_title %}{% if children_activities %}Family activities{% else %}My activities{% endif %}{% endblock %}
+{% block page_subtitle %}{% if children_activities %}Sports and clubs for your children{% else %}Sports and clubs you participate in{% endif %}{% endblock %}
 
 {% block content %}
 
-<!-- Sports Section -->
+{% if children_activities %}
+{% for row in children_activities %}
+<div class="content-card" style="margin-bottom: 1rem;">
+    <h3 class="section-title">{{ row.student.user.get_full_name }} <span style="font-weight:400;color:var(--text-soft);">· {{ row.student.class_name|default:"—" }}</span></h3>
+    <h4 style="font-size:0.95rem;margin:0.75rem 0 0.5rem;">Sports</h4>
+    {% if row.sports %}
+    <div class="content-grid">
+        {% for ss in row.sports %}
+        <div class="metric">
+            <div class="metric-label">{{ ss.sport.name }}</div>
+            <div class="metric-value">{% if ss.pending_approval %}Pending approval{% elif ss.is_active %}Active{% else %}Inactive{% endif %}</div>
+            <div class="metric-caption">Joined {{ ss.joined_date|date:"M d, Y" }}{% if ss.position %} · {{ ss.position }}{% endif %}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:0.5rem 0;">No sports for this student.</div>
+    {% endif %}
+    <h4 style="font-size:0.95rem;margin:1rem 0 0.5rem;">Clubs</h4>
+    {% if row.clubs %}
+    <div class="content-grid">
+        {% for sc in row.clubs %}
+        <div class="metric">
+            <div class="metric-label">{{ sc.club.name }}</div>
+            <div class="metric-value">{% if sc.pending_approval %}Pending approval{% else %}{{ sc.get_role_display }}{% endif %}</div>
+            <div class="metric-caption">Joined {{ sc.joined_date|date:"M d, Y" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:0.5rem 0;">No clubs for this student.</div>
+    {% endif %}
+</div>
+{% empty %}
 <div class="content-card">
-    <h3 class="section-title">My Sports</h3>
+    <p class="empty-state">No linked students for this school, or none have activities yet.</p>
+    <p style="color:var(--text-soft);font-size:0.9rem;"><a href="{% url 'operations:student_life' %}">Student Life hub</a></p>
+</div>
+{% endfor %}
+{% else %}
+
+<div class="content-card">
+    <h3 class="section-title">My sports</h3>
     {% if sports %}
     <div class="content-grid">
-        {% for sport in sports %}
-        <div class="metric">
-            <div class="metric-label">{{ sport.sport.name }}</div>
-            <div class="metric-value">{{ sport.get_status_display }}</div>
-            <div class="metric-caption">Joined: {{ sport.joined_date|date:"M d, Y" }}</div>
-        </div>
+        {% for ss in sports %}
+        <a href="{% url 'operations:sport_detail' ss.sport.pk %}" class="metric" style="text-decoration:none;color:inherit;">
+            <div class="metric-label">{{ ss.sport.name }}</div>
+            <div class="metric-value">{% if ss.pending_approval %}Pending approval{% elif ss.is_active %}Active{% else %}Inactive{% endif %}</div>
+            <div class="metric-caption">Joined {{ ss.joined_date|date:"M d, Y" }}{% if ss.jersey_number %} · #{{ ss.jersey_number }}{% endif %}{% if ss.position %} · {{ ss.position }}{% endif %}</div>
+        </a>
         {% endfor %}
     </div>
     {% else %}
     <div class="empty-state">You have not joined any sports teams.</div>
     {% endif %}
+    {% if feature_sports %}
+    <div class="button-row mt-sm">
+        <a href="{% url 'operations:sport_list' %}" class="btn btn-secondary btn-sm">Browse sports</a>
+        <a href="{% url 'operations:student_life' %}" class="btn btn-secondary btn-sm">Student Life</a>
+    </div>
+    {% endif %}
 </div>
 
-<!-- Clubs Section -->
 <div class="content-card">
-    <h3 class="section-title">My Clubs</h3>
+    <h3 class="section-title">My clubs</h3>
     {% if clubs %}
     <div class="content-grid">
-        {% for club in clubs %}
-        <div class="metric">
-            <div class="metric-label">{{ club.club.name }}</div>
-            <div class="metric-value">{{ club.get_role_display }}</div>
-            <div class="metric-caption">Joined: {{ club.joined_date|date:"M d, Y" }}</div>
-        </div>
+        {% for sc in clubs %}
+        <a href="{% url 'operations:club_detail' sc.club.pk %}" class="metric" style="text-decoration:none;color:inherit;">
+            <div class="metric-label">{{ sc.club.name }}</div>
+            <div class="metric-value">{% if sc.pending_approval %}Pending approval{% else %}{{ sc.get_role_display }}{% endif %}</div>
+            <div class="metric-caption">Joined {{ sc.joined_date|date:"M d, Y" }}</div>
+        </a>
         {% endfor %}
     </div>
     {% else %}
     <div class="empty-state">You have not joined any clubs.</div>
     {% endif %}
+    {% if feature_clubs %}
+    <div class="button-row mt-sm">
+        <a href="{% url 'operations:club_list' %}" class="btn btn-secondary btn-sm">Browse clubs</a>
+        <a href="{% url 'operations:student_life' %}" class="btn btn-secondary btn-sm">Student Life</a>
+    </div>
+    {% endif %}
 </div>
+
+{% endif %}
 
 {% endblock %}

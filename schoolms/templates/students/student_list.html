@@ -12,7 +12,7 @@
 <div class="button-row">
     <a href="{% url 'students:student_register' %}" class="btn btn-primary">Register new student</a>
     <a href="{% url 'students:bulk_student_status' %}" class="btn btn-warning">📊 Bulk Status</a>
-    {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
+    {% if is_school_leadership or user.role == "super_admin" or user.is_superuser %}
     <a href="{% url 'students:graduate_class' %}" class="btn btn-success">🎓 Graduate Class</a>
     {% endif %}
     <a href="{% url 'operations:export_students' %}?format=csv" class="btn btn-info">📥 CSV</a>
@@ -23,7 +23,7 @@
 <div class="card" style="margin-top: 0.5rem; padding: 1rem;">
     <h4 style="margin: 0 0 0.75rem 0; color: #9ca3af;">🎯 Quick Class Actions</h4>
     <div class="button-row" style="flex-wrap: wrap; gap: 0.5rem;">
-        {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
+        {% if is_school_leadership or user.role == "super_admin" or user.is_superuser %}
         <a href="{% url 'students:bulk_student_status' %}?status=graduated" class="btn btn-success btn-sm">
             🎓 Graduate Class
         </a>
@@ -34,7 +34,7 @@
         <a href="{% url 'students:bulk_student_status' %}?status=dismissed" class="btn btn-danger btn-sm">
             🚫 Dismiss/Expel Class
         </a>
-        {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
+        {% if is_school_leadership or user.role == "super_admin" or user.is_superuser %}
         <a href="{% url 'students:promote_students' %}" class="btn btn-primary btn-sm">
             📈 Promote class
         </a>

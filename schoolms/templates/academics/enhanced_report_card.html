@@ -86,7 +86,7 @@
         <a href="{% url 'academics:enhanced_report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}" class="btn btn-secondary" download>
             📄 Download PDF
         </a>
-        {% if request.user.role == 'school_admin' or request.user.is_superuser %}
+        {% if is_school_leadership or request.user.is_superuser %}
         <button type="button" onclick="window.print()" class="btn btn-secondary">
             🖨️ Print
         </button>

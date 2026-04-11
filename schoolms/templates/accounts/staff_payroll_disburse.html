@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Pay staff · {{ staff.get_full_name|default:staff.username }}{% endblock %}
+{% block page_title %}Pay staff member{% endblock %}
+{% block page_subtitle %}{{ staff.get_full_name|default:staff.username }} · {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="content-card" style="margin-bottom:1rem;">
+    <p style="margin:0; font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
+        Record how the school paid this person. <strong>Cash, bank, cheque, and “MoMo recorded”</strong> are ledger entries only (money moved outside the app).
+        <strong>Paystack</strong> sends money from your <strong>Paystack merchant balance</strong> to the staff MoMo or bank account you saved on their profile — enable with <code>PAYSTACK_STAFF_TRANSFERS_ENABLED=1</code> and ensure transfers are allowed on your Paystack account.
+    </p>
+    {% if not paystack_staff_enabled %}
+    <p style="margin:0.75rem 0 0; font-size:0.85rem; color:#fbbf24;">Paystack payouts are currently <strong>disabled</strong>. Offline methods below still work.</p>
+    {% endif %}
+</div>
+
+<div class="content-card">
+    <h3 style="margin:0 0 1rem;">1. Payout destination (for Paystack)</h3>
+    <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.75rem;">Save before using Paystack mobile money or bank transfer.</p>
+    <form method="POST" action="{% url 'accounts:staff_payout_profile_save' staff.id %}">
+        {% csrf_token %}
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:0.75rem;">
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">MoMo number</label>
+                <input type="text" name="payroll_momo_number" value="{{ staff.payroll_momo_number }}" placeholder="0XXXXXXXXX" style="width:100%; padding:0.45rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Network</label>
+                <select name="payroll_momo_network" style="width:100%; padding:0.45rem;">
+                    <option value="">—</option>
+                    <option value="MTN" {% if staff.payroll_momo_network == "MTN" %}selected{% endif %}>MTN</option>
+                    <option value="VOD" {% if staff.payroll_momo_network == "VOD" %}selected{% endif %}>Telecel</option>
+                    <option value="ATL" {% if staff.payroll_momo_network == "ATL" %}selected{% endif %}>AirtelTigo</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Bank account name</label>
+                <input type="text" name="payroll_bank_account_name" value="{{ staff.payroll_bank_account_name }}" style="width:100%; padding:0.45rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Bank account no.</label>
+                <input type="text" name="payroll_bank_account_number" value="{{ staff.payroll_bank_account_number }}" style="width:100%; padding:0.45rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Paystack bank code</label>
+                <input type="text" name="payroll_bank_code" value="{{ staff.payroll_bank_code }}" placeholder="e.g. from Paystack bank list" style="width:100%; padding:0.45rem;">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-secondary mt-sm">Save payout details</button>
+    </form>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin:0 0 1rem;">2. Run payment</h3>
+    <form method="POST" action="">
+        {% csrf_token %}
+        <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; margin-bottom:1rem;">
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Period</label>
+                <input type="text" name="period_label" required placeholder="e.g. January 2026" style="padding:0.45rem; min-width:12rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Amount</label>
+                <input type="number" name="amount" step="0.01" min="0.01" required style="padding:0.45rem; width:8rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Currency</label>
+                <input type="text" name="currency" value="{{ paystack_currency }}" maxlength="8" style="padding:0.45rem; width:5rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Paid on</label>
+                <input type="date" name="paid_on" required style="padding:0.45rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary);">Your reference (optional)</label>
+                <input type="text" name="reference" placeholder="Internal ref" style="padding:0.45rem; min-width:10rem;">
+            </div>
+        </div>
+
+        <fieldset style="border:1px solid rgba(148,163,184,0.3); border-radius:8px; padding:1rem; margin-bottom:1rem;">
+            <legend style="padding:0 0.5rem; font-size:0.9rem;">How are you paying?</legend>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="radio" name="disbursement_mode" value="offline_cash" checked>
+                    <span>Cash (record in system)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="radio" name="disbursement_mode" value="offline_bank">
+                    <span>Bank transfer — already sent outside the app (record only)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="radio" name="disbursement_mode" value="offline_momo_record">
+                    <span>Mobile money — paid outside the app (record only)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="radio" name="disbursement_mode" value="offline_cheque">
+                    <span>Cheque (record only)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="radio" name="disbursement_mode" value="offline_other">
+                    <span>Other (record only)</span>
+                </label>
+                {% if paystack_staff_enabled %}
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="radio" name="disbursement_mode" value="paystack_momo">
+                    <span><strong>Paystack</strong> → mobile money (uses saved MoMo details)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="radio" name="disbursement_mode" value="paystack_bank">
+                    <span><strong>Paystack</strong> → bank account (uses saved bank + Paystack bank code)</span>
+                </label>
+                {% endif %}
+            </div>
+        </fieldset>
+
+        <textarea name="notes" placeholder="Notes" rows="2" style="width:100%; padding:0.45rem; margin-bottom:0.75rem;"></textarea>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+</div>
+
+<div class="button-row mt-sm">
+    <a href="{% url 'accounts:staff_detail' staff.id %}" class="btn btn-secondary">Back to profile</a>
+    <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-secondary">Payroll register</a>
+</div>
+{% endblock %}

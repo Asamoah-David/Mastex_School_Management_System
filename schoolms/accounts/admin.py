@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User
+from .hr_models import StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment
 
 
 @admin.register(User)
@@ -137,3 +138,46 @@ class UserAdmin(BaseUserAdmin):
     def get_name_display(self, obj):
         return obj.get_full_name() or obj.username
     get_name_display.short_description = "Name"
+
+
+@admin.register(StaffContract)
+class StaffContractAdmin(admin.ModelAdmin):
+    list_display = ("user", "school", "contract_type", "job_title", "start_date", "end_date", "status")
+    list_filter = ("contract_type", "status", "school")
+    search_fields = ("user__username", "user__email", "job_title", "notes")
+    raw_id_fields = ("user", "school")
+
+
+@admin.register(StaffTeachingAssignment)
+class StaffTeachingAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("user", "school", "subject", "class_name", "academic_year", "is_active", "effective_from", "effective_until")
+    list_filter = ("is_active", "school")
+    search_fields = ("user__username", "class_name", "notes")
+    raw_id_fields = ("user", "school", "subject")
+
+
+@admin.register(StaffPayrollPayment)
+class StaffPayrollPaymentAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "school",
+        "period_label",
+        "amount",
+        "currency",
+        "paid_on",
+        "method",
+        "paystack_status",
+        "paystack_transfer_code",
+        "recorded_by",
+    )
+    list_filter = ("method", "paystack_status", "school", "paid_on")
+    search_fields = ("user__username", "period_label", "reference", "notes")
+    raw_id_fields = ("user", "school", "recorded_by")
+
+
+@admin.register(StaffRoleChangeLog)
+class StaffRoleChangeLogAdmin(admin.ModelAdmin):
+    list_display = ("user", "school", "change_kind", "changed_at", "changed_by", "from_value", "to_value")
+    list_filter = ("change_kind", "school")
+    search_fields = ("user__username", "from_value", "to_value", "notes")
+    raw_id_fields = ("user", "school", "changed_by")

@@ -16,8 +16,13 @@
             </select>
         </div>
         <div class="form-group">
-            <label for="id_date">Date of absence</label>
+            <label for="id_date">First day absent *</label>
             <input type="date" id="id_date" name="date" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label for="id_end_date">Last day absent (optional)</label>
+            <input type="date" id="id_end_date" name="end_date" class="form-control">
+            <small style="color:var(--text-muted);font-size:.78rem;">For multi-day absence, set the last day inclusive.</small>
         </div>
         <div class="form-group full-width">
             <label for="id_reason">Reason</label>

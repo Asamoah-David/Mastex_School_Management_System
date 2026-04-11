@@ -36,14 +36,28 @@ class StaffLeave(models.Model):
         ("approved", "Approved"),
         ("rejected", "Rejected"),
     )
+    LEAVE_TYPE_CHOICES = (
+        ("sick", "Sick leave"),
+        ("annual", "Annual leave"),
+        ("personal", "Personal leave"),
+        ("emergency", "Emergency"),
+        ("maternity", "Maternity"),
+        ("paternity", "Paternity"),
+        ("study", "Study leave"),
+        ("other", "Other"),
+    )
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     staff = models.ForeignKey(User, on_delete=models.CASCADE, related_name="leave_requests")
+    leave_type = models.CharField(max_length=20, choices=LEAVE_TYPE_CHOICES, blank=True)
     start_date = models.DateField()
     end_date = models.DateField()
     reason = models.TextField(blank=True)
+    covering_teacher = models.CharField(max_length=200, blank=True)
+    contact_during_leave = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="leave_reviews")
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

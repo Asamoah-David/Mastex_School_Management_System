@@ -13,7 +13,7 @@
                     <th>Type</th>
                     <th>Issued</th>
                     <th>Academic year</th>
-                    <th></th>
+                    <th style="min-width:140px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -23,7 +23,12 @@
                     <td>{{ c.get_certificate_type_display }}</td>
                     <td>{{ c.issued_date|date:"M j, Y" }}</td>
                     <td>{{ c.academic_year }}{% if c.term %} · {{ c.term }}{% endif %}</td>
-                    <td><a href="{% url 'operations:certificate_view' c.pk %}" class="btn btn-primary btn-sm">View</a></td>
+                    <td>
+                        <div class="button-row" style="margin:0;gap:.35rem;flex-wrap:wrap;">
+                            <a href="{% url 'operations:certificate_view' c.pk %}" class="btn btn-secondary btn-sm">View</a>
+                            <a href="{% url 'operations:certificate_pdf' c.pk %}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">PDF</a>
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

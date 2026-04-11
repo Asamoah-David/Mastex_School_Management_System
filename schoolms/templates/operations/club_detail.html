@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ club.name }} · Mastex SchoolOS{% endblock %}
 {% block page_title %}{{ club.name }}{% endblock %}
-{% block page_subtitle %}Club Details{% endblock %}
+{% block page_subtitle %}Club details{% endblock %}
 {% block content %}
 
 {% if messages %}
@@ -12,18 +12,49 @@
 </div>
 {% endif %}
 
-<div class="button-row">
-    <a href="{% url 'operations:club_add_member' club.id %}" class="btn btn-primary">+ Add Member</a>
+<div class="button-row" style="flex-wrap: wrap; gap: 0.5rem;">
+    {% if can_moderate or can_add_members %}
+    <a href="{% url 'operations:club_edit' club.id %}" class="btn btn-secondary">Edit settings</a>
+    {% endif %}
+    {% if can_add_members %}
+    <a href="{% url 'operations:club_add_member' club.id %}" class="btn btn-primary">+ Add member</a>
+    {% endif %}
+    {% if can_moderate and pending_total %}
+    <span class="btn btn-secondary" style="opacity:0.9;cursor:default;">{{ pending_total }} pending request{% if pending_total != 1 %}s{% endif %}</span>
+    {% endif %}
+    {% if user.role == 'student' and can_self_join %}
+    <form method="post" action="{% url 'operations:club_join_self' club.id %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">{% if club.join_requires_approval %}Request to join{% else %}Join this club{% endif %}</button>
+    </form>
+    {% elif user.role == 'student' and is_pending_request %}
+    <form method="post" action="{% url 'operations:club_cancel_pending' club.id %}" style="display:inline;" onsubmit="return confirm('Withdraw your join request?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary">Withdraw request</button>
+    </form>
+    {% elif user.role == 'student' and is_member %}
+    <span class="btn btn-secondary" style="opacity:0.85;cursor:default;">You are a member</span>
+    {% endif %}
 </div>
 
 <div class="content-card mt-sm">
     <h3 style="color: #22c55e;">{{ club.name }}</h3>
+    {% if club.description %}<p style="color:var(--text-soft);">{{ club.description }}</p>{% endif %}
     <p><strong>Category:</strong> {{ club.get_category_display|default:club.category }}</p>
     <p><strong>Sponsor:</strong> {{ club.sponsor.get_full_name|default:"Not assigned" }}</p>
     <p><strong>Meeting:</strong> {{ club.meeting_day|default:"—" }} {{ club.meeting_time|default:"" }}</p>
     <p><strong>Status:</strong> {% if club.is_active %}<span style="color: #22c55e;">Active</span>{% else %}<span style="color: #ef4444;">Inactive</span>{% endif %}</p>
-    
-    <h4 style="margin-top: 1.5rem; color: #22c55e;">Members ({{ members.count }})</h4>
+    {% if club.max_members %}
+    <p><strong>Members:</strong> {{ member_total }} / {{ club.max_members }} approved</p>
+    {% else %}
+    <p><strong>Members:</strong> {{ member_total }} approved</p>
+    {% endif %}
+    {% if club.join_requires_approval %}<p style="color:var(--text-soft);font-size:0.9rem;">Self-join requires sponsor or leadership approval.</p>{% endif %}
+    {% if user.role == 'student' and is_pending_request %}
+    <p style="color:#ca8a04;font-size:0.9rem;">Your join request is pending approval.</p>
+    {% endif %}
+
+    <h4 style="margin-top: 1.5rem; color: #22c55e;">Members ({{ member_total }})</h4>
     {% if members %}
     <div class="table-card">
         <table>
@@ -40,19 +71,61 @@
             <tr>
                 <td>{{ m.student.user.get_full_name }}</td>
                 <td>{{ m.student.class_name }}</td>
-                <td>{{ m.role|default:"Member" }}</td>
-                <td>{{ m.joined_at|date:"M d, Y" }}</td>
+                <td>{{ m.get_role_display }}</td>
+                <td>{{ m.joined_date|date:"M d, Y" }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% if member_total > members|length %}
+    <p style="color:var(--text-soft);font-size:0.85rem;margin-top:0.5rem;">Showing {{ members|length }} of {{ member_total }} members.</p>
+    {% endif %}
     {% else %}
     <div class="empty-state">
-        <p>No members yet.</p>
-        <a href="{% url 'operations:club_add_member' club.id %}" class="btn btn-primary mt-sm">Add First Member</a>
+        <p>No approved members yet.</p>
+        {% if can_add_members %}
+        <a href="{% url 'operations:club_add_member' club.id %}" class="btn btn-primary mt-sm">Add first member</a>
+        {% endif %}
     </div>
     {% endif %}
 </div>
+
+{% if can_moderate and pending_members %}
+<div class="content-card mt-sm">
+    <h4 style="color: #ca8a04;">Pending join requests ({{ pending_total }})</h4>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Joined</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for m in pending_members %}
+            <tr>
+                <td>{{ m.student.user.get_full_name }}</td>
+                <td>{{ m.student.class_name }}</td>
+                <td>{{ m.joined_date|date:"M d, Y" }}</td>
+                <td style="white-space:nowrap;">
+                    <form method="post" action="{% url 'operations:club_membership_approve' m.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+                    </form>
+                    <form method="post" action="{% url 'operations:club_membership_reject' m.pk %}" style="display:inline;" onsubmit="return confirm('Decline this request?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-secondary btn-sm">Decline</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <div class="button-row mt-sm">
     <a href="{% url 'operations:club_list' %}" class="btn btn-secondary">← Back</a>

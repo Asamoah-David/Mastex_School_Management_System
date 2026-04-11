@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Review leave · {{ school.name }}{% endblock %}
+{% block page_title %}Review leave request{% endblock %}
+{% block page_subtitle %}{{ leave.staff.get_full_name|default:leave.staff.username }} · {{ leave.start_date|date:"M j, Y" }} – {{ leave.end_date|date:"M j, Y" }}{% endblock %}
+{% block content %}
+<div class="content-card" style="max-width:640px;">
+    <div class="stat-row">
+        <span class="stat-row-label">Staff</span>
+        <span class="stat-row-value">{{ leave.staff.get_full_name|default:leave.staff.username }}</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-row-label">Dates</span>
+        <span class="stat-row-value">{{ leave.start_date|date:"M j, Y" }} → {{ leave.end_date|date:"M j, Y" }}</span>
+    </div>
+    {% if leave.leave_type %}
+    <div class="stat-row">
+        <span class="stat-row-label">Type</span>
+        <span class="stat-row-value">{{ leave.get_leave_type_display }}</span>
+    </div>
+    {% endif %}
+    <div class="stat-row">
+        <span class="stat-row-label">Reason</span>
+        <span class="stat-row-value" style="white-space:pre-wrap;font-weight:400;">{{ leave.reason|default:"—" }}</span>
+    </div>
+    {% if leave.covering_teacher %}
+    <div class="stat-row">
+        <span class="stat-row-label">Covering</span>
+        <span class="stat-row-value">{{ leave.covering_teacher }}</span>
+    </div>
+    {% endif %}
+    {% if leave.contact_during_leave %}
+    <div class="stat-row">
+        <span class="stat-row-label">Contact during leave</span>
+        <span class="stat-row-value">{{ leave.contact_during_leave }}</span>
+    </div>
+    {% endif %}
+    <p style="margin:1rem 0 0;font-size:.85rem;color:var(--text-secondary);">Submitted {{ leave.created_at|timesince }} ago · Status: <strong>{{ leave.get_status_display }}</strong></p>
+    {% if leave.status == "pending" and not can_decide %}
+    <p style="margin:.75rem 0 0;font-size:.88rem;color:var(--text-muted);">This request is waiting for approval from school leadership.</p>
+    {% endif %}
+</div>
+
+{% if leave.status == "pending" and can_decide %}
+<div class="content-card" style="max-width:640px;">
+    <h3 class="section-title">Decision</h3>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group full-width">
+            <label for="id_review_notes">Notes to staff (optional)</label>
+            <textarea id="id_review_notes" name="review_notes" class="form-control" rows="3" placeholder="Internal or message to the requester"></textarea>
+        </div>
+        <div class="button-row mt-sm" style="flex-wrap:wrap;">
+            <button type="submit" name="action" value="approve" class="btn btn-primary">Approve</button>
+            <button type="submit" name="action" value="reject" class="btn btn-danger">Reject</button>
+            <a href="{% url 'operations:staff_leave_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% elif leave.status != "pending" or not can_decide %}
+<div class="button-row mt-sm">
+    <a href="{% url 'operations:staff_leave_list' %}" class="btn btn-secondary">Back to list</a>
+</div>
+{% endif %}
+{% endblock %}

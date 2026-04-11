@@ -1,26 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Alumni · Mastex SchoolOS{% endblock %}
-{% block page_title %}Alumni Management{% endblock %}
-{% block page_subtitle %}Track past students and alumni events{% endblock %}
+{% block title %}Alumni · {{ school.name }}{% endblock %}
+{% block page_title %}Alumni{% endblock %}
+{% block page_subtitle %}Graduates and former students — synced when learners are marked graduated, or added manually.{% endblock %}
 {% block content %}
 
-{% if messages %}
-<div class="messages">
-{% for message in messages %}
-    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
-{% endfor %}
+{% if user_can_manage_school or user.is_superuser %}
+<div class="button-row dash-section" style="flex-wrap:wrap;">
+    <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary">Add alumni</a>
+    <a href="{% url 'operations:alumni_event_list' %}" class="btn btn-secondary">Alumni events</a>
 </div>
 {% endif %}
 
-{% if user.role == "school_admin" or user.is_superuser %}
-<div class="button-row">
-    <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary">+ Add Alumni</a>
-    <a href="{% url 'operations:alumni_event_list' %}" class="btn btn-secondary">Alumni Events</a>
-</div>
-{% endif %}
+<div class="content-card dash-section">
+    <form method="get" class="form-grid" style="margin-bottom:1rem;">
+        <div class="form-group">
+            <label for="id_q">Search</label>
+            <input type="search" id="id_q" name="q" class="form-control" value="{{ search_q }}" placeholder="Name, admission #, class…">
+        </div>
+        <div class="form-group">
+            <label for="id_year">Graduation year</label>
+            <select id="id_year" name="year" class="form-control" onchange="this.form.submit()">
+                <option value="">All years</option>
+                {% for y in graduation_years %}
+                <option value="{{ y }}" {% if filter_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="align-self:flex-end;">
+            <button type="submit" class="btn btn-secondary">Apply</button>
+        </div>
+    </form>
 
-<div class="content-card mt-sm">
-    <h3 style="margin: 0 0 1rem; color: #22c55e;">Alumni Records</h3>
     {% if alumni %}
     <div class="table-card">
         <table>
@@ -28,35 +38,41 @@
                 <tr>
                     <th>Name</th>
                     <th>Class</th>
-                    <th>Graduation Year</th>
-                    <th>Current Occupation</th>
+                    <th>Year</th>
+                    <th>Occupation</th>
                     <th>Contact</th>
-                    <th>Actions</th>
+                    <th style="min-width:140px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
             {% for a in alumni %}
             <tr>
-                <td><strong>{{ a.first_name }} {{ a.last_name }}</strong></td>
+                <td><strong>{{ a.first_name }} {{ a.last_name }}</strong>{% if a.student_id %}<br><span style="font-size:.75rem;color:var(--text-muted);">Linked to student record</span>{% endif %}</td>
                 <td>{{ a.class_name|default:"—" }}</td>
                 <td>{{ a.graduation_year }}</td>
                 <td>{{ a.current_occupation|default:"—" }}</td>
                 <td>{{ a.contact_email|default:a.contact_phone|default:"—" }}</td>
                 <td>
-                    <a href="{% url 'operations:alumni_detail' a.id %}" class="btn btn-secondary btn-sm">View</a>
+                    <div class="button-row" style="margin:0;flex-wrap:wrap;gap:.35rem;">
+                        <a href="{% url 'operations:alumni_detail' a.id %}" class="btn btn-sm btn-secondary">View</a>
+                        {% if user_can_manage_school or user.is_superuser %}
+                        <a href="{% url 'operations:alumni_edit' a.id %}" class="btn btn-sm btn-primary">Edit</a>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% include "includes/pagination.html" %}
     {% else %}
     <div class="empty-state">
-        <p>No alumni records found.</p>
-        {% if user.role == "school_admin" or user.is_superuser %}
-        <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary mt-sm">Add First Alumni</a>
+        <div class="empty-state-title">No alumni match</div>
+        <div class="empty-state-desc">Try another search or add a record. Graduating a class from Students automatically creates alumni rows.</div>
+        {% if user_can_manage_school or user.is_superuser %}
+        <a href="{% url 'operations:alumni_create' %}" class="btn btn-primary mt-sm">Add alumni</a>
         {% endif %}
     </div>
     {% endif %}
-    {% include 'includes/pagination.html' %}
 </div>
 {% endblock %}

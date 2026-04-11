@@ -236,6 +236,76 @@ class PaystackService:
         ).hexdigest()
         return hmac.compare_digest(expected_signature, signature)
 
+    def create_transfer_recipient(
+        self,
+        *,
+        recipient_type: str,
+        name: str,
+        account_number: str,
+        bank_code: str,
+        currency: str | None = None,
+    ):
+        """
+        Create a Paystack transfer recipient (mobile_money or nuban for Ghana).
+        See https://paystack.com/docs/api/#transfer-recipient
+        """
+        currency_code = currency or self.currency
+        body = {
+            "type": recipient_type,
+            "name": name[:100],
+            "account_number": str(account_number).strip(),
+            "bank_code": str(bank_code).strip(),
+            "currency": currency_code,
+        }
+        try:
+            response = requests.post(
+                f"{self.base_url}/transferrecipient",
+                json=body,
+                headers=self._get_headers(),
+                timeout=45,
+            )
+            return response.json()
+        except Exception as e:
+            return {"status": False, "message": str(e)}
+
+    def initiate_transfer(
+        self,
+        *,
+        amount_major: Decimal,
+        recipient_code: str,
+        reason: str,
+        reference: str,
+        currency: str | None = None,
+        metadata: dict | None = None,
+    ):
+        """
+        Queue a transfer from Paystack merchant balance.
+        amount_major: e.g. Decimal('100.50') GHS → sent as pesewas.
+        """
+        currency_code = currency or self.currency
+        major = Decimal(str(amount_major)).quantize(Decimal("0.01"))
+        amount_minor = int(major * 100)
+        body = {
+            "source": "balance",
+            "amount": amount_minor,
+            "recipient": recipient_code,
+            "reason": (reason or "Staff payroll")[:110],
+            "reference": reference[:99],
+            "currency": currency_code,
+        }
+        if metadata:
+            body["metadata"] = metadata
+        try:
+            response = requests.post(
+                f"{self.base_url}/transfer",
+                json=body,
+                headers=self._get_headers(),
+                timeout=45,
+            )
+            return response.json()
+        except Exception as e:
+            return {"status": False, "message": str(e)}
+
 
 # Singleton instance
 paystack_service = PaystackService()

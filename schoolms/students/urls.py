@@ -53,7 +53,7 @@ urlpatterns = [
     path("absence/children/", parent_absence_requests, name="parent_absence_requests"),
     path("absence/review/", absence_requests_review, name="absence_requests_review"),
     path(
-        "absence/<int:pk>/<str:decision>/",
+        "absence/<int:pk>/decide/",
         absence_request_decide,
         name="absence_request_decide",
     ),

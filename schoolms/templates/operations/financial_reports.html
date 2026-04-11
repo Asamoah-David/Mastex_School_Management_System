@@ -7,7 +7,7 @@
 
 {% block content %}
 {% include "includes/finance_subnav.html" %}
-<div class="content-card">
+<div class="content-card" id="financialReportsRoot" data-data-url="{% url 'operations:financial_reports_data' %}">
     <div class="page-heading">
         <div>
             <h2>📈 Financial Reports</h2>
@@ -117,6 +117,34 @@
             </div>
         </div>
     </div>
+
+    {% if staff_payroll_by_currency or staff_payroll_monthly %}
+    <div class="content-card" style="margin-top: 1.5rem;">
+        <h3 style="margin-top: 0;">&#x1F9D1;&#x200D;&#x1F4BC; Staff payroll ({{ current_year }})</h3>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 1rem;">Internal salary and stipend payments — separate from student fees. <a href="{% url 'accounts:staff_payroll_register' %}">Payroll register</a> · <a href="{% url 'operations:export_staff_payroll' %}">Export CSV (all)</a></p>
+        <div class="stats-grid" id="payrollCurrencyStats">
+            {% for row in staff_payroll_by_currency %}
+            <div class="stat-card">
+                <div class="stat-content">
+                    <div class="stat-value">{{ row.total|floatformat:2 }} {{ row.currency }}</div>
+                    <div class="stat-label">Payroll ({{ row.currency }})</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if staff_payroll_monthly %}
+        <h4 style="margin:1.25rem 0 0.5rem;font-size:0.95rem;">Monthly payroll</h4>
+        <div style="display: flex; justify-content: space-around; align-items: flex-end; height: 160px; padding: 0.5rem;" id="payrollMonthlyChart">
+            {% for m in staff_payroll_monthly %}
+            <div style="text-align: center; flex:1; max-width:48px;">
+                <div style="height: {% widthratio m.total staff_payroll_monthly_max 120 %}px; min-height:4px; width: 100%; max-width:28px; margin:0 auto; background: #a855f7; border-radius: 4px 4px 0 0;"></div>
+                <div style="font-size: 0.7rem; margin-top: 0.5rem;">{{ m.month|month_name|slice:":3" }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 
 <script>
@@ -125,24 +153,56 @@ function formatGhsClient(n) {
     if (isNaN(x)) return '—';
     return 'GHS ' + x.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
+function formatMoneyClient(currency, n) {
+    var x = parseFloat(n);
+    if (isNaN(x)) return '—';
+    return (currency || '') + ' ' + x.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+var _frRoot = document.getElementById('financialReportsRoot');
+var _frDataUrl = _frRoot ? _frRoot.getAttribute('data-data-url') : '';
 document.getElementById('yearSelect').addEventListener('change', function() {
     const year = this.value;
     loadFinancialData(year);
 });
 
 function loadFinancialData(year) {
-    fetch(`/operations/financial/data/?year=${year}`)
+    if (!_frDataUrl) return;
+    fetch(_frDataUrl + '?year=' + encodeURIComponent(year))
         .then(response => response.json())
         .then(data => {
+            if (data.error) return;
             document.getElementById('totalBudget').textContent = formatGhsClient(data.total_budget);
             document.getElementById('totalExpenses').textContent = formatGhsClient(data.total_expenses);
             document.getElementById('budgetRemaining').textContent = formatGhsClient(data.budget_remaining);
-            
-            // Update color based on remaining budget
             const remaining = data.budget_remaining;
             document.getElementById('budgetRemaining').style.color = remaining >= 0 ? '#22c55e' : '#ef4444';
+
+            var pc = document.getElementById('payrollCurrencyStats');
+            if (pc && data.staff_payroll_by_currency) {
+                pc.innerHTML = '';
+                data.staff_payroll_by_currency.forEach(function(row) {
+                    var d = document.createElement('div');
+                    d.className = 'stat-card';
+                    d.innerHTML = '<div class="stat-content"><div class="stat-value">' + formatMoneyClient(row.currency, row.total) + '</div><div class="stat-label">Payroll (' + row.currency + ')</div></div>';
+                    pc.appendChild(d);
+                });
+            }
+            var pm = document.getElementById('payrollMonthlyChart');
+            if (pm && data.staff_payroll_monthly) {
+                var maxT = 0;
+                data.staff_payroll_monthly.forEach(function(m) { if (m.total > maxT) maxT = m.total; });
+                var monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                pm.innerHTML = '';
+                data.staff_payroll_monthly.forEach(function(m) {
+                    var h = maxT > 0 ? Math.max(4, Math.round((m.total / maxT) * 120)) : 4;
+                    var col = document.createElement('div');
+                    col.style.cssText = 'text-align:center;flex:1;max-width:48px;';
+                    col.innerHTML = '<div style="height:' + h + 'px;min-height:4px;width:100%;max-width:28px;margin:0 auto;background:#a855f7;border-radius:4px 4px 0 0;"></div><div style="font-size:0.7rem;margin-top:0.5rem;">' + (monthNames[m.month] || m.month) + '</div>';
+                    pm.appendChild(col);
+                });
+            }
         })
-        .catch(error => console.error('Error loading financial data:', error));
+        .catch(function(error) { console.error('Error loading financial data:', error); });
 }
 </script>
 {% endblock %}

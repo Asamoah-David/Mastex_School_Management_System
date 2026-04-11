@@ -253,7 +253,7 @@ class AnnouncementAdmin(admin.ModelAdmin):
 
 @admin.register(StaffLeave)
 class StaffLeaveAdmin(admin.ModelAdmin):
-    list_display = ("staff", "start_date", "end_date", "status", "school")
+    list_display = ("staff", "leave_type", "start_date", "end_date", "status", "school")
     list_select_related = ("staff", "school")
     list_filter = ("school", "status")
     raw_id_fields = ("staff", "reviewed_by")

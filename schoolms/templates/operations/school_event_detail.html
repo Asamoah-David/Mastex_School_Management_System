@@ -59,7 +59,7 @@
     
     {% if rsvps %}
     <div style="margin-bottom: 1.5rem;">
-        <h3 style="color: #22c55e; margin-bottom: 1rem;">👥 RSVPs ({{ rsvps.count }})</h3>
+        <h3 style="color: #22c55e; margin-bottom: 1rem;">👥 RSVPs ({{ rsvps|length }})</h3>
         <div class="table-card">
             <table>
                 <thead>
@@ -87,6 +87,12 @@
     </div>
     {% endif %}
     
+    {% if can_rsvp %}
+    <div class="button-row" style="margin-bottom: 1rem;">
+        <a href="{% url 'operations:school_event_rsvp' event.pk %}" class="btn btn-primary">✅ Confirm attendance (RSVP)</a>
+    </div>
+    {% endif %}
+
     <div class="button-row">
         {% if can_manage %}
         <a href="{% url 'operations:school_event_edit' event.pk %}" class="btn btn-warning">✏️ Edit Event</a>

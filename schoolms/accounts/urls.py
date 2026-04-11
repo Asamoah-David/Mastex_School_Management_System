@@ -28,6 +28,7 @@ from .views import (
     teacher_dashboard,
 )
 from .forms import SecurePasswordResetForm, PasswordResetConfirmForm
+from . import hr_views
 
 app_name = "accounts"
 
@@ -73,12 +74,31 @@ urlpatterns = [
     path("search/", global_search, name="global_search"),
     path("users/", user_management, name="user_management"),
     path("staff/", staff_list, name="staff_list"),
+    path("staff/payroll-register/", hr_views.staff_payroll_register, name="staff_payroll_register"),
+    path("staff/<int:pk>/payroll-export/", hr_views.staff_payroll_export_user, name="staff_payroll_export_user"),
+    path("staff/<int:pk>/payroll/disburse/", hr_views.staff_payroll_disburse, name="staff_payroll_disburse"),
+    path("staff/<int:pk>/payout-profile/", hr_views.staff_payout_profile_save, name="staff_payout_profile_save"),
     path("staff/register/", staff_register, name="staff_register"),
     path("staff/<int:pk>/", staff_detail, name="staff_detail"),
     path("staff/<int:pk>/delete/", staff_delete, name="staff_delete"),
     path("staff/<int:pk>/reactivate/", staff_reactivate, name="staff_reactivate"),
     path("staff/<int:pk>/change-role/", staff_change_role, name="staff_change_role"),
     path("staff/<int:pk>/secondary-roles/", staff_manage_secondary_roles, name="staff_manage_secondary_roles"),
+    path("staff/<int:pk>/hr/contract/", hr_views.staff_hr_contract_add, name="staff_hr_contract_add"),
+    path(
+        "staff/<int:pk>/hr/contract/<int:contract_id>/status/",
+        hr_views.staff_hr_contract_set_status,
+        name="staff_hr_contract_set_status",
+    ),
+    path("staff/<int:pk>/hr/teaching/", hr_views.staff_hr_teaching_add, name="staff_hr_teaching_add"),
+    path(
+        "staff/<int:pk>/hr/teaching/<int:assignment_id>/end/",
+        hr_views.staff_hr_teaching_end,
+        name="staff_hr_teaching_end",
+    ),
+    path("staff/<int:pk>/hr/payroll/", hr_views.staff_hr_payroll_add, name="staff_hr_payroll_add"),
+    path("staff/<int:pk>/hr/subjects/", hr_views.staff_assign_subjects_save, name="staff_assign_subjects_save"),
+    path("staff/<int:pk>/hr/homeroom/", hr_views.staff_assign_homeroom_save, name="staff_assign_homeroom_save"),
     path("parents/", parent_list, name="parent_list"),
     path("parents/register/", parent_register, name="parent_register"),
     path("parents/<int:pk>/", parent_detail, name="parent_detail"),

@@ -1,38 +1,74 @@
 {% extends "base.html" %}
 
+{% block title %}{{ certificate.title }} · Certificate{% endblock %}
+{% block page_title %}Certificate{% endblock %}
+{% block page_subtitle %}{{ certificate.title }} — {{ certificate.student.user.get_full_name|default:certificate.student.user.username }}{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="card">
-        <div class="card-header bg-warning text-dark">
-            <h4 class="mb-0"><i class="fas fa-certificate"></i> {{ certificate.title }}</h4>
+<div class="content-card dash-section">
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid rgba(148,163,184,0.2);">
+        <div>
+            <h2 style="margin:0 0 .35rem;font-size:1.15rem;font-weight:700;color:var(--text-primary);">{{ certificate.title }}</h2>
+            <p style="margin:0;font-size:.85rem;color:var(--text-secondary);">{{ certificate.get_certificate_type_display }} · {{ certificate.academic_year }}{% if certificate.term %} · {{ certificate.term }}{% endif %}</p>
         </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p><strong>Student:</strong> {{ certificate.student.user.get_full_name }}</p>
-                    <p><strong>Admission No:</strong> {{ certificate.student.admission_number }}</p>
-                    <p><strong>Type:</strong> {{ certificate.get_certificate_type_display }}</p>
-                    <p><strong>Academic Year:</strong> {{ certificate.academic_year }}</p>
-                    {% if certificate.term %}
-                    <p><strong>Term:</strong> {{ certificate.term }}</p>
-                    {% endif %}
-                    <p><strong>Issued Date:</strong> {{ certificate.issued_date }}</p>
+        <div class="button-row" style="margin:0;flex-wrap:wrap;">
+            <a href="{% url 'operations:certificate_pdf' certificate.pk %}" class="btn btn-primary" target="_blank" rel="noopener">Download PDF</a>
+            <a href="{% url 'operations:certificate_list' %}" class="btn btn-secondary">Back to list</a>
+            {% if can_manage %}
+            <a href="{% url 'operations:certificate_delete' certificate.pk %}" class="btn btn-danger">Delete</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="dashboard-grid dashboard-grid-2" style="gap:1rem;">
+        <div class="card card-flush">
+            <div class="card-header">
+                <span class="card-header-title">Learner</span>
+            </div>
+            <div class="card-body">
+                <div class="stat-row">
+                    <span class="stat-row-label">Student</span>
+                    <span class="stat-row-value">{{ certificate.student.user.get_full_name|default:certificate.student.user.username }}</span>
                 </div>
-                <div class="col-md-6">
-                    <p><strong>School:</strong> {{ certificate.school.name }}</p>
-                    <p><strong>Issued By:</strong> {{ certificate.created_by.get_full_name }}</p>
-                    {% if certificate.description %}
-                    <p><strong>Description:</strong></p>
-                    <p>{{ certificate.description }}</p>
-                    {% endif %}
+                <div class="stat-row">
+                    <span class="stat-row-label">Admission no.</span>
+                    <span class="stat-row-value">{{ certificate.student.admission_number }}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-row-label">Issued date</span>
+                    <span class="stat-row-value">{{ certificate.issued_date|date:"F j, Y" }}</span>
                 </div>
             </div>
-            
-            {% if results %}
-            <hr>
-            <h5>Academic Record</h5>
+        </div>
+        <div class="card card-flush">
+            <div class="card-header">
+                <span class="card-header-title">School &amp; issuer</span>
+            </div>
+            <div class="card-body">
+                <div class="stat-row">
+                    <span class="stat-row-label">School</span>
+                    <span class="stat-row-value">{{ certificate.school.name }}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-row-label">Issued by</span>
+                    <span class="stat-row-value">{{ certificate.created_by.get_full_name|default:certificate.created_by.username }}</span>
+                </div>
+                {% if certificate.description %}
+                <p style="margin:.75rem 0 0;font-size:.88rem;color:var(--text-secondary);line-height:1.55;">{{ certificate.description }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if results %}
+    <div class="card dash-section" style="margin-top:1rem;margin-bottom:0;">
+        <div class="card-header">
+            <span class="card-header-title">Related results snapshot</span>
+        </div>
+        <div class="card-body" style="padding-top:0;">
+            <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 .75rem;">Sample of graded results matching this certificate context (for reference only).</p>
             <div class="table-responsive">
-                <table class="table table-sm">
+                <table>
                     <thead>
                         <tr>
                             <th>Subject</th>
@@ -51,23 +87,8 @@
                     </tbody>
                 </table>
             </div>
-            {% endif %}
-            
-            <hr>
-            <div class="d-flex gap-2">
-                <a href="{% url 'operations:certificate_pdf' certificate.pk %}" class="btn btn-primary" target="_blank">
-                    <i class="fas fa-download"></i> Download PDF
-                </a>
-                {% if can_manage %}
-                <a href="{% url 'operations:certificate_delete' certificate.pk %}" class="btn btn-danger">
-                    <i class="fas fa-trash"></i> Delete Certificate
-                </a>
-                {% endif %}
-                <a href="{% url 'operations:certificate_list' %}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to List
-                </a>
-            </div>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock %}

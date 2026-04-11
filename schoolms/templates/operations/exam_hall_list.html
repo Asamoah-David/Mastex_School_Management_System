@@ -12,7 +12,7 @@
 </div>
 {% endif %}
 
-{% if user.role == "school_admin" or user.is_superuser %}
+{% if is_school_leadership or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:exam_hall_create' %}" class="btn btn-primary">+ Add Exam Hall</a>
     <a href="{% url 'operations:seating_plan_list' %}" class="btn btn-secondary">Seating Plans</a>
@@ -50,7 +50,7 @@
     {% else %}
     <div class="empty-state">
         <p>No exam halls configured yet.</p>
-        {% if user.role == "school_admin" or user.is_superuser %}
+        {% if is_school_leadership or user.is_superuser %}
         <a href="{% url 'operations:exam_hall_create' %}" class="btn btn-primary mt-sm">Add First Hall</a>
         {% else %}
         <p style="color: var(--text-soft); font-size: 0.8rem;">Contact your administrator to add exam halls.</p>

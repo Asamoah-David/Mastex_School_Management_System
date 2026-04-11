@@ -120,6 +120,7 @@ _template_options = {
         "notifications.context_processors.notification_context",
         "accounts.context_processors.role_permissions",
         "accounts.context_processors.current_datetime",
+        "schools.context_processors.school_feature_flags",
     ],
     "libraries": {
         "custom_filters": "templatetags.custom_filters",
@@ -354,6 +355,8 @@ PAYSTACK_CURRENCY = env("PAYSTACK_CURRENCY", "GHS")
 # Uplift charged to payer so settlement ≈ net after Paystack's % (tune PAYSTACK_PROCESSING_FEE_PERCENT to match pricing).
 PAYSTACK_PASS_FEE_TO_PAYER = env_bool("PAYSTACK_PASS_FEE_TO_PAYER", True)
 PAYSTACK_PROCESSING_FEE_PERCENT = env_float("PAYSTACK_PROCESSING_FEE_PERCENT", 1.95)
+# Outgoing staff salary transfers via Paystack (debits Paystack merchant balance, not subaccounts).
+PAYSTACK_STAFF_TRANSFERS_ENABLED = env_bool("PAYSTACK_STAFF_TRANSFERS_ENABLED", False)
 
 CRON_SECRET_KEY = env("CRON_SECRET_KEY", "")
 

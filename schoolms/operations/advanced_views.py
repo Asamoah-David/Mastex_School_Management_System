@@ -16,7 +16,9 @@ from operations.models import (
     StudentAttendance, Expense, Budget, CanteenItem, CanteenPayment,
     DisciplineIncident, BehaviorPoint
 )
-from accounts.permissions import user_can_manage_school
+from accounts.permissions import user_can_manage_school, can_manage_finance
+from accounts.hr_models import StaffPayrollPayment
+from accounts.hr_utils import sync_expired_staff_contracts
 
 
 def _can_access_canteen_preorder(user):
@@ -278,6 +280,10 @@ def create_preorder(request):
 @login_required
 def financial_reports_dashboard(request):
     """Dashboard showing financial reports and charts."""
+    if not (request.user.is_superuser or can_manage_finance(request.user)):
+        messages.error(request, "You do not have permission to view financial reports.")
+        return redirect("home")
+
     school = getattr(request.user, 'school', None)
     if request.user.is_superuser:
         school_id = request.session.get('current_school_id')
@@ -287,6 +293,8 @@ def financial_reports_dashboard(request):
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
+
+    sync_expired_staff_contracts(school=school)
     
     # Get current year
     current_year = timezone.now().year
@@ -310,6 +318,28 @@ def financial_reports_dashboard(request):
     ).values('month').annotate(
         total=Sum('amount')
     ).order_by('month')
+
+    staff_payroll_by_currency = list(
+        StaffPayrollPayment.objects.filter(school=school, paid_on__year=current_year)
+        .values("currency")
+        .annotate(total=Sum("amount"))
+        .order_by("currency")
+    )
+    staff_payroll_monthly = list(
+        StaffPayrollPayment.objects.filter(school=school, paid_on__year=current_year)
+        .annotate(month=ExtractMonth("paid_on"))
+        .values("month")
+        .annotate(total=Sum("amount"))
+        .order_by("month")
+    )
+    staff_payroll_monthly_max = 1.0
+    for m in staff_payroll_monthly:
+        t = float(m["total"] or 0)
+        if t > staff_payroll_monthly_max:
+            staff_payroll_monthly_max = t
+    if staff_payroll_monthly_max < 1:
+        staff_payroll_monthly_max = 1.0
+    staff_payroll_monthly_max_int = max(1, int(round(staff_payroll_monthly_max)))
     
     context = {
         'school': school,
@@ -319,6 +349,9 @@ def financial_reports_dashboard(request):
         'expenses_by_category': list(expenses_by_category),
         'monthly_expenses': list(monthly_expenses),
         'current_year': current_year,
+        'staff_payroll_by_currency': staff_payroll_by_currency,
+        'staff_payroll_monthly': staff_payroll_monthly,
+        'staff_payroll_monthly_max': staff_payroll_monthly_max_int,
     }
     return render(request, 'operations/financial_reports.html', context)
 
@@ -326,6 +359,9 @@ def financial_reports_dashboard(request):
 @login_required
 def get_financial_data(request):
     """Get financial data for charts."""
+    if not (request.user.is_superuser or can_manage_finance(request.user)):
+        return JsonResponse({"error": "Forbidden"}, status=403)
+
     school = getattr(request.user, 'school', None)
     if request.user.is_superuser:
         school_id = request.session.get('current_school_id')
@@ -334,6 +370,8 @@ def get_financial_data(request):
     
     if not school:
         return JsonResponse({'error': 'No school found'}, status=400)
+
+    sync_expired_staff_contracts(school=school)
     
     year = int(request.GET.get('year', timezone.now().year))
     
@@ -345,28 +383,45 @@ def get_financial_data(request):
     budgets = Budget.objects.filter(school=school, academic_year=year)
     total_budget = budgets.aggregate(total=Sum('allocated_amount'))['total'] or 0
     
-    # Expenses by category
-    expenses_by_category = expenses.values('category__name').annotate(
-        amount=Sum('amount')
-    ).order_by('-amount')
-    
+    # Expenses by category (same shape as dashboard template: category__name + total)
+    expenses_by_category_rows = expenses.values("category__name").annotate(total=Sum("amount")).order_by("-total")
+
     # Monthly data
-    from django.db.models.functions import ExtractMonth
     monthly_data = []
     for month in range(1, 13):
         month_expenses = expenses.filter(expense_date__month=month).aggregate(total=Sum('amount'))['total'] or 0
         monthly_data.append({
             'month': month,
-            'expenses': month_expenses
+            'expenses': float(month_expenses)
         })
+
+    payroll_by_currency = list(
+        StaffPayrollPayment.objects.filter(school=school, paid_on__year=year)
+        .values("currency")
+        .annotate(total=Sum("amount"))
+        .order_by("currency")
+    )
+    payroll_monthly = []
+    for month in range(1, 13):
+        pt = StaffPayrollPayment.objects.filter(school=school, paid_on__year=year, paid_on__month=month).aggregate(
+            total=Sum("amount")
+        )["total"] or 0
+        payroll_monthly.append({"month": month, "total": float(pt)})
     
     return JsonResponse({
         'year': year,
-        'total_expenses': total_expenses,
-        'total_budget': total_budget,
-        'budget_remaining': total_budget - total_expenses,
-        'expenses_by_category': list(expenses_by_category),
+        'total_expenses': float(total_expenses),
+        'total_budget': float(total_budget),
+        'budget_remaining': float(total_budget - total_expenses),
+        'expenses_by_category': [
+            {"category__name": r["category__name"], "total": float(r["total"] or 0)}
+            for r in expenses_by_category_rows
+        ],
         'monthly_data': monthly_data,
+        'staff_payroll_by_currency': [
+            {"currency": row["currency"], "total": float(row["total"] or 0)} for row in payroll_by_currency
+        ],
+        'staff_payroll_monthly': payroll_monthly,
     })
 
 

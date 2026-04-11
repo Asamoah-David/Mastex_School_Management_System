@@ -1138,6 +1138,7 @@ def report_card_view(request, student_id):
     if term_id:
         results = results.filter(term_id=term_id)
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+    selected_term_obj = terms.filter(id=term_id).first() if term_id else None
     total = sum(r.score for r in results) if results else 0
     avg = (total / len(results)) if results else 0
     from academics.models import get_grade_for_score
@@ -1167,6 +1168,7 @@ def report_card_view(request, student_id):
             "average": round(avg, 1),
             "school": school,
             "selected_term": term_id,
+            "selected_term_obj": selected_term_obj,
             "attendance_total": total_days,
             "attendance_present": present_days,
             "attendance_absent": absent_days,

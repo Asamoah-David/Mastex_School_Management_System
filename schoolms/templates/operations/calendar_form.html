@@ -30,12 +30,12 @@
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label for="start_date" class="form-label">Start Date *</label>
-                <input type="date" name="start_date" id="start_date" class="form-control" value="{{ object.start_date|default:'' }}" required>
+                <input type="date" name="start_date" id="start_date" class="form-control" value="{% if object %}{{ object.start_date|date:'Y-m-d' }}{% endif %}" required>
             </div>
             
             <div class="col-md-6 mb-3">
                 <label for="end_date" class="form-label">End Date</label>
-                <input type="date" name="end_date" id="end_date" class="form-control" value="{{ object.end_date|default:'' }}">
+                <input type="date" name="end_date" id="end_date" class="form-control" value="{% if object.end_date %}{{ object.end_date|date:'Y-m-d' }}{% endif %}">
             </div>
         </div>
         

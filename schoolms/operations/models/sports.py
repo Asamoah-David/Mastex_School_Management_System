@@ -11,9 +11,29 @@ class Sport(models.Model):
     coach = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='coached_sports')
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
-    
+    max_members = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum approved roster size. Empty means no limit.",
+    )
+    join_requires_approval = models.BooleanField(
+        default=False,
+        help_text="Student self-joins require coach or leadership approval before they appear on the roster.",
+    )
+
     def __str__(self):
         return f"{self.name} - {self.school.name}"
+
+    def approved_member_count(self):
+        return self.members.filter(is_active=True, pending_approval=False).count()
+
+    def pending_request_count(self):
+        return self.members.filter(is_active=True, pending_approval=True).count()
+
+    def is_at_capacity(self):
+        if not self.max_members:
+            return False
+        return self.approved_member_count() >= self.max_members
 
 
 class Club(models.Model):
@@ -35,9 +55,29 @@ class Club(models.Model):
     meeting_day = models.CharField(max_length=20, blank=True)  # e.g., "Monday"
     meeting_time = models.TimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
-    
+    max_members = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum approved members. Empty means no limit.",
+    )
+    join_requires_approval = models.BooleanField(
+        default=False,
+        help_text="Student self-joins require sponsor or leadership approval before they appear on the roster.",
+    )
+
     def __str__(self):
         return f"{self.name} ({self.get_category_display()})"
+
+    def approved_member_count(self):
+        return self.members.filter(is_active=True, pending_approval=False).count()
+
+    def pending_request_count(self):
+        return self.members.filter(is_active=True, pending_approval=True).count()
+
+    def is_at_capacity(self):
+        if not self.max_members:
+            return False
+        return self.approved_member_count() >= self.max_members
 
 
 class StudentSport(models.Model):
@@ -48,10 +88,14 @@ class StudentSport(models.Model):
     position = models.CharField(max_length=50, blank=True)
     joined_date = models.DateField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
-    
+    pending_approval = models.BooleanField(
+        default=False,
+        help_text="Awaiting staff approval for student-initiated join.",
+    )
+
     class Meta:
         unique_together = ("student", "sport")
-    
+
     def __str__(self):
         return f"{self.student} - {self.sport.name}"
 
@@ -69,9 +113,13 @@ class StudentClub(models.Model):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
     joined_date = models.DateField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
-    
+    pending_approval = models.BooleanField(
+        default=False,
+        help_text="Awaiting staff approval for student-initiated join.",
+    )
+
     class Meta:
         unique_together = ("student", "club")
-    
+
     def __str__(self):
         return f"{self.student} - {self.club.name} ({self.role})"

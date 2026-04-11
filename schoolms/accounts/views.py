@@ -8,12 +8,22 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.urls import reverse
 
-from accounts.models import User
-from accounts.permissions import user_can_manage_school, is_school_admin
+from accounts.models import STAFF_ROLES, User
+from accounts.hr_utils import sync_expired_staff_contracts
+from accounts.hr_models import StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment
+from accounts.permissions import (
+    user_can_manage_school,
+    can_manage_finance,
+    is_super_admin,
+    can_review_staff_leave,
+)
+from academics.models import Subject
 from schools.models import School
-from students.models import Student
+from students.models import Student, SchoolClass
 from finance.models import Fee, FeePayment
+from finance.staff_payroll_paystack import staff_paystack_transfers_enabled
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
+from operations.activity import recent_activities_for_dashboard
 from core.pagination import paginate
 from accounts.dashboard_insights import (
     build_academic_insights,
@@ -256,7 +266,6 @@ def edit_profile(request):
                 
                 # Upload to Supabase Storage
                 if SUPABASE_STORAGE_AVAILABLE:
-                    from django.conf import settings
                     folder = f"profiles/{user.school_id}" if hasattr(user, 'school_id') and user.school_id else "profiles/default"
                     uploaded_url = supabase_storage.upload_file(profile_photo, folder=folder)
                     if uploaded_url:
@@ -322,11 +331,24 @@ def dashboard(request):
             "unpaid_fees_count": unpaid_count,
             "school": school,
             "is_superuser": is_superuser,
+            "recent_activities": recent_activities_for_dashboard(
+                user=request.user, school=school, limit=12
+            ),
         }
         return render(request, "dashboard.html", context)
     
     # Fallback: render a minimal dashboard instead of creating redirect loops.
-    return render(request, "dashboard.html", {"school": None, "is_superuser": False})
+    return render(
+        request,
+        "dashboard.html",
+        {
+            "school": None,
+            "is_superuser": False,
+            "recent_activities": recent_activities_for_dashboard(
+                user=request.user, school=None, limit=12
+            ),
+        },
+    )
 
 
 @login_required
@@ -378,6 +400,7 @@ def school_dashboard(request):
     )
     total_staff = user_stats["total_staff"]
     teachers_count = user_stats["teachers_count"]
+    inactive_staff_count = User.objects.filter(school=school, role__in=STAFF_ROLES, is_active=False).count()
 
     attendance_stats = StudentAttendance.objects.filter(school=school, date=today).aggregate(
         present=Count("id", filter=Q(status="present")),
@@ -450,6 +473,32 @@ def school_dashboard(request):
     overdue_books = LibraryIssue.objects.filter(school=school, return_date__isnull=True, due_date__lt=today).count()
     absent_today = attendance_stats["absent"]
 
+    from datetime import date, timedelta
+
+    from operations.models import StaffLeave
+
+    pending_staff_leave = 0
+    if can_review_staff_leave(request.user):
+        pending_staff_leave = StaffLeave.objects.filter(school=school, status="pending").count()
+
+    hr_expiring_contracts = 0
+    payroll_mtd_by_currency = []
+    if can_manage_finance(request.user):
+        horizon = today + timedelta(days=60)
+        hr_expiring_contracts = StaffContract.objects.filter(
+            school=school,
+            status="active",
+            end_date__isnull=False,
+            end_date__lte=horizon,
+            end_date__gte=today,
+        ).count()
+        month_start = date(today.year, today.month, 1)
+        payroll_mtd_by_currency = list(
+            StaffPayrollPayment.objects.filter(school=school, paid_on__gte=month_start, paid_on__lte=today)
+            .values("currency")
+            .annotate(total=Sum("amount"))
+        )
+
     attendance_trend_chart = build_attendance_trend(school, days=14)
     academic_insights = build_academic_insights(school)
     finance_insights = build_finance_insights(school, float(total_fees), float(paid_fees))
@@ -492,6 +541,7 @@ def school_dashboard(request):
         "female_students": female_students,
         "total_staff": total_staff,
         "teachers_count": teachers_count,
+        "inactive_staff_count": inactive_staff_count,
         "present_today": present_today,
         "upcoming_events": upcoming_events,
         "total_fees": int(total_fees),
@@ -509,6 +559,9 @@ def school_dashboard(request):
         "absent_today": absent_today,
         "late_today": late_today,
         "excused_today": excused_today,
+        "pending_staff_leave": pending_staff_leave,
+        "hr_expiring_contracts": hr_expiring_contracts,
+        "payroll_mtd_by_currency": payroll_mtd_by_currency,
         "attendance_trend_chart": attendance_trend_chart,
         "academic_insights": academic_insights,
         "finance_insights": finance_insights,
@@ -625,13 +678,15 @@ def _user_can_manage_school(request):
 
 
 def _user_is_school_admin(request):
-    """Helper for actions that only school admins (or above) should perform."""
+    """School leadership (head, deputy, HOD) or platform super-admins."""
+    from accounts.permissions import is_school_leadership
+
     user = request.user
     if not user.is_authenticated:
         return False
     if user.is_superuser or getattr(user, "is_super_admin", False):
         return True
-    return is_school_admin(user)
+    return is_school_leadership(user)
 
 
 @login_required
@@ -698,8 +753,52 @@ def staff_detail(request, pk):
     qs = User.objects.filter(role__in=all_staff_roles)
     if school:
         qs = qs.filter(school=school)
-    staff = get_object_or_404(qs, pk=pk)
-    return render(request, "accounts/staff_detail.html", {"staff": staff})
+    staff = get_object_or_404(
+        qs.select_related("school").prefetch_related("assigned_subjects"),
+        pk=pk,
+    )
+    if staff.school_id:
+        sync_expired_staff_contracts(school=staff.school)
+    assigned_subject_ids = set(staff.assigned_subjects.values_list("id", flat=True))
+    ctx = {
+        "staff": staff,
+        "assigned_subject_ids": assigned_subject_ids,
+        "contract_type_choices": StaffContract.CONTRACT_TYPES,
+        "contract_status_choices": StaffContract.STATUS_CHOICES,
+        "paystack_staff_enabled": staff_paystack_transfers_enabled(),
+    }
+    school_obj = staff.school
+    if school_obj:
+        ctx["staff_contracts"] = list(
+            StaffContract.objects.filter(user=staff, school=school_obj).order_by("-start_date", "-id")[:40]
+        )
+        ctx["staff_teaching"] = list(
+            StaffTeachingAssignment.objects.filter(user=staff, school=school_obj)
+            .select_related("subject")
+            .order_by("-is_active", "class_name", "subject__name")[:60]
+        )
+        ctx["staff_role_logs"] = list(
+            StaffRoleChangeLog.objects.filter(user=staff, school=school_obj).select_related("changed_by")[:40]
+        )
+        ctx["school_subjects"] = list(Subject.objects.filter(school=school_obj).order_by("name"))
+        ctx["school_classes"] = list(SchoolClass.objects.filter(school=school_obj).order_by("name"))
+        homeroom = SchoolClass.objects.filter(school=school_obj, class_teacher=staff).first()
+        ctx["staff_homeroom_class"] = homeroom
+        if can_manage_finance(request.user):
+            ctx["staff_payroll"] = list(
+                StaffPayrollPayment.objects.filter(user=staff, school=school_obj).order_by("-paid_on", "-id")[:60]
+            )
+        else:
+            ctx["staff_payroll"] = []
+    else:
+        ctx["staff_contracts"] = []
+        ctx["staff_teaching"] = []
+        ctx["staff_role_logs"] = []
+        ctx["school_subjects"] = []
+        ctx["school_classes"] = []
+        ctx["staff_homeroom_class"] = None
+        ctx["staff_payroll"] = []
+    return render(request, "accounts/staff_detail.html", ctx)
 
 
 @login_required
@@ -874,6 +973,7 @@ def user_management(request):
         "staff_count": counts["staff_count"],
         "parent_count": counts["parent_count"],
         "student_count": student_count,
+        "can_manage_finance": can_manage_finance(request.user),
     }
     return render(request, "accounts/user_management.html", context)
 
@@ -891,8 +991,23 @@ def staff_delete(request, pk):
     if not school:
         return redirect("home")
     
-    staff = get_object_or_404(User, pk=pk, school=school, role__in=("school_admin", "teacher"))
-    
+    staff = get_object_or_404(User, pk=pk, school=school, role__in=STAFF_ROLES)
+
+    if staff.pk == request.user.pk:
+        messages.error(request, "You cannot deactivate your own account.")
+        return redirect("accounts:staff_detail", pk=pk)
+
+    if staff.role == "school_admin":
+        other_active_admins = (
+            User.objects.filter(school=school, role="school_admin", is_active=True).exclude(pk=staff.pk).count()
+        )
+        if other_active_admins == 0:
+            messages.error(
+                request,
+                "Cannot deactivate the only active school administrator for this school.",
+            )
+            return redirect("accounts:staff_detail", pk=pk)
+
     if request.method == "POST":
         staff.is_active = False
         staff.save(update_fields=["is_active"])
@@ -920,7 +1035,7 @@ def staff_reactivate(request, pk):
     if not school:
         return redirect("home")
 
-    staff = get_object_or_404(User, pk=pk, school=school, role__in=("school_admin", "teacher"))
+    staff = get_object_or_404(User, pk=pk, school=school, role__in=STAFF_ROLES)
 
     if request.method == "POST":
         staff.is_active = True
@@ -977,18 +1092,59 @@ def staff_change_role(request, pk):
     if request.method == "POST":
         new_role = request.POST.get("new_role", "")
         valid_roles = (
-            "teacher", "deputy_head", "hod", "accountant", "librarian",
-            "admission_officer", "school_nurse", "admin_assistant", "staff"
+            "teacher",
+            "deputy_head",
+            "hod",
+            "accountant",
+            "librarian",
+            "admission_officer",
+            "school_nurse",
+            "admin_assistant",
+            "staff",
         )
-        
-        if new_role in valid_roles:
-            old_role = staff.get_role_display()
-            staff.role = new_role
-            staff.save(update_fields=["role"])
-            messages.success(
-                request,
-                f"Role changed from '{old_role}' to '{staff.get_role_display()}' for '{staff.username}'.",
-            )
+        platform_assign_admin = request.user.is_superuser or is_super_admin(request.user)
+        if new_role == "school_admin" and not platform_assign_admin:
+            messages.error(request, "Only a platform administrator may assign the School Admin role.")
+        elif new_role == "school_admin" and platform_assign_admin:
+            old_key = staff.role
+            old_label = staff.get_role_display()
+            if old_key == new_role:
+                messages.info(request, "Role is unchanged.")
+            else:
+                staff.role = new_role
+                staff.save(update_fields=["role"])
+                StaffRoleChangeLog.objects.create(
+                    school=school,
+                    user=staff,
+                    change_kind=StaffRoleChangeLog.KIND_PRIMARY,
+                    from_value=old_key,
+                    to_value=new_role,
+                    changed_by=request.user,
+                )
+                messages.success(
+                    request,
+                    f"Role changed from '{old_label}' to '{staff.get_role_display()}' for '{staff.username}'.",
+                )
+        elif new_role in valid_roles:
+            old_key = staff.role
+            old_label = staff.get_role_display()
+            if old_key == new_role:
+                messages.info(request, "Role is unchanged.")
+            else:
+                staff.role = new_role
+                staff.save(update_fields=["role"])
+                StaffRoleChangeLog.objects.create(
+                    school=school,
+                    user=staff,
+                    change_kind=StaffRoleChangeLog.KIND_PRIMARY,
+                    from_value=old_key,
+                    to_value=new_role,
+                    changed_by=request.user,
+                )
+                messages.success(
+                    request,
+                    f"Role changed from '{old_label}' to '{staff.get_role_display()}' for '{staff.username}'.",
+                )
         else:
             messages.error(request, "Invalid role selected.")
 
@@ -1034,9 +1190,20 @@ def staff_manage_secondary_roles(request, pk):
         # Filter to only valid roles and exclude primary role
         filtered_roles = [r for r in selected_roles if r in valid_roles and r != staff.role]
         
+        from_secondary = staff.secondary_roles or ""
         # Store as comma-separated string
         staff.secondary_roles = ','.join(filtered_roles)
         staff.save(update_fields=['secondary_roles'])
+        to_secondary = staff.secondary_roles or ""
+        if from_secondary != to_secondary:
+            StaffRoleChangeLog.objects.create(
+                school=school,
+                user=staff,
+                change_kind=StaffRoleChangeLog.KIND_SECONDARY,
+                from_value=from_secondary,
+                to_value=to_secondary,
+                changed_by=request.user,
+            )
         
         count = len(filtered_roles)
         messages.success(
@@ -1116,9 +1283,9 @@ def parent_reactivate(request, pk):
 @login_required
 def reset_user_password(request, pk):
     """
-    Allow school admins and platform admins to reset a user's password.
+    Allow school leadership and platform admins to reset a user's password.
 
-    This is the main way to help parents, students, staff, and school admins
+    This is the main way to help parents, students, staff, and administrators
     who have forgotten their login details.
     """
     user = request.user
@@ -1126,10 +1293,12 @@ def reset_user_password(request, pk):
 
     # Permission check:
     # - Platform superuser or super_admin can reset anyone.
-    # - School admins can only reset users in their own school.
+    # - School leadership can only reset users in their own school.
     is_platform_admin = user.is_superuser or getattr(user, "is_super_admin", False)
     same_school = getattr(user, "school_id", None) and user.school_id == getattr(target_user, "school_id", None)
-    is_school_level_admin = is_school_admin(user) and same_school
+    from accounts.permissions import is_school_leadership
+
+    is_school_level_admin = is_school_leadership(user) and same_school
 
     if not (is_platform_admin or is_school_level_admin):
         messages.error(request, "You do not have permission to reset this user's password.")

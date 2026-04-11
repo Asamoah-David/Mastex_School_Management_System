@@ -1,5 +1,5 @@
 from django.db import models
-from accounts.models import User
+from accounts.models import ACADEMIC_ROLES, User
 from schools.models import School
 
 
@@ -10,7 +10,8 @@ class SchoolClass(models.Model):
     capacity = models.PositiveIntegerField(default=40, blank=True, null=True)
     class_teacher = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="classes_taught", limit_choices_to={"role__in": ["school_admin", "teacher"]}
+        related_name="classes_taught",
+        limit_choices_to={"role__in": list(ACADEMIC_ROLES)},
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -213,7 +214,12 @@ class AbsenceRequest(models.Model):
         related_name="absence_requests_submitted",
         help_text="Who submitted this request (student or parent).",
     )
-    date = models.DateField(help_text="Date the student will be absent.")
+    date = models.DateField(help_text="First day the student will be absent.")
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Last day absent (inclusive). Leave blank for a single day.",
+    )
     reason = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -231,4 +237,6 @@ class AbsenceRequest(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.student.user.get_full_name()} - {self.date} ({self.status})"
+        end = self.end_date or self.date
+        span = f"{self.date}" if end == self.date else f"{self.date}–{end}"
+        return f"{self.student.user.get_full_name()} - {span} ({self.status})"

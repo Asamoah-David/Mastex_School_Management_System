@@ -89,6 +89,72 @@ def export_staff(request):
 
 
 @login_required
+def export_staff_payroll_school(request):
+    """CSV export of all staff payroll lines for the school (finance role)."""
+    from accounts.permissions import can_manage_finance
+    from accounts.hr_models import StaffPayrollPayment
+    from accounts.hr_utils import sync_expired_staff_contracts
+    from django.utils.dateparse import parse_date
+    import csv
+
+    if not can_manage_finance(request.user):
+        return redirect("home")
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+
+    sync_expired_staff_contracts(school=school)
+    qs = StaffPayrollPayment.objects.filter(school=school).select_related("user", "recorded_by").order_by(
+        "-paid_on", "-id"
+    )
+    fd = request.GET.get("from")
+    td = request.GET.get("to")
+    if fd:
+        d = parse_date(fd)
+        if d:
+            qs = qs.filter(paid_on__gte=d)
+    if td:
+        d = parse_date(td)
+        if d:
+            qs = qs.filter(paid_on__lte=d)
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    sub = (school.subdomain or str(school.pk)).replace("/", "-")
+    response["Content-Disposition"] = f'attachment; filename="staff-payroll-school-{sub}.csv"'
+    w = csv.writer(response)
+    w.writerow(
+        [
+            "paid_on",
+            "username",
+            "staff_name",
+            "period_label",
+            "amount",
+            "currency",
+            "method",
+            "reference",
+            "recorded_by",
+            "notes",
+        ]
+    )
+    for p in qs.iterator():
+        w.writerow(
+            [
+                p.paid_on.isoformat(),
+                p.user.username,
+                p.user.get_full_name() or "",
+                p.period_label,
+                str(p.amount),
+                p.currency,
+                p.get_method_display(),
+                p.reference,
+                (p.recorded_by.get_full_name() or p.recorded_by.username) if p.recorded_by else "",
+                (p.notes or "").replace("\n", " ")[:500],
+            ]
+        )
+    return response
+
+
+@login_required
 @permission_required(can_export_data)
 def export_attendance(request):
     """Export student attendance to CSV/Excel."""
@@ -488,7 +554,28 @@ def export_all_data(request):
         "name": "expenses",
         "format": request.GET.get("format", "csv")
     })
-    
+
+    from accounts.permissions import can_manage_finance
+    if can_manage_finance(request.user):
+        from accounts.hr_models import StaffPayrollPayment
+
+        payroll = StaffPayrollPayment.objects.filter(school=school).select_related("user", "recorded_by")
+        exports.append(
+            {
+                "queryset": payroll,
+                "fields": [
+                    ("Paid on", "paid_on"),
+                    ("Username", "user__username"),
+                    ("Period", "period_label"),
+                    ("Amount", "amount"),
+                    ("Currency", "currency"),
+                    ("Method", "method"),
+                ],
+                "name": "staff_payroll",
+                "format": request.GET.get("format", "csv"),
+            }
+        )
+
     return export_to_zip(exports, f"{school.name.replace(' ', '_')}_export.zip")
 
 

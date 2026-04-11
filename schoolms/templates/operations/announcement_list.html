@@ -8,7 +8,7 @@
         <div class="gap-2 d-flex">
             <a href="{% url 'operations:export_announcements' %}?format=csv" class="btn btn-success">📥 CSV</a>
             <a href="{% url 'operations:export_announcements' %}?format=excel" class="btn btn-success">📊 Excel</a>
-            {% if user.role == "school_admin" or user.role == "teacher" or user.is_superuser %}
+            {% if is_school_leadership or user.role == "teacher" or user.is_superuser %}
             <a href="{% url 'operations:announcement_create' %}" class="btn btn-primary">+ Create Announcement</a>
             {% endif %}
         </div>
@@ -19,7 +19,7 @@
         <h3>{{ ann.title }}</h3>
         <p>{{ ann.content }}</p>
         <small>{{ ann.created_at|date }}</small>
-        {% if user.role == "school_admin" or user.is_superuser %}
+        {% if is_school_leadership or user.is_superuser %}
         <a href="{% url 'operations:announcement_delete' ann.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this announcement?');">Delete</a>
         {% endif %}
     </div>

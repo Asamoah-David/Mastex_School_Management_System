@@ -7,6 +7,10 @@
     <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Register new staff</a>
     <a href="{% url 'operations:export_staff' %}?format=csv" class="btn btn-success">📥 CSV</a>
     <a href="{% url 'operations:export_staff' %}?format=excel" class="btn btn-success">📊 Excel</a>
+    {% if can_manage_finance %}
+    <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-secondary">Payroll register</a>
+    <a href="{% url 'operations:export_staff_payroll' %}" class="btn btn-secondary">Payroll CSV</a>
+    {% endif %}
 </div>
 
 {% if staff_by_role %}

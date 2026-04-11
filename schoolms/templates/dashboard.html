@@ -6,42 +6,66 @@
 {% block page_subtitle %}Manage all schools on the platform.{% endblock %}
 
 {% block content %}
-<!-- Quick Actions -->
-<div class="content-card" style="margin-bottom: 1.2rem;">
-    <h3 class="section-title">⚡ Quick Actions</h3>
-    <div class="quick-actions">
-        <a href="{% url 'school_register' %}" class="quick-action-btn">
-            <span class="quick-action-icon">🏫</span>
-            <span class="quick-action-label">Add School</span>
-        </a>
-        <a href="{% url 'schools:school_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📋</span>
-            <span class="quick-action-label">Manage Schools</span>
-        </a>
-        <a href="{% url 'operations:activity_log_list' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📊</span>
-            <span class="quick-action-label">Activity Log</span>
-        </a>
-        <a href="{% url 'messaging:superuser_send_message' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📢</span>
-            <span class="quick-action-label">Broadcast</span>
-        </a>
-        <a href="/admin/accounts/user/" class="quick-action-btn">
-            <span class="quick-action-icon">👥</span>
-            <span class="quick-action-label">All Users</span>
-        </a>
-        <a href="/admin/" class="quick-action-btn">
-            <span class="quick-action-icon">⚙️</span>
-            <span class="quick-action-label">Django Admin</span>
-        </a>
-        <a href="{% url 'operations:admission_apply' %}" class="quick-action-btn">
-            <span class="quick-action-icon">📝</span>
-            <span class="quick-action-label">Online admission</span>
-        </a>
-        <a href="{% url 'operations:admission_track' %}" class="quick-action-btn">
-            <span class="quick-action-icon">🔎</span>
-            <span class="quick-action-label">Track admission</span>
-        </a>
+<div class="erp-dash-hero">
+    <h2 class="erp-dash-hero__title">Platform control center</h2>
+    <p class="erp-dash-hero__sub">
+        Monitor every school, user cohort, and fee signal from one place. Use the workspaces below to jump into onboarding, governance, messaging, and public admissions.
+    </p>
+    <div class="erp-dash-hero__chips" aria-label="Key platform totals">
+        <span class="erp-dash-chip">🏫 {{ total_schools|default:"0" }} schools</span>
+        <span class="erp-dash-chip">🎓 {{ total_students|default:"0" }} students</span>
+        <span class="erp-dash-chip">💰 {{ mrr|default:0|format_ghs }} fees collected</span>
+    </div>
+</div>
+
+<div class="content-card erp-workspace-card">
+    <h3 class="section-title" style="margin-bottom:1rem;">Workspaces</h3>
+    <div class="erp-module-group">
+        <p class="erp-module-group__label">Schools &amp; platform</p>
+        <div class="quick-actions">
+            <a href="{% url 'school_register' %}" class="quick-action-btn">
+                <span class="quick-action-icon">🏫</span>
+                <span class="quick-action-label">Add school</span>
+            </a>
+            <a href="{% url 'schools:school_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📋</span>
+                <span class="quick-action-label">Manage schools</span>
+            </a>
+            <a href="{% url 'operations:activity_log_list' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📊</span>
+                <span class="quick-action-label">Activity log</span>
+            </a>
+            <a href="/admin/" class="quick-action-btn">
+                <span class="quick-action-icon">⚙️</span>
+                <span class="quick-action-label">Django admin</span>
+            </a>
+        </div>
+    </div>
+    <div class="erp-module-group">
+        <p class="erp-module-group__label">People &amp; communications</p>
+        <div class="quick-actions">
+            <a href="/admin/accounts/user/" class="quick-action-btn">
+                <span class="quick-action-icon">👥</span>
+                <span class="quick-action-label">All users</span>
+            </a>
+            <a href="{% url 'messaging:superuser_send_message' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📢</span>
+                <span class="quick-action-label">Broadcast</span>
+            </a>
+        </div>
+    </div>
+    <div class="erp-module-group">
+        <p class="erp-module-group__label">Public admissions</p>
+        <div class="quick-actions">
+            <a href="{% url 'operations:admission_apply' %}" class="quick-action-btn">
+                <span class="quick-action-icon">📝</span>
+                <span class="quick-action-label">Online admission</span>
+            </a>
+            <a href="{% url 'operations:admission_track' %}" class="quick-action-btn">
+                <span class="quick-action-icon">🔎</span>
+                <span class="quick-action-label">Track admission</span>
+            </a>
+        </div>
     </div>
 </div>
 
@@ -149,11 +173,17 @@
             </li>
             {% endfor %}
         </ul>
+        <p style="margin-top:0.85rem;margin-bottom:0;font-size:0.82rem;">
+            <a href="{% url 'operations:activity_log_list' %}" style="color:var(--accent,#22c55e);font-weight:600;text-decoration:none;">View full activity log →</a>
+        </p>
         {% else %}
         <div class="empty-state">
             <div class="empty-state-icon">📋</div>
             <div class="empty-state-title">No Recent Activity</div>
             <div class="empty-state-desc">Activity will appear here as schools use the platform.</div>
+            <p style="margin-top:0.75rem;font-size:0.82rem;">
+                <a href="{% url 'operations:activity_log_list' %}" style="color:var(--accent,#22c55e);font-weight:600;text-decoration:none;">Open activity log</a>
+            </p>
         </div>
         {% endif %}
     </div>

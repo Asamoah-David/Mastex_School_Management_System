@@ -6,9 +6,11 @@ from .models import AuditLog
 
 
 def _has_audit_access(user):
-    if user.is_superuser or getattr(user, "role", None) == "super_admin":
+    from accounts.permissions import is_super_admin, is_school_leadership
+
+    if user.is_superuser or is_super_admin(user):
         return True, True  # (has_access, is_superuser)
-    if getattr(user, "role", None) == "school_admin" and getattr(user, "school", None):
+    if is_school_leadership(user) and getattr(user, "school", None):
         return True, False
     return False, False
 

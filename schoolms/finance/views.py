@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from urllib.parse import urlparse
 from django.contrib.auth.decorators import login_required
-from accounts.permissions import is_school_admin, user_can_manage_school
+from accounts.permissions import is_school_leadership, user_can_manage_school
 
 
 def _safe_referer(request, fallback="/"):
@@ -396,6 +396,45 @@ def paystack_callback(request, fee_id):
     return _redirect_after_fee_paystack(request)
 
 
+def _paystack_webhook_staff_transfer(payload: dict, event: str) -> None:
+    """Update StaffPayrollPayment rows for Paystack Transfer webhooks."""
+    from accounts.hr_models import StaffPayrollPayment
+
+    data = payload.get("data") or {}
+    ref = (data.get("reference") or "").strip()
+    if not ref:
+        return
+    pay = StaffPayrollPayment.objects.filter(reference=ref).first()
+    if not pay:
+        return
+    if event == "transfer.success":
+        pay.paystack_status = "success"
+        tc = data.get("transfer_code") or pay.paystack_transfer_code
+        if tc:
+            pay.paystack_transfer_code = str(tc)[:64]
+        pay.paystack_failure_reason = ""
+        pay.save(update_fields=["paystack_status", "paystack_transfer_code", "paystack_failure_reason"])
+        logger.info("Staff payroll transfer success: ref=%s payment_id=%s", ref, pay.pk)
+    elif event == "transfer.failed":
+        pay.paystack_status = "failed"
+        fail = data.get("failures")
+        reason = ""
+        if isinstance(fail, list) and fail:
+            first = fail[0]
+            if isinstance(first, dict):
+                reason = first.get("reason") or first.get("message") or ""
+        if not reason:
+            reason = data.get("message") or str(data)
+        pay.paystack_failure_reason = str(reason)[:2000]
+        pay.save(update_fields=["paystack_status", "paystack_failure_reason"])
+        logger.warning("Staff payroll transfer failed: ref=%s payment_id=%s", ref, pay.pk)
+    elif event == "transfer.reversed":
+        pay.paystack_status = "failed"
+        pay.paystack_failure_reason = "Transfer reversed."
+        pay.save(update_fields=["paystack_status", "paystack_failure_reason"])
+        logger.warning("Staff payroll transfer reversed: ref=%s payment_id=%s", ref, pay.pk)
+
+
 @csrf_exempt
 def paystack_webhook(request):
     """
@@ -432,6 +471,10 @@ def paystack_webhook(request):
     
     event = payload.get("event")
     logger.info(f"Paystack webhook received: event={event}")
+
+    if event in ("transfer.success", "transfer.failed", "transfer.reversed"):
+        _paystack_webhook_staff_transfer(payload, event)
+        return HttpResponse(status=200)
     
     if event == "charge.success":
         data = payload.get("data", {})
@@ -653,7 +696,7 @@ def fee_structure_create(request):
     if not school:
         messages.error(request, "School admins only.")
         return redirect("accounts:dashboard")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
@@ -682,7 +725,7 @@ def fee_structure_edit(request, pk):
     if not school:
         messages.error(request, "School admins only.")
         return redirect("accounts:dashboard")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
     
     structure = get_object_or_404(FeeStructure, pk=pk, school=school)
@@ -719,7 +762,7 @@ def fee_structure_delete(request, pk):
     if not school:
         messages.error(request, "School admins only.")
         return redirect("accounts:dashboard")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
     
     structure = get_object_or_404(FeeStructure, pk=pk, school=school)
@@ -745,7 +788,7 @@ def generate_fees_from_structure(request, pk):
     if not school:
         messages.error(request, "School admins only.")
         return redirect("accounts:dashboard")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
     
     from students.models import Student

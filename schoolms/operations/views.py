@@ -1,9 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
 from django.db.models import Sum, Q
 from django.db import models, transaction, IntegrityError
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_time
 from django.utils import timezone
 from django.http import HttpResponse
 from django.core.cache import cache
@@ -79,7 +80,14 @@ from core.utils import (
     get_school as _get_school,
     can_manage as _user_can_manage_school,
     invalidate_pending_essay_attempt_cache,
+    log_activity,
 )
+from students.absence_utils import ranges_overlap
+from accounts.permissions import (
+    can_access_staff_leave_portal,
+    can_review_staff_leave,
+)
+from schools.features import is_feature_enabled, require_feature
 
 
 @login_required
@@ -297,13 +305,13 @@ def canteen_list(request):
 @login_required
 def canteen_create(request):
     """Create a new canteen item."""
-    from accounts.permissions import is_school_admin, can_manage_finance
+    from accounts.permissions import is_school_leadership, can_manage_finance
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_finance(request.user)
     ):
         return redirect("operations:canteen_list")
@@ -355,13 +363,13 @@ def bus_list(request):
 @login_required
 def bus_create(request):
     """Create a new bus route."""
-    from accounts.permissions import is_school_admin, can_manage_transport
+    from accounts.permissions import is_school_leadership, can_manage_transport
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_transport(request.user)
     ):
         return redirect("operations:bus_list")
@@ -454,13 +462,13 @@ def textbook_list(request):
 @login_required
 def textbook_create(request):
     """Create a new textbook."""
-    from accounts.permissions import is_school_admin, can_manage_inventory
+    from accounts.permissions import is_school_leadership, can_manage_inventory
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_inventory(request.user)
     ):
         return redirect("operations:textbook_list")
@@ -547,13 +555,13 @@ def textbook_sales(request):
 @login_required
 def canteen_item_delete(request, pk):
     """Delete a canteen item."""
-    from accounts.permissions import is_school_admin, can_manage_finance
+    from accounts.permissions import is_school_leadership, can_manage_finance
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_finance(request.user)
     ):
         return redirect("operations:canteen_list")
@@ -569,13 +577,13 @@ def canteen_item_delete(request, pk):
 @login_required
 def bus_route_delete(request, pk):
     """Delete a bus route."""
-    from accounts.permissions import is_school_admin, can_manage_transport
+    from accounts.permissions import is_school_leadership, can_manage_transport
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_transport(request.user)
     ):
         return redirect("operations:bus_list")
@@ -591,13 +599,13 @@ def bus_route_delete(request, pk):
 @login_required
 def textbook_delete(request, pk):
     """Delete a textbook."""
-    from accounts.permissions import is_school_admin, can_manage_inventory
+    from accounts.permissions import is_school_leadership, can_manage_inventory
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_inventory(request.user)
     ):
         return redirect("operations:textbook_list")
@@ -684,8 +692,8 @@ def teacher_attendance_mark(request):
         return redirect("home")
     
     # Only school admins can mark teacher (staff) attendance
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    from accounts.permissions import is_school_leadership
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         from django.contrib import messages
 
         messages.info(
@@ -742,12 +750,12 @@ def teacher_attendance_mark(request):
 @login_required
 def teacher_attendance_edit(request, pk):
     """Edit a single teacher attendance record (school admin)."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
 
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("home")
     attendance = get_object_or_404(TeacherAttendance, pk=pk, school=school)
     if request.method == "POST":
@@ -781,14 +789,14 @@ def teacher_attendance_edit(request, pk):
 @login_required
 def hostel_room_edit(request, pk):
     """Edit an existing hostel room."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
 
     school = _get_school(request)
     if not school:
         return redirect("home")
     room = get_object_or_404(HostelRoom.objects.select_related("hostel"), pk=pk, hostel__school=school)
     hostel = room.hostel
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("operations:hostel_rooms", pk=hostel.pk)
     if request.method == "POST":
         from django.contrib import messages
@@ -836,34 +844,59 @@ def hostel_fee_detail(request, pk):
 @login_required
 def calendar_list(request):
     """List academic calendar events."""
+    from accounts.permissions import can_manage_school_programming
+
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "academic_calendar", "accounts:school_dashboard")
+    if redir:
+        return redir
     events = AcademicCalendar.objects.filter(school=school).order_by("start_date")
     page_obj = paginate(request, events, per_page=25)
-    return render(request, "operations/calendar_list.html", {"events": page_obj, "school": school, "page_obj": page_obj})
+    return render(
+        request,
+        "operations/calendar_list.html",
+        {
+            "events": page_obj,
+            "school": school,
+            "page_obj": page_obj,
+            "can_manage_academic_calendar": (
+                request.user.is_superuser or can_manage_school_programming(request.user)
+            ),
+        },
+    )
 
 
 @login_required
 def calendar_create(request):
     """Create academic calendar event."""
+    from accounts.permissions import can_manage_school_programming
+    from django.contrib import messages
+
     school = _get_school(request)
     if not school:
         return redirect("home")
-    
-    # Only school admins can create calendar events
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect("home")
-    
+    redir = require_feature(request, "academic_calendar", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("operations:calendar")
+
     if request.method == "POST":
-        title = request.POST.get("title")
+        title = (request.POST.get("title") or "").strip()
         event_type = request.POST.get("event_type")
-        start_date = request.POST.get("start_date")
-        end_date = request.POST.get("end_date") or None
+        start_raw = request.POST.get("start_date")
+        end_raw = (request.POST.get("end_date") or "").strip()
         description = request.POST.get("description", "")
-        
-        if title and event_type and start_date:
+        valid_types = {c[0] for c in AcademicCalendar.EVENT_TYPES}
+        if event_type not in valid_types:
+            event_type = "event"
+        start_date = parse_date(start_raw) if start_raw else None
+        end_date = parse_date(end_raw) if end_raw else None
+        if not (title and start_date):
+            messages.error(request, "Title and a valid start date are required.")
+        else:
             AcademicCalendar.objects.create(
                 school=school,
                 title=title,
@@ -872,44 +905,51 @@ def calendar_create(request):
                 end_date=end_date,
                 description=description,
             )
-            from django.contrib import messages
             messages.success(request, "Calendar event created successfully!")
-            return redirect("operations:calendar_list")
-    
+            return redirect("operations:calendar")
+
     return render(request, "operations/calendar_form.html", {"school": school})
 
 
 @login_required
 def calendar_edit(request, pk):
     """Edit academic calendar event."""
+    from accounts.permissions import can_manage_school_programming
+    from django.contrib import messages
+
     school = _get_school(request)
     if not school:
         return redirect("home")
-
-    # Only school admins can edit calendar events
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect("home")
+    redir = require_feature(request, "academic_calendar", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("operations:calendar")
 
     event = get_object_or_404(AcademicCalendar, pk=pk, school=school)
 
     if request.method == "POST":
-        title = request.POST.get("title")
+        title = (request.POST.get("title") or "").strip()
         event_type = request.POST.get("event_type")
-        start_date = request.POST.get("start_date")
-        end_date = request.POST.get("end_date") or None
+        start_raw = request.POST.get("start_date")
+        end_raw = (request.POST.get("end_date") or "").strip()
         description = request.POST.get("description", "")
-
-        if title and event_type and start_date:
+        valid_types = {c[0] for c in AcademicCalendar.EVENT_TYPES}
+        if event_type not in valid_types:
+            event_type = "event"
+        start_date = parse_date(start_raw) if start_raw else None
+        end_date = parse_date(end_raw) if end_raw else None
+        if not (title and start_date):
+            messages.error(request, "Title and a valid start date are required.")
+        else:
             event.title = title
             event.event_type = event_type
             event.start_date = start_date
             event.end_date = end_date
             event.description = description
             event.save()
-            from django.contrib import messages
             messages.success(request, "Calendar event updated successfully!")
-            return redirect("operations:calendar_list")
+            return redirect("operations:calendar")
 
     return render(request, "operations/calendar_form.html", {"school": school, "object": event})
 
@@ -917,21 +957,23 @@ def calendar_edit(request, pk):
 @login_required
 def calendar_delete(request, pk):
     """Delete academic calendar event."""
+    from accounts.permissions import can_manage_school_programming
+    from django.contrib import messages
+
     school = _get_school(request)
     if not school:
         return redirect("home")
-
-    # Only school admins can delete calendar events
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect("home")
+    redir = require_feature(request, "academic_calendar", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("operations:calendar")
 
     event = get_object_or_404(AcademicCalendar, pk=pk, school=school)
     if request.method == "POST":
         event.delete()
-        from django.contrib import messages
         messages.success(request, "Calendar event deleted successfully!")
-        return redirect("operations:calendar_list")
+        return redirect("operations:calendar")
     return render(request, "operations/confirm_delete.html", {"object": event, "type": "calendar event"})
 
 
@@ -942,7 +984,7 @@ def _redirect_no_school(request):
 # Announcements
 @login_required
 def announcement_list(request):
-    from accounts.permissions import user_can_manage_school, is_school_admin
+    from accounts.permissions import user_can_manage_school
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
@@ -960,10 +1002,10 @@ def announcement_create(request):
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     # Allow school admins, teachers, and superusers to create announcements
     user_role = getattr(request.user, 'role', None)
-    if not (request.user.is_superuser or is_school_admin(request.user) or user_role == 'teacher'):
+    if not (request.user.is_superuser or is_school_leadership(request.user) or user_role == 'teacher'):
         return redirect("operations:announcement_list")
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
@@ -1014,8 +1056,8 @@ def announcement_delete(request, pk):
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    from accounts.permissions import is_school_leadership
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("operations:announcement_list")
     ann = get_object_or_404(Announcement, pk=pk, school=school)
     if request.method == "POST":
@@ -1026,90 +1068,172 @@ def announcement_delete(request, pk):
     return render(request, "operations/confirm_delete.html", {"object": ann, "type": "announcement"})
 
 
+def _staff_leave_overlaps_existing(school, staff, start_d, end_d, exclude_pk=None):
+    """True if another non-rejected leave for this staff overlaps the inclusive range."""
+    qs = StaffLeave.objects.filter(school=school, staff=staff).exclude(status="rejected")
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    for row in qs.only("start_date", "end_date"):
+        if ranges_overlap(start_d, end_d, row.start_date, row.end_date):
+            return True
+    return False
+
+
 # Staff Leave
 @login_required
 def staff_leave_list(request):
+    redir = require_feature(request, "leave_management", "accounts:school_dashboard")
+    if redir:
+        return redir
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
-    from accounts.permissions import user_can_manage_school
-    if not user_can_manage_school(request.user):
+    if not can_access_staff_leave_portal(request.user):
         return redirect("home")
-    from accounts.permissions import is_school_admin
-    is_admin = request.user.is_superuser or is_school_admin(request.user)
-    if is_admin:
-        leaves = StaffLeave.objects.filter(school=school).select_related("staff", "reviewed_by").order_by("-start_date")
+    is_reviewer = can_review_staff_leave(request.user)
+    status_filter = (request.GET.get("status") or "").strip()
+    base = StaffLeave.objects.filter(school=school).select_related("staff", "reviewed_by")
+    if is_reviewer:
+        leaves = base
     else:
-        leaves = StaffLeave.objects.filter(school=school, staff=request.user).select_related("staff", "reviewed_by").order_by("-start_date")
-    return render(request, "operations/staff_leave_list.html", {"leaves": leaves, "school": school, "is_admin": is_admin})
+        leaves = base.filter(staff=request.user)
+    if status_filter in {"pending", "approved", "rejected"}:
+        leaves = leaves.filter(status=status_filter)
+    leaves = leaves.order_by("-start_date", "-created_at")
+    return render(
+        request,
+        "operations/staff_leave_list.html",
+        {
+            "leaves": leaves,
+            "school": school,
+            "is_reviewer": is_reviewer,
+            "status_filter": status_filter,
+        },
+    )
 
 
 @login_required
 def staff_leave_create(request):
+    redir = require_feature(request, "leave_management", "accounts:school_dashboard")
+    if redir:
+        return redir
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
-    from accounts.permissions import user_can_manage_school
-    if not user_can_manage_school(request.user):
+    if not can_access_staff_leave_portal(request.user):
         return redirect("home")
     if request.method == "POST":
         start = request.POST.get("start_date")
         end = request.POST.get("end_date")
-        reason = request.POST.get("reason", "").strip()
-        if start and end:
+        reason = (request.POST.get("reason") or "").strip()
+        leave_type = (request.POST.get("leave_type") or "").strip()
+        covering = (request.POST.get("covering_teacher") or "").strip()
+        contact_leave = (request.POST.get("contact_during_leave") or "").strip()
+        if not reason:
+            from django.contrib import messages
+            messages.error(request, "Please provide a reason for your leave.")
+        elif start and end:
             try:
                 from datetime import datetime
                 start_d = datetime.strptime(start, "%Y-%m-%d").date()
                 end_d = datetime.strptime(end, "%Y-%m-%d").date()
-                if start_d <= end_d:
+            except ValueError:
+                from django.contrib import messages
+                messages.error(request, "Invalid dates.")
+            else:
+                if start_d > end_d:
+                    from django.contrib import messages
+                    messages.error(request, "End date cannot be before the start date.")
+                elif _staff_leave_overlaps_existing(school, request.user, start_d, end_d):
+                    from django.contrib import messages
+                    messages.error(
+                        request,
+                        "You already have a pending or approved leave that overlaps these dates.",
+                    )
+                else:
+                    lt = leave_type if leave_type in dict(StaffLeave.LEAVE_TYPE_CHOICES) else ""
                     StaffLeave.objects.create(
-                        school=school, staff=request.user,
-                        start_date=start_d, end_date=end_d, reason=reason
+                        school=school,
+                        staff=request.user,
+                        leave_type=lt,
+                        start_date=start_d,
+                        end_date=end_d,
+                        reason=reason,
+                        covering_teacher=covering[:200],
+                        contact_during_leave=contact_leave[:200],
                     )
                     from django.contrib import messages
                     messages.success(request, "Leave request submitted.")
+                    log_activity(
+                        request.user,
+                        "STAFF_LEAVE_SUBMIT",
+                        f"{start_d} to {end_d} ({lt or 'unspecified type'})",
+                        school=school,
+                        request=request,
+                    )
                     return redirect("operations:staff_leave_list")
-            except ValueError:
-                pass
     return render(request, "operations/staff_leave_form.html", {"school": school})
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
 def staff_leave_review(request, pk):
+    redir = require_feature(request, "leave_management", "accounts:school_dashboard")
+    if redir:
+        return redir
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect("operations:staff_leave_list")
+    is_reviewer = can_review_staff_leave(request.user)
     leave = get_object_or_404(StaffLeave, pk=pk, school=school)
+    if not is_reviewer and leave.staff_id != request.user.id:
+        return redirect("operations:staff_leave_list")
+    if not is_reviewer:
+        return render(
+            request,
+            "operations/staff_leave_review.html",
+            {"leave": leave, "school": school, "can_decide": False},
+        )
     if request.method == "POST":
-        action = request.POST.get("action")
-        if action in ("approved", "rejected"):
-            leave.status = action
+        action = (request.POST.get("action") or "").strip().lower()
+        notes = (request.POST.get("review_notes") or "").strip()
+        if leave.status != "pending":
+            from django.contrib import messages
+            messages.info(request, "This request was already reviewed.")
+            return redirect("operations:staff_leave_list")
+        if action in ("approve", "reject"):
+            leave.status = "approved" if action == "approve" else "rejected"
             leave.reviewed_by = request.user
             leave.reviewed_at = timezone.now()
+            leave.review_notes = notes
             leave.save()
             from django.contrib import messages
-            messages.success(request, f"Leave {action}.")
+            messages.success(request, f"Leave {leave.status}.")
+            log_activity(
+                request.user,
+                "STAFF_LEAVE_REVIEW",
+                f"Leave {pk} for {leave.staff_id}: {leave.status}",
+                school=school,
+                request=request,
+            )
             return redirect("operations:staff_leave_list")
-    return redirect("operations:staff_leave_list")
+    return render(
+        request,
+        "operations/staff_leave_review.html",
+        {"leave": leave, "school": school, "can_decide": True},
+    )
 
 
 # Activity Log (school leadership + platform admins)
 @login_required
 def activity_log_list(request):
     from django.contrib import messages
-    from accounts.permissions import is_deputy_head, is_hod, is_school_admin, is_super_admin
+    from accounts.permissions import is_school_leadership, is_super_admin
 
     school = _get_school(request)
 
-    can_view = (
-        request.user.is_superuser
-        or is_super_admin(request.user)
-        or is_school_admin(request.user)
-        or is_deputy_head(request.user)
-        or is_hod(request.user)
+    can_view = request.user.is_superuser or is_super_admin(request.user) or is_school_leadership(
+        request.user
     )
     if not can_view:
         messages.error(request, "You do not have permission to view the activity log.")
@@ -1412,7 +1536,7 @@ def library_my_issues(request):
 # Hostel
 @login_required
 def hostel_list(request):
-    from accounts.permissions import user_can_manage_school, is_school_admin, can_manage_hostel
+    from accounts.permissions import user_can_manage_school, is_school_leadership, can_manage_hostel
     school = _get_school(request)
     if not school:
         return redirect("home")
@@ -1420,7 +1544,7 @@ def hostel_list(request):
     can_manage = request.user.is_superuser or user_can_manage_school(request.user)
     can_edit_structure = (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_hostel(request.user)
     )
     page_obj = paginate(request, hostels, per_page=25)
@@ -1439,13 +1563,13 @@ def hostel_list(request):
 
 @login_required
 def hostel_create(request):
-    from accounts.permissions import is_school_admin, can_manage_hostel
+    from accounts.permissions import is_school_leadership, can_manage_hostel
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_hostel(request.user)
     ):
         return redirect("operations:hostel_list")
@@ -1486,14 +1610,14 @@ def hostel_rooms(request, pk):
 
 @login_required
 def hostel_room_create(request, pk):
-    from accounts.permissions import is_school_admin, can_manage_hostel
+    from accounts.permissions import is_school_leadership, can_manage_hostel
     school = _get_school(request)
     if not school:
         return redirect("home")
     hostel = get_object_or_404(Hostel, pk=pk, school=school)
     if not (
         request.user.is_superuser
-        or is_school_admin(request.user)
+        or is_school_leadership(request.user)
         or can_manage_hostel(request.user)
     ):
         return redirect("operations:hostel_rooms", pk=hostel.pk)
@@ -2424,6 +2548,12 @@ def certificate_pdf(request, pk):
     c.setFont("Helvetica-Bold", 24)
     school_name = certificate.school.name if certificate.school else "School Management System"
     c.drawCentredString(width/2, height - 80, school_name)
+    ay = getattr(certificate.school, "academic_year", None) if certificate.school else None
+    if ay:
+        c.setFillColor(colors.grey)
+        c.setFont("Helvetica", 10)
+        c.drawCentredString(width/2, height - 98, str(ay))
+        c.setFillColor(colors.darkblue)
     
     # Certificate title
     c.setFillColor(colors.gold)
@@ -3081,100 +3211,296 @@ def document_upload(request):
 
 # ==================== ALUMNI ====================
 
+def _alumni_form_from_post(request, school=None):
+    """Parse POST into dict for Alumni create/update."""
+    from datetime import datetime
+
+    data = {
+        "first_name": (request.POST.get("first_name") or "").strip()[:100],
+        "last_name": (request.POST.get("last_name") or "").strip()[:100],
+        "admission_number": (request.POST.get("admission_number") or "").strip()[:50],
+        "class_name": (request.POST.get("class_name") or "").strip()[:50],
+        "current_occupation": (request.POST.get("current_occupation") or "").strip()[:200],
+        "current_institution": (request.POST.get("current_institution") or "").strip()[:200],
+        "contact_phone": (request.POST.get("contact_phone") or "").strip()[:20],
+        "contact_email": (request.POST.get("contact_email") or "").strip(),
+        "address": (request.POST.get("address") or "").strip(),
+        "is_active_member": request.POST.get("is_active_member") == "on",
+    }
+    gy_raw = (request.POST.get("graduation_year") or "").strip()
+    if gy_raw.isdigit():
+        data["graduation_year"] = int(gy_raw)
+    else:
+        data["graduation_year"] = None
+    gd = (request.POST.get("graduation_date") or "").strip()
+    data["graduation_date"] = None
+    if gd:
+        try:
+            data["graduation_date"] = datetime.strptime(gd, "%Y-%m-%d").date()
+        except ValueError:
+            data["graduation_date"] = False
+    my_raw = (request.POST.get("membership_year") or "").strip()
+    data["membership_year"] = int(my_raw) if my_raw.isdigit() else None
+    link_id = (request.POST.get("link_student_id") or "").strip()
+    data["link_student_id"] = int(link_id) if link_id.isdigit() else None
+    return data
+
+
 @login_required
 def alumni_list(request):
-    """List alumni."""
+    """List alumni with search and graduation year filter."""
+    redir = require_feature(request, "alumni", "accounts:school_dashboard")
+    if redir:
+        return redir
     from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
+        return redirect("home")
     if not user_can_manage_school(request.user) and not request.user.is_superuser:
-        return redirect('home')
-    
-    alumni = Alumni.objects.filter(school=school).order_by('-graduation_year')
-    page_obj = paginate(request, alumni, per_page=30)
+        return redirect("home")
 
-    return render(request, 'operations/alumni_list.html', {
-        'alumni': page_obj,
-        'school': school,
-        'page_obj': page_obj,
-    })
+    qs = Alumni.objects.filter(school=school)
+    q = (request.GET.get("q") or "").strip()
+    year = (request.GET.get("year") or "").strip()
+    if q:
+        qs = qs.filter(
+            Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+            | Q(admission_number__icontains=q)
+            | Q(class_name__icontains=q)
+            | Q(contact_email__icontains=q)
+        )
+    if year.isdigit():
+        qs = qs.filter(graduation_year=int(year))
+    qs = qs.select_related("student", "school_class").order_by("-graduation_year", "last_name", "first_name")
+    page_obj = paginate(request, qs, per_page=30)
+    years = (
+        Alumni.objects.filter(school=school)
+        .values_list("graduation_year", flat=True)
+        .distinct()
+        .order_by("-graduation_year")[:40]
+    )
+
+    return render(
+        request,
+        "operations/alumni_list.html",
+        {
+            "alumni": page_obj,
+            "school": school,
+            "page_obj": page_obj,
+            "search_q": q,
+            "filter_year": year,
+            "graduation_years": years,
+        },
+    )
 
 
 @login_required
 def alumni_create(request):
-    """Add a new alumni record."""
-    from accounts.permissions import is_school_admin
+    """Add a new alumni record (manual or linked to a graduated student)."""
+    redir = require_feature(request, "alumni", "accounts:school_dashboard")
+    if redir:
+        return redir
+    from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('operations:alumni_list')
-    
-    if request.method == 'POST':
-        first_name = request.POST.get('first_name', '').strip()
-        last_name = request.POST.get('last_name', '').strip()
-        admission_number = request.POST.get('admission_number', '').strip()
-        class_name = request.POST.get('class_name', '').strip()
-        graduation_year = request.POST.get('graduation_year')
-        current_occupation = request.POST.get('current_occupation', '').strip()
-        current_institution = request.POST.get('current_institution', '').strip()
-        contact_phone = request.POST.get('contact_phone', '').strip()
-        contact_email = request.POST.get('contact_email', '').strip()
-        
-        if first_name and last_name and graduation_year:
+    if not school or not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:alumni_list")
+
+    graduated = list(
+        Student.objects.filter(school=school, status="graduated")
+        .select_related("user")
+        .order_by("-exit_date", "admission_number")[:500]
+    )
+
+    if request.method == "POST":
+        from django.contrib import messages
+
+        data = _alumni_form_from_post(request, school)
+        if data["graduation_date"] is False:
+            messages.error(request, "Invalid graduation date.")
+        elif not data["first_name"] or not data["last_name"] or data["graduation_year"] is None:
+            messages.error(request, "First name, last name, and graduation year are required.")
+        else:
+            student_link = None
+            if data["link_student_id"]:
+                student_link = Student.objects.filter(
+                    pk=data["link_student_id"], school=school, status="graduated"
+                ).select_related("user").first()
+                if not student_link:
+                    messages.error(request, "Selected graduate not found.")
+                else:
+                    u = student_link.user
+                    data["first_name"] = (u.first_name or data["first_name"])[:100]
+                    data["last_name"] = (u.last_name or data["last_name"])[:100]
+                    data["admission_number"] = student_link.admission_number or data["admission_number"]
+                    data["class_name"] = student_link.class_name or data["class_name"]
+            if not (data["link_student_id"] and not student_link):
+                try:
+                    common = dict(
+                        first_name=data["first_name"],
+                        last_name=data["last_name"],
+                        admission_number=data["admission_number"] or "—",
+                        class_name=data["class_name"],
+                        graduation_year=data["graduation_year"],
+                        graduation_date=data["graduation_date"],
+                        current_occupation=data["current_occupation"],
+                        current_institution=data["current_institution"],
+                        contact_phone=data["contact_phone"],
+                        contact_email=data["contact_email"],
+                        address=data["address"],
+                        is_active_member=data["is_active_member"],
+                        membership_year=data["membership_year"],
+                    )
+                    if student_link:
+                        common["school_class"] = student_link.school_class
+                        al, _ = Alumni.objects.update_or_create(
+                            school=school,
+                            student=student_link,
+                            defaults=common,
+                        )
+                    else:
+                        al = Alumni.objects.create(school=school, student=None, **common)
+                    messages.success(request, "Alumni record saved.")
+                    log_activity(
+                        request.user,
+                        "ALUMNI_CREATE",
+                        f"Alumni {al.id}: {al.first_name} {al.last_name} ({al.graduation_year})",
+                        school=school,
+                        request=request,
+                    )
+                    return redirect("operations:alumni_list")
+                except Exception as ex:
+                    messages.error(request, f"Could not save alumni record: {ex}")
+
+    return render(
+        request,
+        "operations/alumni_form.html",
+        {"school": school, "alumni_instance": None, "graduated_students": graduated},
+    )
+
+
+@login_required
+def alumni_edit(request, pk):
+    """Update an alumni profile."""
+    redir = require_feature(request, "alumni", "accounts:school_dashboard")
+    if redir:
+        return redir
+    from accounts.permissions import user_can_manage_school
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school or not (request.user.is_superuser or user_can_manage_school(request.user)):
+        return redirect("operations:alumni_list")
+
+    alumni = get_object_or_404(Alumni, pk=pk, school=school)
+    graduated = list(
+        Student.objects.filter(school=school, status="graduated")
+        .select_related("user")
+        .order_by("-exit_date", "admission_number")[:500]
+    )
+
+    if request.method == "POST":
+        data = _alumni_form_from_post(request, school)
+        if data["graduation_date"] is False:
+            messages.error(request, "Invalid graduation date.")
+        elif not data["first_name"] or not data["last_name"] or data["graduation_year"] is None:
+            messages.error(request, "First name, last name, and graduation year are required.")
+        else:
+            student_link = alumni.student
+            if data["link_student_id"]:
+                st = Student.objects.filter(
+                    pk=data["link_student_id"], school=school, status="graduated"
+                ).first()
+                if st:
+                    student_link = st
+            for attr in (
+                "first_name",
+                "last_name",
+                "class_name",
+                "graduation_year",
+                "graduation_date",
+                "current_occupation",
+                "current_institution",
+                "contact_phone",
+                "contact_email",
+                "address",
+                "is_active_member",
+                "membership_year",
+            ):
+                setattr(alumni, attr, data[attr])
+            alumni.admission_number = (data["admission_number"] or alumni.admission_number or "—")[:50]
+            alumni.student = student_link
+            if student_link and student_link.school_class_id:
+                alumni.school_class = student_link.school_class
             try:
-                Alumni.objects.create(
+                alumni.save()
+                messages.success(request, "Alumni record updated.")
+                log_activity(
+                    request.user,
+                    "ALUMNI_UPDATE",
+                    f"Alumni {alumni.id}: {alumni.first_name} {alumni.last_name}",
                     school=school,
-                    first_name=first_name,
-                    last_name=last_name,
-                    admission_number=admission_number,
-                    class_name=class_name,
-                    graduation_year=int(graduation_year),
-                    current_occupation=current_occupation,
-                    current_institution=current_institution,
-                    contact_phone=contact_phone,
-                    contact_email=contact_email
+                    request=request,
                 )
-                from django.contrib import messages
-                messages.success(request, 'Alumni record added successfully!')
-                return redirect('operations:alumni_list')
-            except ValueError:
-                pass
-    
-    return render(request, 'operations/alumni_form.html', {
-        'school': school
-    })
+                return redirect("operations:alumni_detail", pk=alumni.pk)
+            except Exception as ex:
+                messages.error(request, f"Could not update: {ex}")
+
+    return render(
+        request,
+        "operations/alumni_form.html",
+        {
+            "school": school,
+            "alumni_instance": alumni,
+            "graduated_students": graduated,
+        },
+    )
 
 
 @login_required
 def alumni_detail(request, pk):
     """View alumni details."""
+    redir = require_feature(request, "alumni", "accounts:school_dashboard")
+    if redir:
+        return redir
     from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
     if not school or not (user_can_manage_school(request.user) or request.user.is_superuser):
-        return redirect('home')
-    
-    alumni = get_object_or_404(Alumni, pk=pk, school=school)
-    
-    return render(request, 'operations/alumni_detail.html', {
-        'alumni': alumni,
-        'school': school
-    })
+        return redirect("home")
+
+    alumni = get_object_or_404(Alumni.objects.select_related("student", "student__user"), pk=pk, school=school)
+
+    return render(
+        request,
+        "operations/alumni_detail.html",
+        {"alumni": alumni, "school": school},
+    )
 
 
 @login_required
 def alumni_event_list(request):
     """List alumni events."""
+    redir = require_feature(request, "alumni", "accounts:school_dashboard")
+    if redir:
+        return redir
+    from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    events = AlumniEvent.objects.filter(school=school).order_by('-event_date')[:50]
-    
-    return render(request, 'operations/alumni_event_list.html', {
-        'events': events,
-        'school': school
-    })
+        return redirect("home")
+    if not user_can_manage_school(request.user) and not request.user.is_superuser:
+        return redirect("home")
+
+    events = AlumniEvent.objects.filter(school=school).order_by("-event_date")[:50]
+
+    return render(
+        request,
+        "operations/alumni_event_list.html",
+        {"events": events, "school": school},
+    )
 
 
 # ==================== TIMETABLE ====================
@@ -3213,11 +3539,11 @@ def timetable_view(request):
 @login_required
 def timetable_create(request):
     """Create timetable slot."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     from academics.models import Subject
     
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:timetable_view')
     
     subjects = Subject.objects.filter(school=school).order_by('name')
@@ -3265,9 +3591,9 @@ def timetable_create(request):
 @login_required
 def timetable_conflicts(request):
     """View timetable conflicts."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     conflicts = TimetableConflict.objects.filter(school=school, is_resolved=False).select_related('slot_1', 'slot_2').order_by('-created_at')
@@ -4388,31 +4714,280 @@ def staff_id_card_pdf(request, pk):
 
 # ==================== SPORTS & CLUBS ====================
 
+
+def _parse_optional_positive_int(raw):
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        n = int(raw)
+        return n if n > 0 else None
+    except ValueError:
+        return None
+
+
+def _user_can_moderate_sport(user, sport):
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_superuser:
+        return True
+    from accounts.permissions import is_school_leadership
+
+    if is_school_leadership(user):
+        return True
+    if sport.coach_id and sport.coach_id == user.id:
+        return True
+    return False
+
+
+def _user_can_moderate_club(user, club):
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_superuser:
+        return True
+    from accounts.permissions import is_school_leadership
+
+    if is_school_leadership(user):
+        return True
+    if club.sponsor_id and club.sponsor_id == user.id:
+        return True
+    return False
+
+
+def _notify_in_app(user, title, message, notification_type="info", link_path=None):
+    """Create an in-app notification; failures are logged and ignored."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return
+    try:
+        from notifications.views import send_notification
+
+        send_notification(
+            user,
+            title,
+            message,
+            notification_type=notification_type,
+            link=link_path,
+        )
+    except Exception:
+        logger.warning(
+            "In-app notification failed for user_id=%s",
+            getattr(user, "pk", None),
+            exc_info=True,
+        )
+
+
+def _notify_user_sms(user, message_body, school=None):
+    """
+    Send SMS via MNotify when the user has a phone number.
+    No NotificationPreference row: send (same idea as fee/payment SMS).
+    If a preference row exists and sms_enabled is False, skip (opt-out).
+    If MNotify is not configured or sending fails, log and continue.
+    """
+    if not user or not getattr(user, "pk", None):
+        return
+    phone = getattr(user, "phone", None)
+    if not phone or not str(phone).strip():
+        return
+    try:
+        from notifications.models import NotificationPreference
+
+        pref = NotificationPreference.objects.filter(user=user).only("sms_enabled").first()
+        if pref is not None and not pref.sms_enabled:
+            return
+    except Exception:
+        logger.debug("SMS preference lookup failed for user_id=%s", user.pk, exc_info=True)
+
+    school_name = None
+    if school is not None:
+        school_name = getattr(school, "name", None)
+    elif getattr(user, "school", None):
+        school_name = user.school.name
+
+    try:
+        from services.sms_service import SMSService
+
+        SMSService.send_sms(phone, message_body, school_name=school_name)
+    except Exception:
+        logger.warning(
+            "Student life SMS failed for user_id=%s",
+            user.pk,
+            exc_info=True,
+        )
+
+
+def _notify_coach_sport_join_request(sport, student):
+    coach = getattr(sport, "coach", None)
+    if not coach or not getattr(coach, "is_active", True):
+        return
+    stu_name = student.user.get_full_name() or str(student)
+    link = reverse("operations:sport_detail", kwargs={"pk": sport.pk})
+    _notify_in_app(
+        coach,
+        f"Join request: {sport.name}",
+        f"{stu_name} requested to join {sport.name}. Open the team page to approve or decline.",
+        notification_type="info",
+        link_path=link,
+    )
+    _notify_user_sms(
+        coach,
+        f"Join request ({sport.name}): {stu_name} wants to join. Open the app to approve or decline.",
+        school=sport.school,
+    )
+
+
+def _notify_sponsor_club_join_request(club, student):
+    sponsor = getattr(club, "sponsor", None)
+    if not sponsor or not getattr(sponsor, "is_active", True):
+        return
+    stu_name = student.user.get_full_name() or str(student)
+    link = reverse("operations:club_detail", kwargs={"pk": club.pk})
+    _notify_in_app(
+        sponsor,
+        f"Join request: {club.name}",
+        f"{stu_name} requested to join {club.name}. Open the club page to approve or decline.",
+        notification_type="info",
+        link_path=link,
+    )
+    _notify_user_sms(
+        sponsor,
+        f"Join request ({club.name}): {stu_name} wants to join. Open the app to approve or decline.",
+        school=club.school,
+    )
+
+
+@login_required
+def student_life(request):
+    """Hub for students and parents: sports, clubs, upcoming events, and memberships."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+
+    role = getattr(request.user, "role", None)
+    if role not in ("student", "parent"):
+        messages.info(request, "The Student Life hub is for students and parents.")
+        return redirect("accounts:school_dashboard")
+
+    feat_sports = is_feature_enabled(request, "sports")
+    feat_clubs = is_feature_enabled(request, "clubs")
+    feat_events = is_feature_enabled(request, "school_events")
+
+    upcoming_events = []
+    if feat_events:
+        upcoming_events = list(
+            SchoolEvent.objects.filter(school=school, start_date__gte=timezone.now())
+            .order_by("start_date")[:5]
+        )
+
+    ctx = {
+        "school": school,
+        "feat_sports": feat_sports,
+        "feat_clubs": feat_clubs,
+        "feat_events": feat_events,
+        "upcoming_events": upcoming_events,
+    }
+
+    if role == "student":
+        student = (
+            Student.objects.filter(user=request.user, school=school).select_related("user").first()
+        )
+        if not student:
+            messages.error(request, "No student record is linked to this account.")
+            return redirect("home")
+        sport_n = (
+            StudentSport.objects.filter(
+                student=student, is_active=True, pending_approval=False
+            ).count()
+            if feat_sports
+            else 0
+        )
+        club_n = (
+            StudentClub.objects.filter(
+                student=student, is_active=True, pending_approval=False
+            ).count()
+            if feat_clubs
+            else 0
+        )
+        ctx.update(
+            {
+                "student": student,
+                "sport_count": sport_n,
+                "club_count": club_n,
+                "parent_student_life": False,
+                "children_summary": [],
+            }
+        )
+        return render(request, "operations/student_life.html", ctx)
+
+    children = (
+        Student.objects.filter(parent=request.user, school=school)
+        .select_related("user")
+        .order_by("class_name", "admission_number")
+    )
+    totals = []
+    for child in children:
+        sport_n = (
+            StudentSport.objects.filter(
+                student=child, is_active=True, pending_approval=False
+            ).count()
+            if feat_sports
+            else 0
+        )
+        club_n = (
+            StudentClub.objects.filter(
+                student=child, is_active=True, pending_approval=False
+            ).count()
+            if feat_clubs
+            else 0
+        )
+        totals.append({"student": child, "sport_count": sport_n, "club_count": club_n})
+    ctx["children_summary"] = totals
+    ctx["parent_student_life"] = True
+    ctx["student"] = None
+    return render(request, "operations/student_life.html", ctx)
+
+
 @login_required
 def sport_list(request):
     """List all sports."""
     from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    sports = Sport.objects.filter(school=school).select_related('coach').order_by('name')
+        return redirect("home")
+
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    sports = Sport.objects.filter(school=school).select_related("coach").order_by("name")
     can_manage = user_can_manage_school(request.user) or request.user.is_superuser
-    
-    return render(request, 'operations/sport_list.html', {
-        'sports': sports,
-        'school': school,
-        'can_manage': can_manage
-    })
+    role = getattr(request.user, "role", None)
+    if role == "student" and not can_manage:
+        sports = sports.filter(is_active=True)
+
+    return render(
+        request,
+        "operations/sport_list.html",
+        {"sports": sports, "school": school, "can_manage": can_manage},
+    )
 
 
 @login_required
 def sport_create(request):
     """Create a new sport."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('operations:sport_list')
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        return redirect("operations:sport_list")
     
     teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
     
@@ -4421,7 +4996,9 @@ def sport_create(request):
         coach_id = request.POST.get('coach')
         description = request.POST.get('description', '').strip()
         is_active = request.POST.get('is_active') == 'on'
-        
+        max_members = _parse_optional_positive_int(request.POST.get('max_members'))
+        join_requires_approval = request.POST.get('join_requires_approval') == 'on'
+
         if name:
             coach = User.objects.filter(id=coach_id, school=school).first() if coach_id else None
             Sport.objects.create(
@@ -4429,44 +5006,400 @@ def sport_create(request):
                 name=name,
                 coach=coach,
                 description=description,
-                is_active=is_active
+                is_active=is_active,
+                max_members=max_members,
+                join_requires_approval=join_requires_approval,
             )
-            from django.contrib import messages
             messages.success(request, 'Sport created successfully!')
             return redirect('operations:sport_list')
-    
+
     return render(request, 'operations/sport_form.html', {
         'school': school,
-        'teachers': teachers
+        'teachers': teachers,
+        'sport': None,
+        'form_title': 'Create sport',
+    })
+
+
+@login_required
+def sport_edit(request, pk):
+    """Edit sport settings (assigned coach or leadership)."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    sport = get_object_or_404(Sport, pk=pk, school=school)
+    if not _user_can_moderate_sport(request.user, sport):
+        return redirect('operations:sport_list')
+    teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
+
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        coach_id = request.POST.get('coach')
+        description = request.POST.get('description', '').strip()
+        is_active = request.POST.get('is_active') == 'on'
+        max_members = _parse_optional_positive_int(request.POST.get('max_members'))
+        join_requires_approval = request.POST.get('join_requires_approval') == 'on'
+
+        if name:
+            coach = User.objects.filter(id=coach_id, school=school).first() if coach_id else None
+            sport.name = name
+            sport.coach = coach
+            sport.description = description
+            sport.is_active = is_active
+            sport.max_members = max_members
+            sport.join_requires_approval = join_requires_approval
+            sport.save()
+            messages.success(request, 'Sport updated.')
+            return redirect('operations:sport_detail', pk=sport.pk)
+
+    return render(request, 'operations/sport_form.html', {
+        'school': school,
+        'teachers': teachers,
+        'sport': sport,
+        'form_title': 'Edit sport',
     })
 
 
 @login_required
 def sport_detail(request, pk):
     """View sport details with members."""
+    from accounts.permissions import is_school_leadership
+
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     sport = get_object_or_404(Sport, pk=pk, school=school)
-    members = StudentSport.objects.filter(sport=sport, is_active=True).select_related('student', 'student__user')[:100]
-    
-    return render(request, 'operations/sport_detail.html', {
-        'sport': sport,
-        'members': members,
-        'school': school
-    })
+    can_moderate = _user_can_moderate_sport(request.user, sport)
+    approved_qs = StudentSport.objects.filter(
+        sport=sport, is_active=True, pending_approval=False
+    ).select_related("student", "student__user")
+    member_total = approved_qs.count()
+    members = approved_qs.order_by("student__class_name", "student__user__last_name")[:200]
+
+    pending_members = StudentSport.objects.none()
+    pending_total = 0
+    if can_moderate:
+        pending_qs = StudentSport.objects.filter(
+            sport=sport, is_active=True, pending_approval=True
+        ).select_related("student", "student__user")
+        pending_total = pending_qs.count()
+        pending_members = pending_qs.order_by("student__class_name", "student__user__last_name")[:100]
+
+    can_add_members = (
+        request.user.is_superuser
+        or is_school_leadership(request.user)
+        or (sport.coach_id and sport.coach_id == request.user.id)
+    )
+    is_approved_member = False
+    is_pending_request = False
+    can_self_join = False
+    if getattr(request.user, "role", None) == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student:
+            is_approved_member = StudentSport.objects.filter(
+                student=student, sport=sport, is_active=True, pending_approval=False
+            ).exists()
+            is_pending_request = StudentSport.objects.filter(
+                student=student, sport=sport, is_active=True, pending_approval=True
+            ).exists()
+            has_any_active = is_approved_member or is_pending_request
+            can_self_join = bool(sport.is_active and not has_any_active)
+
+    return render(
+        request,
+        "operations/sport_detail.html",
+        {
+            "sport": sport,
+            "members": members,
+            "member_total": member_total,
+            "pending_members": pending_members,
+            "pending_total": pending_total,
+            "can_moderate": can_moderate,
+            "school": school,
+            "can_add_members": can_add_members,
+            "is_member": is_approved_member,
+            "is_pending_request": is_pending_request,
+            "can_self_join": can_self_join,
+        },
+    )
+
+
+@login_required
+@require_http_methods(["POST"])
+def sport_join_self(request, pk):
+    """Student self-join: instant or pending approval; respects roster cap for approved slots."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not is_feature_enabled(request, "sports"):
+        messages.error(request, "Sports are disabled for your school.")
+        return redirect("accounts:school_dashboard")
+
+    if getattr(request.user, "role", None) != "student":
+        messages.error(request, "Only students can join a team this way.")
+        return redirect("operations:sport_detail", pk=pk)
+
+    sport = get_object_or_404(Sport, pk=pk, school=school)
+    if not sport.is_active:
+        messages.error(request, "This team is not active.")
+        return redirect("operations:sport_detail", pk=sport.pk)
+
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        messages.error(request, "No student record is linked to your account.")
+        return redirect("operations:sport_list")
+
+    membership = StudentSport.objects.filter(student=student, sport=sport).first()
+    if membership:
+        if membership.is_active:
+            if membership.pending_approval:
+                messages.info(request, "Your join request is already pending approval.")
+            else:
+                messages.info(request, "You are already on this team.")
+            return redirect("operations:sport_detail", pk=sport.pk)
+        # Reactivate after leaving
+        want_pending = bool(sport.join_requires_approval)
+        if not want_pending and sport.is_at_capacity():
+            messages.error(request, "This team is full.")
+            return redirect("operations:sport_detail", pk=sport.pk)
+        membership.is_active = True
+        membership.pending_approval = want_pending
+        membership.save(update_fields=["is_active", "pending_approval"])
+        if want_pending:
+            if sport.is_at_capacity():
+                messages.success(
+                    request,
+                    "You are on the waitlist. The roster is full; a coach will review when space allows.",
+                )
+            else:
+                messages.success(request, "Your request was sent. A coach will review it.")
+            _notify_coach_sport_join_request(sport, student)
+        else:
+            messages.success(request, "You rejoined the team.")
+        return redirect("operations:sport_detail", pk=sport.pk)
+
+    want_pending = bool(sport.join_requires_approval)
+    if not want_pending and sport.is_at_capacity():
+        messages.error(request, "This team is full.")
+        return redirect("operations:sport_detail", pk=sport.pk)
+
+    StudentSport.objects.create(
+        student=student,
+        sport=sport,
+        pending_approval=want_pending,
+    )
+    if want_pending:
+        if sport.is_at_capacity():
+            messages.success(
+                request,
+                "You are on the waitlist. The roster is full; a coach will review when space allows.",
+            )
+        else:
+            messages.success(request, "Your request was sent. A coach will review it.")
+        _notify_coach_sport_join_request(sport, student)
+    else:
+        messages.success(request, "You joined the team.")
+
+    return redirect("operations:sport_detail", pk=sport.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def sport_cancel_pending(request, pk):
+    """Student withdraws a pending join request."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if getattr(request.user, "role", None) != "student":
+        return redirect("operations:sport_detail", pk=pk)
+
+    sport = get_object_or_404(Sport, pk=pk, school=school)
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        return redirect("operations:sport_list")
+
+    row = StudentSport.objects.filter(
+        student=student, sport=sport, is_active=True, pending_approval=True
+    ).first()
+    if row:
+        row.is_active = False
+        row.pending_approval = False
+        row.save(update_fields=["is_active", "pending_approval"])
+        messages.success(request, "Your join request was withdrawn.")
+    return redirect("operations:sport_detail", pk=sport.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def sport_membership_approve(request, pk):
+    """Approve a pending StudentSport row (coach or leadership)."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    row = get_object_or_404(
+        StudentSport.objects.select_related("sport"),
+        pk=pk,
+        sport__school=school,
+        is_active=True,
+        pending_approval=True,
+    )
+    if not _user_can_moderate_sport(request.user, row.sport):
+        messages.error(request, "You cannot approve members for this team.")
+        return redirect("operations:sport_detail", pk=row.sport_id)
+
+    if row.sport.is_at_capacity():
+        messages.error(request, "Roster is full. Increase the limit or remove a member first.")
+        return redirect("operations:sport_detail", pk=row.sport_id)
+
+    row.pending_approval = False
+    row.save(update_fields=["pending_approval"])
+    messages.success(request, f"Approved {row.student.user.get_full_name() or row.student} for the team.")
+
+    detail_link = reverse("operations:sport_detail", kwargs={"pk": row.sport_id})
+    stu_user = row.student.user
+    _notify_in_app(
+        stu_user,
+        f"Approved: {row.sport.name}",
+        f"You are now on the roster for {row.sport.name}.",
+        notification_type="success",
+        link_path=detail_link,
+    )
+    parent = getattr(row.student, "parent", None)
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_in_app(
+            parent,
+            f"Sports: {row.sport.name}",
+            f"{child_name} was approved for {row.sport.name}.",
+            notification_type="success",
+            link_path=reverse("operations:my_activities"),
+        )
+
+    sch = row.sport.school
+    _notify_user_sms(
+        stu_user,
+        f"You are approved for {row.sport.name}. Open the app for details.",
+        school=sch,
+    )
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_user_sms(
+            parent,
+            f"{child_name} was approved for {row.sport.name}. Open the app.",
+            school=sch,
+        )
+
+    return redirect("operations:sport_detail", pk=row.sport_id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def sport_membership_reject(request, pk):
+    """Reject a pending join request."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    row = get_object_or_404(
+        StudentSport.objects.select_related("sport"),
+        pk=pk,
+        sport__school=school,
+        is_active=True,
+        pending_approval=True,
+    )
+    if not _user_can_moderate_sport(request.user, row.sport):
+        messages.error(request, "You cannot manage requests for this team.")
+        return redirect("operations:sport_detail", pk=row.sport_id)
+
+    sport_id = row.sport_id
+    sport_name = row.sport.name
+    stu_user = row.student.user
+    parent = getattr(row.student, "parent", None)
+
+    row.is_active = False
+    row.pending_approval = False
+    row.save(update_fields=["is_active", "pending_approval"])
+    messages.success(request, "Join request declined.")
+
+    list_link = reverse("operations:sport_list")
+    _notify_in_app(
+        stu_user,
+        f"Update: {sport_name}",
+        f"Your request to join {sport_name} was not approved.",
+        notification_type="info",
+        link_path=list_link,
+    )
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_in_app(
+            parent,
+            f"Sports: {sport_name}",
+            f"{child_name}'s request to join {sport_name} was not approved.",
+            notification_type="info",
+            link_path=reverse("operations:my_activities"),
+        )
+
+    sch = row.sport.school
+    _notify_user_sms(
+        stu_user,
+        f"Your request to join {sport_name} was not approved.",
+        school=sch,
+    )
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_user_sms(
+            parent,
+            f"{child_name}'s request to join {sport_name} was not approved.",
+            school=sch,
+        )
+
+    return redirect("operations:sport_detail", pk=sport_id)
 
 
 @login_required
 def sport_add_member(request, pk):
     """Add student to sport."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('home')
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     sport = get_object_or_404(Sport, pk=pk, school=school)
+    if not (
+        request.user.is_superuser
+        or is_school_leadership(request.user)
+        or (sport.coach_id and sport.coach_id == request.user.id)
+    ):
+        return redirect("home")
     students = Student.objects.filter(school=school).exclude(
         id__in=StudentSport.objects.filter(sport=sport, is_active=True).values_list('student_id', flat=True)
     ).select_related('user').order_by('class_name', 'admission_number')
@@ -4479,15 +5412,39 @@ def sport_add_member(request, pk):
         if student_id:
             student = Student.objects.filter(id=student_id, school=school).first()
             if student:
-                StudentSport.objects.create(
-                    student=student,
-                    sport=sport,
-                    jersey_number=jersey_number,
-                    position=position
-                )
                 from django.contrib import messages
-                messages.success(request, 'Member added successfully!')
-                return redirect('operations:sport_detail', pk=sport.pk)
+                existing = StudentSport.objects.filter(student=student, sport=sport).first()
+                if existing and existing.is_active and not existing.pending_approval:
+                    messages.error(request, "That student is already on the team.")
+                elif sport.is_at_capacity():
+                    messages.error(
+                        request,
+                        "Roster is full. Raise max members or remove someone first.",
+                    )
+                else:
+                    if existing:
+                        existing.is_active = True
+                        existing.pending_approval = False
+                        existing.jersey_number = jersey_number
+                        existing.position = position
+                        existing.save(
+                            update_fields=[
+                                "is_active",
+                                "pending_approval",
+                                "jersey_number",
+                                "position",
+                            ]
+                        )
+                    else:
+                        StudentSport.objects.create(
+                            student=student,
+                            sport=sport,
+                            jersey_number=jersey_number,
+                            position=position,
+                            pending_approval=False,
+                        )
+                    messages.success(request, "Member added successfully!")
+                    return redirect("operations:sport_detail", pk=sport.pk)
     
     return render(request, 'operations/sport_add_member.html', {
         'sport': sport,
@@ -4500,27 +5457,42 @@ def sport_add_member(request, pk):
 def club_list(request):
     """List all clubs."""
     from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    clubs = Club.objects.filter(school=school).select_related('sponsor').order_by('name')
+        return redirect("home")
+
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    clubs = Club.objects.filter(school=school).select_related("sponsor").order_by("name")
     can_manage = user_can_manage_school(request.user) or request.user.is_superuser
-    
-    return render(request, 'operations/club_list.html', {
-        'clubs': clubs,
-        'school': school,
-        'can_manage': can_manage
-    })
+    role = getattr(request.user, "role", None)
+    if role == "student" and not can_manage:
+        clubs = clubs.filter(is_active=True)
+
+    return render(
+        request,
+        "operations/club_list.html",
+        {"clubs": clubs, "school": school, "can_manage": can_manage},
+    )
 
 
 @login_required
 def club_create(request):
     """Create a new club."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('operations:club_list')
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        return redirect("operations:club_list")
     
     teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
     
@@ -4532,8 +5504,12 @@ def club_create(request):
         meeting_day = request.POST.get('meeting_day', '').strip()
         meeting_time = request.POST.get('meeting_time') or None
         is_active = request.POST.get('is_active') == 'on'
-        
+        max_members = _parse_optional_positive_int(request.POST.get('max_members'))
+        join_requires_approval = request.POST.get('join_requires_approval') == 'on'
+
         if name:
+            if category not in dict(Club.CATEGORY_CHOICES):
+                category = "other"
             sponsor = User.objects.filter(id=sponsor_id, school=school).first() if sponsor_id else None
             Club.objects.create(
                 school=school,
@@ -4543,44 +5519,402 @@ def club_create(request):
                 description=description,
                 meeting_day=meeting_day,
                 meeting_time=meeting_time,
-                is_active=is_active
+                is_active=is_active,
+                max_members=max_members,
+                join_requires_approval=join_requires_approval,
             )
-            from django.contrib import messages
             messages.success(request, 'Club created successfully!')
             return redirect('operations:club_list')
-    
+
     return render(request, 'operations/club_form.html', {
         'school': school,
-        'teachers': teachers
+        'teachers': teachers,
+        'club': None,
+        'form_title': 'Create club',
+    })
+
+
+@login_required
+def club_edit(request, pk):
+    """Edit club settings (assigned sponsor or leadership)."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect('home')
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    club = get_object_or_404(Club, pk=pk, school=school)
+    if not _user_can_moderate_club(request.user, club):
+        return redirect('operations:club_list')
+    teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
+
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        category = request.POST.get('category', 'other')
+        sponsor_id = request.POST.get('sponsor')
+        description = request.POST.get('description', '').strip()
+        meeting_day = request.POST.get('meeting_day', '').strip()
+        meeting_time = request.POST.get('meeting_time') or None
+        is_active = request.POST.get('is_active') == 'on'
+        max_members = _parse_optional_positive_int(request.POST.get('max_members'))
+        join_requires_approval = request.POST.get('join_requires_approval') == 'on'
+
+        if name:
+            sponsor = User.objects.filter(id=sponsor_id, school=school).first() if sponsor_id else None
+            club.name = name
+            club.category = category if category in dict(Club.CATEGORY_CHOICES) else 'other'
+            club.sponsor = sponsor
+            club.description = description
+            club.meeting_day = meeting_day
+            club.meeting_time = meeting_time
+            club.is_active = is_active
+            club.max_members = max_members
+            club.join_requires_approval = join_requires_approval
+            club.save()
+            messages.success(request, 'Club updated.')
+            return redirect('operations:club_detail', pk=club.pk)
+
+    return render(request, 'operations/club_form.html', {
+        'school': school,
+        'teachers': teachers,
+        'club': club,
+        'form_title': 'Edit club',
     })
 
 
 @login_required
 def club_detail(request, pk):
     """View club details with members."""
+    from accounts.permissions import is_school_leadership
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
+        return redirect("home")
+
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     club = get_object_or_404(Club, pk=pk, school=school)
-    members = StudentClub.objects.filter(club=club, is_active=True).select_related('student', 'student__user')[:100]
-    
-    return render(request, 'operations/club_detail.html', {
-        'club': club,
-        'members': members,
-        'school': school
-    })
+    can_moderate = _user_can_moderate_club(request.user, club)
+    approved_qs = StudentClub.objects.filter(
+        club=club, is_active=True, pending_approval=False
+    ).select_related("student", "student__user")
+    member_total = approved_qs.count()
+    members = approved_qs.order_by("student__class_name", "student__user__last_name")[:200]
+
+    pending_members = StudentClub.objects.none()
+    pending_total = 0
+    if can_moderate:
+        pending_qs = StudentClub.objects.filter(
+            club=club, is_active=True, pending_approval=True
+        ).select_related("student", "student__user")
+        pending_total = pending_qs.count()
+        pending_members = pending_qs.order_by("student__class_name", "student__user__last_name")[:100]
+
+    can_add_members = (
+        request.user.is_superuser
+        or is_school_leadership(request.user)
+        or (club.sponsor_id and club.sponsor_id == request.user.id)
+    )
+    is_approved_member = False
+    is_pending_request = False
+    can_self_join = False
+    if getattr(request.user, "role", None) == "student":
+        student = Student.objects.filter(user=request.user, school=school).first()
+        if student:
+            is_approved_member = StudentClub.objects.filter(
+                student=student, club=club, is_active=True, pending_approval=False
+            ).exists()
+            is_pending_request = StudentClub.objects.filter(
+                student=student, club=club, is_active=True, pending_approval=True
+            ).exists()
+            has_any = is_approved_member or is_pending_request
+            can_self_join = bool(club.is_active and not has_any)
+
+    return render(
+        request,
+        "operations/club_detail.html",
+        {
+            "club": club,
+            "members": members,
+            "member_total": member_total,
+            "pending_members": pending_members,
+            "pending_total": pending_total,
+            "can_moderate": can_moderate,
+            "school": school,
+            "can_add_members": can_add_members,
+            "is_member": is_approved_member,
+            "is_pending_request": is_pending_request,
+            "can_self_join": can_self_join,
+        },
+    )
+
+
+@login_required
+@require_http_methods(["POST"])
+def club_join_self(request, pk):
+    """Student self-join: instant or pending approval; respects member cap."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not is_feature_enabled(request, "clubs"):
+        messages.error(request, "Clubs are disabled for your school.")
+        return redirect("accounts:school_dashboard")
+
+    if getattr(request.user, "role", None) != "student":
+        messages.error(request, "Only students can join a club this way.")
+        return redirect("operations:club_detail", pk=pk)
+
+    club = get_object_or_404(Club, pk=pk, school=school)
+    if not club.is_active:
+        messages.error(request, "This club is not active.")
+        return redirect("operations:club_detail", pk=club.pk)
+
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        messages.error(request, "No student record is linked to your account.")
+        return redirect("operations:club_list")
+
+    membership = StudentClub.objects.filter(student=student, club=club).first()
+    if membership:
+        if membership.is_active:
+            if membership.pending_approval:
+                messages.info(request, "Your join request is already pending approval.")
+            else:
+                messages.info(request, "You are already a member of this club.")
+            return redirect("operations:club_detail", pk=club.pk)
+        want_pending = bool(club.join_requires_approval)
+        if not want_pending and club.is_at_capacity():
+            messages.error(request, "This club is full.")
+            return redirect("operations:club_detail", pk=club.pk)
+        membership.is_active = True
+        membership.pending_approval = want_pending
+        membership.save(update_fields=["is_active", "pending_approval"])
+        if want_pending:
+            if club.is_at_capacity():
+                messages.success(
+                    request,
+                    "You are on the waitlist. The club is full; a sponsor will review when space allows.",
+                )
+            else:
+                messages.success(request, "Your request was sent. A sponsor will review it.")
+            _notify_sponsor_club_join_request(club, student)
+        else:
+            messages.success(request, "You rejoined the club.")
+        return redirect("operations:club_detail", pk=club.pk)
+
+    want_pending = bool(club.join_requires_approval)
+    if not want_pending and club.is_at_capacity():
+        messages.error(request, "This club is full.")
+        return redirect("operations:club_detail", pk=club.pk)
+
+    StudentClub.objects.create(
+        student=student,
+        club=club,
+        pending_approval=want_pending,
+    )
+    if want_pending:
+        if club.is_at_capacity():
+            messages.success(
+                request,
+                "You are on the waitlist. The club is full; a sponsor will review when space allows.",
+            )
+        else:
+            messages.success(request, "Your request was sent. A sponsor will review it.")
+        _notify_sponsor_club_join_request(club, student)
+    else:
+        messages.success(request, "You joined the club.")
+
+    return redirect("operations:club_detail", pk=club.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def club_cancel_pending(request, pk):
+    """Student withdraws a pending club join request."""
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if getattr(request.user, "role", None) != "student":
+        return redirect("operations:club_detail", pk=pk)
+
+    club = get_object_or_404(Club, pk=pk, school=school)
+    student = Student.objects.filter(user=request.user, school=school).first()
+    if not student:
+        return redirect("operations:club_list")
+
+    row = StudentClub.objects.filter(
+        student=student, club=club, is_active=True, pending_approval=True
+    ).first()
+    if row:
+        row.is_active = False
+        row.pending_approval = False
+        row.save(update_fields=["is_active", "pending_approval"])
+        messages.success(request, "Your join request was withdrawn.")
+    return redirect("operations:club_detail", pk=club.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def club_membership_approve(request, pk):
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    row = get_object_or_404(
+        StudentClub.objects.select_related("club"),
+        pk=pk,
+        club__school=school,
+        is_active=True,
+        pending_approval=True,
+    )
+    if not _user_can_moderate_club(request.user, row.club):
+        messages.error(request, "You cannot approve members for this club.")
+        return redirect("operations:club_detail", pk=row.club_id)
+
+    if row.club.is_at_capacity():
+        messages.error(request, "Club is full. Increase the limit or remove a member first.")
+        return redirect("operations:club_detail", pk=row.club_id)
+
+    row.pending_approval = False
+    row.save(update_fields=["pending_approval"])
+    messages.success(request, f"Approved {row.student.user.get_full_name() or row.student} for the club.")
+
+    detail_link = reverse("operations:club_detail", kwargs={"pk": row.club_id})
+    stu_user = row.student.user
+    _notify_in_app(
+        stu_user,
+        f"Approved: {row.club.name}",
+        f"You are now a member of {row.club.name}.",
+        notification_type="success",
+        link_path=detail_link,
+    )
+    parent = getattr(row.student, "parent", None)
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_in_app(
+            parent,
+            f"Clubs: {row.club.name}",
+            f"{child_name} was approved for {row.club.name}.",
+            notification_type="success",
+            link_path=reverse("operations:my_activities"),
+        )
+
+    sch = row.club.school
+    _notify_user_sms(
+        stu_user,
+        f"You are approved for club {row.club.name}. Open the app for details.",
+        school=sch,
+    )
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_user_sms(
+            parent,
+            f"{child_name} was approved for {row.club.name}. Open the app.",
+            school=sch,
+        )
+
+    return redirect("operations:club_detail", pk=row.club_id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def club_membership_reject(request, pk):
+    from django.contrib import messages
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    row = get_object_or_404(
+        StudentClub.objects.select_related("club"),
+        pk=pk,
+        club__school=school,
+        is_active=True,
+        pending_approval=True,
+    )
+    if not _user_can_moderate_club(request.user, row.club):
+        messages.error(request, "You cannot manage requests for this club.")
+        return redirect("operations:club_detail", pk=row.club_id)
+
+    club_id = row.club_id
+    club_name = row.club.name
+    stu_user = row.student.user
+    parent = getattr(row.student, "parent", None)
+
+    row.is_active = False
+    row.pending_approval = False
+    row.save(update_fields=["is_active", "pending_approval"])
+    messages.success(request, "Join request declined.")
+
+    _notify_in_app(
+        stu_user,
+        f"Update: {club_name}",
+        f"Your request to join {club_name} was not approved.",
+        notification_type="info",
+        link_path=reverse("operations:club_list"),
+    )
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_in_app(
+            parent,
+            f"Clubs: {club_name}",
+            f"{child_name}'s request to join {club_name} was not approved.",
+            notification_type="info",
+            link_path=reverse("operations:my_activities"),
+        )
+
+    sch = row.club.school
+    _notify_user_sms(
+        stu_user,
+        f"Your request to join {club_name} was not approved.",
+        school=sch,
+    )
+    if parent:
+        child_name = stu_user.get_full_name() or str(row.student)
+        _notify_user_sms(
+            parent,
+            f"{child_name}'s request to join {club_name} was not approved.",
+            school=sch,
+        )
+
+    return redirect("operations:club_detail", pk=club_id)
 
 
 @login_required
 def club_add_member(request, pk):
     """Add student to club."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('home')
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     club = get_object_or_404(Club, pk=pk, school=school)
+    if not (
+        request.user.is_superuser
+        or is_school_leadership(request.user)
+        or (club.sponsor_id and club.sponsor_id == request.user.id)
+    ):
+        return redirect("home")
     students = Student.objects.filter(school=school).exclude(
         id__in=StudentClub.objects.filter(club=club, is_active=True).values_list('student_id', flat=True)
     ).select_related('user').order_by('class_name', 'admission_number')
@@ -4592,15 +5926,33 @@ def club_add_member(request, pk):
         if student_id:
             student = Student.objects.filter(id=student_id, school=school).first()
             if student:
-                StudentClub.objects.create(
-                    student=student,
-                    club=club,
-                    role=role
-                )
                 from django.contrib import messages
-                messages.success(request, 'Member added successfully!')
-                return redirect('operations:club_detail', pk=club.pk)
-    
+                existing = StudentClub.objects.filter(student=student, club=club).first()
+                if existing and existing.is_active and not existing.pending_approval:
+                    messages.error(request, "That student is already in this club.")
+                elif club.is_at_capacity():
+                    messages.error(
+                        request,
+                        "Club is full. Raise max members or remove someone first.",
+                    )
+                else:
+                    if existing:
+                        existing.is_active = True
+                        existing.pending_approval = False
+                        existing.role = role if role in dict(StudentClub.ROLE_CHOICES) else "member"
+                        existing.save(
+                            update_fields=["is_active", "pending_approval", "role"]
+                        )
+                    else:
+                        StudentClub.objects.create(
+                            student=student,
+                            club=club,
+                            role=role if role in dict(StudentClub.ROLE_CHOICES) else "member",
+                            pending_approval=False,
+                        )
+                    messages.success(request, "Member added successfully!")
+                    return redirect("operations:club_detail", pk=club.pk)
+
     return render(request, 'operations/club_add_member.html', {
         'club': club,
         'students': students,
@@ -4610,25 +5962,68 @@ def club_add_member(request, pk):
 
 @login_required
 def my_activities(request):
-    """Student's sports and clubs."""
+    """Sports and clubs for the logged-in student, or all linked children for a parent."""
+    from django.contrib import messages
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    role = getattr(request.user, 'role', None)
-    
-    if role == 'student':
+        return redirect("home")
+
+    if not is_feature_enabled(request, "sports") and not is_feature_enabled(request, "clubs"):
+        messages.error(request, "Sports and clubs are disabled for your school.")
+        return redirect("accounts:school_dashboard")
+
+    role = getattr(request.user, "role", None)
+
+    if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
-        if student:
-            sports = StudentSport.objects.filter(student=student, is_active=True).select_related('sport')
-            clubs = StudentClub.objects.filter(student=student, is_active=True).select_related('club')
-            return render(request, 'operations/my_activities.html', {
-                'sports': sports,
-                'clubs': clubs,
-                'school': school
-            })
-    
-    return redirect('home')
+        if not student:
+            messages.error(request, "No student record is linked to this account.")
+            return redirect("home")
+        sports = StudentSport.objects.filter(student=student, is_active=True).select_related("sport")
+        clubs = StudentClub.objects.filter(student=student, is_active=True).select_related("club")
+        if not is_feature_enabled(request, "sports"):
+            sports = sports.none()
+        if not is_feature_enabled(request, "clubs"):
+            clubs = clubs.none()
+        return render(
+            request,
+            "operations/my_activities.html",
+            {
+                "sports": sports,
+                "clubs": clubs,
+                "school": school,
+                "children_activities": None,
+            },
+        )
+
+    if role == "parent":
+        children = (
+            Student.objects.filter(parent=request.user, school=school)
+            .select_related("user", "school")
+            .order_by("class_name", "admission_number")
+        )
+        rows = []
+        for child in children:
+            sports = StudentSport.objects.filter(student=child, is_active=True).select_related("sport")
+            clubs = StudentClub.objects.filter(student=child, is_active=True).select_related("club")
+            if not is_feature_enabled(request, "sports"):
+                sports = sports.none()
+            if not is_feature_enabled(request, "clubs"):
+                clubs = clubs.none()
+            rows.append({"student": child, "sports": sports, "clubs": clubs})
+        return render(
+            request,
+            "operations/my_activities.html",
+            {
+                "children_activities": rows,
+                "school": school,
+                "sports": None,
+                "clubs": None,
+            },
+        )
+
+    return redirect("home")
 
 
 # ==================== EXAM HALLS & SEATING ====================
@@ -4652,9 +6047,9 @@ def exam_hall_list(request):
 @login_required
 def exam_hall_create(request):
     """Create exam hall."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:exam_hall_list')
     
     if request.method == 'POST':
@@ -4683,9 +6078,9 @@ def exam_hall_create(request):
 @login_required
 def exam_hall_delete(request, pk):
     """Delete an exam hall."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:exam_hall_list')
     
     hall = get_object_or_404(ExamHall, pk=pk, school=school)
@@ -4720,10 +6115,10 @@ def seating_plan_list(request):
 @login_required
 def seating_plan_create(request):
     """Create seating plan."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     from academics.models import ExamSchedule
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:seating_plan_list')
     
     exams = ExamSchedule.objects.filter(school=school).select_related('subject').order_by('-exam_date')[:50]
@@ -4822,164 +6217,242 @@ def expense_category_create(request):
 @login_required
 def pt_meeting_list(request):
     """List PT meetings."""
-    from accounts.permissions import user_can_manage_school
+    from accounts.permissions import can_manage_school_programming
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    meetings = PTMeeting.objects.filter(school=school).order_by('-meeting_date')[:50]
-    
-    return render(request, 'operations/pt_meeting_list.html', {
-        'meetings': meetings,
-        'school': school
-    })
+        return redirect("home")
+    redir = require_feature(request, "pt_meetings", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    meetings = PTMeeting.objects.filter(school=school).order_by("-meeting_date")[:50]
+
+    return render(
+        request,
+        "operations/pt_meeting_list.html",
+        {
+            "meetings": meetings,
+            "school": school,
+            "can_manage_pt_meetings": (
+                request.user.is_superuser or can_manage_school_programming(request.user)
+            ),
+        },
+    )
 
 
 @login_required
 def pt_meeting_create(request):
     """Create PT meeting."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_programming
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('operations:pt_meeting_list')
-    
-    if request.method == 'POST':
-        title = request.POST.get('title', '').strip()
-        description = request.POST.get('description', '').strip()
-        meeting_date = request.POST.get('meeting_date')
-        location = request.POST.get('location', '').strip()
-        max_slots = request.POST.get('max_slots') or 20
-        
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "pt_meetings", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("operations:pt_meeting_list")
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
+        meeting_date = request.POST.get("meeting_date")
+        location = request.POST.get("location", "").strip()
+        max_slots = request.POST.get("max_slots") or 20
+
         if title and meeting_date and location:
+            try:
+                ms = max(1, int(max_slots))
+            except (TypeError, ValueError):
+                ms = 20
             PTMeeting.objects.create(
                 school=school,
                 title=title,
                 description=description,
                 meeting_date=meeting_date,
                 location=location,
-                max_slots=int(max_slots),
-                created_by=request.user
+                max_slots=ms,
+                created_by=request.user,
             )
-            from django.contrib import messages
-            messages.success(request, 'Meeting scheduled!')
-            return redirect('operations:pt_meeting_list')
-    
-    return render(request, 'operations/pt_meeting_form.html', {
-        'school': school
-    })
+            messages.success(request, "Meeting scheduled!")
+            return redirect("operations:pt_meeting_list")
+
+    return render(request, "operations/pt_meeting_form.html", {"school": school})
 
 
 @login_required
 def pt_meeting_detail(request, pk):
     """View PT meeting details and bookings."""
+    from accounts.permissions import can_manage_school_programming
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
+        return redirect("home")
+    redir = require_feature(request, "pt_meetings", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
-    bookings = PTMeetingBooking.objects.filter(meeting=meeting).select_related('parent', 'student', 'student__user')[:100]
-    
-    return render(request, 'operations/pt_meeting_detail.html', {
-        'meeting': meeting,
-        'bookings': bookings,
-        'school': school
-    })
+    bookings = PTMeetingBooking.objects.filter(meeting=meeting).select_related(
+        "parent", "student", "student__user"
+    )[:100]
+
+    return render(
+        request,
+        "operations/pt_meeting_detail.html",
+        {
+            "meeting": meeting,
+            "bookings": bookings,
+            "school": school,
+            "can_manage_pt_meetings": (
+                request.user.is_superuser or can_manage_school_programming(request.user)
+            ),
+        },
+    )
 
 
 @login_required
 def pt_meeting_book(request, pk):
     """Book PT meeting slot (for parents)."""
+    from django.contrib import messages
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    role = getattr(request.user, 'role', None)
-    if role != 'parent':
-        return redirect('home')
-    
+        return redirect("home")
+    redir = require_feature(request, "pt_meetings", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    role = getattr(request.user, "role", None)
+    if role != "parent":
+        return redirect("home")
+
     meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
-    children = Student.objects.filter(parent=request.user, school=school).select_related('user')
-    
-    if request.method == 'POST':
-        student_id = request.POST.get('student')
-        preferred_time = request.POST.get('preferred_time') or None
-        topics = request.POST.get('topics_to_discuss', '').strip()
-        
+    children = Student.objects.filter(parent=request.user, school=school).select_related("user")
+
+    if request.method == "POST":
+        student_id = request.POST.get("student")
+        preferred_raw = (request.POST.get("preferred_time") or "").strip()
+        topics = request.POST.get("topics_to_discuss", "").strip()
+        pref_time = parse_time(preferred_raw) if preferred_raw else None
+
         if student_id:
-            student = Student.objects.filter(id=student_id, school=school, parent=request.user).first()
-            if student and meeting.available_slots > 0:
-                PTMeetingBooking.objects.create(
-                    meeting=meeting,
-                    parent=request.user,
-                    student=student,
-                    preferred_time=preferred_time,
-                    topics_to_discuss=topics
-                )
-                from django.contrib import messages
-                messages.success(request, 'Booking confirmed!')
-                return redirect('operations:pt_meeting_detail', pk=meeting.pk)
-    
-    return render(request, 'operations/pt_meeting_book.html', {
-        'meeting': meeting,
-        'children': children,
-        'school': school
-    })
+            student = Student.objects.filter(
+                id=student_id, school=school, parent=request.user
+            ).first()
+            if not student:
+                messages.error(request, "Invalid student selection.")
+            else:
+                try:
+                    with transaction.atomic():
+                        locked = PTMeeting.objects.select_for_update().get(
+                            pk=meeting.pk, school=school
+                        )
+                        if locked.bookings.count() >= locked.max_slots:
+                            messages.error(request, "This meeting is fully booked.")
+                        else:
+                            PTMeetingBooking.objects.create(
+                                meeting=locked,
+                                parent=request.user,
+                                student=student,
+                                preferred_time=pref_time,
+                                topics_to_discuss=topics,
+                            )
+                            messages.success(request, "Booking confirmed!")
+                            return redirect("operations:pt_meeting_detail", pk=meeting.pk)
+                except IntegrityError:
+                    messages.error(
+                        request,
+                        "You already have a booking for this child for this meeting.",
+                    )
+
+    return render(
+        request,
+        "operations/pt_meeting_book.html",
+        {
+            "meeting": meeting,
+            "children": children,
+            "school": school,
+        },
+    )
 
 
 @login_required
 def pt_meeting_edit(request, pk):
     """Edit a PT meeting."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_programming
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('home')
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "pt_meetings", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("home")
+
     meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
-    
-    if request.method == 'POST':
-        title = request.POST.get('title', '').strip()
-        description = request.POST.get('description', '').strip()
-        meeting_date = request.POST.get('meeting_date')
-        location = request.POST.get('location', '').strip()
-        max_slots = request.POST.get('max_slots') or 20
-        
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
+        meeting_date = request.POST.get("meeting_date")
+        location = request.POST.get("location", "").strip()
+        max_slots = request.POST.get("max_slots") or 20
+
         if title and meeting_date and location:
+            try:
+                ms = max(1, int(max_slots))
+            except (TypeError, ValueError):
+                ms = 20
             meeting.title = title
             meeting.description = description
             meeting.meeting_date = meeting_date
             meeting.location = location
-            meeting.max_slots = int(max_slots)
+            meeting.max_slots = ms
             meeting.save()
-            
-            from django.contrib import messages
-            messages.success(request, 'Meeting updated!')
-            return redirect('operations:pt_meeting_detail', pk=meeting.pk)
-    
-    return render(request, 'operations/pt_meeting_form.html', {
-        'school': school,
-        'meeting': meeting
-    })
+
+            messages.success(request, "Meeting updated!")
+            return redirect("operations:pt_meeting_detail", pk=meeting.pk)
+
+    return render(
+        request,
+        "operations/pt_meeting_form.html",
+        {"school": school, "meeting": meeting},
+    )
 
 
 @login_required
 def pt_meeting_delete(request, pk):
     """Delete a PT meeting."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_programming
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('home')
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "pt_meetings", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("home")
+
     meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
-    
-    if request.method == 'POST':
+
+    if request.method == "POST":
         meeting.delete()
-        from django.contrib import messages
-        messages.success(request, 'Meeting deleted!')
-        return redirect('operations:pt_meeting_list')
-    
-    return render(request, 'operations/confirm_delete.html', {
-        'object': meeting, 'type': 'PT meeting'
-    })
+        messages.success(request, "Meeting deleted!")
+        return redirect("operations:pt_meeting_list")
+
+    return render(
+        request,
+        "operations/confirm_delete.html",
+        {"object": meeting, "type": "PT meeting"},
+    )
 
 
 # ==================== HEALTH RECORDS ====================
@@ -5163,9 +6636,9 @@ def inventory_category_list(request):
 @login_required
 def inventory_category_create(request):
     """Create inventory category."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     if request.method == 'POST':
@@ -5202,9 +6675,9 @@ def inventory_item_list(request):
 @login_required
 def inventory_item_create(request):
     """Create inventory item."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     categories = InventoryCategory.objects.filter(school=school)
@@ -5240,9 +6713,9 @@ def inventory_item_create(request):
 @login_required
 def inventory_item_edit(request, pk):
     """Edit inventory item."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     item = get_object_or_404(InventoryItem, pk=pk, school=school)
@@ -5283,9 +6756,9 @@ def inventory_item_edit(request, pk):
 @login_required
 def inventory_item_delete(request, pk):
     """Delete inventory item."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     item = get_object_or_404(InventoryItem, pk=pk, school=school)
@@ -5304,9 +6777,9 @@ def inventory_item_delete(request, pk):
 @login_required
 def inventory_category_edit(request, pk):
     """Edit inventory category."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     category = get_object_or_404(InventoryCategory, pk=pk, school=school)
@@ -5331,9 +6804,9 @@ def inventory_category_edit(request, pk):
 @login_required
 def inventory_category_delete(request, pk):
     """Delete inventory category."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     category = get_object_or_404(InventoryCategory, pk=pk, school=school)
@@ -5370,9 +6843,9 @@ def inventory_transaction_list(request):
 @login_required
 def inventory_transaction_create(request):
     """Record inventory transaction."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     items = InventoryItem.objects.filter(school=school).order_by('name')
@@ -5410,135 +6883,206 @@ def inventory_transaction_create(request):
 
 # ==================== SCHOOL EVENTS ====================
 
+def _user_can_rsvp_school_event(user, event):
+    """Whether a student/parent may use the student-based RSVP flow for this event."""
+    role = getattr(user, "role", None)
+    if role not in ("student", "parent"):
+        return False
+    aud = event.target_audience
+    if aud == "staff":
+        return False
+    if aud == "parents" and role != "parent":
+        return False
+    if aud == "students" and role not in ("student", "parent"):
+        return False
+    return True
+
+
 @login_required
 def school_event_list(request):
     """List school events."""
+    from accounts.permissions import can_manage_school_programming
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    role = getattr(request.user, 'role', None)
-    can_manage = _user_can_manage_school(request)
-    
-    qs = SchoolEvent.objects.filter(school=school).order_by('-start_date')
+        return redirect("home")
+    redir = require_feature(request, "school_events", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    can_manage = request.user.is_superuser or can_manage_school_programming(request.user)
+
+    qs = SchoolEvent.objects.filter(school=school).order_by("-start_date")
     page_obj = paginate(request, qs, per_page=50)
-    
-    return render(request, 'operations/school_event_list.html', {
-        'events': page_obj,
-        'page_obj': page_obj,
-        'school': school,
-        'can_manage': can_manage
-    })
+
+    return render(
+        request,
+        "operations/school_event_list.html",
+        {
+            "events": page_obj,
+            "page_obj": page_obj,
+            "school": school,
+            "can_manage": can_manage,
+        },
+    )
 
 
 @login_required
 def school_event_create(request):
     """Create school event."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_programming
+    from datetime import datetime
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('home')
-    
-    if request.method == 'POST':
-        from datetime import datetime
-        title = request.POST.get('title', '').strip()
-        description = request.POST.get('description', '').strip()
-        event_type = request.POST.get('event_type', 'other')
-        start_date = request.POST.get('start_date')
-        end_date = request.POST.get('end_date') or None
-        location = request.POST.get('location', '').strip()
-        target = request.POST.get('target_audience', 'all')
-        mandatory = request.POST.get('is_mandatory') == 'on'
-        
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "school_events", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("operations:school_event_list")
+
+    valid_types = {c[0] for c in SchoolEvent.EVENT_TYPE_CHOICES}
+    valid_audience = {c[0] for c in SchoolEvent.TARGET_AUDIENCE_CHOICES}
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
+        event_type = request.POST.get("event_type", "other")
+        start_date = request.POST.get("start_date")
+        end_date = request.POST.get("end_date") or None
+        location = request.POST.get("location", "").strip()
+        target = request.POST.get("target_audience", "all")
+        mandatory = request.POST.get("is_mandatory") == "on"
+        if event_type not in valid_types:
+            event_type = "other"
+        if target not in valid_audience:
+            target = "all"
+
         if title and start_date:
             try:
-                start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M')
+                start = datetime.strptime(start_date, "%Y-%m-%dT%H:%M")
             except (ValueError, TypeError):
                 try:
-                    start = datetime.strptime(start_date, '%Y-%m-%d')
+                    start = datetime.strptime(start_date, "%Y-%m-%d")
                 except (ValueError, TypeError):
                     start = timezone.now()
-            
+
             end = None
             if end_date:
                 try:
-                    end = datetime.strptime(end_date, '%Y-%m-%dT%H:%M')
+                    end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M")
                 except (ValueError, TypeError):
                     try:
-                        end = datetime.strptime(end_date, '%Y-%m-%d')
+                        end = datetime.strptime(end_date, "%Y-%m-%d")
                     except (ValueError, TypeError):
                         end = None
-            
+
             SchoolEvent.objects.create(
-                school=school, title=title, description=description,
-                event_type=event_type, start_date=start, end_date=end,
-                location=location, target_audience=target,
-                is_mandatory=mandatory, created_by=request.user
+                school=school,
+                title=title,
+                description=description,
+                event_type=event_type,
+                start_date=start,
+                end_date=end,
+                location=location,
+                target_audience=target,
+                is_mandatory=mandatory,
+                created_by=request.user,
             )
-            from django.contrib import messages
-            messages.success(request, 'Event created!')
-            return redirect('operations:school_event_list')
-    
-    return render(request, 'operations/school_event_form.html', {'school': school})
+            messages.success(request, "Event created!")
+            return redirect("operations:school_event_list")
+
+    return render(request, "operations/school_event_form.html", {"school": school})
 
 
 @login_required
 def school_event_detail(request, pk):
     """View event details and RSVPs."""
+    from accounts.permissions import can_manage_school_programming
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
+        return redirect("home")
+    redir = require_feature(request, "school_events", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     event = get_object_or_404(SchoolEvent, pk=pk, school=school)
-    rsvps = EventRSVP.objects.filter(event=event).select_related('student', 'student__user')[:200]
-    
-    return render(request, 'operations/school_event_detail.html', {
-        'event': event,
-        'rsvps': rsvps,
-        'school': school
-    })
+    rsvps = EventRSVP.objects.filter(event=event).select_related("student", "student__user")[
+        :200
+    ]
+
+    can_manage = request.user.is_superuser or can_manage_school_programming(request.user)
+    can_rsvp = _user_can_rsvp_school_event(request.user, event)
+
+    return render(
+        request,
+        "operations/school_event_detail.html",
+        {
+            "event": event,
+            "rsvps": rsvps,
+            "school": school,
+            "can_manage": can_manage,
+            "can_rsvp": can_rsvp,
+        },
+    )
 
 
 @login_required
 def school_event_edit(request, pk):
     """Edit a school event."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_programming
+    from datetime import datetime
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('home')
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "school_events", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("home")
+
     event = get_object_or_404(SchoolEvent, pk=pk, school=school)
-    
-    if request.method == 'POST':
-        from datetime import datetime
-        title = request.POST.get('title', '').strip()
-        description = request.POST.get('description', '').strip()
-        event_type = request.POST.get('event_type', 'other')
-        start_date = request.POST.get('start_date')
-        end_date = request.POST.get('end_date') or None
-        location = request.POST.get('location', '').strip()
-        target = request.POST.get('target_audience', 'all')
-        mandatory = request.POST.get('is_mandatory') == 'on'
-        
+    valid_types = {c[0] for c in SchoolEvent.EVENT_TYPE_CHOICES}
+    valid_audience = {c[0] for c in SchoolEvent.TARGET_AUDIENCE_CHOICES}
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
+        event_type = request.POST.get("event_type", "other")
+        start_date = request.POST.get("start_date")
+        end_date = request.POST.get("end_date") or None
+        location = request.POST.get("location", "").strip()
+        target = request.POST.get("target_audience", "all")
+        mandatory = request.POST.get("is_mandatory") == "on"
+        if event_type not in valid_types:
+            event_type = "other"
+        if target not in valid_audience:
+            target = "all"
+
         if title and start_date:
             try:
-                start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M')
+                start = datetime.strptime(start_date, "%Y-%m-%dT%H:%M")
             except (ValueError, TypeError):
                 try:
-                    start = datetime.strptime(start_date, '%Y-%m-%d')
+                    start = datetime.strptime(start_date, "%Y-%m-%d")
                 except (ValueError, TypeError):
                     start = timezone.now()
-            
+
             end = None
             if end_date:
                 try:
-                    end = datetime.strptime(end_date, '%Y-%m-%dT%H:%M')
+                    end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M")
                 except (ValueError, TypeError):
                     try:
-                        end = datetime.strptime(end_date, '%Y-%m-%d')
+                        end = datetime.strptime(end_date, "%Y-%m-%d")
                     except (ValueError, TypeError):
                         end = None
-            
+
             event.title = title
             event.description = description
             event.event_type = event_type
@@ -5548,66 +7092,86 @@ def school_event_edit(request, pk):
             event.target_audience = target
             event.is_mandatory = mandatory
             event.save()
-            
-            from django.contrib import messages
-            messages.success(request, 'Event updated!')
-            return redirect('operations:school_event_detail', pk=event.pk)
-    
-    return render(request, 'operations/school_event_form.html', {'school': school, 'event': event})
+
+            messages.success(request, "Event updated!")
+            return redirect("operations:school_event_detail", pk=event.pk)
+
+    return render(
+        request,
+        "operations/school_event_form.html",
+        {"school": school, "event": event},
+    )
 
 
 @login_required
 def school_event_delete(request, pk):
     """Delete a school event."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import can_manage_school_programming
+    from django.contrib import messages
+
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
-        return redirect('home')
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "school_events", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or can_manage_school_programming(request.user)):
+        return redirect("home")
+
     event = get_object_or_404(SchoolEvent, pk=pk, school=school)
-    
-    if request.method == 'POST':
+
+    if request.method == "POST":
         event.delete()
-        from django.contrib import messages
-        messages.success(request, 'Event deleted!')
-        return redirect('operations:school_event_list')
-    
-    return render(request, 'operations/confirm_delete.html', {
-        'object': event, 'type': 'school event'
-    })
+        messages.success(request, "Event deleted!")
+        return redirect("operations:school_event_list")
+
+    return render(
+        request,
+        "operations/confirm_delete.html",
+        {"object": event, "type": "school event"},
+    )
 
 
 @login_required
 def school_event_rsvp(request, pk):
     """RSVP for an event (students/parents)."""
+    from django.contrib import messages
+
     school = _get_school(request)
     if not school:
-        return redirect('home')
-    
-    role = getattr(request.user, 'role', None)
-    if role not in ('student', 'parent'):
-        return redirect('home')
-    
+        return redirect("home")
+    redir = require_feature(request, "school_events", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    role = getattr(request.user, "role", None)
+    if role not in ("student", "parent"):
+        return redirect("home")
+
     event = get_object_or_404(SchoolEvent, pk=pk, school=school)
-    
-    if role == 'student':
+    if not _user_can_rsvp_school_event(request.user, event):
+        messages.error(request, "RSVP is not available for this event.")
+        return redirect("operations:school_event_detail", pk=event.pk)
+
+    if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
         if student:
             EventRSVP.objects.update_or_create(
-                event=event, student=student,
-                defaults={'is_attending': True}
+                event=event,
+                student=student,
+                defaults={"is_attending": True},
             )
     else:
         children = Student.objects.filter(parent=request.user, school=school)
         for child in children:
             EventRSVP.objects.update_or_create(
-                event=event, student=child,
-                defaults={'is_attending': True}
+                event=event,
+                student=child,
+                defaults={"is_attending": True},
             )
-    
-    from django.contrib import messages
-    messages.success(request, 'RSVP confirmed!')
-    return redirect('operations:school_event_detail', pk=event.pk)
+
+    messages.success(request, "RSVP confirmed!")
+    return redirect("operations:school_event_detail", pk=event.pk)
 
 
 # ==================== HOMEWORK FOR STUDENTS & PARENTS ====================
@@ -5941,10 +7505,10 @@ def online_exam_list(request):
 @login_required
 def online_exam_create(request):
     """Create online exam."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     from academics.models import Subject
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     subjects = Subject.objects.filter(school=school).order_by('name')
@@ -6079,10 +7643,10 @@ def online_exam_add_question(request, pk):
 @login_required
 def online_exam_edit(request, pk):
     """Edit an online exam."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     from academics.models import Subject
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
@@ -6150,9 +7714,9 @@ def online_exam_edit(request, pk):
 @login_required
 def online_exam_delete(request, pk):
     """Delete an online exam."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
@@ -6173,9 +7737,9 @@ def online_exam_delete(request, pk):
 def online_exam_publish(request, pk):
     """Publish an online exam."""
     from django.contrib import messages
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
     
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
@@ -6391,11 +7955,14 @@ def online_exam_result(request, pk):
 @login_required
 def sport_delete(request, pk):
     """Delete a sport."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "sports", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     sport = get_object_or_404(Sport, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -6414,11 +7981,14 @@ def sport_delete(request, pk):
 @login_required
 def club_delete(request, pk):
     """Delete a club."""
-    from accounts.permissions import is_school_admin
+    from accounts.permissions import is_school_leadership
     school = _get_school(request)
-    if not school or not (request.user.is_superuser or is_school_admin(request.user)):
+    if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "clubs", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     club = get_object_or_404(Club, pk=pk, school=school)
     
     if request.method == 'POST':

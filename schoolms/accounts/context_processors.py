@@ -7,6 +7,7 @@ inline ``user.role ==`` checks.
 from accounts.permissions import (
     is_super_admin,
     is_school_admin,
+    is_school_leadership,
     is_staff_member,
     can_manage_school,
     can_create_academic_content,
@@ -30,6 +31,10 @@ from accounts.permissions import (
     can_export_data,
     user_can_manage_school,
     user_can_access_services_hub,
+    can_review_absence_requests,
+    can_review_staff_leave,
+    can_access_staff_leave_portal,
+    can_manage_school_programming,
 )
 
 
@@ -80,6 +85,7 @@ def role_permissions(request):
     return {
         "is_super_admin": is_super_admin(user),
         "is_school_admin": is_school_admin(user),
+        "is_school_leadership": is_school_leadership(user),
         "is_staff_member": is_staff_member(user),
         "can_manage_school": can_manage_school(user),
         "can_create_academic_content": can_create_academic_content(user),
@@ -103,6 +109,10 @@ def role_permissions(request):
         "can_export_data": can_export_data(user),
         "can_access_services_hub": user_can_access_services_hub(user),
         "user_can_manage_school": user_can_manage_school(user),
+        "can_review_absence_requests": can_review_absence_requests(user),
+        "can_review_staff_leave": can_review_staff_leave(user),
+        "can_access_staff_leave_portal": can_access_staff_leave_portal(user),
+        "can_manage_school_programming": can_manage_school_programming(user),
         "pending_essay_queue_count": pending_essay_queue_count,
     }
 

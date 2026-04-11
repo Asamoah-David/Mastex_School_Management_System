@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Student Life{% endblock %}
+{% block page_title %}Student Life{% endblock %}
+{% block page_subtitle %}Sports, clubs, and school events in one place{% endblock %}
+
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-grid" style="margin-bottom: 1.25rem;">
+    {% if feat_sports %}
+    <a href="{% url 'operations:sport_list' %}" class="metric" style="text-decoration: none; color: inherit;">
+        <div class="metric-label">Sports</div>
+        <div class="metric-value">{% if student %}{{ sport_count }}{% else %}Browse{% endif %}</div>
+        <div class="metric-caption">{% if student %}teams you are on{% else %}teams and sign-ups{% endif %}</div>
+    </a>
+    {% endif %}
+    {% if feat_clubs %}
+    <a href="{% url 'operations:club_list' %}" class="metric" style="text-decoration: none; color: inherit;">
+        <div class="metric-label">Clubs</div>
+        <div class="metric-value">{% if student %}{{ club_count }}{% else %}Browse{% endif %}</div>
+        <div class="metric-caption">{% if student %}memberships{% else %}societies & groups{% endif %}</div>
+    </a>
+    {% endif %}
+    {% if feat_events %}
+    <a href="{% url 'operations:school_event_list' %}" class="metric" style="text-decoration: none; color: inherit;">
+        <div class="metric-label">Events</div>
+        <div class="metric-value">{{ upcoming_events|length }}</div>
+        <div class="metric-caption">upcoming highlighted</div>
+    </a>
+    {% endif %}
+    {% if feat_sports or feat_clubs %}
+    <a href="{% url 'operations:my_activities' %}" class="metric" style="text-decoration: none; color: inherit;">
+        <div class="metric-label">My roster</div>
+        <div class="metric-value">→</div>
+        <div class="metric-caption">{% if student %}Your clubs and sports{% else %}Your children's activities{% endif %}</div>
+    </a>
+    {% endif %}
+</div>
+
+{% if not feat_sports and not feat_clubs and not feat_events %}
+<div class="content-card">
+    <p class="empty-state">Student life modules are not enabled for your school. Contact your administrator if this is unexpected.</p>
+</div>
+{% endif %}
+
+{% if student %}
+{% if feat_sports or feat_clubs %}
+<div class="content-card mt-sm">
+    <h3 class="section-title">Your snapshot</h3>
+    <p style="color: var(--text-soft); margin: 0;">
+        {% if feat_sports %}<strong>{{ sport_count }}</strong> sport{% if sport_count != 1 %}s{% endif %}{% endif %}
+        {% if feat_sports and feat_clubs %} · {% endif %}
+        {% if feat_clubs %}<strong>{{ club_count }}</strong> club{% if club_count != 1 %}s{% endif %}{% endif %}
+    </p>
+</div>
+{% endif %}
+{% endif %}
+
+{% if parent_student_life %}
+<div class="content-card mt-sm">
+    <h3 class="section-title">Your children</h3>
+    {% if children_summary %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Class</th>
+                    {% if feat_sports %}<th>Sports</th>{% endif %}
+                    {% if feat_clubs %}<th>Clubs</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in children_summary %}
+                <tr>
+                    <td>{{ row.student.user.get_full_name }}</td>
+                    <td>{{ row.student.class_name|default:"—" }}</td>
+                    {% if feat_sports %}<td>{{ row.sport_count }}</td>{% endif %}
+                    {% if feat_clubs %}<td>{{ row.club_count }}</td>{% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-state">No linked students for this school.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if feat_events and upcoming_events %}
+<div class="content-card mt-sm">
+    <h3 class="section-title">Upcoming events</h3>
+    <ul class="nav-list" style="list-style: none; padding: 0; margin: 0;">
+        {% for event in upcoming_events %}
+        <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border-subtle, #e5e7eb);">
+            <a href="{% url 'operations:school_event_detail' event.pk %}" style="font-weight: 600;">{{ event.title }}</a>
+            <div style="color: var(--text-soft); font-size: 0.85rem;">{{ event.start_date|date:"M j, Y g:i A" }}{% if event.location %} · {{ event.location }}{% endif %}</div>
+        </li>
+        {% endfor %}
+    </ul>
+    <div class="button-row mt-sm">
+        <a href="{% url 'operations:school_event_list' %}" class="btn btn-secondary btn-sm">All events</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

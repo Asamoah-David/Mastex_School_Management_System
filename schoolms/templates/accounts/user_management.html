@@ -29,5 +29,8 @@
     <a href="{% url 'accounts:staff_register' %}" class="btn btn-primary">Add Staff</a>
     <a href="{% url 'accounts:parent_register' %}" class="btn btn-primary">Add Parent</a>
     <a href="{% url 'students:student_register' %}" class="btn btn-primary">Add Student</a>
+    {% if can_manage_finance %}
+    <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-secondary">Staff payroll register</a>
+    {% endif %}
 </div>
 {% endblock %}

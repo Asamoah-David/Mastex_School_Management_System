@@ -71,6 +71,45 @@ class User(AbstractUser):
     gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female')], blank=True, null=True)
     # Force password change on first login for auto-created accounts
     must_change_password = models.BooleanField(default=False)
+
+    PAYROLL_MOMO_NETWORK_CHOICES = (
+        ("", "—"),
+        ("MTN", "MTN Mobile Money"),
+        ("VOD", "Telecel Cash"),
+        ("ATL", "AirtelTigo Money"),
+    )
+    payroll_momo_number = models.CharField(
+        max_length=15,
+        blank=True,
+        default="",
+        help_text="Digits only — used for Paystack mobile-money salary payouts",
+    )
+    payroll_momo_network = models.CharField(
+        max_length=4,
+        choices=PAYROLL_MOMO_NETWORK_CHOICES,
+        blank=True,
+        default="",
+    )
+    payroll_bank_account_name = models.CharField(max_length=120, blank=True, default="")
+    payroll_bank_account_number = models.CharField(max_length=20, blank=True, default="")
+    payroll_bank_code = models.CharField(
+        max_length=12,
+        blank=True,
+        default="",
+        help_text="Paystack Ghana bank code for transfers (see Paystack dashboard / bank list)",
+    )
+    paystack_recipient_momo = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Cached Paystack RCP for mobile-money payouts",
+    )
+    paystack_recipient_bank = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Cached Paystack RCP for bank (NUBAN) payouts",
+    )
     
     def __str__(self):
         name = self.get_full_name() or self.username
@@ -106,8 +145,8 @@ class User(AbstractUser):
     
     @property
     def is_class_teacher(self):
-        """Check if this user is a class teacher of any class"""
-        if self.role != 'teacher':
+        """True if this user is set as class teacher (homeroom) on any class."""
+        if self.role not in ACADEMIC_ROLES:
             return False
         return hasattr(self, 'classes_taught') and self.classes_taught.exists()
     
@@ -225,3 +264,7 @@ class User(AbstractUser):
         if role_value in roles:
             roles.remove(role_value)
             self.secondary_roles = ','.join(roles)
+
+
+# Staff HR (contracts, role audit, teaching allocation, payroll) — see hr_models.py
+from .hr_models import StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment  # noqa: E402,F401

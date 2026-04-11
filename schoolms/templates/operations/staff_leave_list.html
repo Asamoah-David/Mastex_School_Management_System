@@ -1,30 +1,62 @@
 {% extends "base.html" %}
-{% block title %}Staff Leave - {{ school.name }}{% endblock %}
-{% block page_title %}Staff Leave Requests{% endblock %}
+{% block title %}Staff leave · {{ school.name }}{% endblock %}
+{% block page_title %}Staff leave{% endblock %}
+{% block page_subtitle %}{% if is_reviewer %}All requests for your school{% else %}Your leave requests{% endif %}{% endblock %}
 {% block content %}
-<div class="content-card">
-    <h2>Staff Leave</h2>
-    {% if leaves %}
+<div class="button-row dash-section" style="flex-wrap:wrap;gap:.5rem;">
+    <a href="{% url 'operations:staff_leave_create' %}" class="btn btn-primary">Request leave</a>
+    <form method="get" class="button-row" style="margin:0;align-items:center;gap:.5rem;">
+        <select id="id_lv_status" name="status" class="form-control" aria-label="Filter by status" title="Filter by status" onchange="this.form.submit()" style="min-width:140px;">
+            <option value="">All statuses</option>
+            <option value="pending" {% if status_filter == "pending" %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if status_filter == "approved" %}selected{% endif %}>Approved</option>
+            <option value="rejected" {% if status_filter == "rejected" %}selected{% endif %}>Rejected</option>
+        </select>
+    </form>
+</div>
+
+{% if leaves %}
+<div class="table-card dash-section">
     <table>
-        <thead><tr><th>Staff</th><th>From</th><th>To</th><th>Reason</th><th>Status</th></tr></thead>
+        <thead>
+            <tr>
+                {% if is_reviewer %}<th>Staff</th>{% endif %}
+                <th>From</th>
+                <th>To</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th style="min-width:160px;">Actions</th>
+            </tr>
+        </thead>
         <tbody>
-        {% for leave in leaves %}
-        <tr>
-            <td>{{ leave.staff.get_full_name }}</td>
-            <td>{{ leave.start_date|date }}</td>
-            <td>{{ leave.end_date|date }}</td>
-            <td>{{ leave.reason|default:"-" }}</td>
-            <td>
-                <span class="badge badge-{% if leave.status == 'approved' %}success{% elif leave.status == 'rejected' %}danger{% else %}warning{% endif %}">
-                    {{ leave.status|title }}
-                </span>
-            </td>
-        </tr>
-        {% endfor %}
+            {% for leave in leaves %}
+            <tr>
+                {% if is_reviewer %}
+                <td><strong>{{ leave.staff.get_full_name|default:leave.staff.username }}</strong></td>
+                {% endif %}
+                <td>{{ leave.start_date|date:"M j, Y" }}</td>
+                <td>{{ leave.end_date|date:"M j, Y" }}</td>
+                <td>{% if leave.leave_type %}{{ leave.get_leave_type_display }}{% else %}—{% endif %}</td>
+                <td><span class="badge {% if leave.status == 'approved' %}badge-success{% elif leave.status == 'rejected' %}badge-danger{% else %}badge-warning{% endif %}">{{ leave.get_status_display }}</span></td>
+                <td>
+                    {% if is_reviewer and leave.status == "pending" %}
+                    <a href="{% url 'operations:staff_leave_review' leave.pk %}" class="btn btn-sm btn-primary">Review</a>
+                    {% elif not is_reviewer %}
+                    <a href="{% url 'operations:staff_leave_review' leave.pk %}" class="btn btn-sm btn-secondary">View</a>
+                    {% else %}
+                    <a href="{% url 'operations:staff_leave_review' leave.pk %}" class="btn btn-sm btn-secondary">View</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
-    {% else %}
-    <p class="empty-state">No leave requests found.</p>
-    {% endif %}
 </div>
+{% else %}
+<div class="content-card">
+    <div class="empty-state">
+        <div class="empty-state-desc">No leave requests match this filter.</div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

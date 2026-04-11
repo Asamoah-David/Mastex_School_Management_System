@@ -1,11 +1,14 @@
 """Teaching scope (attendance + results), management vs teacher rules, and light URL smoke checks."""
 
 from datetime import time
+from decimal import Decimal
+from unittest.mock import patch
 
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from academics.models import ExamType, Result, Subject, Term, Timetable
+from accounts.hr_models import StaffPayrollPayment
 from accounts.models import User
 from schools.models import School
 from students.models import SchoolClass, Student
@@ -141,3 +144,84 @@ class TeachingScopeAndSmokeTests(TestCase):
         self.client.login(username="stu_math", password="pass12345")
         r = self.client.get(reverse("students:results_list"))
         self.assertEqual(r.status_code, 200)
+
+
+class StaffPayrollDisburseTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Payroll Test School", subdomain="payroll-tst-sch-01")
+        cls.accountant = User.objects.create_user(
+            username="pay_acct",
+            password="pass12345",
+            school=cls.school,
+            role="accountant",
+        )
+        cls.teacher = User.objects.create_user(
+            username="pay_teacher",
+            password="pass12345",
+            school=cls.school,
+            role="teacher",
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_teacher_cannot_open_disburse(self):
+        self.client.login(username="pay_teacher", password="pass12345")
+        url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 302)
+
+    def test_offline_cash_creates_ledger_row(self):
+        self.client.login(username="pay_acct", password="pass12345")
+        url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
+        r = self.client.post(
+            url,
+            {
+                "disbursement_mode": "offline_cash",
+                "period_label": "January 2026",
+                "paid_on": "2026-01-15",
+                "amount": "500.00",
+                "currency": "GHS",
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        p = StaffPayrollPayment.objects.get(user=self.teacher)
+        self.assertEqual(p.method, "cash")
+        self.assertEqual(p.amount, Decimal("500.00"))
+        self.assertEqual(p.paystack_status, "")
+        self.assertEqual(p.school, self.school)
+
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_dummy", PAYSTACK_STAFF_TRANSFERS_ENABLED=True)
+    @patch("finance.staff_payroll_paystack.paystack_service.initiate_transfer")
+    @patch("finance.staff_payroll_paystack.paystack_service.create_transfer_recipient")
+    def test_paystack_momo_queues_transfer(self, mock_recipient, mock_transfer):
+        mock_recipient.return_value = {"status": True, "data": {"recipient_code": "RCP_test12345"}}
+        mock_transfer.return_value = {
+            "status": True,
+            "data": {"transfer_code": "TRF_xx1", "message": "Transfer queued"},
+        }
+        self.teacher.payroll_momo_number = "0244000000"
+        self.teacher.payroll_momo_network = "MTN"
+        self.teacher.save(
+            update_fields=["payroll_momo_number", "payroll_momo_network"]
+        )
+        self.client.login(username="pay_acct", password="pass12345")
+        url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
+        r = self.client.post(
+            url,
+            {
+                "disbursement_mode": "paystack_momo",
+                "period_label": "February 2026",
+                "paid_on": "2026-02-01",
+                "amount": "100.00",
+                "currency": "GHS",
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        p = StaffPayrollPayment.objects.get(user=self.teacher, period_label="February 2026")
+        self.assertEqual(p.method, "mobile_money")
+        self.assertEqual(p.paystack_status, "pending")
+        self.assertEqual(p.paystack_transfer_code, "TRF_xx1")
+        self.assertTrue(p.reference.startswith("STF"))
+        mock_transfer.assert_called_once()

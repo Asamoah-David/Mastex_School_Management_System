@@ -13,7 +13,7 @@
 </div>
 {% endif %}
 
-{% if user.role == "school_admin" or user.role == "librarian" or user.is_superuser %}
+{% if is_school_leadership or user.role == "librarian" or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:library_book_create' %}" class="btn btn-primary">+ Add Book</a>
     <a href="{% url 'operations:library_issues' %}" class="btn btn-secondary">View Issues</a>
@@ -32,7 +32,7 @@
                     <th>ISBN</th>
                     <th>Total Copies</th>
                     <th>Available</th>
-                    {% if user.role == "school_admin" or user.role == "librarian" or user.is_superuser %}
+                    {% if is_school_leadership or user.role == "librarian" or user.is_superuser %}
                     <th>Actions</th>
                     {% endif %}
                 </tr>
@@ -51,7 +51,7 @@
                     <span style="color: #ef4444;">Out of stock</span>
                     {% endif %}
                 </td>
-                {% if user.role == "school_admin" or user.role == "librarian" or user.is_superuser %}
+                {% if is_school_leadership or user.role == "librarian" or user.is_superuser %}
                 <td>
                     <a href="{% url 'operations:library_book_delete' book.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this book?')">Delete</a>
                 </td>
@@ -63,7 +63,7 @@
     {% else %}
     <div class="empty-state">
         <p>No books in the library yet.</p>
-        {% if user.role == "school_admin" or user.role == "librarian" or user.is_superuser %}
+        {% if is_school_leadership or user.role == "librarian" or user.is_superuser %}
         <a href="{% url 'operations:library_book_create' %}" class="btn btn-primary mt-sm">Add First Book</a>
         {% else %}
         <p style="color: var(--text-soft); font-size: 0.8rem;">No books available in the library catalog.</p>

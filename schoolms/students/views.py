@@ -2,6 +2,7 @@ import hashlib
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.db import transaction
 from django.db.models import Count, F, Q
 from django.shortcuts import render, redirect, get_object_or_404
@@ -27,9 +28,13 @@ from .student_lifecycle import (
 from accounts.models import User
 from accounts.permissions import (
     user_can_manage_school,
-    is_school_admin,
+    is_school_leadership,
     can_bulk_promote_students,
+    can_review_absence_requests,
+    is_super_admin,
 )
+from students.absence_utils import absence_range_end, pending_absence_overlaps
+from operations.alumni_sync import sync_alumni_from_graduated_student
 from core.utils import log_activity
 from schools.models import School
 from core.pagination import paginate
@@ -38,6 +43,10 @@ from core.pagination import paginate
 def _user_can_manage_school(request):
     """Use central permission helper for consistency across apps."""
     return user_can_manage_school(request.user)
+
+
+def _can_review_absence_requests(request):
+    return can_review_absence_requests(request.user)
 
 
 @login_required
@@ -867,6 +876,12 @@ def student_exit(request, pk):
             school=school,
             request=request,
         )
+        if new_status == "graduated":
+            student.refresh_from_db()
+            try:
+                sync_alumni_from_graduated_student(student)
+            except Exception:
+                pass
         return redirect("students:student_detail", pk=student.pk)
     
     return render(request, "students/student_exit.html", {
@@ -1079,8 +1094,8 @@ def promote_students(request):
 
 @login_required
 def class_list(request):
-    """List and manage classes (school admin only)."""
-    if not is_school_admin(request.user) and not request.user.is_superuser:
+    """List and manage classes (school leadership)."""
+    if not is_school_leadership(request.user) and not request.user.is_superuser:
         return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
@@ -1101,7 +1116,7 @@ def class_list(request):
 
 @login_required
 def class_create(request):
-    if not is_school_admin(request.user) and not request.user.is_superuser:
+    if not is_school_leadership(request.user) and not request.user.is_superuser:
         return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school:
@@ -1143,26 +1158,46 @@ def absence_request_create(request):
 
     if request.method == "POST":
         date_str = request.POST.get("date", "").strip()
+        end_str = (request.POST.get("end_date") or "").strip()
         reason = request.POST.get("reason", "").strip()
 
         if not date_str or not reason:
-            messages.error(request, "Please provide both a date and a reason.")
+            messages.error(request, "Please provide a start date and a reason.")
         else:
             try:
-                # Parse date from the HTML date input (YYYY-MM-DD)
                 absence_date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
             except ValueError:
-                messages.error(request, "Invalid date format.")
+                messages.error(request, "Invalid start date.")
             else:
-                AbsenceRequest.objects.create(
-                    school=student.school,
-                    student=student,
-                    submitted_by=request.user,
-                    date=absence_date,
-                    reason=reason,
-                )
-                messages.success(request, "Your absence request has been submitted for approval.")
-                return redirect("students:my_absence_requests")
+                end_date = None
+                if end_str:
+                    try:
+                        end_date = timezone.datetime.strptime(end_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        messages.error(request, "Invalid end date.")
+                        end_date = False
+                if end_date is False:
+                    pass
+                elif end_date and end_date < absence_date:
+                    messages.error(request, "End date cannot be before the start date.")
+                else:
+                    span_end = absence_range_end(absence_date, end_date)
+                    if pending_absence_overlaps(student, absence_date, span_end):
+                        messages.error(
+                            request,
+                            "You already have a pending absence request that overlaps these dates.",
+                        )
+                    else:
+                        AbsenceRequest.objects.create(
+                            school=student.school,
+                            student=student,
+                            submitted_by=request.user,
+                            date=absence_date,
+                            end_date=end_date,
+                            reason=reason,
+                        )
+                        messages.success(request, "Your absence request has been submitted for approval.")
+                        return redirect("students:my_absence_requests")
 
     return render(
         request,
@@ -1220,8 +1255,9 @@ def parent_absence_request_create(request):
         date_str = (request.POST.get("date") or "").strip()
         reason = (request.POST.get("reason") or "").strip()
 
+        end_str = (request.POST.get("end_date") or "").strip()
         if not student_id or not date_str or not reason:
-            messages.error(request, "Please select a child and provide both a date and a reason.")
+            messages.error(request, "Please select a child and provide dates and a reason.")
         else:
             try:
                 child = Student.objects.select_related("school", "user").get(id=int(student_id), parent=request.user)
@@ -1234,17 +1270,37 @@ def parent_absence_request_create(request):
                     try:
                         absence_date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
                     except ValueError:
-                        messages.error(request, "Invalid date format.")
+                        messages.error(request, "Invalid start date.")
                     else:
-                        AbsenceRequest.objects.create(
-                            school=child.school,
-                            student=child,
-                            submitted_by=request.user,
-                            date=absence_date,
-                            reason=reason,
-                        )
-                        messages.success(request, "Absence request submitted for approval.")
-                        return redirect("students:parent_absence_requests")
+                        end_date = None
+                        if end_str:
+                            try:
+                                end_date = timezone.datetime.strptime(end_str, "%Y-%m-%d").date()
+                            except ValueError:
+                                messages.error(request, "Invalid end date.")
+                                end_date = False
+                        if end_date is False:
+                            pass
+                        elif end_date and end_date < absence_date:
+                            messages.error(request, "End date cannot be before the start date.")
+                        else:
+                            span_end = absence_range_end(absence_date, end_date)
+                            if pending_absence_overlaps(child, absence_date, span_end):
+                                messages.error(
+                                    request,
+                                    "This child already has a pending absence request that overlaps these dates.",
+                                )
+                            else:
+                                AbsenceRequest.objects.create(
+                                    school=child.school,
+                                    student=child,
+                                    submitted_by=request.user,
+                                    date=absence_date,
+                                    end_date=end_date,
+                                    reason=reason,
+                                )
+                                messages.success(request, "Absence request submitted for approval.")
+                                return redirect("students:parent_absence_requests")
 
     return render(request, "students/absence_request_form_parent.html", {"children": children})
 
@@ -1270,7 +1326,7 @@ def absence_requests_review(request):
     """
     Staff / school admin view: see absence requests for their school.
     """
-    if not _user_can_manage_school(request) and not getattr(request.user, "is_super_admin", False):
+    if not _can_review_absence_requests(request):
         return redirect("home")
 
     school = getattr(request.user, "school", None)
@@ -1294,18 +1350,22 @@ def absence_requests_review(request):
 
 
 @login_required
-def absence_request_decide(request, pk, decision):
+@require_POST
+def absence_request_decide(request, pk):
     """
-    Approve or reject an absence request.
+    Approve or reject an absence request (POST only).
     """
-    if not _user_can_manage_school(request) and not getattr(request.user, "is_super_admin", False):
+    if not _can_review_absence_requests(request):
         return redirect("home")
 
     school = getattr(request.user, "school", None)
+    decision = (request.POST.get("decision") or "").strip().lower()
 
     if school:
         absence_request = get_object_or_404(AbsenceRequest, pk=pk, school=school)
     else:
+        if not (getattr(request.user, "is_superuser", False) or is_super_admin(request.user)):
+            return redirect("home")
         absence_request = get_object_or_404(AbsenceRequest, pk=pk)
 
     if absence_request.status != "pending":
@@ -1321,6 +1381,13 @@ def absence_request_decide(request, pk, decision):
     absence_request.decided_at = timezone.now()
     absence_request.save()
 
+    log_activity(
+        request.user,
+        "ABSENCE_DECISION",
+        f"Request {pk} for {absence_request.student_id}: {absence_request.status}",
+        school=absence_request.school,
+        request=request,
+    )
     messages.success(request, f"Absence request has been {absence_request.status}.")
     return redirect("students:absence_requests_review")
 
@@ -1503,6 +1570,11 @@ def graduate_class(request):
             school=school,
             request=request,
         )
+        for st in graduated:
+            try:
+                sync_alumni_from_graduated_student(st)
+            except Exception:
+                pass
         return redirect("students:student_list")
     
     # Get classes for the form

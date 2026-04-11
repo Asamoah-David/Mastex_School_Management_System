@@ -1,74 +1,83 @@
-{% extends 'base.html' %}
-
+{% extends "base.html" %}
+{% block title %}{% if alumni_instance %}Edit{% else %}Add{% endif %} alumni · {{ school.name }}{% endblock %}
+{% block page_title %}{% if alumni_instance %}Edit alumni{% else %}Add alumni{% endif %}{% endblock %}
+{% block page_subtitle %}Keep contact and career details for your graduate network.{% endblock %}
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <div class="card">
-                <div class="card-header">
-                    <h4>Add New Alumni</h4>
-                </div>
-                <div class="card-body">
-                    <form method="POST">
-                        {% csrf_token %}
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">First Name</label>
-                                <input type="text" name="first_name" class="form-control" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Last Name</label>
-                                <input type="text" name="last_name" class="form-control" required>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Admission Number</label>
-                                <input type="text" name="admission_number" class="form-control">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Class</label>
-                                <input type="text" name="class_name" class="form-control">
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Graduation Year</label>
-                                <input type="number" name="graduation_year" class="form-control" required min="2000" max="2100">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Current Occupation</label>
-                                <input type="text" name="current_occupation" class="form-control">
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Current Institution</label>
-                            <input type="text" name="current_institution" class="form-control">
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Phone</label>
-                                <input type="tel" name="contact_phone" class="form-control">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" name="contact_email" class="form-control">
-                            </div>
-                        </div>
-                        
-                        <div class="text-end">
-                            <a href="{% url 'operations:alumni_list' %}" class="btn btn-secondary">Cancel</a>
-                            <button type="submit" class="btn btn-primary">Save Alumni</button>
-                        </div>
-                    </form>
-                </div>
+<div class="content-card" style="max-width:720px;">
+    <form method="post">
+        {% csrf_token %}
+        {% if graduated_students %}
+        <div class="form-group full-width">
+            <label for="id_link_student">Link to graduated student (optional)</label>
+            <select id="id_link_student" name="link_student_id" class="form-control">
+                <option value="">— Manual entry only —</option>
+                {% for s in graduated_students %}
+                <option value="{{ s.id }}" {% if alumni_instance and alumni_instance.student_id == s.id %}selected{% endif %}>
+                    {{ s.user.get_full_name|default:s.user.username }} · {{ s.admission_number }} · {{ s.class_name|default:"—" }}
+                </option>
+                {% endfor %}
+            </select>
+            <small style="color:var(--text-muted);font-size:.78rem;">Prefills name, admission #, and class from the student record.</small>
+        </div>
+        {% endif %}
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="id_first_name">First name *</label>
+                <input type="text" id="id_first_name" name="first_name" class="form-control" required maxlength="100" value="{{ alumni_instance.first_name|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_last_name">Last name *</label>
+                <input type="text" id="id_last_name" name="last_name" class="form-control" required maxlength="100" value="{{ alumni_instance.last_name|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_admission_number">Admission number</label>
+                <input type="text" id="id_admission_number" name="admission_number" class="form-control" maxlength="50" value="{{ alumni_instance.admission_number|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_class_name">Class</label>
+                <input type="text" id="id_class_name" name="class_name" class="form-control" maxlength="50" value="{{ alumni_instance.class_name|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_graduation_year">Graduation year *</label>
+                <input type="number" id="id_graduation_year" name="graduation_year" class="form-control" required min="1970" max="2100" value="{{ alumni_instance.graduation_year|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_graduation_date">Graduation date</label>
+                <input type="date" id="id_graduation_date" name="graduation_date" class="form-control" value="{{ alumni_instance.graduation_date|date:'Y-m-d' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_membership_year">Membership year</label>
+                <input type="number" id="id_membership_year" name="membership_year" class="form-control" min="1970" max="2100" value="{{ alumni_instance.membership_year|default:'' }}">
+            </div>
+            <div class="form-group full-width">
+                <label><input type="checkbox" name="is_active_member" {% if not alumni_instance or alumni_instance.is_active_member %}checked{% endif %}> Active alumni association member</label>
+            </div>
+            <div class="form-group full-width">
+                <label for="id_current_occupation">Current occupation</label>
+                <input type="text" id="id_current_occupation" name="current_occupation" class="form-control" maxlength="200" value="{{ alumni_instance.current_occupation|default:'' }}">
+            </div>
+            <div class="form-group full-width">
+                <label for="id_current_institution">Current institution</label>
+                <input type="text" id="id_current_institution" name="current_institution" class="form-control" maxlength="200" value="{{ alumni_instance.current_institution|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_contact_phone">Phone</label>
+                <input type="text" id="id_contact_phone" name="contact_phone" class="form-control" maxlength="20" value="{{ alumni_instance.contact_phone|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="id_contact_email">Email</label>
+                <input type="email" id="id_contact_email" name="contact_email" class="form-control" value="{{ alumni_instance.contact_email|default:'' }}">
+            </div>
+            <div class="form-group full-width">
+                <label for="id_address">Address</label>
+                <textarea id="id_address" name="address" class="form-control" rows="2">{{ alumni_instance.address|default:'' }}</textarea>
             </div>
         </div>
-    </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">{% if alumni_instance %}Save changes{% else %}Save alumni{% endif %}</button>
+            <a href="{% url 'operations:alumni_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
 </div>
 {% endblock %}

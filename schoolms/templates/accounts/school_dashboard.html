@@ -59,6 +59,12 @@
             <div class="dash-quick-tile-label">Budgets</div>
         </a>
         {% endif %}
+        {% if can_manage_finance %}
+        <a href="{% url 'accounts:staff_payroll_register' %}" class="content-card dash-quick-tile">
+            <div class="dash-quick-tile-icon" aria-hidden="true">🧾</div>
+            <div class="dash-quick-tile-label">Staff payroll</div>
+        </a>
+        {% endif %}
         {% if can_manage_inventory or is_school_admin %}
         <a href="{% url 'operations:inventory_item_list' %}" class="content-card dash-quick-tile">
             <div class="dash-quick-tile-icon" aria-hidden="true">📦</div>
@@ -73,8 +79,59 @@
 </div>
 {% endif %}
 
+{% if user.role != "teacher" %}
+<div class="content-card dash-section" style="padding:1rem 1.1rem;">
+    <h3 class="section-title" style="margin-bottom:0.65rem;">Academics &amp; daily operations</h3>
+    <p style="margin:0 0 0.75rem;font-size:0.85rem;color:var(--text-secondary);line-height:1.45;">
+        Results, attendance, fees, learner admin, and school-wide messaging — grouped so you do not hunt through menus.
+    </p>
+    <div class="quick-actions">
+        {% if is_school_leadership or user.is_superuser %}
+        <a href="{% url 'students:student_register' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F393;</span>
+            <span class="quick-action-label">Add student</span>
+        </a>
+        <a href="{% url 'accounts:staff_register' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F464;</span>
+            <span class="quick-action-label">Add staff</span>
+        </a>
+        {% endif %}
+        <a href="{% url 'academics:result_upload' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F4CA;</span>
+            <span class="quick-action-label">Upload results</span>
+        </a>
+        <a href="{% url 'academics:report_card_generator' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F4C4;</span>
+            <span class="quick-action-label">Report cards</span>
+        </a>
+        <a href="{% url 'operations:attendance_mark' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x2705;</span>
+            <span class="quick-action-label">Attendance</span>
+        </a>
+        <a href="{% url 'finance:fee_list' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F4B5;</span>
+            <span class="quick-action-label">Manage fees</span>
+        </a>
+        {% if is_school_leadership or user.role == "super_admin" or user.is_superuser %}
+        <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F4C8;</span>
+            <span class="quick-action-label">Class promotion</span>
+        </a>
+        {% endif %}
+        <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F4AC;</span>
+            <span class="quick-action-label">Send message</span>
+        </a>
+        <a href="{% url 'operations:calendar' %}" class="quick-action-btn">
+            <span class="quick-action-icon">&#x1F4C5;</span>
+            <span class="quick-action-label">Calendar</span>
+        </a>
+    </div>
+</div>
+{% endif %}
+
 <!-- Attention Center -->
-{% if pending_admissions or overdue_books or absent_today %}
+{% if pending_admissions or overdue_books or absent_today or pending_staff_leave or hr_expiring_contracts %}
 <div class="dash-attention-row dash-section">
     {% if pending_admissions %}
     <a href="{% url 'operations:admission_list' %}" class="content-card attention-tile attention-tile--warning">
@@ -94,6 +151,28 @@
         <div class="attention-tile__label">Students Absent Today</div>
     </a>
     {% endif %}
+    {% if pending_staff_leave %}
+    <a href="{% url 'operations:staff_leave_list' %}?status=pending" class="content-card attention-tile attention-tile--warning">
+        <div class="attention-tile__value">{{ pending_staff_leave }}</div>
+        <div class="attention-tile__label">Staff leave to review</div>
+    </a>
+    {% endif %}
+    {% if hr_expiring_contracts %}
+    <a href="{% url 'accounts:staff_payroll_register' %}" class="content-card attention-tile attention-tile--warning">
+        <div class="attention-tile__value">{{ hr_expiring_contracts }}</div>
+        <div class="attention-tile__label">Staff contracts ending (60d)</div>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if can_manage_finance and payroll_mtd_by_currency %}
+<div class="content-card dash-section" style="padding:0.85rem 1rem;font-size:0.88rem;">
+    <strong style="color:var(--text-main);">Payroll this month:</strong>
+    {% for row in payroll_mtd_by_currency %}
+    <span style="margin-left:0.75rem;color:var(--text-secondary);">{{ row.total }} {{ row.currency }}</span>{% if not forloop.last %}·{% endif %}
+    {% endfor %}
+    <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-sm btn-secondary" style="margin-left:0.75rem;">Open register</a>
 </div>
 {% endif %}
 
@@ -110,6 +189,11 @@
         <div class="metric-card-label">Staff / Teachers</div>
         <div class="metric-card-value" data-count="{{ total_staff }}">{{ total_staff }}</div>
         <div class="metric-card-trend flat">{{ teachers_count }} teacher{{ teachers_count|pluralize }}</div>
+        {% if inactive_staff_count and is_school_leadership %}
+        <div class="metric-card-trend down" style="margin-top:0.35rem;">
+            <a href="{% url 'accounts:staff_list' %}" style="color:inherit;text-decoration:underline;">{{ inactive_staff_count }} deactivated staff</a>
+        </div>
+        {% endif %}
     </div>
     <div class="metric-card">
         <div class="metric-card-icon green">&#x2705;</div>
@@ -279,53 +363,6 @@
         </div>
         <div class="card-body chart-canvas-host">
             <canvas id="feeChart"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- Quick Actions -->
-<div class="card dash-section">
-    <div class="card-header">
-        <span class="card-header-title">Quick Actions</span>
-    </div>
-    <div class="card-body">
-        <div class="quick-actions">
-            {% if user.role == "school_admin" or user.is_superuser %}
-            <a href="{% url 'students:student_register' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x1F393;</span>
-                <span class="quick-action-label">Add Student</span>
-            </a>
-            <a href="{% url 'accounts:staff_register' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x1F464;</span>
-                <span class="quick-action-label">Add Staff</span>
-            </a>
-            {% endif %}
-            <a href="{% url 'academics:result_upload' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x1F4CA;</span>
-                <span class="quick-action-label">Upload Results</span>
-            </a>
-            <a href="{% url 'operations:attendance_mark' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x2705;</span>
-                <span class="quick-action-label">Attendance</span>
-            </a>
-            <a href="{% url 'finance:fee_list' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x1F4B5;</span>
-                <span class="quick-action-label">Manage Fees</span>
-            </a>
-            {% if user.role == "school_admin" or user.role == "deputy_head" or user.role == "hod" or user.role == "super_admin" or user.is_superuser %}
-            <a href="{% url 'students:promote_students' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x1F4C8;</span>
-                <span class="quick-action-label">Class promotion</span>
-            </a>
-            {% endif %}
-            <a href="{% url 'messaging:send_message' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x1F4AC;</span>
-                <span class="quick-action-label">Send Message</span>
-            </a>
-            <a href="{% url 'operations:calendar' %}" class="quick-action-btn">
-                <span class="quick-action-icon">&#x1F4C5;</span>
-                <span class="quick-action-label">Calendar</span>
-            </a>
         </div>
     </div>
 </div>

@@ -12,7 +12,7 @@ Usage in API views::
 from rest_framework.permissions import BasePermission
 from accounts.permissions import (
     is_super_admin,
-    is_school_admin,
+    is_school_leadership,
     is_staff_member,
     belongs_to_school,
     can_manage_finance,
@@ -33,10 +33,10 @@ class IsSuperAdmin(BasePermission):
 
 
 class IsSchoolAdmin(BasePermission):
-    """Headteacher / school admin (or super admin)."""
+    """School leadership — head, deputy, HOD — or platform super admin."""
 
     def has_permission(self, request, view):
-        return bool(request.user and (is_super_admin(request.user) or is_school_admin(request.user)))
+        return bool(request.user and (is_super_admin(request.user) or is_school_leadership(request.user)))
 
 
 class IsSchoolStaff(BasePermission):

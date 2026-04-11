@@ -168,9 +168,9 @@ def school_register(request):
 
 @login_required
 def school_settings(request):
-    """Update school profile (logo URL, academic year, Paystack settings). School admin only."""
-    from accounts.permissions import is_school_admin
-    if not (request.user.is_superuser or is_school_admin(request.user)):
+    """Update school profile (logo URL, academic year, Paystack settings). School leadership only."""
+    from accounts.permissions import is_school_leadership
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
     school = getattr(request.user, "school", None)
     if not school and not request.user.is_superuser:

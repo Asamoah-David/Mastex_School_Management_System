@@ -31,7 +31,7 @@
 </div>
 
 <!-- Role Change Form for School Admins -->
-{% if request.user.role == "school_admin" or request.user.is_superuser %}
+{% if is_school_leadership or request.user.is_superuser %}
 <div class="content-card mt-sm">
     <h3 style="margin: 0 0 1rem; color: #22c55e;">Change Role</h3>
     <form method="POST" action="{% url 'accounts:staff_change_role' staff.id %}">
@@ -47,7 +47,9 @@
                 <option value="school_nurse" {% if staff.role == "school_nurse" %}selected{% endif %}>School Nurse</option>
                 <option value="admin_assistant" {% if staff.role == "admin_assistant" %}selected{% endif %}>Admin Assistant</option>
                 <option value="staff" {% if staff.role == "staff" %}selected{% endif %}>Staff</option>
+                {% if request.user.is_superuser or is_super_admin %}
                 <option value="school_admin" {% if staff.role == "school_admin" %}selected{% endif %}>School Admin</option>
+                {% endif %}
             </select>
             <button type="submit" class="btn btn-primary">Update Role</button>
         </div>
@@ -184,6 +186,227 @@
     font-size: 0.85rem;
 }
 </style>
+{% endif %}
+
+{% if is_school_leadership or request.user.is_superuser %}
+{% if staff.school %}
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #38bdf8;">Subjects &amp; homeroom</h3>
+    <p style="color: #9ca3af; font-size: 0.85rem; margin-bottom: 1rem;">
+        Subjects drive timetables and teaching scope. Homeroom assigns this staff member as class teacher for one class (clears any previous homeroom for them).
+    </p>
+    <form method="POST" action="{% url 'accounts:staff_assign_subjects_save' staff.id %}" class="mb-sm">
+        {% csrf_token %}
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 10rem; overflow-y: auto; padding: 0.5rem; background: rgba(15,23,42,0.6); border-radius: 0.5rem;">
+            {% for subj in school_subjects %}
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: #e5e7eb;">
+                <input type="checkbox" name="assigned_subject_ids" value="{{ subj.id }}"
+                    {% if subj.id in assigned_subject_ids %}checked{% endif %}>
+                {{ subj.name }}
+            </label>
+            {% empty %}
+            <span style="color:#9ca3af;">No subjects defined for this school.</span>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary mt-sm">Save assigned subjects</button>
+    </form>
+    <form method="POST" action="{% url 'accounts:staff_assign_homeroom_save' staff.id %}">
+        {% csrf_token %}
+        <label style="display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:0.35rem;">Homeroom class</label>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+            <select name="school_class_id" style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(148, 163, 184, 0.5); padding: 0.45rem 1rem; border-radius: 8px; color: var(--text-main); min-width: 12rem;">
+                <option value="">— None —</option>
+                {% for c in school_classes %}
+                <option value="{{ c.id }}" {% if staff_homeroom_class and staff_homeroom_class.id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary">Save homeroom</button>
+        </div>
+        {% if staff_homeroom_class %}
+        <p style="color:#6ee7b7; font-size:0.8rem; margin-top:0.5rem;">Current homeroom: <strong>{{ staff_homeroom_class.name }}</strong></p>
+        {% endif %}
+    </form>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #fbbf24;">Contracts &amp; engagement</h3>
+    {% if staff_contracts %}
+    <table class="table-like" style="width:100%; font-size:0.85rem; margin-bottom:1rem;">
+        <thead><tr><th>Type</th><th>Title</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            {% for c in staff_contracts %}
+            <tr>
+                <td>{{ c.get_contract_type_display }}</td>
+                <td>{{ c.job_title|default:"—" }}</td>
+                <td>{{ c.start_date }}</td>
+                <td>{{ c.end_date|default:"—" }}</td>
+                <td>{{ c.get_status_display }}</td>
+                <td>
+                    <form method="POST" action="{% url 'accounts:staff_hr_contract_set_status' staff.id c.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <select name="status" onchange="this.form.submit()" style="font-size:0.75rem; padding:0.25rem;">
+                            {% for val,label in contract_status_choices %}
+                            <option value="{{ val }}" {% if c.status == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#9ca3af; font-size:0.85rem;">No contract records yet.</p>
+    {% endif %}
+    <h4 style="color:#94a3b8; font-size:0.85rem; margin:1rem 0 0.5rem;">Add contract</h4>
+    <form method="POST" action="{% url 'accounts:staff_hr_contract_add' staff.id %}">
+        {% csrf_token %}
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:0.5rem;">
+            <select name="contract_type" style="padding:0.4rem;">
+                {% for val,label in contract_type_choices %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="job_title" placeholder="Job title" style="padding:0.4rem;">
+            <input type="date" name="start_date" required style="padding:0.4rem;">
+            <input type="date" name="end_date" style="padding:0.4rem;">
+            <select name="status" style="padding:0.4rem;">
+                <option value="draft">Draft</option>
+                <option value="active" selected>Active</option>
+                <option value="expired">Expired</option>
+                <option value="terminated">Terminated</option>
+            </select>
+        </div>
+        <textarea name="notes" placeholder="Notes" rows="2" style="width:100%; margin-top:0.5rem; padding:0.4rem;"></textarea>
+        <button type="submit" class="btn btn-primary mt-sm">Add contract</button>
+    </form>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #a78bfa;">Teaching allocations</h3>
+    <p style="color: #9ca3af; font-size: 0.85rem; margin-bottom: 1rem;">
+        Formal subject + class rows (e.g. Mathematics · Form 2A). Optional: sync adds the subject to this user&rsquo;s assigned subjects for timetables.
+    </p>
+    {% if staff_teaching %}
+    <table class="table-like" style="width:100%; font-size:0.85rem; margin-bottom:1rem;">
+        <thead><tr><th>Subject</th><th>Class</th><th>Year</th><th>From</th><th>Until</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+            {% for t in staff_teaching %}
+            <tr>
+                <td>{{ t.subject.name }}</td>
+                <td>{{ t.class_name }}</td>
+                <td>{{ t.academic_year|default:"—" }}</td>
+                <td>{{ t.effective_from|default:"—" }}</td>
+                <td>{{ t.effective_until|default:"—" }}</td>
+                <td>{% if t.is_active %}Yes{% else %}No{% endif %}</td>
+                <td>
+                    {% if t.is_active %}
+                    <form method="POST" action="{% url 'accounts:staff_hr_teaching_end' staff.id t.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-secondary" style="font-size:0.75rem; padding:0.2rem 0.5rem;">End</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#9ca3af; font-size:0.85rem;">No teaching allocation rows yet.</p>
+    {% endif %}
+    <form method="POST" action="{% url 'accounts:staff_hr_teaching_add' staff.id %}">
+        {% csrf_token %}
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+            <select name="subject_id" required style="padding:0.4rem; min-width:10rem;">
+                <option value="">Subject</option>
+                {% for subj in school_subjects %}
+                <option value="{{ subj.id }}">{{ subj.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="class_name" placeholder="Class name (e.g. Form 1A)" required style="padding:0.4rem; min-width:10rem;">
+            <input type="text" name="academic_year" placeholder="Academic year" style="padding:0.4rem;">
+            <input type="date" name="effective_from" style="padding:0.4rem;">
+            <input type="date" name="effective_until" style="padding:0.4rem;">
+            <label style="font-size:0.8rem; color:#e5e7eb;"><input type="checkbox" name="sync_subjects"> Sync subject to profile</label>
+        </div>
+        <textarea name="notes" placeholder="Notes" rows="2" style="width:100%; margin-top:0.5rem; padding:0.4rem;"></textarea>
+        <button type="submit" class="btn btn-primary mt-sm">Add allocation</button>
+    </form>
+</div>
+
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #94a3b8;">Role change history</h3>
+    {% if staff_role_logs %}
+    <ul style="list-style:none; padding:0; margin:0; font-size:0.85rem;">
+        {% for log in staff_role_logs %}
+        <li style="padding:0.5rem 0; border-bottom:1px solid rgba(148,163,184,0.15);">
+            <span style="color:#cbd5e1;">{{ log.changed_at|date:"Y-m-d H:i" }}</span>
+            · {{ log.get_change_kind_display }}
+            {% if log.changed_by %}<span style="color:#64748b;">by {{ log.changed_by.get_full_name|default:log.changed_by.username }}</span>{% endif %}
+            <br>
+            <code style="font-size:0.75rem; color:#a5b4fc;">{{ log.from_value|default:"—" }}</code>
+            →
+            <code style="font-size:0.75rem; color:#86efac;">{{ log.to_value|default:"—" }}</code>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color:#9ca3af; font-size:0.85rem;">No role changes logged yet.</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
+{% if can_manage_finance and staff.school %}
+<div class="content-card mt-sm">
+    <h3 style="margin: 0 0 1rem; color: #34d399;">Staff payroll (internal)</h3>
+    <p style="color: #9ca3af; font-size: 0.85rem; margin-bottom: 1rem;">
+        Salary or stipend payments for this staff member. Separate from student fee records.
+        <a href="{% url 'accounts:staff_payroll_disburse' staff.id %}" class="btn btn-sm btn-primary" style="margin-right:0.35rem;">Pay through platform</a>
+        <a href="{% url 'accounts:staff_payroll_register' %}" style="color:#6ee7b7;">Register →</a>
+        · <a href="{% url 'accounts:staff_payroll_export_user' staff.id %}" style="color:#6ee7b7;">CSV</a>
+        {% if paystack_staff_enabled %}<span style="color:#86efac;font-size:0.75rem;"> · Paystack payouts enabled</span>{% endif %}
+    </p>
+    {% if staff_payroll %}
+    <table class="table-like" style="width:100%; font-size:0.85rem; margin-bottom:1rem;">
+        <thead><tr><th>Period</th><th>Amount</th><th>Paid on</th><th>Method</th><th>Paystack</th><th>Reference</th></tr></thead>
+        <tbody>
+            {% for p in staff_payroll %}
+            <tr>
+                <td>{{ p.period_label }}</td>
+                <td>{{ p.amount }} {{ p.currency }}</td>
+                <td>{{ p.paid_on }}</td>
+                <td>{{ p.get_method_display }}</td>
+                <td>{% if p.paystack_status %}{{ p.get_paystack_status_display }}{% if p.paystack_transfer_code %}<br><small style="color:#94a3b8;">{{ p.paystack_transfer_code }}</small>{% endif %}{% else %}—{% endif %}</td>
+                <td>{{ p.reference|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#9ca3af; font-size:0.85rem;">No payroll lines recorded.</p>
+    {% endif %}
+    <p style="font-size:0.8rem; color:#9ca3af; margin-bottom:0.5rem;">Quick record (offline). For Paystack or full options use <a href="{% url 'accounts:staff_payroll_disburse' staff.id %}">Pay through platform</a>.</p>
+    <form method="POST" action="{% url 'accounts:staff_hr_payroll_add' staff.id %}">
+        {% csrf_token %}
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+            <input type="text" name="period_label" placeholder="Period (e.g. January 2026)" required style="padding:0.4rem; min-width:12rem;">
+            <input type="number" name="amount" step="0.01" min="0.01" placeholder="Amount" required style="padding:0.4rem; width:8rem;">
+            <input type="text" name="currency" value="GHS" maxlength="8" style="padding:0.4rem; width:5rem;">
+            <input type="date" name="paid_on" required style="padding:0.4rem;">
+            <select name="method" style="padding:0.4rem;">
+                <option value="bank">Bank transfer</option>
+                <option value="cash">Cash</option>
+                <option value="mobile_money">Mobile money</option>
+                <option value="cheque">Cheque</option>
+                <option value="other">Other</option>
+            </select>
+            <input type="text" name="reference" placeholder="Reference" style="padding:0.4rem;">
+        </div>
+        <textarea name="notes" placeholder="Notes" rows="2" style="width:100%; margin-top:0.5rem; padding:0.4rem;"></textarea>
+        <button type="submit" class="btn btn-primary mt-sm">Record payment</button>
+    </form>
+</div>
 {% endif %}
 
 <div class="button-row mt-sm">

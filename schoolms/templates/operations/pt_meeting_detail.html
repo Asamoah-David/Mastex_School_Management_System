@@ -18,9 +18,9 @@
         <p><strong>Date:</strong> {{ meeting.meeting_date|date:"M d, Y H:i" }}</p>
         <p><strong>Location:</strong> {{ meeting.location }}</p>
         <p><strong>Description:</strong> {{ meeting.description|default:"—" }}</p>
-        <p><strong>Booked Slots:</strong> {{ bookings|length }} / {{ meeting.max_slots }}</p>
-        <p><strong>Available Slots:</strong> {{ meeting.max_slots|add:"-"|add:bookings|length }}</p>
-        {% if meeting.max_slots|add:"-"|add:bookings|length == 0 %}
+        <p><strong>Booked Slots:</strong> {{ meeting.booked_slots }} / {{ meeting.max_slots }}</p>
+        <p><strong>Available Slots:</strong> {{ meeting.available_slots }}</p>
+        {% if meeting.available_slots == 0 %}
         <p class="text-danger">⚠️ All slots are fully booked!</p>
         {% endif %}
     </div>
@@ -56,6 +56,9 @@
 </div>
 
 <div class="button-row mt-sm">
+    {% if can_manage_pt_meetings %}
+    <a href="{% url 'operations:pt_meeting_edit' meeting.pk %}" class="btn btn-warning">Edit</a>
+    {% endif %}
     <a href="{% url 'operations:pt_meeting_list' %}" class="btn btn-secondary">← Back</a>
 </div>
 {% endblock %}

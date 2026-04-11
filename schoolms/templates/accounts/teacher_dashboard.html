@@ -4,31 +4,77 @@
 {% block page_subtitle %}{{ school.name }} — {{ today|date:"l, F j, Y" }}{% endblock %}
 
 {% block content %}
-<div class="content-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem;">
-    <div class="content-card" style="text-align:center;">
-        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ my_classes|length }}</div>
-        <div style="font-size:.85rem;color:var(--text-secondary);">My Classes</div>
+<div class="erp-dash-hero dash-section">
+    <h2 class="erp-dash-hero__title">Teaching workspace</h2>
+    <p class="erp-dash-hero__sub">
+        Your homeroom, timetable, and subject assignments drive what you see here — attendance to mark, scores to upload, and learners who need attention.
+    </p>
+    <div class="erp-dash-hero__chips">
+        <span class="erp-dash-chip">📚 {{ my_subjects|length }} subject{{ my_subjects|length|pluralize }}</span>
+        <span class="erp-dash-chip">🏫 {{ my_classes|length }} homeroom class{{ my_classes|length|pluralize }}</span>
+        {% if current_term %}<span class="erp-dash-chip">📅 {{ current_term.name }}</span>{% endif %}
     </div>
-    <div class="content-card" style="text-align:center;">
-        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ my_subjects|length }}</div>
-        <div style="font-size:.85rem;color:var(--text-secondary);">My Subjects</div>
+</div>
+
+<div class="dash-quick-row dash-section">
+    <a href="{% url 'operations:attendance_mark' %}" class="content-card dash-quick-tile">
+        <div class="dash-quick-tile-icon" aria-hidden="true">✅</div>
+        <div class="dash-quick-tile-label">Mark attendance</div>
+    </a>
+    <a href="{% url 'academics:result_upload' %}" class="content-card dash-quick-tile">
+        <div class="dash-quick-tile-icon" aria-hidden="true">📊</div>
+        <div class="dash-quick-tile-label">Upload results</div>
+    </a>
+    <a href="{% url 'academics:homework_list' %}" class="content-card dash-quick-tile">
+        <div class="dash-quick-tile-icon" aria-hidden="true">📝</div>
+        <div class="dash-quick-tile-label">Homework</div>
+    </a>
+    <a href="{% url 'operations:attendance_list' %}" class="content-card dash-quick-tile">
+        <div class="dash-quick-tile-icon" aria-hidden="true">📋</div>
+        <div class="dash-quick-tile-label">Attendance history</div>
+    </a>
+    <a href="{% url 'messaging:send_message' %}" class="content-card dash-quick-tile">
+        <div class="dash-quick-tile-icon" aria-hidden="true">📢</div>
+        <div class="dash-quick-tile-label">Message</div>
+    </a>
+</div>
+
+<div class="metric-grid dash-section">
+    <div class="metric-card">
+        <div class="metric-card-icon green">&#x1F3EB;</div>
+        <div class="metric-card-label">My classes</div>
+        <div class="metric-card-value">{{ my_classes|length }}</div>
+        <div class="metric-card-trend flat">Homeroom assignments</div>
     </div>
-    <div class="content-card" style="text-align:center;">
-        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ recent_results_count }}</div>
-        <div style="font-size:.85rem;color:var(--text-secondary);">Results This Term</div>
+    <div class="metric-card">
+        <div class="metric-card-icon blue">&#x1F4DA;</div>
+        <div class="metric-card-label">My subjects</div>
+        <div class="metric-card-value">{{ my_subjects|length }}</div>
+        <div class="metric-card-trend flat">Teaching &amp; results scope</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card-icon green">&#x1F4CA;</div>
+        <div class="metric-card-label">Results this term</div>
+        <div class="metric-card-value" data-count="{{ recent_results_count }}">{{ recent_results_count }}</div>
+        <div class="metric-card-trend flat">Entries recorded</div>
     </div>
     {% if teacher_academic.has_data %}
-    <div class="content-card" style="text-align:center;">
-        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ teacher_academic.avg_pct }}%</div>
-        <div style="font-size:.85rem;color:var(--text-secondary);">Avg score (your subjects)</div>
+    <div class="metric-card">
+        <div class="metric-card-icon amber">&#x1F3C6;</div>
+        <div class="metric-card-label">Avg score (your subjects)</div>
+        <div class="metric-card-value">{{ teacher_academic.avg_pct }}%</div>
         {% if teacher_academic.below_threshold %}
-        <div style="font-size:.75rem;color:#f87171;margin-top:.35rem;">{{ teacher_academic.below_threshold }} below 50%</div>
+        <div class="metric-card-trend down">{{ teacher_academic.below_threshold }} below 50%</div>
+        {% else %}
+        <div class="metric-card-trend flat">Current term</div>
         {% endif %}
     </div>
     {% endif %}
-    <div class="content-card" style="text-align:center;">
-        <div style="font-size:2rem;font-weight:700;color:var(--primary);">{{ teacher_class_strength.total_students }}</div>
-        <div style="font-size:.85rem;color:var(--text-secondary);">Active students (your scope)</div>
+    <div class="metric-card">
+        <div class="metric-card-icon blue">&#x1F465;</div>
+        <div class="metric-card-label">Students in scope</div>
+        <div class="metric-card-value" data-count="{{ teacher_class_strength.total_students }}">{{ teacher_class_strength.total_students }}</div>
+        <div class="metric-card-trend flat">Active learners</div>
     </div>
 </div>
 
@@ -49,25 +95,33 @@
         {% endif %}
     </div>
     <div class="content-card">
-        <h3 style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <h3 class="section-title" style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
             Notifications
             {% if teacher_unread_notifications %}
             <span class="tag tag-warning" style="font-size:.7rem;">{{ teacher_unread_notifications }} unread</span>
             {% endif %}
         </h3>
         {% if teacher_notifications %}
-        <ul style="list-style:none;padding:0;margin:0;max-height:220px;overflow-y:auto;">
+        <ul class="activity-list activity-list--flush" style="max-height:220px;overflow-y:auto;">
             {% for n in teacher_notifications %}
-            <li style="padding:.5rem 0;border-bottom:1px solid var(--border-color,#334155);font-size:.88rem;">
-                {% if n.link %}<a href="{{ n.link }}" style="font-weight:600;color:inherit;text-decoration:none;">{{ n.title }}</a>
-                {% else %}<strong>{{ n.title }}</strong>{% endif %}
-                <div style="font-size:.75rem;color:var(--text-secondary);">{{ n.created_at|timesince }} ago{% if not n.is_read %} · unread{% endif %}</div>
+            <li class="activity-item activity-item--top">
+                <div class="activity-icon school" style="flex-shrink:0;">&#x1F514;</div>
+                <div class="activity-content" style="min-width:0;">
+                    {% if n.link %}
+                    <a href="{{ n.link }}" class="activity-text" style="font-weight:600;color:inherit;text-decoration:none;">{{ n.title }}</a>
+                    {% else %}
+                    <div class="activity-text" style="font-weight:600;">{{ n.title }}</div>
+                    {% endif %}
+                    <div class="activity-time" style="font-size:.78rem;">{{ n.created_at|timesince }} ago{% if not n.is_read %} · <span class="text-unread-accent">Unread</span>{% endif %}</div>
+                </div>
             </li>
             {% endfor %}
         </ul>
-        <a href="{% url 'notifications:list' %}" style="font-size:.85rem;margin-top:.75rem;display:inline-block;">View all notifications</a>
+        <a href="{% url 'notifications:list' %}" class="card-header-action" style="display:inline-block;margin-top:.75rem;font-size:.85rem;">View all</a>
         {% else %}
-        <p style="font-size:.9rem;color:var(--text-secondary);">No notifications yet.</p>
+        <div class="empty-state" style="padding:.5rem 0;">
+            <div class="empty-state-desc">No notifications yet.</div>
+        </div>
         {% endif %}
     </div>
     <div class="content-card">
@@ -147,16 +201,6 @@
         </ul>
     </div>
     {% endif %}
-</div>
-
-<div class="content-card" style="margin-top:1.5rem;">
-    <h3 style="margin-bottom:.75rem;">Quick Actions</h3>
-    <div style="display:flex;flex-wrap:wrap;gap:.75rem;">
-        <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">Mark Attendance</a>
-        <a href="{% url 'academics:result_upload' %}" class="btn btn-primary">Upload Results</a>
-        <a href="{% url 'academics:homework_list' %}" class="btn btn-secondary">View Homework</a>
-        <a href="{% url 'operations:attendance_list' %}" class="btn btn-secondary">Attendance History</a>
-    </div>
 </div>
 
 <script>

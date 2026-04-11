@@ -12,7 +12,7 @@
 </div>
 {% endif %}
 
-{% if user.role == "school_admin" or user.is_superuser %}
+{% if is_school_leadership or user.is_superuser %}
 <div class="button-row">
     <a href="{% url 'operations:seating_plan_create' %}" class="btn btn-primary">+ Create Seating Plan</a>
 </div>
@@ -49,7 +49,7 @@
     {% else %}
     <div class="empty-state">
         <p>No seating plans created yet.</p>
-        {% if user.role == "school_admin" or user.is_superuser %}
+        {% if is_school_leadership or user.is_superuser %}
         <a href="{% url 'operations:seating_plan_create' %}" class="btn btn-primary mt-sm">Create First Plan</a>
         {% else %}
         <p style="color: var(--text-soft); font-size: 0.8rem;">Contact your administrator to create seating plans.</p>

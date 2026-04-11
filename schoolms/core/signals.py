@@ -70,10 +70,12 @@ def notify_absence_decision(sender, instance, created, **kwargs):
     recipient = instance.submitted_by or (instance.student.parent if instance.student else None)
     if not recipient:
         return
+    end = instance.end_date or instance.date
+    span = f"{instance.date}" if end == instance.date else f"{instance.date}–{end}"
     _notify(
         recipient,
         f"Absence Request {instance.get_status_display()}",
-        f"The absence request for {student_name} on {instance.date} has been {instance.status}.",
+        f"The absence request for {student_name} for {span} has been {instance.status}.",
         notification_type="attendance",
         link="/students/absence/children/",
     )

@@ -12,6 +12,7 @@ urlpatterns = [
     # ==================== EXPORT VIEWS ====================
     path("export/students/", export_views.export_students, name="export_students"),
     path("export/staff/", export_views.export_staff, name="export_staff"),
+    path("export/staff-payroll/", export_views.export_staff_payroll_school, name="export_staff_payroll"),
     path("export/attendance/", export_views.export_attendance, name="export_attendance"),
     path("export/expenses/", export_views.export_expenses, name="export_expenses"),
     path("export/fees/", export_views.export_fees, name="export_fees"),
@@ -203,6 +204,7 @@ urlpatterns = [
     # Alumni
     path("alumni/", views.alumni_list, name="alumni_list"),
     path("alumni/create/", views.alumni_create, name="alumni_create"),
+    path("alumni/<int:pk>/edit/", views.alumni_edit, name="alumni_edit"),
     path("alumni/<int:pk>/", views.alumni_detail, name="alumni_detail"),
     path("alumni/events/", views.alumni_event_list, name="alumni_event_list"),
     
@@ -231,20 +233,49 @@ urlpatterns = [
     path("staff-id-cards/<int:pk>/print/", views.staff_id_card_print, name="staff_id_card_print"),
     path("staff-id-cards/<int:pk>/pdf/", views.staff_id_card_pdf, name="staff_id_card_pdf"),
     
+    # Student Life (hub for students/parents)
+    path("student-life/", views.student_life, name="student_life"),
+
     # Sports
     path("sports/", views.sport_list, name="sport_list"),
     path("sports/create/", views.sport_create, name="sport_create"),
+    path("sports/<int:pk>/edit/", views.sport_edit, name="sport_edit"),
     path("sports/<int:pk>/", views.sport_detail, name="sport_detail"),
     path("sports/<int:pk>/delete/", views.sport_delete, name="sport_delete"),
     path("sports/<int:pk>/add-member/", views.sport_add_member, name="sport_add_member"),
-    
+    path("sports/<int:pk>/join/", views.sport_join_self, name="sport_join_self"),
+    path("sports/<int:pk>/cancel-request/", views.sport_cancel_pending, name="sport_cancel_pending"),
+    path(
+        "sports/memberships/<int:pk>/approve/",
+        views.sport_membership_approve,
+        name="sport_membership_approve",
+    ),
+    path(
+        "sports/memberships/<int:pk>/reject/",
+        views.sport_membership_reject,
+        name="sport_membership_reject",
+    ),
+
     # Clubs
     path("clubs/", views.club_list, name="club_list"),
     path("clubs/create/", views.club_create, name="club_create"),
+    path("clubs/<int:pk>/edit/", views.club_edit, name="club_edit"),
     path("clubs/<int:pk>/", views.club_detail, name="club_detail"),
     path("clubs/<int:pk>/delete/", views.club_delete, name="club_delete"),
     path("clubs/<int:pk>/add-member/", views.club_add_member, name="club_add_member"),
-    
+    path("clubs/<int:pk>/join/", views.club_join_self, name="club_join_self"),
+    path("clubs/<int:pk>/cancel-request/", views.club_cancel_pending, name="club_cancel_pending"),
+    path(
+        "clubs/memberships/<int:pk>/approve/",
+        views.club_membership_approve,
+        name="club_membership_approve",
+    ),
+    path(
+        "clubs/memberships/<int:pk>/reject/",
+        views.club_membership_reject,
+        name="club_membership_reject",
+    ),
+
     # My Activities (Student View)
     path("my-activities/", views.my_activities, name="my_activities"),
     
@@ -351,6 +382,7 @@ urlpatterns = [
 
     # Financial Reports
     path("financial-reports/", advanced_views.financial_reports_page, name="financial_reports_page"),
+    path("financial-reports/data/", advanced_views.get_financial_data, name="financial_reports_data"),
     path("financial-reports/budget-vs-actual/", advanced_views.budget_vs_actual, name="budget_vs_actual"),
     path("financial-reports/income-statement/", advanced_views.income_statement, name="income_statement"),
     path("financial-reports/expense-breakdown/", advanced_views.expense_breakdown, name="expense_breakdown"),
