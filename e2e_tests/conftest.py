@@ -7,6 +7,8 @@ during session setup (which would break pytest-django's DB creation on Windows).
 In tests, list ORM fixtures (e.g. ``e2e_school_admin``) **before** ``page``:
 pytest sets up parameters left-to-right, and Playwright must start after DB data exists.
 """
+import os
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -21,8 +23,13 @@ pytest_plugins = ["pytest_django"]
 def page(live_server):
     from playwright.sync_api import sync_playwright
 
+    launch_args = []
+    if os.environ.get("CI"):
+        # GitHub Actions / Linux runners: default Chromium sandbox often fails headless.
+        launch_args.extend(["--no-sandbox", "--disable-dev-shm-usage"])
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=launch_args)
         context = browser.new_context(base_url=live_server.url)
         pg = context.new_page()
         try:

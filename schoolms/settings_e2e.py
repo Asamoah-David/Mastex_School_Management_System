@@ -18,6 +18,8 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "e2e_test.sqlite3",
+        # live_server runs in a thread; SQLite can briefly lock on Linux CI without a longer wait.
+        "OPTIONS": {"timeout": 30},
     }
 }
 
