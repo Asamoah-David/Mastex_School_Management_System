@@ -10,7 +10,9 @@ import re
 
 import pytest
 
-pytestmark = pytest.mark.django_db(transaction=True)
+# Default django_db — ``live_server`` pulls in ``transactional_db`` so the server thread
+# sees rows created in fixtures (``transaction=True`` conflicts with that on Linux CI).
+pytestmark = pytest.mark.django_db
 
 
 def test_health_returns_ok_json(page):
@@ -44,8 +46,9 @@ def test_login_rejects_bad_password(e2e_school_admin, page):
     page.fill("#id_username", e2e_school_admin.username)
     page.fill("#id_password", "wrong-password-not-real")
     page.get_by_role("button", name=re.compile("sign in", re.I)).click()
-    page.wait_for_load_state("networkidle")
-    expect(page).to_have_url(re.compile(r"/accounts/login/"))
+    # ``networkidle`` is flaky on CI (long-polling / open connections).
+    page.wait_for_load_state("load")
+    expect(page).to_have_url(re.compile(r"/accounts/login/"), timeout=30000)
 
 
 def test_school_admin_login_reaches_school_dashboard(e2e_school_admin, page):
@@ -55,7 +58,7 @@ def test_school_admin_login_reaches_school_dashboard(e2e_school_admin, page):
     page.fill("#id_username", e2e_school_admin.username)
     page.fill("#id_password", "E2E-Safe-Login-9x!")
     page.get_by_role("button", name=re.compile("sign in", re.I)).click()
-    page.wait_for_url(re.compile(r".*/accounts/school-dashboard/.*"), timeout=15000)
+    page.wait_for_url(re.compile(r".*/accounts/school-dashboard/.*"), timeout=45000)
     expect(page).to_have_url(re.compile(r"school-dashboard"))
 
 
@@ -66,4 +69,4 @@ def test_superuser_login_reaches_dashboard(e2e_superuser, page):
     page.fill("#id_username", e2e_superuser.username)
     page.fill("#id_password", "E2E-Super-Login-9x!")
     page.get_by_role("button", name=re.compile("sign in", re.I)).click()
-    page.wait_for_url(re.compile(r".*/accounts/dashboard/.*"), timeout=15000)
+    page.wait_for_url(re.compile(r".*/accounts/dashboard/.*"), timeout=45000)

@@ -33,7 +33,7 @@ def page(live_server):
 
 
 @pytest.fixture
-def e2e_school(db):
+def e2e_school(transactional_db):
     end = timezone.now() + timedelta(days=60)
     return School.objects.create(
         name="E2E Test School",
@@ -45,7 +45,7 @@ def e2e_school(db):
 
 
 @pytest.fixture
-def e2e_school_admin(db, e2e_school):
+def e2e_school_admin(transactional_db, e2e_school):
     User = get_user_model()
     return User.objects.create_user(
         username="e2e_school_admin",
@@ -57,7 +57,7 @@ def e2e_school_admin(db, e2e_school):
 
 
 @pytest.fixture
-def e2e_superuser(db):
+def e2e_superuser(transactional_db):
     User = get_user_model()
     u = User.objects.create_user(
         username="e2e_superuser",
