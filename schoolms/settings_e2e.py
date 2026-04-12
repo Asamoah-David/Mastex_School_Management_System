@@ -4,14 +4,21 @@ Django settings for browser E2E tests (Playwright).
 Uses SQLite and in-memory-ish cache so tests run without Postgres/Redis.
 Do not use in production.
 """
+import os
+
+# Base ``settings`` evaluates DEBUG (and the whole ``if not DEBUG`` security/template block) during
+# import. GHA sets DEBUG=False for the e2e job; that enables production template loaders, CSP,
+# Secure cookies, etc. Playwright uses plain http:// live_server — session/CSRF then break.
+# Must override CI's DEBUG=False (and wins over .env because we set the env before load_dotenv).
+os.environ["DEBUG"] = "True"
+
 # noqa: F401,F403 — re-export base settings then override
-from schoolms.settings import *  # noqa: F401,F403
+from schoolms.settings import *  # noqa: F401,F403,E402
 
 DEBUG = True
 SECRET_KEY = "e2e-playwright-not-for-production"
 
-# ``import *`` runs while CI sets DEBUG=False, so settings.py enables Secure cookies. Playwright
-# drives plain http:// live_server; Secure session/CSRF cookies are never sent → login hangs.
+# Belt-and-suspenders if anything re-reads production defaults after import.
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 SECURE_SSL_REDIRECT = False

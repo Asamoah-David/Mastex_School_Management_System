@@ -75,7 +75,8 @@ jobs:
     needs: django
     env:
       SECRET_KEY: ci-secret-key-not-for-production-use-only-xxxxxxxx
-      DEBUG: "False"
+      # Match dev-like settings import (see schoolms.settings_e2e); False breaks http live_server.
+      DEBUG: "True"
       ALLOWED_HOSTS: localhost,127.0.0.1
       DATABASE_URL: sqlite:////tmp/schoolms_e2e.sqlite3
       CSRF_TRUSTED_ORIGINS: http://127.0.0.1:8000
@@ -98,4 +99,4 @@ jobs:
         run: python -m playwright install chromium --with-deps
 
       - name: Browser smoke tests
-        run: pytest e2e_tests -q
+        run: pytest e2e_tests -v --tb=short
