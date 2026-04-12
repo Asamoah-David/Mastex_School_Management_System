@@ -1,6 +1,5 @@
-# Browser E2E (optional). Install: pip install -r requirements-e2e.txt
-# Then: python -m playwright install chromium
-# Run: pytest e2e_tests -v
+# Optional: Playwright for local browser automation. CI smoke tests use Django's test client only.
+# Install: pip install -r requirements-e2e.txt && python -m playwright install chromium
 -r requirements.txt
 pytest>=8.0,<9
 pytest-django>=4.8,<5
