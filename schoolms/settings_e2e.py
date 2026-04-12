@@ -10,6 +10,15 @@ from schoolms.settings import *  # noqa: F401,F403
 DEBUG = True
 SECRET_KEY = "e2e-playwright-not-for-production"
 
+# ``import *`` runs while CI sets DEBUG=False, so settings.py enables Secure cookies. Playwright
+# drives plain http:// live_server; Secure session/CSRF cookies are never sent → login hangs.
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_SSL_REDIRECT = False
+SECURE_HSTS_SECONDS = 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
+
 # Base settings may enable ERP flags when DEBUG is false at import time; force test-friendly values.
 AUDIT_APPEND_ONLY = False
 AUDIT_PRUNE_ENABLED = False
