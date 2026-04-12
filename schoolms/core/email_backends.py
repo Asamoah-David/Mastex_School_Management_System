@@ -33,7 +33,8 @@ class SendGridEmailBackend(BaseEmailBackend):
                 logger.info(f"Email sent successfully to {message.to}")
             except Exception as e:
                 logger.error(f"Failed to send email: {e}")
-                raise
+                if not self.fail_silently:
+                    raise
         return num_sent
 
     def _send_sendgrid(self, message, api_key):
