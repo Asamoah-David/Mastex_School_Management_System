@@ -9,6 +9,8 @@ from accounts.permissions import (
     is_school_admin,
     is_school_leadership,
     is_staff_member,
+    is_student,
+    is_parent,
     can_manage_school,
     can_create_academic_content,
     can_upload_results,
@@ -36,6 +38,47 @@ from accounts.permissions import (
     can_access_staff_leave_portal,
     can_manage_school_programming,
 )
+
+
+def _nav_staff_profile(user):
+    """
+    Which staff sidebar to show. Uses User.has_role (primary + secondary).
+    None for portal users (student/parent) and unauthenticated users.
+    """
+    if not getattr(user, "is_authenticated", False):
+        return None
+    if is_super_admin(user):
+        return None
+    if is_school_leadership(user):
+        return "leadership"
+    if hasattr(user, "has_role"):
+        for key in (
+            "accountant",
+            "librarian",
+            "admission_officer",
+            "school_nurse",
+            "admin_assistant",
+        ):
+            if user.has_role(key):
+                return key
+        if user.has_role("teacher"):
+            return "teacher"
+        if user.has_role("staff"):
+            return "staff"
+    return None
+
+
+def _nav_portal_profile(user, staff_prof):
+    """student / parent sidebar when not in staff ERP nav."""
+    if staff_prof is not None or not getattr(user, "is_authenticated", False):
+        return None
+    if is_super_admin(user):
+        return None
+    if is_student(user):
+        return "student"
+    if is_parent(user):
+        return "parent"
+    return None
 
 
 def _cached_pending_essay_attempt_count(school_pk):
@@ -70,6 +113,8 @@ def _cached_pending_essay_attempt_count(school_pk):
 
 def role_permissions(request):
     """Add permission booleans to the template context."""
+    from datetime import timedelta
+
     user = getattr(request, "user", None)
     if not user or not getattr(user, "is_authenticated", False):
         return {}
@@ -77,10 +122,37 @@ def role_permissions(request):
     from core.utils import get_school
 
     pending_essay_queue_count = 0
+    school = get_school(request) if getattr(user, "is_authenticated", False) else None
     if user_can_manage_school(user):
-        school = get_school(request)
         if school:
             pending_essay_queue_count = _cached_pending_essay_attempt_count(school.pk)
+
+    nav_staff_profile = _nav_staff_profile(user)
+    nav_portal_profile = _nav_portal_profile(user, nav_staff_profile)
+
+    subscription_banner = None
+    if school and getattr(user, "is_authenticated", False) and not is_super_admin(user):
+        from django.conf import settings
+        from django.utils import timezone as dj_tz
+
+        if getattr(school, "subscription_status", None) == "cancelled":
+            subscription_banner = {
+                "level": "error",
+                "text": "This school's subscription was cancelled. Some actions may be limited until billing is restored.",
+            }
+        elif school.subscription_end_date:
+            end = school.subscription_end_date
+            grace_days = getattr(school, "subscription_grace_days", None)
+            if grace_days is None:
+                grace_days = int(getattr(settings, "SUBSCRIPTION_DEFAULT_GRACE_DAYS", 7))
+            now = dj_tz.now()
+            if now > end:
+                grace_end = end + timedelta(days=grace_days)
+                if now <= grace_end:
+                    subscription_banner = {
+                        "level": "warning",
+                        "text": f"Your subscription ended on {end.date()}. You are in a grace period until {grace_end.date()}. Renew soon to avoid interruption.",
+                    }
 
     return {
         "is_super_admin": is_super_admin(user),
@@ -114,6 +186,15 @@ def role_permissions(request):
         "can_access_staff_leave_portal": can_access_staff_leave_portal(user),
         "can_manage_school_programming": can_manage_school_programming(user),
         "pending_essay_queue_count": pending_essay_queue_count,
+        "nav_staff_profile": nav_staff_profile,
+        "nav_portal_profile": nav_portal_profile,
+        "subscription_banner": subscription_banner,
+        "show_setup_checklist": (
+            getattr(user, "is_authenticated", False)
+            and is_staff_member(user)
+            and getattr(user, "school_id", None)
+            and not getattr(user, "setup_checklist_dismissed", False)
+        ),
     }
 
 

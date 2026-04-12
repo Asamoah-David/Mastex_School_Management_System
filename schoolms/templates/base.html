@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% load static %}
+    {% load custom_filters %}
     <link rel="icon" type="image/png" href="{% static 'favicon.png' %}">
     <link rel="apple-touch-icon" href="{% static 'favicon.png' %}">
     <link rel="manifest" href="{% static 'manifest.json' %}">
@@ -219,6 +220,13 @@
         .metric-value { font-size: 1rem; font-weight: 600; }
         .metric-caption { margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-soft); }
         .table-card { margin-top: 0.6rem; border-radius: 0.9rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); overflow: hidden; }
+        /* Scroll long tables inside cards without endless page scroll; thead stays visible */
+        .table-card-scroll { max-height: min(70vh, 520px); overflow: auto; -webkit-overflow-scrolling: touch; }
+        .table-card-scroll thead th {
+            position: sticky; top: 0; z-index: 2;
+            background: radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.28) 0, rgba(15, 23, 42, 1) 55%);
+            box-shadow: 0 1px 0 rgba(148, 163, 184, 0.45);
+        }
         table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
         thead { background: radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.24) 0, rgba(15, 23, 42, 1) 55%); }
         th, td { padding: 0.6rem 0.85rem; text-align: left; }
@@ -326,7 +334,15 @@
             justify-content: space-between;
             align-items: center;
             font-weight: 600;
+            gap: 0.5rem;
         }
+        .notification-dropdown-header-actions { display: flex; align-items: center; gap: 0.5rem; }
+        .notification-dropdown-close {
+            background: none; border: none; color: var(--text-soft);
+            font-size: 1.25rem; line-height: 1; padding: 0.15rem 0.35rem; cursor: pointer;
+            border-radius: 0.35rem;
+        }
+        .notification-dropdown-close:hover { background: rgba(148, 163, 184, 0.15); color: var(--text-main); }
         .notification-dropdown-header a { font-size: 0.8rem; color: var(--accent); text-decoration: none; }
         .notification-dropdown-content { max-height: 320px; overflow-y: auto; }
         .notification-dropdown-item {
@@ -554,13 +570,13 @@ background: rgba(2, 6, 23, 0.98);
                 </a>
                 {% if user.is_authenticated %}
                 <form action="{% url 'accounts:global_search' %}" method="get" class="nav-search" style="flex:1;max-width:360px;margin:0 1rem;">
-                    <input type="search" name="q" placeholder="Search people, fees, classes, ledgers…" value="{{ request.GET.q }}" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.85rem;background:var(--bg-surface,#fff);color:var(--text-primary);">
+                    <input type="search" name="q" placeholder="Search people, fees, classes, ledgers…" value="{{ request.GET|get_item:'q'|default:'' }}" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.85rem;background:var(--bg-surface,#fff);color:var(--text-primary);">
                 </form>
                 {% endif %}
                 <div class="nav-actions">
                     <button type="button" id="sidebarToggle" class="nav-toggle" aria-label="Toggle navigation">☰</button>
                     {% if user.is_authenticated %}
-                    <div class="notification-bell" id="notificationBell" onclick="toggleNotificationDropdown()">
+                    <div class="notification-bell" id="notificationBell" role="button" tabindex="0" aria-expanded="false" aria-haspopup="true" aria-controls="notificationDropdown">
                         <span class="bell-icon">🔔</span>
                         {% if unread_notification_count > 0 %}
                         <span class="notification-badge">{{ unread_notification_count }}</span>
@@ -569,7 +585,10 @@ background: rgba(2, 6, 23, 0.98);
                     <div class="notification-dropdown" id="notificationDropdown">
                         <div class="notification-dropdown-header">
                             <span>Notifications</span>
-                            <a href="{% url 'notifications:list' %}">View All</a>
+                            <div class="notification-dropdown-header-actions">
+                                <a href="{% url 'notifications:list' %}">View All</a>
+                                <button type="button" class="notification-dropdown-close" id="notificationDropdownClose" aria-label="Close notifications">×</button>
+                            </div>
                         </div>
                         <div class="notification-dropdown-content" id="notificationList"></div>
                     </div>
@@ -615,7 +634,7 @@ background: rgba(2, 6, 23, 0.98);
                     <button type="button" id="sidebarClose" aria-label="Close sidebar">✕ Close</button>
                 </div>
                 <div class="sidebar-card">
-                    {% if user.role == "super_admin" or user.is_superuser %}
+                    {% if is_super_admin %}
                     <!-- SUPER ADMIN NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -660,11 +679,11 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'academics:results_management' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Results Hub</span></div></a></li>
                                 <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C4;</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
-                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DD;</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
-                                <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">&#x23F0;</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
-                                <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
-                                <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-                                <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>
+                                {% if feature_homework %}<li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DD;</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>{% endif %}
+                                {% if feature_timetable %}<li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">&#x23F0;</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>{% endif %}
+                                {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
+                                {% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+                                <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Online Classes</span></div></a></li>
                             </ul>
                         </div>
@@ -708,13 +727,13 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E2;</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Fees, canteen, transport…</span></div></a></li>
-                                <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>
-                                <li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F37D;</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
-                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">&#x1F961;</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span><span class="nav-item-sub">Place orders for students</span></div></a></li>
-                                <li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F68C;</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>
-                                <li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E0;</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>
-                                <li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4D5;</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>
-                                <li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E6;</span><div class="nav-item-label"><span class="nav-item-title">Inventory</span></div></a></li>
+                                {% if feature_library %}<li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>{% endif %}
+                                {% if feature_canteen %}<li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F37D;</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">&#x1F961;</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span><span class="nav-item-sub">Place orders for students</span></div></a></li>{% endif %}
+                                {% if feature_bus_transport %}<li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F68C;</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>{% endif %}
+                                {% if feature_hostel %}<li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E0;</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>{% endif %}
+                                {% if feature_textbooks %}<li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4D5;</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>{% endif %}
+                                {% if feature_inventory %}<li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E6;</span><div class="nav-item-label"><span class="nav-item-title">Inventory</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -770,7 +789,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "teacher" %}
+                    {% elif nav_staff_profile == "teacher" %}
                     <!-- TEACHER NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -779,38 +798,43 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📖 My Classes</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">My Timetable</span></div></a></li>
-                                <li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span><span class="nav-item-sub">Students in your classes</span></div></a></li>
+                                {% if feature_timetable %}<li><a href="{% url 'academics:timetable_my' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">My Timetable</span></div></a></li>{% endif %}
+                                {% if feature_attendance %}<li><a href="{% url 'operations:attendance_mark' %}" class="nav-item"><span class="nav-item-icon">✅</span><div class="nav-item-label"><span class="nav-item-title">Mark Attendance</span><span class="nav-item-sub">Students in your classes</span></div></a></li>
                                 <li><a href="{% url 'operations:qr_attendance_scanner' %}" class="nav-item"><span class="nav-item-icon">📱</span><div class="nav-item-label"><span class="nav-item-title">QR Scanner</span></div></a></li>
-                                <li><a href="{% url 'operations:attendance_qr_summary' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">QR Summary</span></div></a></li>
+                                <li><a href="{% url 'operations:attendance_qr_summary' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">QR Summary</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
+                    {% if feature_homework or feature_results %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📝 Homework & Results</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
+                                {% if feature_homework %}<li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
                                 <li><a href="{% url 'academics:homework_create' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Create Homework</span></div></a></li>
-                                <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Submissions</span></div></a></li>
-                                <li><a href="{% url 'academics:result_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Results</span></div></a></li>
+                                <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Submissions</span></div></a></li>{% endif %}
+                                {% if feature_results %}<li><a href="{% url 'academics:result_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Results</span></div></a></li>
                                 <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
-                                <li><a href="{% url 'academics:assessment_score_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Assessment Scores</span></div></a></li>
+                                <li><a href="{% url 'academics:assessment_score_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Assessment Scores</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
+                    {% endif %}
+                    {% if feature_online_exams or feature_quiz or feature_exams %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📅 Exams</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-<li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>
+{% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+<li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Online Classes</span></div></a></li>
-                                <li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">❓</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>
-                                <li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>
+                                {% if feature_quiz %}<li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">❓</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>{% endif %}
+                                {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
+                    {% endif %}
+                    {% if feature_library %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📚 Library</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
@@ -823,6 +847,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
+                    {% endif %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📢 General</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
@@ -836,7 +861,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "student" %}
+                    {% elif nav_portal_profile == "student" %}
                     <!-- STUDENT NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 My Dashboard</span></a>
@@ -908,7 +933,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "parent" %}
+                    {% elif nav_portal_profile == "parent" %}
                     <!-- PARENT NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'students:parent_dashboard' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 My Dashboard</span></a>
@@ -971,7 +996,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "accountant" %}
+                    {% elif nav_staff_profile == "accountant" %}
                     <!-- ACCOUNTANT NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -1008,7 +1033,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "librarian" %}
+                    {% elif nav_staff_profile == "librarian" %}
                     <!-- LIBRARIAN NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -1024,67 +1049,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "deputy_head" or user.role == "hod" %}
-                    <!-- DEPUTY HEAD / HOD NAVIGATION -->
-                    <div class="nav-section">
-                        <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>👥 Users</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
-                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
-                                <li><a href="{% url 'students:promote_students' %}" class="nav-item"><span class="nav-item-icon">⬆️</span><div class="nav-item-label"><span class="nav-item-title">Promote class</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📖 Academics</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'academics:results_management' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Results Hub</span></div></a></li>
-                                <li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
-                                <li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">⏰</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>✅ Attendance</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">👥</span><div class="nav-item-label"><span class="nav-item-title">Student Attendance</span></div></a></li>
-                                <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Teacher Attendance</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📢 General</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">🚫</span><div class="nav-item-label"><span class="nav-item-title">Discipline</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🏫 School services</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Canteen, hostel, fees…</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>💰 Finance</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'operations:payment_dashboard' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payments</span></div></a></li>
-                                <li><a href="{% url 'operations:financial_reports_page' %}" class="nav-item"><span class="nav-item-icon">📈</span><div class="nav-item-label"><span class="nav-item-title">Financial Reports</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    {% elif user.role == "school_nurse" %}
+                    {% elif nav_staff_profile == "school_nurse" %}
                     <!-- SCHOOL NURSE NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -1098,7 +1063,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "admission_officer" %}
+                    {% elif nav_staff_profile == "admission_officer" %}
                     <!-- ADMISSION OFFICER NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -1127,7 +1092,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "admin_assistant" %}
+                    {% elif nav_staff_profile == "admin_assistant" %}
                     <!-- ADMIN ASSISTANT NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -1161,7 +1126,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% elif user.role == "staff" %}
+                    {% elif nav_staff_profile == "staff" %}
                     <!-- STAFF NAVIGATION -->
                     <div class="nav-section">
                         <a href="{% url 'home' %}" class="nav-section-header" style="text-decoration:none;"><span>📊 Dashboard</span></a>
@@ -1239,6 +1204,8 @@ background: rgba(2, 6, 23, 0.98);
 {% endfor %}
                 </div>
 {% endif %}
+                {% include "includes/subscription_banner.html" %}
+                {% include "includes/setup_checklist.html" %}
                 <div class="main-content">{% block content %}{% endblock %}</div>
             </section>
         </main>
@@ -1260,8 +1227,8 @@ background: rgba(2, 6, 23, 0.98);
                     {% if can_access_services_hub %}<a href="{% url 'operations:services_hub' %}">Services</a>{% endif %}
                     {% if can_manage_finance %}<a href="{% url 'finance:fee_list' %}">Fees</a><a href="{% url 'operations:payment_dashboard' %}">Payments</a>{% endif %}
                     {% if can_manage_finance %}<a href="{% url 'operations:financial_reports_page' %}">Reports</a>{% endif %}
-                    {% if user.is_superuser or user.role == "super_admin" or is_school_leadership %}<a href="{% url 'operations:activity_log_list' %}">Activity</a>{% endif %}
-                    {% if user.is_superuser or user.role == "super_admin" or is_school_leadership %}<a href="{% url 'audit:dashboard' %}">Audit</a>{% endif %}
+                    {% if is_super_admin or is_school_leadership %}<a href="{% url 'operations:activity_log_list' %}">Activity</a>{% endif %}
+                    {% if is_super_admin or is_school_leadership %}<a href="{% url 'audit:dashboard' %}">Audit</a>{% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -1325,39 +1292,54 @@ background: rgba(2, 6, 23, 0.98);
     })();
     </script>
     <script>
-    function toggleNotificationDropdown() {
+    (function() {
         var bell = document.getElementById("notificationBell");
         var dropdown = document.getElementById("notificationDropdown");
+        var closeBtn = document.getElementById("notificationDropdownClose");
         if (!bell || !dropdown) return;
-        
-        dropdown.classList.toggle("open");
-        
-        var profileDropdown = document.getElementById("profileDropdown");
-        if (profileDropdown && profileDropdown.classList.contains("open")) {
-            profileDropdown.classList.remove("open");
+
+        function setOpen(isOpen) {
+            dropdown.classList.toggle("open", isOpen);
+            bell.setAttribute("aria-expanded", isOpen ? "true" : "false");
         }
-        
-        if (event) {
-            event.stopPropagation();
+
+        function closeNotificationDropdown() {
+            setOpen(false);
         }
-    }
-    
-    document.addEventListener("click", function(e) {
-        var dropdown = document.getElementById("notificationDropdown");
-        var bell = document.getElementById("notificationBell");
-        if (dropdown && !dropdown.contains(e.target) && (!bell || !bell.contains(e.target))) {
-            dropdown.classList.remove("open");
-        }
-    });
-    
-    document.addEventListener("keydown", function(e) {
-        if (e.key === "Escape") {
-            var dropdown = document.getElementById("notificationDropdown");
-            if (dropdown && dropdown.classList.contains("open")) {
-                dropdown.classList.remove("open");
+
+        function toggleNotificationDropdown(e) {
+            if (e) e.stopPropagation();
+            var willOpen = !dropdown.classList.contains("open");
+            setOpen(willOpen);
+            var profileDropdown = document.getElementById("profileDropdown");
+            if (profileDropdown && profileDropdown.classList.contains("open")) {
+                profileDropdown.classList.remove("open");
             }
         }
-    });
+
+        bell.addEventListener("click", toggleNotificationDropdown);
+        bell.addEventListener("keydown", function(e) {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleNotificationDropdown(e);
+            }
+        });
+        if (closeBtn) {
+            closeBtn.addEventListener("click", function(e) {
+                e.stopPropagation();
+                closeNotificationDropdown();
+            });
+        }
+
+        document.addEventListener("click", function(e) {
+            if (dropdown.contains(e.target) || bell.contains(e.target)) return;
+            closeNotificationDropdown();
+        });
+
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "Escape") closeNotificationDropdown();
+        });
+    })();
     </script>
     
     <script>
@@ -1569,6 +1551,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 8000);
     });
 
+    // Bounded vertical scroll + sticky header for long data tables
+    (function() {
+        function wrapBoundedScroll(around) {
+            if (!around || around.closest('.table-card-scroll')) return;
+            var wrap = document.createElement('div');
+            wrap.className = 'table-card-scroll';
+            around.parentNode.insertBefore(wrap, around);
+            wrap.appendChild(around);
+        }
+        document.querySelectorAll('.table-card').forEach(function(card) {
+            card.querySelectorAll(':scope > table').forEach(function(table) {
+                if (table.closest('.table-card-scroll')) return;
+                wrapBoundedScroll(table);
+            });
+            card.querySelectorAll(':scope > .table-responsive').forEach(function(resp) {
+                if (resp.classList.contains('no-bounded-table-scroll')) return;
+                if (resp.querySelectorAll(':scope > table').length !== 1) return;
+                if (!resp.querySelector(':scope > table thead')) return;
+                if (resp.parentElement !== card) return;
+                wrapBoundedScroll(resp);
+            });
+        });
+        document.querySelectorAll('.main-content .table-responsive').forEach(function(resp) {
+            if (resp.classList.contains('no-bounded-table-scroll')) return;
+            if (resp.closest('.table-card-scroll')) return;
+            if (resp.querySelectorAll(':scope > table').length !== 1) return;
+            if (!resp.querySelector(':scope > table thead')) return;
+            wrapBoundedScroll(resp);
+        });
+    })();
+
     // Wrap bare tables in responsive containers for mobile scroll
     document.querySelectorAll('.main-content table').forEach(function(table) {
         if (!table.closest('.table-responsive') && !table.closest('.table-card-scroll')) {
@@ -1583,8 +1596,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% if user.is_authenticated %}
 <nav class="mobile-bottom-nav" aria-label="Quick navigation">
-    <div class="mobile-bottom-nav-inner{% if is_school_leadership or user.is_superuser %} mobile-bottom-nav-inner--dense{% endif %}">
-        {% if is_school_leadership or user.is_superuser %}
+    <div class="mobile-bottom-nav-inner{% if is_school_leadership or is_super_admin %} mobile-bottom-nav-inner--dense{% endif %}">
+        {% if is_school_leadership or is_super_admin %}
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Dashboard</a>
         <a href="{% url 'students:student_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F393;</span>Students</a>
         <a href="{% url 'finance:fee_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B0;</span>Finance</a>
@@ -1592,35 +1605,35 @@ document.addEventListener('DOMContentLoaded', function() {
         <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
         <a href="{% url 'messaging:send_message' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4E4;</span>Broadcast</a>
         <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>
-        {% elif user.role == "teacher" %}
+        {% elif nav_staff_profile == "teacher" %}
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Dashboard</a>
-        <a href="{% url 'academics:result_upload' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DD;</span>Results</a>
-        <a href="{% url 'operations:attendance_mark' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x2705;</span>Attendance</a>
-        <a href="{% url 'academics:homework_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DA;</span>Homework</a>
+        {% if feature_results %}<a href="{% url 'academics:result_upload' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DD;</span>Results</a>{% endif %}
+        {% if feature_attendance %}<a href="{% url 'operations:attendance_mark' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x2705;</span>Attendance</a>{% endif %}
+        {% if feature_homework %}<a href="{% url 'academics:homework_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DA;</span>Homework</a>{% endif %}
         <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
         <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>
-        {% elif user.role == "student" %}
+        {% elif nav_portal_profile == "student" %}
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F3E0;</span>Home</a>
         <a href="{% url 'students:results_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Results</a>
         <a href="{% url 'students:fees_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B5;</span>Fees</a>
         <a href="{% url 'academics:timetable_my' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x23F0;</span>Timetable</a>
         <a href="{% url 'students:announcements_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4E2;</span>News</a>
-        {% elif user.role == "parent" %}
+        {% elif nav_portal_profile == "parent" %}
         <a href="{% url 'students:parent_dashboard' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F3E0;</span>Home</a>
         <a href="{% url 'students:results_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Results</a>
         <a href="{% url 'finance:parent_fee_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B5;</span>Fees</a>
         <a href="{% url 'students:announcements_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4E2;</span>News</a>
         <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
         <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>
-        {% elif user.role == "accountant" or user.role == "librarian" or user.role == "admission_officer" or user.role == "school_nurse" or user.role == "admin_assistant" or user.role == "staff" %}
+        {% elif nav_staff_profile == "accountant" or nav_staff_profile == "librarian" or nav_staff_profile == "admission_officer" or nav_staff_profile == "school_nurse" or nav_staff_profile == "admin_assistant" or nav_staff_profile == "staff" %}
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Dashboard</a>
-        {% if user.role == "accountant" %}
+        {% if nav_staff_profile == "accountant" %}
         <a href="{% url 'finance:fee_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B0;</span>Finance</a>
-        {% elif user.role == "librarian" %}
+        {% elif nav_staff_profile == "librarian" %}
         <a href="{% url 'operations:library_manage' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DA;</span>Library</a>
-        {% elif user.role == "admission_officer" %}
+        {% elif nav_staff_profile == "admission_officer" %}
         <a href="{% url 'operations:admission_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CB;</span>Admissions</a>
-        {% elif user.role == "school_nurse" %}
+        {% elif nav_staff_profile == "school_nurse" %}
         <a href="{% url 'operations:health_record_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F3E5;</span>Health</a>
         {% else %}
         <a href="{% url 'students:student_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F393;</span>Students</a>

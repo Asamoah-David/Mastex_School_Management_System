@@ -102,6 +102,11 @@ class FeePayment(models.Model):
     payment_method = models.CharField(max_length=50, blank=True)
     status = models.CharField(max_length=20, default="pending", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    payer_notified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Set when payer SMS/email was sent; prevents duplicate notices from webhook+callback.",
+    )
 
     class Meta:
         ordering = ["-created_at"]

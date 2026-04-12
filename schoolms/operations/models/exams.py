@@ -123,6 +123,10 @@ class ExamAttempt(models.Model):
     submitted_at = models.DateTimeField(null=True, blank=True)
     score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     is_completed = models.BooleanField(default=False)
+    tab_blur_count = models.PositiveIntegerField(
+        default=0,
+        help_text="How often the exam tab lost visibility during this attempt (honesty signal).",
+    )
     
     class Meta:
         ordering = ["-started_at"]

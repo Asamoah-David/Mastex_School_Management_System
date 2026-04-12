@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     "academics",
     "ai_assistant",
     "audit",
+    "integrations",
     "fees",
     "finance",
     "messaging",
@@ -356,7 +357,10 @@ except ValueError:
 
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", "")
+# Optional override. Paystack signs webhooks with HMAC-SHA512 using your API Secret Key
+# (Dashboard → Settings → API Keys & Webhooks — there is no separate “webhook secret” value).
 PAYSTACK_WEBHOOK_SECRET = env("PAYSTACK_WEBHOOK_SECRET", "")
+PAYSTACK_WEBHOOK_SIGNING_SECRET = PAYSTACK_WEBHOOK_SECRET or PAYSTACK_SECRET_KEY
 PAYSTACK_PLATFORM_FEE_PERCENT = float(env("PAYSTACK_PLATFORM_FEE_PERCENT", "0"))
 PAYSTACK_CURRENCY = env("PAYSTACK_CURRENCY", "GHS")
 # Uplift charged to payer so settlement ≈ net after Paystack's % (tune PAYSTACK_PROCESSING_FEE_PERCENT to match pricing).
@@ -365,7 +369,32 @@ PAYSTACK_PROCESSING_FEE_PERCENT = env_float("PAYSTACK_PROCESSING_FEE_PERCENT", 1
 # Outgoing staff salary transfers via Paystack (debits Paystack merchant balance, not subaccounts).
 PAYSTACK_STAFF_TRANSFERS_ENABLED = env_bool("PAYSTACK_STAFF_TRANSFERS_ENABLED", False)
 
+# Days after subscription_end_date before school users are fully locked out (per-school override on School.subscription_grace_days).
+SUBSCRIPTION_DEFAULT_GRACE_DAYS = int(env("SUBSCRIPTION_DEFAULT_GRACE_DAYS", "7"))
+
 CRON_SECRET_KEY = env("CRON_SECRET_KEY", "")
+
+# Outbound HTTPS webhooks (integrations.SchoolWebhookEndpoint) — staff leave & expenses.
+INTEGRATIONS_WEBHOOKS_ENABLED = env_bool("INTEGRATIONS_WEBHOOKS_ENABLED", True)
+try:
+    INTEGRATIONS_WEBHOOK_TIMEOUT_SEC = max(3, min(60, int(env("INTEGRATIONS_WEBHOOK_TIMEOUT_SEC", "10"))))
+except ValueError:
+    INTEGRATIONS_WEBHOOK_TIMEOUT_SEC = 10
+
+# ---------------------------------------------------------------------------
+# Compliance: model audit trail (audit.AuditLog)
+# ---------------------------------------------------------------------------
+# Production default: append-only (no admin/ORM deletes). Opt out with AUDIT_APPEND_ONLY=0.
+# Local dev (DEBUG=True): default off so fixtures and experiments stay easy.
+AUDIT_APPEND_ONLY = env_bool("AUDIT_APPEND_ONLY", not DEBUG)
+# Prune command refuses to run deletes unless this is true or --force is passed.
+AUDIT_PRUNE_ENABLED = env_bool("AUDIT_PRUNE_ENABLED", False)
+_audit_ret = env("AUDIT_RETENTION_DAYS", "").strip()
+try:
+    AUDIT_RETENTION_DAYS = int(_audit_ret) if _audit_ret else None
+except ValueError:
+    AUDIT_RETENTION_DAYS = None
+AUDIT_ARCHIVE_DIR = Path(env("AUDIT_ARCHIVE_DIR", str(BASE_DIR / "var" / "audit_archive"))).resolve()
 
 SUPABASE_URL = env("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", "")
@@ -411,6 +440,8 @@ _tls_terminating_proxy = bool(
     or os.getenv("FLY_APP_NAME")
     or env_bool("BEHIND_TLS_TERMINATING_PROXY", False)
 )
+# Exposed for management commands (e.g. preflight) — TLS terminated at load balancer / PaaS edge.
+BEHIND_TLS_TERMINATING_PROXY = _tls_terminating_proxy
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool(
@@ -469,7 +500,7 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 # ---------------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -490,7 +521,8 @@ except OSError:
 
 _root_log_level = env("LOG_LEVEL", "DEBUG" if DEBUG else "INFO").upper()
 _app_log_level = env("APP_LOG_LEVEL", _root_log_level).upper()
-_log_json_stdout = env_bool("LOG_JSON", False)
+# Production: JSON lines on stdout for log aggregation; override with LOG_JSON=0.
+_log_json_stdout = env_bool("LOG_JSON", not DEBUG)
 
 LOGGING = {
     "version": 1,

@@ -1,10 +1,33 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Fees · Mastex SchoolOS{% endblock %}
 {% block page_title %}Fees{% endblock %}
-{% block page_subtitle %}Your fee items and payment status.{% endblock %}
+{% block page_subtitle %}Balances, Paystack payments, and receipts.{% endblock %}
 {% block content %}
+{% if not paystack_available %}
+<div class="alert alert-warning" style="margin-bottom:1rem;">
+    Online card/mobile money payments are not configured on the server. You can still view balances; contact the school to pay offline.
+</div>
+{% endif %}
+
 {% if mode == "student" and student %}
     <div class="empty-state"><strong>Student:</strong> {{ student.user.get_full_name|default:student.user.username }} · {{ student.admission_number }}</div>
+{% endif %}
+
+{% if mode == "parent" and children|length > 1 %}
+<div class="content-card" style="margin-bottom:1rem;padding:0.75rem 1rem;">
+    <form method="get" action="" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+        <label for="id_fee_child" style="font-size:0.88rem;">Child</label>
+        <select name="student" id="id_fee_child" onchange="this.form.submit()" style="padding:0.45rem;border-radius:8px;min-width:14rem;">
+            <option value="">All children</option>
+            {% for c in children %}
+            <option value="{{ c.pk }}" {% if active_child and active_child.pk == c.pk %}selected{% endif %}>
+                {{ c.user.get_full_name|default:c.user.username }} · {{ c.class_name|default:"—" }}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
 {% endif %}
 
 {% if fees %}
@@ -13,23 +36,38 @@
         <thead>
             <tr>
                 {% if mode == "parent" %}<th>Student</th>{% endif %}
-                <th>Amount (GHS)</th>
+                <th>Total</th>
+                <th>Paid</th>
+                <th>Remaining</th>
                 <th>Status</th>
                 <th>Created</th>
-                <th></th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for f in fees %}
             <tr>
                 {% if mode == "parent" %}<td>{{ f.student.user.get_full_name|default:f.student.admission_number }}</td>{% endif %}
-                <td>{{ f.amount }}</td>
-                <td>{% if f.paid %}<span class="tag"><span class="tag-bullet"></span>Paid</span>{% else %}<span class="tag">Unpaid</span>{% endif %}</td>
-                <td>{{ f.created_at|date:"Y-m-d" }}</td>
+                <td>{{ f.amount|format_ghs }}</td>
+                <td>{{ f.amount_paid|format_ghs }}</td>
+                <td>{% if f.remaining_balance > 0 %}<strong style="color:#b91c1c;">{{ f.remaining_balance|format_ghs }}</strong>{% else %}—{% endif %}</td>
                 <td>
-                    {% if not f.paid %}
+                    {% if f.is_fully_paid %}<span class="tag tag-success">Paid</span>
+                    {% elif f.amount_paid > 0 %}<span class="tag tag-warning">Partial</span>
+                    {% else %}<span class="tag">Unpaid</span>{% endif %}
+                </td>
+                <td>{{ f.created_at|date:"Y-m-d" }}</td>
+                <td style="white-space:nowrap;">
+                    {% if not f.is_fully_paid and paystack_available %}
                     <a class="btn btn-primary btn-sm" href="{% url 'finance:pay' f.id %}?next={{ request.get_full_path|urlencode }}">Pay</a>
+                    {% elif not f.is_fully_paid %}
+                    <span class="text-muted small">Contact school</span>
                     {% endif %}
+                    {% with p=f.payments.all|first %}
+                    {% if p %}
+                    <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_receipt' p.id %}">Receipt</a>
+                    {% endif %}
+                    {% endwith %}
                 </td>
             </tr>
             {% endfor %}
@@ -44,4 +82,3 @@
 .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
 </style>
 {% endblock %}
-

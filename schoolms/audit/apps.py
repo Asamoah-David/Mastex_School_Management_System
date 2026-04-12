@@ -10,3 +10,4 @@ class AuditConfig(AppConfig):
         """Connect audit signals when the app is ready."""
         # Import signals to register receivers
         from . import signals
+        from . import protection  # noqa: F401 — registers append-only pre_delete

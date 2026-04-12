@@ -419,6 +419,21 @@ def can_export_data(user):
     return _has_any(user, *SCHOOL_MANAGEMENT_ROLES, "accountant")
 
 
+def can_access_school_dashboard(user):
+    """
+    Staff dashboard at /accounts/school-dashboard/.
+    Any primary or secondary staff role attached to a school may enter.
+    Superusers and platform super_admin use the platform dashboard instead.
+    """
+    if not _is_authenticated(user):
+        return False
+    if getattr(user, "is_superuser", False) or _has(user, "super_admin"):
+        return True
+    if not getattr(user, "school_id", None):
+        return False
+    return _has_any(user, *ALL_STAFF_ROLES)
+
+
 # ---------------------------------------------------------------------------
 #  School scoping helpers
 # ---------------------------------------------------------------------------

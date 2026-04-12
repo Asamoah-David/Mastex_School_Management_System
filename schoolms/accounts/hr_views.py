@@ -512,11 +512,26 @@ def staff_payroll_register(request):
     if date_from and date_to and date_from > date_to:
         date_from, date_to = date_to, date_from
 
+    ps_filter = request.GET.get("ps", "").strip()
+
     qs = (
         StaffPayrollPayment.objects.filter(school=school, paid_on__gte=date_from, paid_on__lte=date_to)
         .select_related("user", "recorded_by")
         .order_by("-paid_on", "-id")
     )
+    if ps_filter == "failed":
+        qs = qs.filter(paystack_status="failed")
+    elif ps_filter == "success":
+        qs = qs.filter(paystack_status="success")
+    elif ps_filter == "paystack":
+        qs = qs.exclude(paystack_status="")
+
+    failed_paystack_count = StaffPayrollPayment.objects.filter(
+        school=school,
+        paid_on__gte=date_from,
+        paid_on__lte=date_to,
+        paystack_status="failed",
+    ).count()
 
     if request.GET.get("export") == "csv":
         sub = (school.subdomain or str(school.pk)).replace("/", "-")
@@ -586,6 +601,8 @@ def staff_payroll_register(request):
             "school": school,
             "date_from": date_from,
             "date_to": date_to,
+            "ps_filter": ps_filter,
+            "failed_paystack_count": failed_paystack_count,
             "page_obj": page_obj,
             "totals": totals,
             "expiring_contracts": expiring_contracts,

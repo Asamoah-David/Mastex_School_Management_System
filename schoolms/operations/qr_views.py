@@ -185,27 +185,23 @@ def qr_mark_attendance(request):
                     'success': False, 
                     'error': 'Student not found in this school'
                 }, status=404)
-            
-            # Check if already marked
-            existing = StudentAttendance.objects.filter(
-                student=student,
-                date=attendance_date_obj
-            ).first()
-            
-            if existing:
-                existing.status = attendance_status
-                existing.marked_by = request.user
-                existing.save()
-                action = 'updated'
-            else:
-                StudentAttendance.objects.create(
-                    student=student,
-                    school=school,
-                    date=attendance_date_obj,
-                    status=attendance_status,
-                    marked_by=request.user
+            adm = (parsed.get('admission_number') or '').strip()
+            if adm and (student.admission_number or '').strip() != adm:
+                return JsonResponse(
+                    {'success': False, 'error': 'Admission number does not match this student.'},
+                    status=400,
                 )
-                action = 'created'
+            
+            obj, created = StudentAttendance.objects.update_or_create(
+                student=student,
+                date=attendance_date_obj,
+                defaults={
+                    "school": school,
+                    "status": attendance_status,
+                    "marked_by": request.user,
+                },
+            )
+            action = "created" if created else "updated"
             
             return JsonResponse({
                 'success': True,
@@ -316,7 +312,8 @@ def attendance_qr_summary(request):
     
     # Get attendance for today
     attendance_today = StudentAttendance.objects.filter(
-        date=today
+        school=school,
+        date=today,
     ).select_related('student', 'student__user').order_by('-date')
     
     # Count by status

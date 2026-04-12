@@ -91,6 +91,7 @@ urlpatterns = [
     # API auth
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/v1/", include("integrations.urls")),
 ]
 
 if settings.API_DOCS_ENABLED:

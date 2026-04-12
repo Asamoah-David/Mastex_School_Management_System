@@ -222,7 +222,19 @@ class Command(BaseCommand):
 
             if not options["no_embed"]:
                 _embed_images_in_index()
-                self.stdout.write(self.style.SUCCESS(f"Embedded shots in {INDEX_HTML} (where PNGs exist)."))
+                embed_script = HANDBOOK_DIR / "build_standalone_handbook.py"
+                r = subprocess.run(
+                    [sys.executable, str(embed_script)],
+                    cwd=str(REPO_ROOT),
+                )
+                if r.returncode != 0:
+                    raise CommandError(
+                        "PNG files were saved but embedding data URLs into index.html failed. "
+                        f"Run manually: python {embed_script.relative_to(REPO_ROOT)}"
+                    )
+                self.stdout.write(
+                    self.style.SUCCESS(f"Updated {INDEX_HTML} with embedded interface-tour images.")
+                )
 
         finally:
             db_file.unlink(missing_ok=True)

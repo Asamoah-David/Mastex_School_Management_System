@@ -1,10 +1,11 @@
 import uuid
 import json
 import requests
+from datetime import timedelta
 from decimal import Decimal
 from django.conf import settings
 from django.db import models, transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -13,7 +14,7 @@ from django.utils import timezone
 
 from urllib.parse import urlparse
 from django.contrib.auth.decorators import login_required
-from accounts.permissions import is_school_leadership, user_can_manage_school
+from accounts.permissions import can_export_data, is_school_leadership, user_can_manage_school
 
 
 def _safe_referer(request, fallback="/"):
@@ -112,6 +113,114 @@ def is_paystack_configured():
     return bool(settings.PAYSTACK_SECRET_KEY)
 
 
+def _send_fee_payment_email_notice(fee, net_amount: float, reference: str) -> None:
+    """Email parent/student when a school fee payment is recorded (best-effort)."""
+    from django.core.mail import send_mail
+
+    if not getattr(settings, "DEFAULT_FROM_EMAIL", None):
+        return
+    recipients = []
+    if fee.student_id:
+        if fee.student.parent_id and fee.student.parent.email:
+            recipients.append(fee.student.parent.email.strip())
+        su = fee.student.user
+        if su and su.email and su.email.strip() not in recipients:
+            recipients.append(su.email.strip())
+    if not recipients:
+        return
+    school_name = fee.school.name if fee.school_id else "School"
+    subject = f"Payment received — {school_name}"
+    body = (
+        f"A payment of GHS {net_amount:.2f} was applied to a fee for "
+        f"{fee.student} (ref {reference}).\n"
+        f"Remaining balance: GHS {fee.remaining_balance:.2f}\n"
+        f"Thank you."
+    )
+    try:
+        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=True)
+    except Exception:
+        logger.exception("Fee payment confirmation email failed")
+
+
+def _fee_for_payment_request(user, fee_id):
+    """
+    Load a fee for Paystack init / payment flows with school + ownership checks
+    (prevents cross-tenant fee_id guessing).
+    """
+    qs = Fee.objects.select_related(
+        "student", "student__user", "student__parent", "school"
+    ).filter(pk=fee_id)
+    user_school = getattr(user, "school", None)
+    if not user.is_superuser and user_school:
+        qs = qs.filter(school=user_school)
+    fee = qs.first()
+    if fee is None:
+        raise Http404("Fee not found.")
+    is_own = bool(
+        fee.student_id
+        and (
+            fee.student.parent_id == user.pk
+            or fee.student.user_id == user.pk
+        )
+    )
+    is_staff = user.is_superuser or user_can_manage_school(user)
+    if is_staff:
+        if not user.is_superuser and user_school and fee.school_id != user_school.pk:
+            raise Http404("Fee not found.")
+    elif not is_own:
+        raise Http404("Fee not found.")
+    return fee
+
+
+def _notify_fee_payer_after_payment(fee_id, reference: str, net_credited: float) -> None:
+    """
+    SMS + email once per Paystack reference (browser callback and webhook may both run).
+    Uses a DB claim on FeePayment.payer_notified_at to dedupe.
+    """
+    if not reference:
+        return
+    fee = None
+    try:
+        with transaction.atomic():
+            fp = (
+                FeePayment.objects.select_for_update()
+                .filter(paystack_reference=reference, status="completed")
+                .order_by("-pk")
+                .first()
+            )
+            if not fp or fp.payer_notified_at is not None:
+                return
+            claimed = FeePayment.objects.filter(
+                pk=fp.pk, payer_notified_at__isnull=True
+            ).update(payer_notified_at=timezone.now())
+            if not claimed:
+                return
+            fee = Fee.objects.select_related(
+                "student__parent", "student__user", "school"
+            ).get(pk=fee_id)
+    except Fee.DoesNotExist:
+        logger.warning(
+            "fee payment notify skipped: fee_id=%s paystack_reference=%s",
+            fee_id,
+            reference,
+        )
+        return
+
+    try:
+        from fees.services.admin_unpaid_notification import notify_parent_fee_paid
+
+        if fee.student.parent and fee.student.parent.phone:
+            notify_parent_fee_paid(fee.student, net_credited)
+    except Exception:
+        logger.exception("Fee payment SMS failed paystack_reference=%s", reference)
+
+    try:
+        fee.refresh_from_db()
+        _send_fee_payment_email_notice(fee, float(net_credited), reference)
+    except Exception:
+        logger.exception("Fee payment email failed paystack_reference=%s", reference)
+
+
 @login_required
 def pay_with_paystack(request, fee_id):
     """
@@ -123,19 +232,11 @@ def pay_with_paystack(request, fee_id):
     if not is_paystack_configured():
         messages.error(request, "Online payments are currently unavailable. Please contact the school for payment options.")
         return redirect(_safe_referer(request))
-    
-    fee = get_object_or_404(Fee, id=fee_id)
-    
+
     user = request.user
-    is_own_fee = (
-        (fee.student.parent_id and fee.student.parent_id == user.pk)
-        or (fee.student.user_id == user.pk)
-    )
-    user_school = getattr(user, "school", None)
-    is_staff = (user.is_superuser or user_can_manage_school(user)) and (
-        user.is_superuser or (user_school and fee.school_id == user_school.pk)
-    )
-    if not is_own_fee and not is_staff:
+    try:
+        fee = _fee_for_payment_request(user, fee_id)
+    except Http404:
         messages.error(request, "You do not have permission to pay this fee.")
         return redirect("/")
     
@@ -230,19 +331,11 @@ def pay_with_paystack_custom_amount(request, fee_id):
     if not is_paystack_configured():
         messages.error(request, "Online payments are currently unavailable. Please contact the school for payment options.")
         return redirect(_safe_referer(request))
-    
-    fee = get_object_or_404(Fee, id=fee_id)
 
     user = request.user
-    is_own_fee = (
-        (fee.student.parent_id and fee.student.parent_id == user.pk)
-        or (fee.student.user_id == user.pk)
-    )
-    user_school = getattr(user, "school", None)
-    is_staff = (user.is_superuser or user_can_manage_school(user)) and (
-        user.is_superuser or (user_school and fee.school_id == user_school.pk)
-    )
-    if not is_own_fee and not is_staff:
+    try:
+        fee = _fee_for_payment_request(user, fee_id)
+    except Http404:
         messages.error(request, "You do not have permission to pay this fee.")
         return redirect("/")
 
@@ -362,15 +455,9 @@ def paystack_callback(request, fee_id):
         
         try:
             was_new = _complete_fee_payment(fee_id, reference, net_credited, paystack_id, channel)
-            
+
             if was_new:
-                try:
-                    from fees.services.admin_unpaid_notification import notify_parent_fee_paid
-                    fee = Fee.objects.select_related("student__parent").get(id=fee_id)
-                    if fee.student.parent and fee.student.parent.phone:
-                        notify_parent_fee_paid(fee.student, net_credited)
-                except Exception as e:
-                    logger.error(f"Failed to send payment SMS: {e}")
+                _notify_fee_payer_after_payment(fee_id, reference, float(net_credited))
                 extra = ""
                 if paystack_charged > net_credited + 0.001:
                     extra = f" (GHS {paystack_charged:.2f} charged including processing uplift)"
@@ -445,13 +532,13 @@ def paystack_webhook(request):
     if request.method != "POST":
         return HttpResponse(status=405)
     
-    # Webhook signature verification is MANDATORY.
-    # If PAYSTACK_WEBHOOK_SECRET is not configured, reject the request
-    # to prevent forged payment confirmations.
-    webhook_secret = settings.PAYSTACK_WEBHOOK_SECRET
+    # HMAC-SHA512 of raw body; Paystack uses your API secret key (settings.PAYSTACK_WEBHOOK_SIGNING_SECRET).
+    webhook_secret = settings.PAYSTACK_WEBHOOK_SIGNING_SECRET
     if not webhook_secret:
-        logger.error("PAYSTACK_WEBHOOK_SECRET is not configured - rejecting webhook")
-        return HttpResponse("Webhook secret not configured", status=500)
+        logger.error(
+            "Paystack webhook signing key missing: set PAYSTACK_SECRET_KEY (and optionally PAYSTACK_WEBHOOK_SECRET)"
+        )
+        return HttpResponse("Paystack secret key not configured", status=500)
     
     signature = request.headers.get("x-paystack-signature")
     if not signature:
@@ -495,14 +582,27 @@ def paystack_webhook(request):
                         net_credited = _net_amount_for_school_fee(reference, fee_id, paystack_charged)
                         channel = data.get("authorization", {}).get("channel", "card")
                         paystack_id = data.get("id")
-                        was_new = _complete_fee_payment(fee_id, reference, net_credited, paystack_id, channel)
+                        was_new = _complete_fee_payment(
+                            fee_id, reference, net_credited, paystack_id, channel
+                        )
                         if was_new:
                             logger.info(
-                                "School fee payment recorded: fee_id=%s net=%s paystack_gross=%s",
-                                fee_id, net_credited, paystack_charged,
+                                "paystack_webhook school_fee recorded fee_id=%s "
+                                "paystack_reference=%s net=%s gross=%s",
+                                fee_id,
+                                reference,
+                                net_credited,
+                                paystack_charged,
+                            )
+                            _notify_fee_payer_after_payment(
+                                fee_id, reference, float(net_credited)
                             )
                         else:
-                            logger.info(f"Payment already processed: reference={reference}")
+                            logger.info(
+                                "paystack_webhook school_fee duplicate paystack_reference=%s fee_id=%s",
+                                reference,
+                                fee_id,
+                            )
                     except Fee.DoesNotExist:
                         logger.error(f"Fee not found: fee_id={fee_id}")
             
@@ -674,7 +774,12 @@ def fee_list(request):
     fees = fees_qs.order_by("student__school__name", "student__class_name", "student__admission_number")
     page_obj = paginate(request, fees, per_page=30)
 
-    return render(request, "finance/fee_list.html", {"fees": page_obj, "school": school, "page_obj": page_obj})
+    ctx = {"fees": page_obj, "school": school, "page_obj": page_obj}
+    if can_export_data(user):
+        ed = timezone.localdate()
+        ctx["acct_export_start"] = ed - timedelta(days=89)
+        ctx["acct_export_end"] = ed
+    return render(request, "finance/fee_list.html", ctx)
 
 
 # ============ Fee Structure Views ============
@@ -992,29 +1097,49 @@ def parent_fee_list(request):
     """
     View for parents to see their children's fees and make payments.
     """
+    from django.db.models import Prefetch
+
     user = request.user
-    
-    # Get all students linked to this user (as parent)
+
     from students.models import Student
-    students = Student.objects.filter(parent=user)
-    
+
+    students = Student.objects.filter(parent=user).order_by("class_name", "admission_number")
+
     if not students.exists():
         messages.info(request, "No students linked to your account.")
         return render(request, "finance/parent_fee_list.html", {"fees": [], "students": []})
-    
-    # Get all fees for these students
-    fees = Fee.objects.filter(
-        student__in=students
-    ).select_related("student", "student__user", "school").order_by("-created_at")
-    
-    # Check if Paystack is configured
+
+    student_id = (request.GET.get("student") or "").strip()
+    active_student = None
+    if student_id:
+        active_student = students.filter(pk=student_id).first()
+
+    fee_students = students.filter(pk=active_student.pk) if active_student else students
+
+    fees = (
+        Fee.objects.filter(student__in=fee_students)
+        .select_related("student", "student__user", "school")
+        .prefetch_related(
+            Prefetch(
+                "payments",
+                queryset=FeePayment.objects.filter(status="completed").order_by("-created_at"),
+            )
+        )
+        .order_by("-created_at")
+    )
+
     paystack_available = is_paystack_configured()
-    
-    return render(request, "finance/parent_fee_list.html", {
-        "fees": fees,
-        "students": students,
-        "paystack_available": paystack_available
-    })
+
+    return render(
+        request,
+        "finance/parent_fee_list.html",
+        {
+            "fees": fees,
+            "students": students,
+            "active_student": active_student,
+            "paystack_available": paystack_available,
+        },
+    )
 
 
 def payment_success(request):
@@ -1221,13 +1346,13 @@ def payment_history_delete(request, pk):
         messages.error(request, "You are not attached to any school.")
         return redirect("accounts:dashboard")
 
-    payment = get_object_or_404(FeePayment, pk=pk)
-    
-    # Check permissions
-    if not user.is_superuser and school:
-        if payment.fee.school != school:
-            messages.error(request, "You don't have permission to delete this payment.")
-            return redirect("finance:payment_history_list")
+    pay_qs = FeePayment.objects.select_related("fee", "fee__school").filter(pk=pk)
+    if school and not user.is_superuser:
+        pay_qs = pay_qs.filter(fee__school=school)
+    payment = pay_qs.first()
+    if not payment:
+        messages.error(request, "Payment not found or you do not have permission.")
+        return redirect("finance:payment_history_list")
     
     # Only allow deleting pending or failed payments
     if payment.status == "completed":

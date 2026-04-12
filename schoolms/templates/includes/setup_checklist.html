@@ -1,0 +1,16 @@
+{% if show_setup_checklist %}
+<div class="content-card no-print" style="margin-bottom:1rem;border-left:4px solid #2563eb;">
+    <strong>Getting started</strong>
+    <ul style="margin:0.5rem 0 0 1.25rem;line-height:1.6;">
+        <li>Set <a href="{% url 'schools:school_settings' %}">school settings</a> (academic year, Paystack subaccount).</li>
+        <li>Add <a href="{% url 'students:student_list' %}">students</a> and <a href="{% url 'accounts:staff_list' %}">staff</a>.</li>
+        <li>Configure <a href="{% url 'finance:fee_structure_list' %}">fee structures</a> and review <a href="{% url 'finance:fee_list' %}">assigned fees</a>.</li>
+        <li>Use <a href="{% url 'operations:export_attendance' %}?format=csv">exports</a> for attendance and fees when reporting.</li>
+    </ul>
+    <form method="post" action="{% url 'accounts:dismiss_setup_checklist' %}" style="margin-top:0.75rem;">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-secondary btn-sm">Dismiss checklist</button>
+    </form>
+</div>
+{% endif %}

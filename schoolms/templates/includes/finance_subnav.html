@@ -15,6 +15,11 @@
         <a href="{% url 'operations:expense_category_list' %}" class="btn btn-sm {% if ns == 'operations' and rn|default:''|slice:':16' == 'expense_category' %}btn-primary{% else %}btn-secondary{% endif %}">Expense categories</a>
         <a href="{% url 'operations:budget_list' %}" class="btn btn-sm {% if ns == 'operations' and rn|default:''|slice:':6' == 'budget' %}btn-primary{% else %}btn-secondary{% endif %}">Budgets</a>
         <a href="{% url 'operations:financial_reports_page' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'financial_reports_page' %}btn-primary{% else %}btn-secondary{% endif %}">Financial reports</a>
+        {% if can_export_data %}
+        <a href="{% url 'operations:export_fee_payments_ledger' %}?days=90" class="btn btn-sm btn-secondary" title="Completed fee payments for accounting / bank reconciliation">Fee ledger CSV</a>
+        <a href="{% url 'operations:export_fee_payments_journal' %}?days=90" class="btn btn-sm btn-secondary" title="Debit/credit lines per payment">Fee journal CSV</a>
+        <a href="{% url 'operations:export_open_fee_balances' %}" class="btn btn-sm btn-secondary" title="Outstanding amounts on open fee lines">Open AR CSV</a>
+        {% endif %}
         {% if can_manage_finance %}
         <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-sm {% if ns == 'accounts' and rn == 'staff_payroll_register' %}btn-primary{% else %}btn-secondary{% endif %}">Staff payroll</a>
         <a href="{% url 'accounts:staff_payroll_bulk_record' %}" class="btn btn-sm btn-secondary">Bulk payroll</a>

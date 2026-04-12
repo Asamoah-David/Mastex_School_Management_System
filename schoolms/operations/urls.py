@@ -16,6 +16,9 @@ urlpatterns = [
     path("export/attendance/", export_views.export_attendance, name="export_attendance"),
     path("export/expenses/", export_views.export_expenses, name="export_expenses"),
     path("export/fees/", export_views.export_fees, name="export_fees"),
+    path("export/fee-payments-ledger/", export_views.export_fee_payments_ledger, name="export_fee_payments_ledger"),
+    path("export/fee-payments-journal/", export_views.export_fee_payments_journal, name="export_fee_payments_journal"),
+    path("export/open-fee-balances/", export_views.export_open_fee_balances, name="export_open_fee_balances"),
     path("export/library-books/", export_views.export_library_books, name="export_library_books"),
     path("export/library-issues/", export_views.export_library_issues, name="export_library_issues"),
     path("export/discipline/", export_views.export_discipline, name="export_discipline"),
@@ -344,6 +347,11 @@ urlpatterns = [
     path("online-exams/<int:pk>/publish/", views.online_exam_publish, name="online_exam_publish"),
     path("online-exams/<int:pk>/add-question/", views.online_exam_add_question, name="online_exam_add_question"),
     path("online-exams/<int:pk>/take/", views.online_exam_take, name="online_exam_take"),
+    path(
+        "online-exams/attempt/<int:attempt_id>/tab-event/",
+        views.online_exam_tab_event,
+        name="online_exam_tab_event",
+    ),
     path("online-exams/result/<int:pk>/", views.online_exam_result, name="online_exam_result"),
     path("online-exams/retake/<int:attempt_id>/", views.online_exam_allow_retake, name="online_exam_allow_retake"),
     path(

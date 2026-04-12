@@ -13,6 +13,9 @@
         <div class="button-row">
             <a href="{% url 'operations:attendance_mark' %}" class="btn btn-primary">📝 Mark Attendance</a>
             <a href="{% url 'operations:qr_attendance_scanner' %}" class="btn btn-secondary">📱 QR Scanner</a>
+            {% if can_export_data %}
+            <a href="{% url 'operations:export_attendance' %}?from={{ from_date|date:'Y-m-d' }}&amp;to={{ to_date|date:'Y-m-d' }}&amp;format=csv" class="btn btn-secondary">📥 Export CSV</a>
+            {% endif %}
         </div>
     </div>
     

@@ -13,6 +13,9 @@
 
 <div class="content-card">
     {% if logs %}
+    {% if page_obj.paginator.count %}
+    <p class="page-subtitle" style="margin:0 0 0.75rem 0;">{{ page_obj.paginator.count }} send{{ page_obj.paginator.count|pluralize }} logged{% if page_obj.paginator.num_pages > 1 %} · page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}{% endif %}</p>
+    {% endif %}
     <div class="table-responsive">
         <table class="table table-sm table-hover">
             <thead>
@@ -39,6 +42,7 @@
             </tbody>
         </table>
     </div>
+    {% include "includes/pagination.html" with page_obj=page_obj %}
     {% else %}
     <p class="text-muted mb-0">No sends recorded yet. Use <a href="{% url 'messaging:send_message' %}">Send message</a> or bulk SMS; successful and partial sends are logged here.</p>
     {% endif %}

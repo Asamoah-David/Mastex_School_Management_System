@@ -35,6 +35,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 | **/accounts/login/** | Schools, staff, parents, students | User login |
 | **/dashboard** or **/** | School Admin, Teachers, Super Admin | Dashboard (school-scoped or platform) |
 | **/portal** | Parents, Students | Parent portal (children) or student portal (own info) |
+| **/schools/register/** | Public | New school self-registration (creates school record) |
 
 ---
 
@@ -46,7 +47,7 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 
 2. **School Admin**  
    - Access: `/dashboard` (after login)  
-   - User has `role=admin` and `school` set.  
+   - User has `role=school_admin` and `school` set.  
    - Manages: staff, students, attendance, canteen, bus, textbooks, fees for **their school only**.
 
 3. **Staff / Teachers**  
@@ -173,11 +174,27 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 
 ---
 
+## ERP enhancements (April 2026)
+
+- **Navigation** – Sidebar and mobile nav use `nav_staff_profile` / `nav_portal_profile` so **primary and secondary roles** match permissions. Leadership (head, deputy, HOD) share one full ERP menu; duplicate deputy/HOD-only menu removed.
+- **School dashboard gate** – `/accounts/school-dashboard/` uses `can_access_school_dashboard()` (any staff role via `has_role`, including secondary).
+- **Platform feature flags** – `schools/context_processors.py` exposes every `feature_*` key from `DEFAULT_FEATURE_KEYS`; leadership and teacher menus hide disabled modules (library, canteen, online exams, homework, etc.).
+- **Subscription** – `School.subscription_grace_days` (default 7) plus `SUBSCRIPTION_DEFAULT_GRACE_DAYS` in settings. Middleware blocks only after **end date + grace**; cancelled schools stay locked. Banner during grace via `subscription_banner` in context.
+- **Subscription cron** – `python manage.py check_subscriptions` (fees app) uses grace-aware expiry; reminders at 7/3/1/0 days; email to school contact and `school_admin` users.
+- **Parent/student fees** – Balances, Paystack pay links, PDF receipts (`/finance/receipt/<id>/`); email notice on successful Paystack fee payment when `DEFAULT_FROM_EMAIL` is set.
+- **Admission → fees** – On approve with “create accounts”, optional **create_initial_fees** builds `Fee` rows from active `FeeStructure` for the class.
+- **Timetable** – New slots validate **teacher and room time overlap** (`core/timetable_validation.py`). Teacher pickers include secondary `teacher` role.
+- **QR attendance** – Student QR payload is **signed v2** (time-limited); legacy plain payloads still work. QR summary list is **school-scoped**.
+- **Online exams** – `is_student()` gate; **shuffle** when `is_random_questions`; **tab blur** counter per attempt (`tab_blur_count`) with POST logging endpoint; `max_attempts_per_student` unchanged.
+- **Staff checklist** – Optional getting-started card; dismiss via `POST /accounts/setup-checklist/dismiss/`.
+- **Exports** – Existing CSV/Excel under `/operations/export/…`; attendance list links to CSV export when `can_export_data`.
+
+---
+
 ## Features Still Useful Before Selling
 
-- **School registration page** – Public form for new schools to sign up (create School + first admin).
-- **Parent payment portal** – Pay fees from `/portal` (Paystack already configured).
-- **SMS notifications** – Already integrated; wire to payment confirmations and announcements.
+- **Deeper portal UX** – Further polish on `/portal` dashboards and mobile layouts.
+- **SMS** – Fee payment SMS already fires via existing hooks; extend templates as needed.
 
 ---
 
@@ -213,5 +230,5 @@ A **cloud-hosted School Management System** deployed on Render with PostgreSQL. 
 
 ## Last Updated
 
-**System Overview Updated:** March 24, 2026  
+**System Overview Updated:** April 11, 2026  
 **GitHub:** https://github.com/Asamoah-David/Mastex_School_Management_System

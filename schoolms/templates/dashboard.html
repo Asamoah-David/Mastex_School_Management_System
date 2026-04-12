@@ -12,9 +12,13 @@
         Monitor every school, user cohort, and fee signal from one place. Use the workspaces below to jump into onboarding, governance, messaging, and public admissions.
     </p>
     <div class="erp-dash-hero__chips" aria-label="Key platform totals">
-        <span class="erp-dash-chip">🏫 {{ total_schools|default:"0" }} schools</span>
+        <span class="erp-dash-chip">🏫 {{ total_schools|default:"0" }} active schools</span>
         <span class="erp-dash-chip">🎓 {{ total_students|default:"0" }} students</span>
-        <span class="erp-dash-chip">💰 {{ mrr|default:0|format_ghs }} fees collected</span>
+        <span class="erp-dash-chip">💰 {{ fee_collected|format_ghs }} fees collected</span>
+        <span class="erp-dash-chip">📉 {{ fee_outstanding|default:0|format_ghs }} outstanding balances</span>
+        {% if not school %}
+        <span class="erp-dash-chip">⏳ {{ trial_schools_count|default:0 }} on trial · {{ active_sub_schools_count|default:0 }} subscribed · {{ expired_schools_count|default:0 }} expired</span>
+        {% endif %}
     </div>
 </div>
 
@@ -34,6 +38,10 @@
             <a href="{% url 'operations:activity_log_list' %}" class="quick-action-btn">
                 <span class="quick-action-icon">📊</span>
                 <span class="quick-action-label">Activity log</span>
+            </a>
+            <a href="{% url 'audit:dashboard' %}" class="quick-action-btn">
+                <span class="quick-action-icon">🔒</span>
+                <span class="quick-action-label">Audit trail</span>
             </a>
             <a href="/admin/" class="quick-action-btn">
                 <span class="quick-action-icon">⚙️</span>
@@ -110,18 +118,27 @@
     <section class="metric">
         <span class="metric-icon">💰</span>
         <div class="metric-label">Fees collected</div>
-        <div class="metric-value" data-count="{{ mrr|default:0 }}">{{ mrr|default:0|format_ghs }}</div>
+        <div class="metric-value" data-count="{{ fee_collected_js|default:0 }}">{{ fee_collected|format_ghs }}</div>
         <div class="metric-caption">
-            Total fees paid via Paystack/MNotify.
+            Sum of amount paid on all fee records (partial payments included).
+        </div>
+    </section>
+
+    <section class="metric">
+        <span class="metric-icon">📉</span>
+        <div class="metric-label">Outstanding balances</div>
+        <div class="metric-value" data-count="{{ fee_outstanding_js|default:0 }}">{{ fee_outstanding|default:0|format_ghs }}</div>
+        <div class="metric-caption">
+            Remaining to collect: billed minus amount paid.
         </div>
     </section>
 
     <section class="metric">
         <span class="metric-icon">⚠️</span>
-        <div class="metric-label">Unpaid fees</div>
+        <div class="metric-label">Open fee items</div>
         <div class="metric-value" data-count="{{ unpaid_fees_count|default:'0' }}">{{ unpaid_fees_count|default:"0" }}</div>
         <div class="metric-caption">
-            Outstanding fee items to collect.
+            Fee rows not yet marked fully paid (for workload, not currency total).
         </div>
     </section>
 </div>
@@ -131,7 +148,7 @@
     
     <!-- Schools Distribution - Doughnut Chart -->
     <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">🏫 Schools Distribution</h3>
+        <h3 class="section-title" style="font-size: 0.95rem;">{% if not school %}🏫 Schools (active vs inactive){% else %}🎓 Students by gender{% endif %}</h3>
         <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
             <canvas id="schoolsChart"></canvas>
         </div>
@@ -151,6 +168,41 @@
         <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
             <canvas id="feesChart"></canvas>
         </div>
+    </div>
+</div>
+
+{{ fee_collection_trend_chart|json_script:"platform-fee-trend-json" }}
+{{ ar_aging_chart|json_script:"platform-ar-aging-json" }}
+
+<div class="content-card" style="margin-top: 1.2rem;">
+    <h3 class="section-title" style="font-size: 0.95rem;">📈 Fee collections (30 days)</h3>
+    <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;line-height:1.45;">
+        Sum of completed school-fee payments posted per day{% if school %} for {{ school.name }}{% else %} across all schools{% endif %} — ERP cashflow signal.
+    </p>
+    <div style="position: relative; height: 240px;">
+        {% if fee_collection_trend_chart.has_data %}
+        <canvas id="platformFeeTrendChart"></canvas>
+        {% else %}
+        <div class="empty-state" style="padding:2rem;text-align:center;">
+            <div class="empty-state-desc">No fee payment activity in this window yet.</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="content-card" style="margin-top: 1.2rem;">
+    <h3 class="section-title" style="font-size: 0.95rem;">📊 AR aging (outstanding)</h3>
+    <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;line-height:1.45;">
+        Open fee lines with a remaining balance, bucketed by invoice age (fee created date){% if school %} for {{ school.name }}{% else %} across all schools{% endif %}.
+    </p>
+    <div style="position: relative; height: 240px;">
+        {% if ar_aging_chart.has_data %}
+        <canvas id="platformArAgingChart"></canvas>
+        {% else %}
+        <div class="empty-state" style="padding:2rem;text-align:center;">
+            <div class="empty-state-desc">No outstanding balances in aging buckets.</div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -256,14 +308,14 @@ document.addEventListener('DOMContentLoaded', function() {
         new Chart(schoolsCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Active', 'Inactive'],
+                labels: {% if not school %}['Active schools', 'Inactive schools']{% else %}['Male students', 'Female students']{% endif %},
                 datasets: [{
-                    data: [{{ total_schools|default:1 }}, Math.max(1, {{ total_schools|default:1 }} / 10)],
+                    data: {% if not school %}[{{ schools_active_chart|default:0 }}, {{ schools_inactive_chart|default:0 }}]{% else %}[{{ chart_male_students|default:0 }}, {{ chart_female_students|default:0 }}]{% endif %},
                     backgroundColor: [
                         'rgba(34, 197, 94, 0.85)',
-                        'rgba(156, 163, 175, 0.5)'
+                        'rgba(59, 130, 246, 0.75)'
                     ],
-                    borderColor: ['#22c55e', '#9ca3af'],
+                    borderColor: ['#22c55e', '#3b82f6'],
                     borderWidth: 2
                 }]
             },
@@ -310,15 +362,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fees Overview - Doughnut Chart
     const feesCtx = document.getElementById('feesChart');
     if (feesCtx) {
-        const totalFees = {{ mrr|default:0 }} + {{ unpaid_fees_count|default:0 }};
-        const collectedPercent = totalFees > 0 ? Math.round(({{ mrr|default:0 }} / totalFees) * 100) : 0;
+        const feeCollected = {{ fee_collected_js|default:0 }};
+        const feeOutstanding = {{ fee_outstanding_js|default:0 }};
+        const totalFeesAmt = feeCollected + feeOutstanding;
+        const collectedPercent = totalFeesAmt > 0 ? Math.round((feeCollected / totalFeesAmt) * 100) : 0;
         
         new Chart(feesCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Collected', 'Outstanding'],
+                labels: ['Collected (GHS)', 'Outstanding (GHS)'],
                 datasets: [{
-                    data: [{{ mrr|default:0 }}, {{ unpaid_fees_count|default:0 }}],
+                    data: [feeCollected, feeOutstanding],
                     backgroundColor: [
                         'rgba(34, 197, 94, 0.85)',
                         'rgba(239, 68, 68, 0.85)'
@@ -338,14 +392,97 @@ document.addEventListener('DOMContentLoaded', function() {
                             label: function(context) {
                                 let value = context.raw;
                                 let label = context.label || '';
-                                let percent = label === 'Collected' ? collectedPercent : (100 - collectedPercent);
-                                return label + ': ' + (typeof value === 'number' ? value.toLocaleString() : value) + ' (' + percent + '%)';
+                                let pct = label.indexOf('Collected') === 0 ? collectedPercent : (100 - collectedPercent);
+                                return label + ': ' + formatGhsCount(value) + ' (' + pct + '%)';
                             }
                         }
                     }
                 }
             }
         });
+    }
+
+    const pftEl = document.getElementById('platform-fee-trend-json');
+    const pftCanvas = document.getElementById('platformFeeTrendChart');
+    if (pftEl && pftCanvas) {
+        const pft = JSON.parse(pftEl.textContent);
+        if (pft.has_data) {
+            new Chart(pftCanvas, {
+                type: 'line',
+                data: {
+                    labels: pft.labels,
+                    datasets: [{
+                        label: 'Collected (GHS)',
+                        data: pft.amounts,
+                        borderColor: 'rgba(34, 197, 94, 0.95)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                        fill: true,
+                        tension: 0.22,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return formatGhsCount(ctx.raw);
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { grid: { display: false } },
+                    },
+                },
+            });
+        }
+    }
+
+    const arAgingEl = document.getElementById('platform-ar-aging-json');
+    const arAgingCanvas = document.getElementById('platformArAgingChart');
+    if (arAgingEl && arAgingCanvas) {
+        const ar = JSON.parse(arAgingEl.textContent);
+        if (ar.has_data && ar.labels && ar.amounts) {
+            new Chart(arAgingCanvas, {
+                type: 'bar',
+                data: {
+                    labels: ar.labels,
+                    datasets: [{
+                        label: 'Outstanding (GHS)',
+                        data: ar.amounts,
+                        backgroundColor: [
+                            'rgba(74, 222, 128, 0.75)',
+                            'rgba(251, 191, 36, 0.8)',
+                            'rgba(251, 146, 60, 0.82)',
+                            'rgba(239, 68, 68, 0.85)',
+                        ],
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return formatGhsCount(ctx.raw);
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { grid: { display: false } },
+                    },
+                },
+            });
+        }
     }
 });
 </script>

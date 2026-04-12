@@ -1,0 +1,5 @@
+{% if subscription_banner %}
+<div class="alert alert-{% if subscription_banner.level == 'error' %}error{% else %}warning{% endif %} no-print" role="status" style="margin-bottom:1rem;">
+    <span class="alert-body">{{ subscription_banner.text }}</span>
+</div>
+{% endif %}

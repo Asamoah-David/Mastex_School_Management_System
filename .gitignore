@@ -19,13 +19,23 @@ eggs/
 # Django
 db.sqlite3
 db.sqlite3-journal
+e2e_test.sqlite3
+e2e_test.sqlite3-journal
 _ci_migrate.sqlite3
 x.sqlite3
 ci*.sqlite3
 tmp_mig.sqlite3
 staticfiles/
+schoolms/staticfiles/
 media/
 schoolms/logs/
+# Local runtime data (audit JSONL exports, etc.)
+schoolms/var/
+!schoolms/var/audit_archive/
+schoolms/var/audit_archive/*
+!schoolms/var/audit_archive/.gitkeep
+# Large handbook build artifact (regenerate locally if needed)
+docs/handbook.zip
 
 # IDE
 .vscode/

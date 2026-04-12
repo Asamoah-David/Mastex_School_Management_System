@@ -2,8 +2,8 @@
 
 ## Executive Summary
 
-Date: 2026-04-05
-Status: **PASSED** - System check identified no issues
+Date: 2026-04-11  
+Status: **PASSED** - System check identified no issues (re-verify after ERP batch)
 
 ---
 
@@ -49,7 +49,7 @@ Status: **PASSED** - System check identified no issues
 ```
 /                   → home (smart routing)
 /admin/             → Django admin
-/register/          → School registration
+/schools/register/  → School self-registration
 /portal/            → Student portal
 /api/               → API endpoints (JWT, DRF)
 /accounts/          → Accounts app
@@ -108,18 +108,18 @@ All major apps have corresponding views:
 
 **Status:** IMPLEMENTED
 
-**Roles defined in accounts/models.py:**
-- admin
-- school_admin
-- teacher
-- student
-- parent
+**Roles defined in `accounts/models.py` (`ROLE_CHOICES`):**
+- super_admin  
+- school_admin, deputy_head, hod  
+- teacher  
+- accountant, librarian, admission_officer, school_nurse, admin_assistant, staff  
+- student, parent  
 
-**Role-based access in decorators:**
-- @login_required
-- @school_admin_required
-- @teacher_required
-- Role checks in views
+Secondary roles are stored on `User.secondary_roles` and honored via `User.has_role()` and `accounts/permissions.py` (`_has` / capability helpers).
+
+**Role-based access:**
+- `@login_required`, `role_required`, and predicates in `accounts/permissions.py`
+- Template context: `nav_staff_profile`, `nav_portal_profile`, `is_super_admin`, `can_*` flags from `accounts/context_processors.py`
 
 ---
 

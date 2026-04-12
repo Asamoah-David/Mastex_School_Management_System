@@ -25,13 +25,40 @@
         </a>
         </div>
         {% if can_export_data %}
-        <div style="display: flex; gap: 0.5rem;">
-            <a href="{% url 'operations:export_fees' %}?format=csv" class="btn btn-success">📥 CSV</a>
-            <a href="{% url 'operations:export_fees' %}?format=excel" class="btn btn-success">📊 Excel</a>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <a href="{% url 'operations:export_fees' %}?format=csv" class="btn btn-success">📥 Fees CSV</a>
+            <a href="{% url 'operations:export_fees' %}?format=excel" class="btn btn-success">📊 Fees Excel</a>
+            <a href="{% url 'operations:export_fee_payments_ledger' %}?days=90" class="btn btn-secondary" title="Completed payments by line — for accounting / bank rec">💳 Payment ledger</a>
+            <a href="{% url 'operations:export_fee_payments_journal' %}?days=90" class="btn btn-secondary" title="Debit/credit lines per payment for GL import">📔 Journal</a>
+            <a href="{% url 'operations:export_open_fee_balances' %}" class="btn btn-secondary" title="Unpaid / partial fee lines with outstanding amount">📒 Open balances</a>
         </div>
         {% endif %}
     </div>
 </div>
+
+{% if acct_export_start %}
+<div class="content-card" id="accounting-exports" style="margin-bottom: 1.5rem;">
+    <h3 style="margin:0 0 0.35rem; font-size:0.95rem;">Accounting exports (date range)</h3>
+    <p style="font-size:0.82rem;color:var(--text-secondary);margin:0 0 0.75rem;line-height:1.45;">
+        Defaults to the last 90 days. Range is inclusive, up to 730 days. Use <strong>Ledger</strong> for one row per payment, <strong>Journal</strong> for paired debit/credit lines.
+    </p>
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;">
+        <div>
+            <label for="acct-export-start" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.2rem;">Start</label>
+            <input type="date" id="acct-export-start" name="start" value="{{ acct_export_start|date:'Y-m-d' }}" class="form-control" style="min-width:11rem;padding:0.35rem 0.5rem;">
+        </div>
+        <div>
+            <label for="acct-export-end" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.2rem;">End</label>
+            <input type="date" id="acct-export-end" name="end" value="{{ acct_export_end|date:'Y-m-d' }}" class="form-control" style="min-width:11rem;padding:0.35rem 0.5rem;">
+        </div>
+        <button type="submit" formaction="{% url 'operations:export_fee_payments_ledger' %}" class="btn btn-secondary btn-sm">Ledger CSV</button>
+        <button type="submit" formaction="{% url 'operations:export_fee_payments_journal' %}" class="btn btn-secondary btn-sm">Journal CSV</button>
+    </form>
+    <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.65rem 0 0;">
+        <a href="{% url 'operations:export_open_fee_balances' %}">Open balances snapshot</a> (current AR on open fee lines, not filtered by these dates).
+    </p>
+</div>
+{% endif %}
 
 <div class="content-card">
     {% if not fees %}

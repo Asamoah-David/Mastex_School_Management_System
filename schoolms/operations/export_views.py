@@ -2,10 +2,14 @@
 Export views for Operations module.
 Provides CSV/Excel export functionality for all list views.
 """
+import csv
+
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
-from django.http import HttpResponse
+from django.db.models import Sum, F
+from django.http import HttpResponse, StreamingHttpResponse
+from django.utils import timezone
+from datetime import timedelta
 
 from accounts.decorators import role_required, permission_required
 from accounts.permissions import can_export_data
@@ -18,7 +22,7 @@ from .models import (
     InventoryCategory, Announcement, HostelAssignment, HostelFee,
     Certificate, AdmissionApplication, Budget
 )
-from core.export_utils import export_to_csv, export_to_excel, export_to_zip
+from core.export_utils import _Echo, export_to_csv, export_to_excel, export_to_zip
 from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook, TextbookSale, HostelFee, HostelAssignment
 
 
@@ -30,6 +34,51 @@ def _require_school(request):
     if not school and not request.user.is_superuser:
         return None
     return school
+
+
+def _fee_payment_export_scope(request, default_days: int = 90):
+    """
+    Build a time filter for completed fee payment exports.
+    If GET ``start`` and ``end`` are valid ISO dates (YYYY-MM-DD), use inclusive calendar dates (max span 730).
+    Otherwise use rolling window ``days`` (1–730, default ``default_days``).
+    Returns (filter_callable, filename_tag).
+    """
+    from django.utils.dateparse import parse_date
+
+    start_s = (request.GET.get("start") or "").strip()
+    end_s = (request.GET.get("end") or "").strip()
+    today = timezone.localdate()
+
+    if start_s and end_s:
+        sd = parse_date(start_s)
+        ed = parse_date(end_s)
+        if sd and ed:
+            if sd > ed:
+                sd, ed = ed, sd
+            if (ed - sd).days > 730:
+                sd = ed - timedelta(days=730)
+            if ed > today:
+                ed = today
+            if sd > ed:
+                sd = ed
+
+            def apply_calendar(qs):
+                return qs.filter(created_at__date__gte=sd, created_at__date__lte=ed)
+
+            return apply_calendar, f"{sd.isoformat()}_{ed.isoformat()}"
+
+    try:
+        days = int(request.GET.get("days", str(default_days)))
+        days = max(1, min(days, 730))
+    except ValueError:
+        days = default_days
+
+    min_dt = timezone.now() - timedelta(days=days)
+
+    def apply_rolling(qs):
+        return qs.filter(created_at__gte=min_dt)
+
+    return apply_rolling, f"last{days}d_{timezone.now().date().isoformat()}"
 
 
 # ==================== EXPORT VIEWS ====================
@@ -246,6 +295,253 @@ def export_fees(request):
     if fmt == "excel":
         return export_to_excel(fees, fields, "school_fees.xlsx")
     return export_to_csv(fees, fields, "school_fees.csv")
+
+
+@login_required
+@permission_required(can_export_data)
+def export_fee_payments_ledger(request):
+    """
+    Completed school fee payments (FeePayment rows) for accounting / reconciliation.
+    Includes suggested debit/credit labels for manual GL mapping — not double-entry postings.
+    """
+    from django.conf import settings
+
+    from finance.models import FeePayment
+
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+
+    apply_range, tag = _fee_payment_export_scope(request, default_days=90)
+    base = FeePayment.objects.filter(fee__school=school, status="completed").select_related(
+        "fee", "fee__student", "fee__student__user", "fee__term", "fee__fee_structure"
+    )
+    qs = apply_range(base).order_by("created_at", "id")
+
+    currency = getattr(settings, "PAYSTACK_CURRENCY", "GHS") or "GHS"
+    safe_sub = "".join(c if c.isalnum() or c in "-_" else "_" for c in (school.subdomain or "school"))[:48]
+    filename = f"fee_payments_ledger_{safe_sub}_{tag}.csv"
+
+    echo = _Echo()
+    writer = csv.writer(echo)
+
+    headers = [
+        "posted_at",
+        "currency",
+        "payment_id",
+        "fee_id",
+        "amount_net",
+        "amount_gross",
+        "payment_method",
+        "paystack_reference",
+        "paystack_payment_id",
+        "student_admission_no",
+        "student_name",
+        "class_name",
+        "term_name",
+        "fee_type",
+        "suggested_debit_account",
+        "suggested_credit_account",
+        "memo",
+    ]
+
+    def _name(stu):
+        if not stu:
+            return ""
+        u = getattr(stu, "user", None)
+        if not u:
+            return ""
+        fn = (u.get_full_name() or "").strip()
+        return fn or (u.username or "")
+
+    def rows():
+        yield "\ufeff" + writer.writerow(headers)
+        for p in qs.iterator(chunk_size=500):
+            fee = p.fee
+            stu = fee.student if fee else None
+            term = fee.term if fee else None
+            fs = fee.fee_structure if fee else None
+            ref = (p.paystack_reference or "").strip()
+            memo = f"School fee payment{f' ref {ref}' if ref else ''} fee #{fee.pk}" if fee else f"Payment #{p.pk}"
+            yield writer.writerow(
+                [
+                    timezone.localtime(p.created_at).strftime("%Y-%m-%d %H:%M:%S"),
+                    currency,
+                    p.pk,
+                    fee.pk if fee else "",
+                    str(p.amount),
+                    str(p.gross_amount) if p.gross_amount is not None else "",
+                    p.payment_method or "",
+                    p.paystack_reference or "",
+                    p.paystack_payment_id or "",
+                    getattr(stu, "admission_number", "") or "",
+                    _name(stu),
+                    getattr(stu, "class_name", "") or "",
+                    term.name if term else "",
+                    fs.name if fs else "",
+                    "Bank / clearing (cash)",
+                    "Student fees receivable",
+                    memo,
+                ]
+            )
+
+    resp = StreamingHttpResponse(rows(), content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@login_required
+@permission_required(can_export_data)
+def export_fee_payments_journal(request):
+    """
+    Two CSV lines per completed payment: debit cash / clearing, credit receivable.
+    Map ``account`` to your chart of accounts in the import tool — labels are suggestions only.
+    """
+    from django.conf import settings
+
+    from finance.models import FeePayment
+
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+
+    apply_range, tag = _fee_payment_export_scope(request, default_days=90)
+    base = FeePayment.objects.filter(fee__school=school, status="completed").select_related(
+        "fee", "fee__student", "fee__student__user", "fee__term", "fee__fee_structure"
+    )
+    qs = apply_range(base).order_by("created_at", "id")
+
+    currency = getattr(settings, "PAYSTACK_CURRENCY", "GHS") or "GHS"
+    safe_sub = "".join(c if c.isalnum() or c in "-_" else "_" for c in (school.subdomain or "school"))[:48]
+    filename = f"fee_payments_journal_{safe_sub}_{tag}.csv"
+
+    echo = _Echo()
+    writer = csv.writer(echo)
+
+    headers = [
+        "posted_date",
+        "journal_reference",
+        "account",
+        "debit",
+        "credit",
+        "currency",
+        "payment_id",
+        "fee_id",
+        "memo",
+    ]
+
+    def _name(stu):
+        if not stu:
+            return ""
+        u = getattr(stu, "user", None)
+        if not u:
+            return ""
+        fn = (u.get_full_name() or "").strip()
+        return fn or (u.username or "")
+
+    dr_acct = "Bank / clearing (cash)"
+    cr_acct = "Student fees receivable"
+
+    def rows():
+        yield "\ufeff" + writer.writerow(headers)
+        for p in qs.iterator(chunk_size=500):
+            fee = p.fee
+            stu = fee.student if fee else None
+            ref = (p.paystack_reference or "").strip()
+            jref = f"FEE-PAY-{p.pk}"
+            posted = timezone.localtime(p.created_at).strftime("%Y-%m-%d")
+            memo = f"Fee payment {jref}"
+            if ref:
+                memo += f" ref {ref}"
+            if stu:
+                memo += f" — {_name(stu)}"
+            amt = str(p.amount)
+            yield writer.writerow([posted, jref, dr_acct, amt, "", currency, p.pk, fee.pk if fee else "", memo])
+            yield writer.writerow([posted, jref, cr_acct, "", amt, currency, p.pk, fee.pk if fee else "", memo])
+
+    resp = StreamingHttpResponse(rows(), content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@login_required
+@permission_required(can_export_data)
+def export_open_fee_balances(request):
+    """Open fee lines (amount still owed) for AR / aging alignment outside the app."""
+    from finance.models import Fee
+
+    school = _require_school(request)
+    if not school:
+        return redirect("home")
+
+    qs = (
+        Fee.objects.filter(school=school)
+        .filter(amount_paid__lt=F("amount"))
+        .select_related("student", "student__user", "term", "fee_structure")
+        .order_by("created_at", "id")
+    )
+
+    safe_sub = "".join(c if c.isalnum() or c in "-_" else "_" for c in (school.subdomain or "school"))[:48]
+    filename = f"open_fee_balances_{safe_sub}_{timezone.now().date()}.csv"
+
+    echo = _Echo()
+    writer = csv.writer(echo)
+
+    headers = [
+        "fee_id",
+        "invoice_date",
+        "currency",
+        "fee_amount",
+        "amount_paid",
+        "outstanding",
+        "student_admission_no",
+        "student_name",
+        "class_name",
+        "term_name",
+        "fee_type",
+        "suggested_balance_sheet_line",
+        "memo",
+    ]
+
+    def _name(stu):
+        if not stu:
+            return ""
+        u = getattr(stu, "user", None)
+        if not u:
+            return ""
+        fn = (u.get_full_name() or "").strip()
+        return fn or (u.username or "")
+
+    currency = "GHS"
+
+    def rows():
+        yield "\ufeff" + writer.writerow(headers)
+        for fee in qs.iterator(chunk_size=500):
+            stu = fee.student
+            out = float(fee.amount) - float(fee.amount_paid or 0)
+            term = fee.term
+            fs = fee.fee_structure
+            yield writer.writerow(
+                [
+                    fee.pk,
+                    timezone.localtime(fee.created_at).strftime("%Y-%m-%d"),
+                    currency,
+                    str(fee.amount),
+                    str(fee.amount_paid),
+                    f"{out:.2f}",
+                    getattr(stu, "admission_number", "") if stu else "",
+                    _name(stu),
+                    getattr(stu, "class_name", "") if stu else "",
+                    term.name if term else "",
+                    fs.name if fs else "",
+                    "Student fees receivable",
+                    f"Open fee #{fee.pk}",
+                ]
+            )
+
+    resp = StreamingHttpResponse(rows(), content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
 
 
 @login_required

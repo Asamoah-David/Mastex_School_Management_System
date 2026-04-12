@@ -5,6 +5,7 @@ from .views import (
     logout_view,
     profile,
     edit_profile,
+    dismiss_setup_checklist,
     force_password_change,
     dashboard,
     school_dashboard,
@@ -58,6 +59,7 @@ urlpatterns = [
     path("force-password-change/", force_password_change, name="force_password_change"),
     path("profile/", profile, name="profile"),
     path("profile/edit/", edit_profile, name="edit_profile"),
+    path("setup-checklist/dismiss/", dismiss_setup_checklist, name="dismiss_setup_checklist"),
     path(
         "password/change/",
         auth_views.PasswordChangeView.as_view(template_name="registration/password_change_form.html"),

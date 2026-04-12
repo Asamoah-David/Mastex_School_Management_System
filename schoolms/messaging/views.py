@@ -11,6 +11,7 @@ from .models import OutboundCommLog
 
 
 from core.utils import can_manage as _user_can_manage_school, get_school
+from core.pagination import paginate
 
 
 def _send_email(to_email, subject, message):
@@ -366,15 +367,16 @@ def message_history(request):
     if not school:
         return redirect("home")
 
-    logs = (
+    qs = (
         OutboundCommLog.objects.filter(school=school)
         .select_related("sender")
-        .order_by("-created_at")[:200]
+        .order_by("-created_at")
     )
+    page_obj = paginate(request, qs, per_page=50)
     return render(
         request,
         "messaging/message_history.html",
-        {"school": school, "logs": logs},
+        {"school": school, "logs": page_obj, "page_obj": page_obj},
     )
 
 

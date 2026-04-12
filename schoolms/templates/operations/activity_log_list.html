@@ -20,6 +20,7 @@
             </select>
         </div>
         <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        <a href="{% url 'operations:activity_log_list' %}?export=csv{% if filter_q %}&amp;q={{ filter_q|urlencode }}{% endif %}{% if filter_action %}&amp;action={{ filter_action|urlencode }}{% endif %}" class="btn btn-secondary btn-sm">Export CSV (all matching)</a>
         {% if filter_q or filter_action %}
         <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary btn-sm">Clear</a>
         {% endif %}

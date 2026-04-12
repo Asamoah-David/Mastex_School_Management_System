@@ -231,5 +231,25 @@ window.addEventListener('beforeunload', function(e) {
         e.returnValue = '';
     }
 });
+{% if online_exam_tab_event_url %}
+(function() {
+    var tabUrl = "{{ online_exam_tab_event_url|escapejs }}";
+    var csrftoken = "{{ csrf_token }}";
+    var busy = false;
+    document.addEventListener("visibilitychange", function() {
+        if (document.visibilityState !== "hidden" || busy || isSubmitted) return;
+        busy = true;
+        fetch(tabUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/json"
+            },
+            body: "{}"
+        }).catch(function() {}).finally(function() { busy = false; });
+    });
+})();
+{% endif %}
 </script>
 {% endblock %}

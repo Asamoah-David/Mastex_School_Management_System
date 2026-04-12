@@ -6,8 +6,20 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-from django.db.models import Avg, Count, DecimalField, ExpressionWrapper, F, FloatField, Q, Sum
-from django.db.models.functions import Coalesce
+from django.db.models import (
+    Avg,
+    Case,
+    Count,
+    DecimalField,
+    ExpressionWrapper,
+    F,
+    FloatField,
+    Q,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
 
@@ -268,6 +280,147 @@ def build_teacher_academic_insights(school, subject_ids: list[int], term) -> dic
         "below_threshold": below_threshold,
         "subject_avgs": subject_avgs,
     }
+
+
+def build_fee_collection_trend(school=None, days: int = 30) -> dict[str, Any]:
+    """
+    Daily sum of completed FeePayment amounts for ERP cashflow-style charting.
+    If ``school`` is None, aggregates across all schools (platform dashboard).
+    """
+    from finance.models import FeePayment
+
+    today = timezone.now().date()
+    start = today - timedelta(days=days - 1)
+    qs = FeePayment.objects.filter(status="completed", created_at__date__gte=start, created_at__date__lte=today)
+    if school is not None:
+        qs = qs.filter(fee__school=school)
+    rows = (
+        qs.annotate(d=TruncDate("created_at"))
+        .values("d")
+        .annotate(total=Coalesce(Sum("amount"), Decimal("0")))
+        .order_by("d")
+    )
+    # Normalise keys to ISO date strings (SQLite may return str; Postgres date).
+    by_date: dict[str, float] = {}
+    for r in rows:
+        raw = r["d"]
+        if raw is None:
+            continue
+        if hasattr(raw, "isoformat"):
+            key = raw.isoformat()[:10]
+        else:
+            key = str(raw)[:10]
+        by_date[key] = float(r["total"] or 0)
+    labels: list[str] = []
+    amounts: list[float] = []
+    d = start
+    while d <= today:
+        labels.append(d.strftime("%b %d"))
+        amounts.append(round(by_date.get(d.isoformat(), 0.0), 2))
+        d += timedelta(days=1)
+    has_data = any(a > 0 for a in amounts)
+    return {"labels": labels, "amounts": amounts, "has_data": has_data, "days": days}
+
+
+def build_ar_aging_chart(school=None) -> dict[str, Any]:
+    """
+    Outstanding fee balance by age of invoice (Fee.created_at), ERP-style buckets.
+    If ``school`` is None, aggregates across all schools (platform dashboard).
+    """
+    from finance.models import Fee
+
+    now = timezone.now()
+    cut30 = now - timedelta(days=30)
+    cut60 = now - timedelta(days=60)
+    cut90 = now - timedelta(days=90)
+
+    rem = ExpressionWrapper(
+        F("amount") - F("amount_paid"),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+    qs = Fee.objects.filter(paid=False).annotate(_rem=rem).filter(_rem__gt=0)
+    if school is not None:
+        qs = qs.filter(school=school)
+
+    df = DecimalField(max_digits=16, decimal_places=2)
+    zero = Value(Decimal("0"), output_field=df)
+    agg = qs.aggregate(
+        b0_30=Coalesce(
+            Sum(Case(When(created_at__gte=cut30, then=F("_rem")), default=zero, output_field=df)),
+            Decimal("0"),
+        ),
+        b31_60=Coalesce(
+            Sum(
+                Case(
+                    When(Q(created_at__lt=cut30) & Q(created_at__gte=cut60), then=F("_rem")),
+                    default=zero,
+                    output_field=df,
+                )
+            ),
+            Decimal("0"),
+        ),
+        b61_90=Coalesce(
+            Sum(
+                Case(
+                    When(Q(created_at__lt=cut60) & Q(created_at__gte=cut90), then=F("_rem")),
+                    default=zero,
+                    output_field=df,
+                )
+            ),
+            Decimal("0"),
+        ),
+        b90p=Coalesce(
+            Sum(Case(When(created_at__lt=cut90, then=F("_rem")), default=zero, output_field=df)),
+            Decimal("0"),
+        ),
+    )
+    labels = ["0-30 days", "31-60 days", "61-90 days", "Over 90 days"]
+    amounts = [
+        float(agg["b0_30"] or 0),
+        float(agg["b31_60"] or 0),
+        float(agg["b61_90"] or 0),
+        float(agg["b90p"] or 0),
+    ]
+    amounts = [round(x, 2) for x in amounts]
+    has_data = sum(amounts) > 0.005
+    return {"labels": labels, "amounts": amounts, "has_data": has_data}
+
+
+def build_term_collections_chart(school, limit: int = 8) -> dict[str, Any]:
+    """Sum of amount_paid on fee lines per academic term (recognized revenue by term)."""
+    from finance.models import Fee
+
+    rows = (
+        Fee.objects.filter(school=school, term__isnull=False)
+        .values("term_id", "term__name", "term__start_date")
+        .annotate(collected=Coalesce(Sum("amount_paid"), Decimal("0")))
+        .order_by("-term__start_date", "-term_id")[:limit]
+    )
+    labels: list[str] = []
+    amounts: list[float] = []
+    for row in rows:
+        name = row["term__name"] or f"Term #{row['term_id']}"
+        labels.append(name[:28] + ("…" if len(name) > 28 else ""))
+        amounts.append(round(float(row["collected"] or 0), 2))
+    return {"labels": labels, "amounts": amounts, "has_data": bool(labels)}
+
+
+def build_enrollment_by_class_chart(school, limit: int = 12) -> dict[str, Any]:
+    """Active students per class name (top ``limit``) for capacity / planning charts."""
+    from students.models import Student
+
+    rows = (
+        Student.objects.filter(school=school, status="active")
+        .values("class_name")
+        .annotate(c=Count("id"))
+        .order_by("-c", "class_name")[:limit]
+    )
+    labels: list[str] = []
+    values: list[int] = []
+    for row in rows:
+        labels.append(row["class_name"] or "—")
+        values.append(int(row["c"]))
+    return {"labels": labels, "values": values, "has_data": bool(labels)}
 
 
 def build_finance_insights(school, total_fees: float, paid_fees: float) -> dict[str, Any]:

@@ -56,8 +56,8 @@ def send_expiry_reminders():
             # Get school admins to notify
             admins = User.objects.filter(
                 school=school,
-                role__in=['admin', 'school_admin']
-            ).exclude(phone__isnull=True).exclude(phone__exact='')
+                role="school_admin",
+            ).exclude(phone__isnull=True).exclude(phone__exact="")
             
             for admin in admins:
                 if admin.phone:
@@ -85,45 +85,68 @@ def send_expiry_reminders():
                         )
                     except Exception:
                         logger.warning("Failed to send subscription reminder email", exc_info=True)
+            if school.email:
+                try:
+                    from messaging.email_utils import send_email
+
+                    subject = f"Subscription {'Expiring' if days_left > 0 else 'Expired'}: {school.name}"
+                    send_email(school.email, subject, message)
+                except Exception:
+                    logger.warning("Failed to send subscription reminder email to school", exc_info=True)
     
     return schools_contacted
 
 
 def check_and_update_expired_subscriptions():
     """
-    Automatically update subscription status for expired schools.
-    This should run daily via cron job.
+    Mark subscriptions expired only after subscription_end_date + grace days.
     """
-    today = timezone.now()
+    from datetime import timedelta
+
+    from core.subscription_access import subscription_grace_days_for_school
+
+    now = timezone.now()
     expired_count = 0
-    
-    # Find active subscriptions that have passed their end date
     schools = School.objects.filter(
-        subscription_status='active',
-        subscription_end_date__lt=today
-    )
-    
+        subscription_status__in=("active", "trial"),
+    ).exclude(subscription_end_date__isnull=True)
+
     for school in schools:
-        school.subscription_status = 'expired'
-        school.save(update_fields=['subscription_status'])
+        end = school.subscription_end_date
+        grace = subscription_grace_days_for_school(school)
+        if now <= end + timedelta(days=grace):
+            continue
+        School.objects.filter(pk=school.pk).update(subscription_status="expired")
         expired_count += 1
         logger.info("Marked school subscription as expired (school_id=%s)", school.id)
-        
-        # Notify school admins
-        admins = User.objects.filter(
-            school=school,
-            role__in=['admin', 'school_admin']
-        ).exclude(phone__isnull=True).exclude(phone__exact='')
-        
-        message = f"NOTICE: Your {school.name} subscription has expired. Please renew to continue using the platform."
-        
+
+        admins = User.objects.filter(school=school, role="school_admin").exclude(
+            phone__isnull=True
+        ).exclude(phone__exact="")
+
+        message = (
+            f"NOTICE: Your {school.name} subscription has ended (including any grace period). "
+            f"Please renew to continue using the platform."
+        )
+
         for admin in admins:
             if admin.phone:
                 try:
                     send_sms(admin.phone, message)
                 except Exception:
                     pass
-    
+        if school.email:
+            try:
+                from messaging.email_utils import send_email
+
+                send_email(
+                    school.email,
+                    f"Subscription ended — {school.name}",
+                    message,
+                )
+            except Exception:
+                logger.warning("Failed school subscription expiry email", exc_info=True)
+
     return expired_count
 
 

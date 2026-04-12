@@ -182,6 +182,20 @@
 </div>
 {% endif %}
 
+{% if show_audit_snapshot and audit_snapshot %}
+<div class="content-card dash-section" style="padding:1rem 1.1rem;border-left:3px solid rgba(59,130,246,.55);">
+    <h3 class="section-title" style="margin-bottom:0.5rem;">Governance &amp; audit trail</h3>
+    <p style="margin:0 0 0.75rem;font-size:0.85rem;color:var(--text-secondary);line-height:1.45;">
+        Traceability for the last 30 days (model-level audit log). Use this for reviews, disputes, and compliance checks.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:1rem 1.5rem;align-items:center;font-size:0.9rem;">
+        <span><strong>{{ audit_snapshot.delete_export_30d }}</strong> high-impact events <span style="color:var(--text-secondary);">(delete / export)</span></span>
+        <span><strong>{{ audit_snapshot.logins_30d }}</strong> logins recorded</span>
+        <a href="{% url 'audit:dashboard' %}" class="btn btn-sm btn-secondary">Open audit log</a>
+    </div>
+</div>
+{% endif %}
+
 {% if can_manage_finance and payroll_mtd_by_currency %}
 <div class="content-card dash-section" style="padding:0.85rem 1rem;font-size:0.88rem;">
     <strong style="color:var(--text-main);">Payroll this month:</strong>
@@ -231,6 +245,10 @@
 
 {{ attendance_trend_chart|json_script:"school-attendance-trend-json" }}
 {{ subject_perf_chart|json_script:"school-subject-perf-json" }}
+{{ fee_collection_trend_chart|json_script:"school-fee-trend-json" }}
+{{ enrollment_by_class_chart|json_script:"school-enrollment-class-json" }}
+{{ ar_aging_chart|json_script:"school-ar-aging-json" }}
+{{ term_collections_chart|json_script:"school-term-collections-json" }}
 
 <!-- Insights: academics, finance KPIs, attendance trend, notifications -->
 <div class="dashboard-grid dashboard-grid-2 dash-section">
@@ -300,6 +318,77 @@
                 · {{ finance_insights.week_payment_count }} payment{{ finance_insights.week_payment_count|pluralize }} this week.
                 {% endif %}
             </p>
+            <p style="margin:.65rem 0 0;font-size:.8rem;color:var(--text-secondary);line-height:1.45;">
+                Further down: <strong>AR aging</strong> (outstanding by invoice age) and <strong>collections by term</strong> — both tie back to <a href="{% url 'finance:fee_list' %}" style="color:inherit;text-decoration:underline;">fee lines</a>.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid dashboard-grid-2 dash-section">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Fee collections (30 days)</span>
+            <a href="{% url 'finance:fee_list' %}" class="card-header-action">Fees</a>
+        </div>
+        <div class="card-body chart-canvas-host chart-canvas-host--trend">
+            {% if fee_collection_trend_chart.has_data %}
+            <canvas id="feeCollectionTrendChart"></canvas>
+            {% else %}
+            <div class="empty-state" style="padding:2rem 1rem;">
+                <div class="empty-state-desc">No completed school-fee payments in the last 30 days. When Paystack or manual payments post, daily totals appear here for cashflow visibility.</div>
+                <a href="{% url 'operations:record_payment' %}" class="btn btn-sm btn-primary" style="margin-top:.75rem;">Record payment</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Enrollment by class (top 12)</span>
+            <a href="{% url 'students:student_list' %}" class="card-header-action">Students</a>
+        </div>
+        <div class="card-body chart-canvas-host">
+            {% if enrollment_by_class_chart.has_data %}
+            <canvas id="enrollmentByClassChart"></canvas>
+            {% else %}
+            <div class="empty-state" style="padding:2rem 1rem;">
+                <div class="empty-state-desc">No active students with class names yet.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid dashboard-grid-2 dash-section">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">AR aging (outstanding)</span>
+            <a href="{% url 'finance:fee_list' %}" class="card-header-action">Fees</a>
+        </div>
+        <div class="card-body chart-canvas-host">
+            {% if ar_aging_chart.has_data %}
+            <canvas id="arAgingChart"></canvas>
+            {% else %}
+            <div class="empty-state" style="padding:2rem 1rem;">
+                <div class="empty-state-desc">No outstanding balance on open fee lines, or nothing falls in these age buckets yet.</div>
+                <a href="{% url 'finance:fee_list' %}" class="btn btn-sm btn-primary" style="margin-top:.75rem;">Open fees</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <span class="card-header-title">Collections by term (recent)</span>
+            <a href="{% url 'finance:fee_list' %}" class="card-header-action">Fees</a>
+        </div>
+        <div class="card-body chart-canvas-host">
+            {% if term_collections_chart.has_data %}
+            <canvas id="termCollectionsChart"></canvas>
+            {% else %}
+            <div class="empty-state" style="padding:2rem 1rem;">
+                <div class="empty-state-desc">No fee lines linked to a term yet, or no collections recorded on those lines.</div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -599,6 +688,140 @@ document.addEventListener('DOMContentLoaded', function() {
                     plugins: { legend: { display: false } },
                     scales: { x: { min: 0, max: 100, grid: { display: false } }, y: { grid: { display: false } } }
                 }
+            });
+        }
+    }
+
+    var feeTrendEl = document.getElementById('school-fee-trend-json');
+    var feeTrendCanvas = document.getElementById('feeCollectionTrendChart');
+    if (feeTrendEl && feeTrendCanvas) {
+        var ftr = JSON.parse(feeTrendEl.textContent);
+        if (ftr.has_data) {
+            new Chart(feeTrendCanvas, {
+                type: 'line',
+                data: {
+                    labels: ftr.labels,
+                    datasets: [{
+                        label: 'Collected (GHS)',
+                        data: ftr.amounts,
+                        borderColor: 'rgba(34,197,94,0.95)',
+                        backgroundColor: 'rgba(34,197,94,0.14)',
+                        fill: true,
+                        tension: 0.22,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(c) { return formatGhsCount(c.raw); } } },
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.1)' } },
+                        x: { grid: { display: false } },
+                    },
+                },
+            });
+        }
+    }
+
+    var enrollEl = document.getElementById('school-enrollment-class-json');
+    var enrollCanvas = document.getElementById('enrollmentByClassChart');
+    if (enrollEl && enrollCanvas) {
+        var enr = JSON.parse(enrollEl.textContent);
+        if (enr.labels && enr.labels.length) {
+            new Chart(enrollCanvas, {
+                type: 'bar',
+                data: {
+                    labels: enr.labels,
+                    datasets: [{
+                        label: 'Students',
+                        data: enr.values,
+                        backgroundColor: 'rgba(59,130,246,0.72)',
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.1)' } },
+                        y: { grid: { display: false } },
+                    },
+                },
+            });
+        }
+    }
+
+    var arEl = document.getElementById('school-ar-aging-json');
+    var arCanvas = document.getElementById('arAgingChart');
+    if (arEl && arCanvas) {
+        var ar = JSON.parse(arEl.textContent);
+        if (ar.has_data && ar.labels && ar.amounts) {
+            new Chart(arCanvas, {
+                type: 'bar',
+                data: {
+                    labels: ar.labels,
+                    datasets: [{
+                        label: 'Outstanding (GHS)',
+                        data: ar.amounts,
+                        backgroundColor: [
+                            'rgba(74,222,128,0.75)',
+                            'rgba(251,191,36,0.8)',
+                            'rgba(251,146,60,0.82)',
+                            'rgba(239,68,68,0.85)',
+                        ],
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(c) { return formatGhsCount(c.raw); } } },
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.1)' } },
+                        x: { grid: { display: false } },
+                    },
+                },
+            });
+        }
+    }
+
+    var termEl = document.getElementById('school-term-collections-json');
+    var termCanvas = document.getElementById('termCollectionsChart');
+    if (termEl && termCanvas) {
+        var tc = JSON.parse(termEl.textContent);
+        if (tc.has_data && tc.labels && tc.amounts) {
+            new Chart(termCanvas, {
+                type: 'bar',
+                data: {
+                    labels: tc.labels,
+                    datasets: [{
+                        label: 'Collected (GHS)',
+                        data: tc.amounts,
+                        backgroundColor: 'rgba(34,197,94,0.72)',
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(c) { return formatGhsCount(c.raw); } } },
+                    },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.1)' } },
+                        y: { grid: { display: false } },
+                    },
+                },
             });
         }
     }

@@ -6,13 +6,14 @@ from django.db.models import Sum, Q
 from django.db import models, transaction, IntegrityError
 from django.utils.dateparse import parse_date, parse_time
 from django.utils import timezone
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 import re
 from accounts.decorators import role_required
 from core.pagination import paginate
+from integrations.hooks import schedule_expense_webhook, schedule_staff_leave_webhook
 import logging
 
 from schools.models import School
@@ -1152,7 +1153,7 @@ def staff_leave_create(request):
                     )
                 else:
                     lt = leave_type if leave_type in dict(StaffLeave.LEAVE_TYPE_CHOICES) else ""
-                    StaffLeave.objects.create(
+                    leave = StaffLeave.objects.create(
                         school=school,
                         staff=request.user,
                         leave_type=lt,
@@ -1162,6 +1163,7 @@ def staff_leave_create(request):
                         covering_teacher=covering[:200],
                         contact_during_leave=contact_leave[:200],
                     )
+                    schedule_staff_leave_webhook(leave.pk)
                     from django.contrib import messages
                     messages.success(request, "Leave request submitted.")
                     log_activity(
@@ -1207,6 +1209,7 @@ def staff_leave_review(request, pk):
             leave.reviewed_at = timezone.now()
             leave.review_notes = notes
             leave.save()
+            schedule_staff_leave_webhook(leave.pk)
             from django.contrib import messages
             messages.success(request, f"Leave {leave.status}.")
             log_activity(
@@ -1259,6 +1262,34 @@ def activity_log_list(request):
             | models.Q(user__first_name__icontains=q)
             | models.Q(user__last_name__icontains=q)
         )
+
+    if request.GET.get("export") == "csv":
+        import csv
+
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="activity_log_export.csv"'
+        w = csv.writer(response)
+        header = ["created_at", "school", "username", "action", "ip_address", "details"]
+        if school:
+            header = [c for c in header if c != "school"]
+        w.writerow(header)
+        for row in qs.iterator(chunk_size=500):
+            sch = ""
+            if not school and row.school_id:
+                sch = getattr(row.school, "name", "") or ""
+            u = row.user.get_username() if row.user_id else ""
+            line = [
+                row.created_at.isoformat() if row.created_at else "",
+                sch,
+                u,
+                row.action or "",
+                row.ip_address or "",
+                (row.details or "").replace("\r\n", " ").replace("\n", " ")[:2000],
+            ]
+            if school:
+                line.pop(1)
+            w.writerow(line)
+        return response
 
     page_obj = paginate(request, qs, per_page=50)
     action_choices = (
@@ -2267,6 +2298,29 @@ def admission_approve(request, pk):
 
                     application.created_student = student
                     application.save(update_fields=['created_student'])
+
+                    fee_lines_created = 0
+                    if request.POST.get("create_initial_fees") == "on":
+                        from core.academic_context import get_current_term_for_school
+                        from finance.models import Fee, FeeStructure
+
+                        term = get_current_term_for_school(application.school)
+                        cn = (application.class_applied_for or "").strip()
+                        structs = FeeStructure.objects.filter(
+                            school=application.school, is_active=True
+                        ).filter(Q(class_name="") | Q(class_name=cn))
+                        for fs in structs:
+                            if Fee.objects.filter(student=student, fee_structure=fs).exists():
+                                continue
+                            Fee.objects.create(
+                                school=application.school,
+                                student=student,
+                                fee_structure=fs,
+                                term=term,
+                                amount=fs.amount,
+                                amount_paid=0,
+                            )
+                            fee_lines_created += 1
             except IntegrityError:
                 logger.warning("Admission approve account creation failed", exc_info=True)
                 messages.error(
@@ -2305,6 +2359,12 @@ def admission_approve(request, pk):
                     logger.warning("Failed to send admission approval email", exc_info=True)
 
             messages.success(request, "Application approved! Student and parent accounts created.")
+            if request.POST.get("create_initial_fees") == "on" and fee_lines_created == 0:
+                messages.warning(
+                    request,
+                    "No initial fee lines were created: there is no active fee structure for this class "
+                    "(or school-wide). Add one under Finance → Fee structures, then generate fees for the student.",
+                )
         else:
             application.status = 'approved'
             application.reviewed_by = request.user
@@ -2796,7 +2856,7 @@ def expense_create(request):
         if description and amount and expense_date:
             try:
                 category = ExpenseCategory.objects.get(id=category_id, school=school) if category_id else None
-                Expense.objects.create(
+                exp = Expense.objects.create(
                     school=school,
                     category=category,
                     description=description,
@@ -2807,6 +2867,7 @@ def expense_create(request):
                     receipt_number=receipt_number,
                     recorded_by=request.user
                 )
+                schedule_expense_webhook(exp.pk, created=True)
                 from django.contrib import messages
                 messages.success(request, 'Expense recorded successfully!')
                 return redirect('operations:expense_list')
@@ -2864,6 +2925,7 @@ def expense_edit(request, pk):
             expense.payment_method = payment_method
             expense.receipt_number = receipt_number
             expense.save()
+            schedule_expense_webhook(expense.pk, created=False)
             
             from django.contrib import messages
             messages.success(request, 'Expense updated successfully!')
@@ -3638,7 +3700,12 @@ def timetable_create(request):
         return redirect('operations:timetable_view')
     
     subjects = Subject.objects.filter(school=school).order_by('name')
-    teachers = User.objects.filter(school=school, role='teacher').order_by('first_name', 'last_name')
+    teachers = (
+        User.objects.filter(school=school)
+        .order_by('first_name', 'last_name')
+        .filter(Q(role='teacher') | Q(secondary_roles__icontains='teacher'))
+        .distinct()
+    )
     
     if request.method == 'POST':
         class_name = request.POST.get('class_name', '').strip()
@@ -3652,23 +3719,37 @@ def timetable_create(request):
         
         if class_name and day and period_number and subject_id and start_time and end_time:
             try:
+                from core.timetable_validation import collect_timetable_slot_conflicts
+                from django.contrib import messages
+
                 subject = Subject.objects.get(id=subject_id, school=school)
-                teacher = User.objects.get(id=teacher_id) if teacher_id else None
-                
-                TimetableSlot.objects.create(
-                    school=school,
-                    class_name=class_name,
+                teacher = User.objects.get(id=teacher_id, school=school) if teacher_id else None
+                tid = teacher.pk if teacher else None
+                conflicts = collect_timetable_slot_conflicts(
+                    school,
                     day=day,
-                    period_number=int(period_number),
-                    subject=subject,
-                    teacher=teacher,
                     start_time=start_time,
                     end_time=end_time,
-                    room=room
+                    teacher_id=tid,
+                    room=room,
                 )
-                from django.contrib import messages
-                messages.success(request, 'Timetable slot created!')
-                return redirect('operations:timetable_view')
+                if conflicts:
+                    for c in conflicts:
+                        messages.error(request, c)
+                else:
+                    TimetableSlot.objects.create(
+                        school=school,
+                        class_name=class_name,
+                        day=day,
+                        period_number=int(period_number),
+                        subject=subject,
+                        teacher=teacher,
+                        start_time=start_time,
+                        end_time=end_time,
+                        room=room
+                    )
+                    messages.success(request, 'Timetable slot created!')
+                    return redirect('operations:timetable_view')
             except Exception:
                 pass
     
@@ -7853,16 +7934,43 @@ def online_exam_publish(request, pk):
 
 
 @login_required
+@require_http_methods(["POST"])
+def online_exam_tab_event(request, attempt_id):
+    """Record a tab/window visibility loss during an attempt (honesty signal)."""
+    from accounts.permissions import is_student
+
+    if not is_student(request.user):
+        return JsonResponse({"ok": False}, status=403)
+    school = _get_school(request)
+    if not school:
+        return JsonResponse({"ok": False}, status=400)
+    attempt = get_object_or_404(
+        ExamAttempt.objects.select_related("exam", "student"),
+        pk=attempt_id,
+        exam__school=school,
+        student__user=request.user,
+        is_completed=False,
+    )
+    ExamAttempt.objects.filter(pk=attempt.pk).update(
+        tab_blur_count=models.F("tab_blur_count") + 1
+    )
+    return JsonResponse({"ok": True})
+
+
+@login_required
 def online_exam_take(request, pk):
     """Take online exam (students)."""
+    import random
+
     from django.contrib import messages
+
+    from accounts.permissions import is_student
 
     school = _get_school(request)
     if not school:
         return redirect('home')
     
-    role = getattr(request.user, 'role', None)
-    if role != 'student':
+    if not is_student(request.user):
         return redirect('home')
     
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
@@ -7895,45 +8003,59 @@ def online_exam_take(request, pk):
         return redirect('operations:online_exam_list')
 
     max_try = max(1, int(exam.max_attempts_per_student or 1))
-    incomplete = (
-        ExamAttempt.objects.filter(exam=exam, student=student, is_completed=False)
-        .order_by("-started_at")
-        .first()
-    )
-    completed_n = ExamAttempt.objects.filter(exam=exam, student=student, is_completed=True).count()
-
-    if incomplete:
-        attempt = incomplete
-    elif completed_n >= max_try:
-        last = (
-            ExamAttempt.objects.filter(exam=exam, student=student, is_completed=True)
-            .order_by("-submitted_at", "-pk")
+    attempt = None
+    completed_n = 0
+    with transaction.atomic():
+        ExamAttempt.objects.select_for_update().filter(exam=exam, student=student).exists()
+        incomplete = (
+            ExamAttempt.objects.filter(exam=exam, student=student, is_completed=False)
+            .order_by("-started_at")
             .first()
         )
-        messages.warning(
-            request,
-            f"You have used all {max_try} attempt(s) for this exam.",
-        )
-        if last:
-            return redirect('operations:online_exam_result', pk=last.pk)
-        return redirect('operations:online_exam_list')
-    else:
-        nxt = _next_exam_attempt_number(exam, student)
-        try:
-            attempt = ExamAttempt.objects.create(
-                exam=exam, student=student, attempt_number=nxt, is_completed=False
-            )
-        except IntegrityError:
-            attempt = (
-                ExamAttempt.objects.filter(exam=exam, student=student, is_completed=False)
-                .order_by("-started_at")
+        completed_n = ExamAttempt.objects.filter(
+            exam=exam, student=student, is_completed=True
+        ).count()
+
+        if incomplete:
+            attempt = incomplete
+        elif completed_n < max_try:
+            nxt = _next_exam_attempt_number(exam, student)
+            try:
+                attempt = ExamAttempt.objects.create(
+                    exam=exam,
+                    student=student,
+                    attempt_number=nxt,
+                    is_completed=False,
+                )
+            except IntegrityError:
+                attempt = (
+                    ExamAttempt.objects.filter(
+                        exam=exam, student=student, is_completed=False
+                    )
+                    .order_by("-started_at")
+                    .first()
+                )
+
+    if attempt is None:
+        if completed_n >= max_try:
+            last = (
+                ExamAttempt.objects.filter(exam=exam, student=student, is_completed=True)
+                .order_by("-submitted_at", "-pk")
                 .first()
             )
-            if not attempt:
-                messages.error(request, "Could not start the exam. Please try again.")
-                return redirect("operations:online_exam_list")
+            messages.warning(
+                request,
+                f"You have used all {max_try} attempt(s) for this exam.",
+            )
+            if last:
+                return redirect("operations:online_exam_result", pk=last.pk)
+            return redirect("operations:online_exam_list")
+        messages.error(request, "Could not start the exam. Please try again.")
+        return redirect("operations:online_exam_list")
     
-    questions = ExamQuestion.objects.filter(exam=exam).order_by('order')
+    questions = list(ExamQuestion.objects.filter(exam=exam).order_by("order"))
+    if exam.is_random_questions and len(questions) > 1:
+        random.shuffle(questions)
     
     if request.method == 'POST':
         now_submit = timezone.now()
@@ -7989,6 +8111,7 @@ def online_exam_take(request, pk):
         return redirect('operations:online_exam_result', pk=attempt.pk)
 
     timer_seconds = _online_exam_timer_seconds_remaining(exam, attempt, timezone.now())
+    tab_event_url = reverse("operations:online_exam_tab_event", kwargs={"attempt_id": attempt.pk})
     return render(request, 'operations/online_exam_take.html', {
         'exam': exam,
         'questions': questions,
@@ -7996,6 +8119,7 @@ def online_exam_take(request, pk):
         'school': school,
         'exam_timer_seconds': timer_seconds,
         'exam_instructions': (exam.instructions or "").strip(),
+        "online_exam_tab_event_url": tab_event_url,
     })
 
 

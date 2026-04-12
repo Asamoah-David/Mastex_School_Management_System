@@ -1,0 +1,7 @@
+# Browser E2E (optional). Install: pip install -r requirements-e2e.txt
+# Then: python -m playwright install chromium
+# Run: pytest e2e_tests -v
+-r requirements.txt
+pytest>=8.0,<9
+pytest-django>=4.8,<5
+playwright>=1.49.0,<2.0

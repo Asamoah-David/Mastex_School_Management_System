@@ -3,18 +3,25 @@ QR Code utilities for Mastex SchoolOS
 Generates QR codes for student attendance and ID cards
 """
 
-import qrcode
-import io
 import base64
+import io
+
+import qrcode
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from PIL import Image
+
+_QR_STUDENT_SALT = "mastex.qr.student.v1"
 
 
 def generate_student_qr_data(student):
     """
-    Generate QR code data string for a student.
-    Contains student ID and admission number for quick lookup.
+    Time-limited signed payload (replay-resistant vs static IDs).
+    Legacy scanners still accept plain MASEXTICKET:id:adm format.
     """
-    return f"MASEXTICKET:{student.id}:{student.admission_number}"
+    signer = TimestampSigner(salt=_QR_STUDENT_SALT)
+    payload = f"{student.id}:{student.admission_number}"
+    token = signer.sign(payload)
+    return f"MASEXTICKET:v2:{token}"
 
 
 def generate_qr_code_base64(data, box_size=10, border=2):
@@ -77,36 +84,47 @@ def generate_qr_code_bytes(data, box_size=10, border=2):
     return buffer.getvalue()
 
 
-def validate_qr_data(data):
+def validate_qr_data(data, *, max_age_seconds: int = 90 * 24 * 3600):
     """
-    Validate and parse QR code data.
-    
-    Args:
-        data: QR code string data
-    
-    Returns:
-        Dict with validation result and student info
+    Validate and parse QR code data (signed v2 or legacy v1).
     """
     if not data:
-        return {'valid': False, 'error': 'Empty data'}
-    
-    if not data.startswith('MASEXTICKET:'):
-        return {'valid': False, 'error': 'Invalid QR code format'}
-    
+        return {"valid": False, "error": "Empty data"}
+
+    if not data.startswith("MASEXTICKET:"):
+        return {"valid": False, "error": "Invalid QR code format"}
+
+    if data.startswith("MASEXTICKET:v2:"):
+        signer = TimestampSigner(salt=_QR_STUDENT_SALT)
+        raw = data[len("MASEXTICKET:v2:") :]
+        try:
+            unsigned = signer.unsign(raw, max_age=max_age_seconds)
+            student_id_s, admission_number = unsigned.split(":", 1)
+            return {
+                "valid": True,
+                "student_id": int(student_id_s),
+                "admission_number": admission_number,
+            }
+        except SignatureExpired:
+            return {"valid": False, "error": "QR code has expired; print a new card or refresh the code."}
+        except (BadSignature, ValueError, IndexError) as e:
+            return {"valid": False, "error": str(e)}
+
     try:
-        parts = data.split(':')
+        parts = data.split(":")
         if len(parts) != 3:
-            return {'valid': False, 'error': 'Invalid QR code structure'}
-        
+            return {"valid": False, "error": "Invalid QR code structure"}
+
         _, student_id, admission_number = parts
-        
+
         return {
-            'valid': True,
-            'student_id': int(student_id),
-            'admission_number': admission_number
+            "valid": True,
+            "student_id": int(student_id),
+            "admission_number": admission_number,
+            "legacy": True,
         }
     except (ValueError, IndexError) as e:
-        return {'valid': False, 'error': str(e)}
+        return {"valid": False, "error": str(e)}
 
 
 def generate_student_qr_base64(student):

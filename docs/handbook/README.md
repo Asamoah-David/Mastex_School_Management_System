@@ -25,7 +25,7 @@ python -m playwright install chromium
 python manage.py capture_handbook_screenshots
 ```
 
-This uses a **temporary SQLite database** (your real `DATABASE_URL` is not touched), migrates, seeds demo users, starts `runserver` on a random port, saves **`docs/handbook/images/01-…05-….png`**, and **uncomments** the matching `<img>` lines in `index.html`. Use **`--no-embed`** if you only want the PNG files. Demo logins: `handbook_admin` / `handbook_parent` (password `HandbookDemo2026!` in the seed command — override with `--password` on both commands if needed).
+This uses a **temporary SQLite database** (your real `DATABASE_URL` is not touched), migrates, seeds demo users, starts `runserver` on a random port, saves **`docs/handbook/images/01-…05-….png`**, **uncomments** the matching `<img>` lines in `index.html` where needed, and runs **`docs/handbook/build_standalone_handbook.py`** to **embed those PNGs as data URLs** in the interface tour (so the handbook works even without a separate `images/` folder). Use **`--no-embed`** if you only want the PNG files. To re-embed after manually replacing PNGs: `python docs/handbook/build_standalone_handbook.py`. Demo logins: `handbook_admin` / `handbook_parent` (password `HandbookDemo2026!` in the seed command — override with `--password` on both commands if needed).
 
 ### Manual PNGs
 

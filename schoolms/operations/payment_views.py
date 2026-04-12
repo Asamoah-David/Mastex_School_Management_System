@@ -1339,7 +1339,13 @@ def initiate_online_payment(request):
     if not fee_id:
         return JsonResponse({"success": False, "error": "Missing fee_id"}, status=400)
 
-    fee = get_object_or_404(Fee, id=fee_id)
+    fee_qs = Fee.objects.select_related("student", "school").filter(pk=fee_id)
+    user_school = getattr(request.user, "school", None)
+    if user_school and not request.user.is_superuser:
+        fee_qs = fee_qs.filter(school=user_school)
+    fee = fee_qs.first()
+    if not fee:
+        return JsonResponse({"success": False, "error": "Fee not found"}, status=404)
     if not user_can_access_student_payment(request.user, fee.student):
         return JsonResponse({"success": False, "error": "Forbidden"}, status=403)
 
@@ -1480,146 +1486,17 @@ def paystack_callback(request, fee_id):
 @require_POST
 def paystack_webhook(request):
     """
-    Handle Paystack webhook for payment notifications.
-    This ensures payments are recorded even if the user closes the browser
-    before being redirected back to the site.
+    Legacy URL: /operations/payments/paystack/webhook/
+
+    Delegates to ``finance.views.paystack_webhook`` so behaviour matches
+    ``/finance/paystack-webhook/`` (HMAC verified with ``PAYSTACK_SECRET_KEY``,
+    or ``PAYSTACK_WEBHOOK_SECRET`` if set),
+    atomic school-fee completion (net amount, pending row, select_for_update),
+    and safer textbook stock updates under lock.
     """
-    import json
-    import logging
-    from django.conf import settings as _settings
+    from finance import views as finance_views
 
-    logger = logging.getLogger(__name__)
-
-    secret = getattr(_settings, "PAYSTACK_WEBHOOK_SECRET", "") or getattr(_settings, "PAYSTACK_SECRET_KEY", "")
-    if not secret:
-        logger.error("Paystack webhook secret not configured")
-        return JsonResponse({"error": "Server misconfigured"}, status=500)
-
-    signature = request.headers.get("X-Paystack-Signature", "")
-    if not signature:
-        return JsonResponse({"error": "Missing signature"}, status=400)
-
-    from finance.paystack_service import paystack_service
-    if not paystack_service.verify_webhook_signature(request.body, signature, secret):
-        logger.warning("Paystack webhook: invalid HMAC signature")
-        return JsonResponse({"error": "Invalid signature"}, status=403)
-
-    try:
-        body = request.body
-        data = json.loads(body)
-        
-        event = data.get('event')
-        logger.info("Paystack webhook received: event=%s", event)
-        
-        if event == 'charge.success':
-            # Get payment reference from metadata
-            metadata = data.get('metadata', {})
-            payment_type = metadata.get('payment_type')
-            reference = data.get('data', {}).get('reference')
-            
-            logger.info(f"Processing payment: type={payment_type}, reference={reference}")
-            
-            if payment_type == 'school_fee':
-                fee_id = metadata.get('fee_id')
-                if fee_id:
-                    try:
-                        fee = Fee.objects.get(id=fee_id)
-                        amount = float(data.get('data', {}).get('amount', 0)) / 100
-                        
-                        # Check if payment already exists to avoid duplicates
-                        existing = FeePayment.objects.filter(paystack_reference=reference).exists()
-                        if not existing:
-                            FeePayment.objects.create(
-                                fee=fee,
-                                amount=amount,
-                                paystack_reference=reference,
-                                payment_method="card",
-                                status="completed",
-                            )
-                            Fee.objects.filter(pk=fee.pk).update(amount_paid=F("amount_paid") + amount)
-                            fee.refresh_from_db()
-                            fee.save()
-                            logger.info(f"School fee payment recorded: fee_id={fee_id}, amount={amount}")
-                        else:
-                            logger.info(f"Payment already processed: reference={reference}")
-                            
-                    except Fee.DoesNotExist:
-                        logger.error(f"Fee not found: fee_id={fee_id}")
-            
-            elif payment_type == 'canteen':
-                payment_id = metadata.get('payment_id')
-                if payment_id:
-                    try:
-                        payment = CanteenPayment.objects.get(id=payment_id)
-                        if payment.payment_status != 'completed':
-                            payment.payment_status = 'completed'
-                            payment.payment_date = timezone.now().date()
-                            payment.save()
-                            logger.info(f"Canteen payment completed: payment_id={payment_id}")
-                        else:
-                            logger.info(f"Canteen payment already completed: payment_id={payment_id}")
-                    except CanteenPayment.DoesNotExist:
-                        logger.error(f"Canteen payment not found: payment_id={payment_id}")
-            
-            elif payment_type == 'bus':
-                payment_id = metadata.get('payment_id')
-                if payment_id:
-                    try:
-                        payment = BusPayment.objects.get(id=payment_id)
-                        if payment.payment_status != 'completed':
-                            payment.payment_status = 'completed'
-                            payment.paid = True
-                            payment.payment_date = timezone.now().date()
-                            payment.save()
-                            logger.info(f"Bus payment completed: payment_id={payment_id}")
-                        else:
-                            logger.info(f"Bus payment already completed: payment_id={payment_id}")
-                    except BusPayment.DoesNotExist:
-                        logger.error(f"Bus payment not found: payment_id={payment_id}")
-            
-            elif payment_type == 'textbook':
-                payment_id = metadata.get('payment_id')
-                if payment_id:
-                    try:
-                        sale = TextbookSale.objects.get(id=payment_id)
-                        if sale.payment_status != 'completed':
-                            sale.payment_status = 'completed'
-                            sale.save()
-                            # Reduce textbook stock
-                            if sale.textbook:
-                                sale.textbook.stock -= sale.quantity
-                                sale.textbook.save()
-                                logger.info(f"Textbook stock reduced: textbook_id={sale.textbook.id}, quantity={sale.quantity}")
-                            logger.info(f"Textbook sale completed: sale_id={payment_id}")
-                        else:
-                            logger.info(f"Textbook sale already completed: sale_id={payment_id}")
-                    except TextbookSale.DoesNotExist:
-                        logger.error(f"Textbook sale not found: sale_id={payment_id}")
-            
-            elif payment_type == 'hostel':
-                payment_id = metadata.get('payment_id')
-                if payment_id:
-                    try:
-                        fee = HostelFee.objects.get(id=payment_id)
-                        if fee.payment_status != 'completed':
-                            fee.payment_status = 'completed'
-                            fee.paid = True
-                            fee.payment_date = timezone.now().date()
-                            fee.save()
-                            logger.info(f"Hostel payment completed: fee_id={payment_id}")
-                        else:
-                            logger.info(f"Hostel payment already completed: fee_id={payment_id}")
-                    except HostelFee.DoesNotExist:
-                        logger.error(f"Hostel fee not found: fee_id={payment_id}")
-        
-        return JsonResponse({'success': True})
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in webhook: {e}")
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    return finance_views.paystack_webhook(request)
 
 
 @login_required
@@ -1639,38 +1516,61 @@ def send_payment_reminder(request):
             messages.error(request, "No students selected")
             return redirect('operations:payment_dashboard')
         
+        from django.core.cache import cache
+
         from finance.models import Fee
+
         sent_count = 0
-        
+        skipped_throttle = 0
+        reminder_cooldown = 3 * 24 * 3600  # 3 days per student per school
+
         for student_id in student_ids:
             try:
                 student = Student.objects.get(id=student_id, school=school)
                 fees = Fee.objects.filter(student=student, paid=False)
-                
+
                 if not fees.exists():
                     continue
-                
+
                 total_pending = sum(float(f.remaining_balance) for f in fees)
-                
-                # Get parent's phone number for SMS
+
                 parent_phone = None
                 if student.parent and student.parent.phone:
                     parent_phone = student.parent.phone
-                
+
                 if parent_phone:
-                    sms_message = f"Dear Parent/Guardian of {student.user.get_full_name()}, this is a reminder that there are pending fees of GHS {total_pending} for the current term. Please make payments at your earliest convenience to avoid disruption. Best regards, {school.name}"
-                    
+                    throttle_key = f"fee_reminder_sms:{school.pk}:{student.pk}"
+                    if cache.get(throttle_key):
+                        skipped_throttle += 1
+                        continue
+
+                    sms_message = (
+                        f"Dear Parent/Guardian of {student.user.get_full_name()}, this is a reminder that "
+                        f"there are pending fees of GHS {total_pending} for the current term. "
+                        f"Please make payments at your earliest convenience to avoid disruption. "
+                        f"Best regards, {school.name}"
+                    )
+
                     try:
                         SMSService.send_sms(parent_phone, sms_message, school.name)
+                        cache.set(throttle_key, 1, reminder_cooldown)
                         sent_count += 1
                     except Exception:
                         pass
-                
-                messages.success(request, f"Reminder sent for {sent_count} student(s)")
-                
+
             except Student.DoesNotExist:
                 continue
-        
+
+        if sent_count:
+            messages.success(request, f"Reminder SMS sent for {sent_count} student(s).")
+        if skipped_throttle:
+            messages.info(
+                request,
+                f"Skipped {skipped_throttle} student(s): a reminder was already sent in the last 3 days.",
+            )
+        if not sent_count and not skipped_throttle:
+            messages.warning(request, "No reminders sent (no parent phone or no unpaid fees).")
+
         return redirect('operations:payment_dashboard')
     
     # Get students with pending fees

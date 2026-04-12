@@ -71,6 +71,8 @@ class User(AbstractUser):
     gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female')], blank=True, null=True)
     # Force password change on first login for auto-created accounts
     must_change_password = models.BooleanField(default=False)
+    # In-app setup checklist (staff); dismiss hides the banner until next product bump if desired
+    setup_checklist_dismissed = models.BooleanField(default=False)
 
     PAYROLL_MOMO_NETWORK_CHOICES = (
         ("", "—"),

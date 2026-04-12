@@ -428,21 +428,83 @@ def fees_list(request):
     """
     Parent/student view: view fees (and payment status).
     """
-    from finance.models import Fee
+    from django.db.models import Prefetch
 
-    role = getattr(request.user, "role", None)
-    if role == "student":
+    from accounts.permissions import is_parent, is_student
+    from finance.models import Fee, FeePayment
+
+    from django.conf import settings as dj_settings
+
+    pay_ok = bool(getattr(dj_settings, "PAYSTACK_SECRET_KEY", ""))
+
+    if is_student(request.user):
         student = Student.objects.filter(user=request.user).select_related("user").first()
         if not student:
             messages.error(request, "No student record is linked to this account.")
             return redirect("home")
-        fees = Fee.objects.filter(student=student).order_by("-created_at")
-        return render(request, "students/fees_list.html", {"fees": fees, "mode": "student", "student": student})
+        fees = (
+            Fee.objects.filter(student=student)
+            .select_related("school")
+            .prefetch_related(
+                Prefetch(
+                    "payments",
+                    queryset=FeePayment.objects.filter(status="completed").order_by("-created_at"),
+                )
+            )
+            .order_by("-created_at")
+        )
+        return render(
+            request,
+            "students/fees_list.html",
+            {
+                "fees": fees,
+                "mode": "student",
+                "student": student,
+                "paystack_available": pay_ok,
+            },
+        )
 
-    if role == "parent":
-        children = list(Student.objects.filter(parent=request.user).select_related("user").order_by("class_name", "admission_number"))
-        fees = Fee.objects.filter(student__in=children).select_related("student", "student__user").order_by("-created_at") if children else []
-        return render(request, "students/fees_list.html", {"fees": fees, "mode": "parent", "children": children})
+    if is_parent(request.user):
+        children = list(
+            Student.objects.filter(parent=request.user)
+            .select_related("user")
+            .order_by("class_name", "admission_number")
+        )
+        student_id = (request.GET.get("student") or "").strip()
+        active_child = None
+        if student_id and children:
+            active_child = next((c for c in children if str(c.id) == str(student_id)), None)
+        if not children:
+            fees = []
+        else:
+            fee_qs = (
+                Fee.objects.filter(student=active_child)
+                if active_child
+                else Fee.objects.filter(student__in=children)
+            )
+            fees = (
+                fee_qs.select_related("student", "student__user", "school")
+                .prefetch_related(
+                    Prefetch(
+                        "payments",
+                        queryset=FeePayment.objects.filter(status="completed").order_by(
+                            "-created_at"
+                        ),
+                    )
+                )
+                .order_by("-created_at")
+            )
+        return render(
+            request,
+            "students/fees_list.html",
+            {
+                "fees": fees,
+                "mode": "parent",
+                "children": children,
+                "active_child": active_child,
+                "paystack_available": pay_ok,
+            },
+        )
 
     return redirect("home")
 

@@ -224,7 +224,7 @@ class PaystackService:
         Args:
             request_body: Raw request body
             signature: Paystack signature from headers
-            secret_key: Paystack webhook secret
+            secret_key: Paystack API secret key (same key used for HMAC webhook verification)
             
         Returns:
             bool indicating if signature is valid

@@ -2,6 +2,12 @@ from django.core.cache import cache
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+
+from core.subscription_access import (
+    maybe_update_subscription_status_from_dates,
+    subscription_hard_block_applies,
+)
+
 from .models import School
 
 
@@ -13,9 +19,15 @@ class SchoolMiddleware:
     ])
     _skip_prefixes = ("/static/", "/media/", "/admin/jsi18n/", "/portal")
     _subscription_paths = (
-        "/finance/subscription/", "/finance/pay-subscription/",
-        "/finance/subscription-callback/", "/finance/subscription-expired/",
-        "/accounts/login/", "/accounts/logout/",
+        "/finance/subscription/",
+        "/finance/subscription/pay/",
+        "/finance/subscription/callback/",
+        "/finance/pay-subscription/",
+        "/finance/subscription-callback/",
+        "/finance/subscription-expired/",
+        "/accounts/login/",
+        "/accounts/logout/",
+        "/schools/register/",
     )
 
     def __init__(self, get_response):
@@ -81,20 +93,15 @@ class SchoolMiddleware:
             logout(request)
             return redirect(f"{reverse('accounts:login')}?inactive=1")
 
-        if user_school.subscription_status == "expired":
-            if not any(request.path.startswith(p) for p in self._subscription_paths):
-                return render(request, "finance/subscription_expired.html", {"school": user_school})
+        maybe_update_subscription_status_from_dates(user_school)
+        user_school.refresh_from_db()
 
-        if (
-            user_school.subscription_status == "active"
-            and user_school.subscription_end_date
-            and user_school.subscription_end_date < timezone.now()
-        ):
-            School.objects.filter(id=user_school.id, subscription_status="active").update(
-                subscription_status="expired"
-            )
-            user_school.subscription_status = "expired"
+        if subscription_hard_block_applies(user_school):
             if not any(request.path.startswith(p) for p in self._subscription_paths):
-                return render(request, "finance/subscription_expired.html", {"school": user_school})
+                return render(
+                    request,
+                    "finance/subscription_expired.html",
+                    {"school": user_school},
+                )
 
         return None

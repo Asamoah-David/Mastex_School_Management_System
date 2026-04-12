@@ -4,7 +4,7 @@ from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Count
 from .models import AuditLog
 
 
@@ -19,6 +19,9 @@ def _has_audit_access(user):
 
 
 def _audit_filters_from_request(request):
+    per_page = (request.GET.get("per_page") or "50").strip()
+    if per_page not in ("25", "50", "100"):
+        per_page = "50"
     return {
         "action": request.GET.get("action", ""),
         "model": request.GET.get("model", ""),
@@ -27,6 +30,7 @@ def _audit_filters_from_request(request):
         "date_to": request.GET.get("date_to", ""),
         "q": request.GET.get("q", ""),
         "school_id": (request.GET.get("school_id") or "").strip(),
+        "per_page": per_page,
     }
 
 
@@ -101,7 +105,7 @@ def audit_dashboard(request):
             )
         return response
 
-    paginator = Paginator(logs, 50)
+    paginator = Paginator(logs, int(filters["per_page"]))
     page_obj = paginator.get_page(request.GET.get("page", 1))
 
     audit_schools = []
@@ -110,12 +114,22 @@ def audit_dashboard(request):
 
         audit_schools = list(School.objects.order_by("name").values("id", "name")[:300])
 
+    action_labels = dict(AuditLog.ACTION_CHOICES)
+    action_summary = [
+        {"action": row["action"], "label": action_labels.get(row["action"], row["action"]), "count": row["c"]}
+        for row in logs.values("action").annotate(c=Count("id")).order_by("-c")[:10]
+    ]
+    max_action_count = max((row["count"] for row in action_summary), default=0)
+
     context = {
         "page_obj": page_obj,
         "action_choices": [c[0] for c in AuditLog.ACTION_CHOICES],
         "can_view_all": is_super,
         "filters": filters,
         "audit_schools": audit_schools,
+        "action_summary": action_summary,
+        "max_action_count": max_action_count,
+        "total_filtered_count": paginator.count,
     }
     return render(request, "audit/dashboard.html", context)
 

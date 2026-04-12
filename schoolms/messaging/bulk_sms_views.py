@@ -16,6 +16,8 @@ from accounts.permissions import user_can_manage_school
 
 from .models import OutboundCommLog
 
+from core.pagination import paginate
+
 
 @login_required
 def bulk_sms_page(request):
@@ -224,13 +226,15 @@ def sms_history(request):
         messages.error(request, 'You do not have permission to view SMS history.')
         return redirect('home')
 
-    logs = (
-        OutboundCommLog.objects.filter(school=school, channel='sms')
-        .select_related('sender')
-        .order_by('-created_at')[:200]
+    qs = (
+        OutboundCommLog.objects.filter(school=school, channel="sms")
+        .select_related("sender")
+        .order_by("-created_at")
     )
+    page_obj = paginate(request, qs, per_page=50)
     context = {
-        'school': school,
-        'logs': logs,
+        "school": school,
+        "logs": page_obj,
+        "page_obj": page_obj,
     }
     return render(request, 'messaging/sms_history.html', context)

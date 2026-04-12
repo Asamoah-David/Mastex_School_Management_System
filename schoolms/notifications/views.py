@@ -2,18 +2,43 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
+from django.urls import reverse
+
+from core.pagination import paginate
+
 from .models import Notification
-import json
+
+_NOTIF_URL_PLACEHOLDER = 987654321
+
+
+def _notification_api_url_templates():
+    """Stable URL patterns for list-page JS (avoids hard-coded /notifications/… paths)."""
+    read = reverse("notifications:mark_read", kwargs={"notification_id": _NOTIF_URL_PLACEHOLDER})
+    delete = reverse("notifications:delete", kwargs={"notification_id": _NOTIF_URL_PLACEHOLDER})
+    ph = str(_NOTIF_URL_PLACEHOLDER)
+    return {
+        "mark_read": read.replace(ph, "__ID__"),
+        "delete": delete.replace(ph, "__ID__"),
+        "mark_all_read": reverse("notifications:mark_all_read"),
+    }
+
 
 @login_required
 def notification_list(request):
-    """List all notifications for the user"""
-    notifications = Notification.objects.filter(user=request.user)[:50]
+    """List all notifications for the user (paginated)."""
+    qs = Notification.objects.filter(user=request.user).order_by("-created_at")
+    page_obj = paginate(request, qs, per_page=25)
     unread_count = Notification.get_unread_count(request.user)
-    return render(request, 'notifications/list.html', {
-        'notifications': notifications,
-        'unread_count': unread_count
-    })
+    return render(
+        request,
+        "notifications/list.html",
+        {
+            "page_obj": page_obj,
+            "notifications": page_obj,
+            "unread_count": unread_count,
+            "notification_api": _notification_api_url_templates(),
+        },
+    )
 
 @login_required
 def get_notifications(request):

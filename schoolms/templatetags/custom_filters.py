@@ -7,10 +7,16 @@ register = template.Library()
 
 @register.filter
 def get_item(dictionary, key):
-    """Get item from dictionary by key."""
+    """Get item from dict or QueryDict without raising (avoids MultiValueDictKeyError for missing keys)."""
     if dictionary is None:
         return None
-    return dictionary.get(key)
+    getter = getattr(dictionary, "get", None)
+    if callable(getter):
+        return getter(key)
+    try:
+        return dictionary[key]
+    except (KeyError, TypeError):
+        return None
 
 @register.filter
 def get_photo_url(photo):

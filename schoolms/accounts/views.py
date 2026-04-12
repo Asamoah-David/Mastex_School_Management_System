@@ -1,8 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
 from django.contrib import messages
-from django.db.models import Sum, Q
+from decimal import Decimal
+
+from django.db.models import Sum, Q, Count
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from django.utils.crypto import get_random_string
@@ -16,6 +19,9 @@ from accounts.permissions import (
     can_manage_finance,
     is_super_admin,
     can_review_staff_leave,
+    is_teacher,
+    is_student,
+    is_parent,
 )
 from academics.models import Subject, Timetable, Term
 from schools.models import School
@@ -25,13 +31,18 @@ from finance.staff_payroll_paystack import school_staff_paystack_allowed
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
 from operations.activity import recent_activities_for_dashboard
 from core.pagination import paginate
+from core.utils import safe_internal_redirect_path
 from accounts.dashboard_insights import (
     build_academic_insights,
+    build_ar_aging_chart,
     build_attendance_trend,
+    build_enrollment_by_class_chart,
+    build_fee_collection_trend,
     build_finance_insights,
     build_teacher_academic_insights,
     build_teacher_attendance_trend,
     build_teacher_students_by_class_chart,
+    build_term_collections_chart,
 )
 
 # Supabase Storage for media files
@@ -289,11 +300,21 @@ def edit_profile(request):
 
 
 @login_required
+@require_http_methods(["POST"])
+def dismiss_setup_checklist(request):
+    User.objects.filter(pk=request.user.pk).update(setup_checklist_dismissed=True)
+    nxt = safe_internal_redirect_path(request.POST.get("next")) or safe_internal_redirect_path(
+        request.META.get("HTTP_REFERER", "")
+    )
+    return redirect(nxt or reverse("accounts:school_dashboard"))
+
+
+@login_required
 def dashboard(request):
-    if getattr(request.user, "role", None) in ["parent", "student"]:
+    if is_parent(request.user) or is_student(request.user):
         return redirect("portal")
 
-    if getattr(request.user, "role", None) == "teacher" and getattr(request.user, "school", None):
+    if is_teacher(request.user) and getattr(request.user, "school", None):
         return redirect("accounts:teacher_dashboard")
 
     # Super admins and superusers get the main dashboard
@@ -303,37 +324,84 @@ def dashboard(request):
         or getattr(request.user, "is_staff", False)
     ):
         school = getattr(request.user, "school", None)
-        
+
         # Check if superuser (platform admin)
         is_superuser = request.user.is_superuser
-        
+
         if school:
             total_schools = 1
             total_students = Student.objects.filter(school=school).count()
             total_staff = User.objects.filter(school=school, role__in=("school_admin", "teacher", "staff")).count()
             total_parents = User.objects.filter(school=school, role="parent").count()
-            paid_fees = Fee.objects.filter(school=school, paid=True).aggregate(total=Sum("amount"))["total"] or 0
-            unpaid_count = Fee.objects.filter(school=school, paid=False).count()
+            fee_agg = Fee.objects.filter(school=school).aggregate(
+                billed=Sum("amount"),
+                collected=Sum("amount_paid"),
+            )
+            gender_agg = Student.objects.filter(school=school).aggregate(
+                m=Count("id", filter=Q(user__gender="male")),
+                f=Count("id", filter=Q(user__gender="female")),
+            )
+            chart_male_students = gender_agg["m"] or 0
+            chart_female_students = gender_agg["f"] or 0
+            schools_active_chart = 1 if school.is_active else 0
+            schools_inactive_chart = 0 if school.is_active else 1
+            trial_schools_count = 0
+            active_sub_schools_count = 0
+            expired_schools_count = 0
         else:
             total_schools = School.objects.filter(is_active=True).count()
             total_students = Student.objects.count()
             total_staff = User.objects.filter(role__in=("school_admin", "teacher", "staff")).count()
             total_parents = User.objects.filter(role="parent").count()
-            paid_fees = Fee.objects.filter(paid=True).aggregate(total=Sum("amount"))["total"] or 0
-            unpaid_count = Fee.objects.filter(paid=False).count()
+            fee_agg = Fee.objects.aggregate(
+                billed=Sum("amount"),
+                collected=Sum("amount_paid"),
+            )
+            chart_male_students = 0
+            chart_female_students = 0
+            schools_active_chart = School.objects.filter(is_active=True).count()
+            schools_inactive_chart = School.objects.filter(is_active=False).count()
+            trial_schools_count = School.objects.filter(is_active=True, subscription_status="trial").count()
+            active_sub_schools_count = School.objects.filter(is_active=True, subscription_status="active").count()
+            expired_schools_count = School.objects.filter(subscription_status="expired").count()
+
+        fee_billed = fee_agg["billed"] or Decimal("0")
+        fee_collected = fee_agg["collected"] or Decimal("0")
+        fee_outstanding = max(Decimal("0"), fee_billed - fee_collected)
+        unpaid_fee_records = (
+            Fee.objects.filter(school=school, paid=False).count()
+            if school
+            else Fee.objects.filter(paid=False).count()
+        )
+        fee_collection_trend_chart = build_fee_collection_trend(school=school, days=30)
+        ar_aging_chart = build_ar_aging_chart(school=school)
 
         context = {
             "total_schools": total_schools,
             "total_students": total_students,
             "total_staff": total_staff,
             "total_parents": total_parents,
-            "mrr": int(paid_fees),
-            "unpaid_fees_count": unpaid_count,
+            "mrr": fee_collected,
+            "fee_collected": fee_collected,
+            "fee_outstanding": fee_outstanding,
+            "fee_billed": fee_billed,
+            "unpaid_fees_count": unpaid_fee_records,
+            "fee_collected_js": float(fee_collected),
+            "fee_outstanding_js": float(fee_outstanding),
             "school": school,
             "is_superuser": is_superuser,
+            "chart_male_students": chart_male_students,
+            "chart_female_students": chart_female_students,
+            "schools_active_chart": schools_active_chart,
+            "schools_inactive_chart": schools_inactive_chart,
+            "trial_schools_count": trial_schools_count,
+            "active_sub_schools_count": active_sub_schools_count,
+            "expired_schools_count": expired_schools_count,
             "recent_activities": recent_activities_for_dashboard(
                 user=request.user, school=school, limit=12
             ),
+            "fee_collection_trend_chart": fee_collection_trend_chart,
+            "ar_aging_chart": ar_aging_chart,
         }
         return render(request, "dashboard.html", context)
     
@@ -347,6 +415,26 @@ def dashboard(request):
             "recent_activities": recent_activities_for_dashboard(
                 user=request.user, school=None, limit=12
             ),
+            "total_schools": 0,
+            "total_students": 0,
+            "total_staff": 0,
+            "total_parents": 0,
+            "mrr": Decimal("0"),
+            "fee_collected": Decimal("0"),
+            "fee_outstanding": Decimal("0"),
+            "fee_billed": Decimal("0"),
+            "unpaid_fees_count": 0,
+            "fee_collected_js": 0.0,
+            "fee_outstanding_js": 0.0,
+            "chart_male_students": 0,
+            "chart_female_students": 0,
+            "schools_active_chart": 0,
+            "schools_inactive_chart": 0,
+            "trial_schools_count": 0,
+            "active_sub_schools_count": 0,
+            "expired_schools_count": 0,
+            "fee_collection_trend_chart": {"has_data": False, "labels": [], "amounts": [], "days": 30},
+            "ar_aging_chart": {"has_data": False, "labels": [], "amounts": []},
         },
     )
 
@@ -354,16 +442,9 @@ def dashboard(request):
 @login_required
 def school_dashboard(request):
     """Custom dashboard for school admins, teachers, and staff."""
-    # Only school staff can access. Avoid redirect loops by checking roles first.
-    allowed_roles = {
-        "school_admin", "deputy_head", "hod", "teacher", "accountant",
-        "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff",
-    }
-    is_allowed_role = getattr(request.user, "role", None) in allowed_roles
-    is_staff_flag = getattr(request.user, "is_staff_member", False)
-    is_school_admin_flag = getattr(request.user, "is_school_admin", False)
+    from accounts.permissions import can_access_school_dashboard
 
-    if not (is_allowed_role or is_staff_flag or is_school_admin_flag):
+    if not can_access_school_dashboard(request.user):
         # Non-staff users (e.g. parents, students) → main dashboard (one redirect only)
         return redirect("accounts:dashboard")
     
@@ -513,6 +594,10 @@ def school_dashboard(request):
     attendance_trend_chart = build_attendance_trend(school, days=14)
     academic_insights = build_academic_insights(school)
     finance_insights = build_finance_insights(school, float(total_fees), float(paid_fees))
+    fee_collection_trend_chart = build_fee_collection_trend(school=school, days=30)
+    enrollment_by_class_chart = build_enrollment_by_class_chart(school)
+    ar_aging_chart = build_ar_aging_chart(school=school)
+    term_collections_chart = build_term_collections_chart(school)
 
     onboarding_checklist = []
     show_onboarding_card = False
@@ -558,6 +643,23 @@ def school_dashboard(request):
         Notification.objects.filter(user=request.user).order_by("-created_at")[:8]
     )
     unread_notification_count = Notification.get_unread_count(request.user)
+
+    from accounts.permissions import is_school_leadership
+    from audit.models import AuditLog
+
+    show_audit_snapshot = (
+        request.user.is_superuser
+        or is_super_admin(request.user)
+        or is_school_leadership(request.user)
+    )
+    audit_snapshot = None
+    if show_audit_snapshot and school:
+        audit_since = timezone.now() - timedelta(days=30)
+        aq = AuditLog.objects.filter(school=school, timestamp__gte=audit_since)
+        audit_snapshot = {
+            "delete_export_30d": aq.filter(action__in=["delete", "export"]).count(),
+            "logins_30d": aq.filter(action="login").count(),
+        }
 
     role = getattr(request.user, "role", None)
     if role == "teacher":
@@ -616,6 +718,12 @@ def school_dashboard(request):
         "quick_actions": quick_actions,
         "onboarding_checklist": onboarding_checklist,
         "show_onboarding_card": show_onboarding_card,
+        "show_audit_snapshot": show_audit_snapshot,
+        "audit_snapshot": audit_snapshot,
+        "fee_collection_trend_chart": fee_collection_trend_chart,
+        "enrollment_by_class_chart": enrollment_by_class_chart,
+        "ar_aging_chart": ar_aging_chart,
+        "term_collections_chart": term_collections_chart,
     }
     return render(request, "accounts/school_dashboard.html", context)
 

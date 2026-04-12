@@ -8,6 +8,7 @@ third-party service keys, and Django system checks.
 """
 
 import sys
+from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -48,16 +49,39 @@ class Command(BaseCommand):
         except Exception as exc:
             errors.append(f"Database connection failed: {exc}")
 
+        self._section("Migrations")
+        try:
+            from django.db.migrations.executor import MigrationExecutor
+
+            executor = MigrationExecutor(connection)
+            plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
+            if plan:
+                for migration, _backwards in plan:
+                    errors.append(f"Unapplied migration: {migration}")
+            else:
+                self._ok("No pending migrations")
+        except Exception as exc:
+            errors.append(f"Could not verify migrations: {exc}")
+
         # ---- Security ----
         self._section("Security")
-        checks = {
-            "SECURE_SSL_REDIRECT": True,
+        behind_edge = getattr(settings, "BEHIND_TLS_TERMINATING_PROXY", False)
+        if behind_edge and not getattr(settings, "SECURE_SSL_REDIRECT", False):
+            self._ok("SECURE_SSL_REDIRECT off (TLS at edge; normal for Railway/Render/Fly)")
+        elif not getattr(settings, "SECURE_SSL_REDIRECT", False):
+            errors.append(
+                "SECURE_SSL_REDIRECT is False — set True or set BEHIND_TLS_TERMINATING_PROXY=1 when HTTPS is at the proxy"
+            )
+        else:
+            self._ok("SECURE_SSL_REDIRECT is True")
+
+        cookie_checks = {
             "SESSION_COOKIE_SECURE": True,
             "CSRF_COOKIE_SECURE": True,
             "SESSION_COOKIE_HTTPONLY": True,
             "SECURE_CONTENT_TYPE_NOSNIFF": True,
         }
-        for key, expected in checks.items():
+        for key, expected in cookie_checks.items():
             actual = getattr(settings, key, None)
             if actual != expected:
                 errors.append(f"{key} is {actual!r}, expected {expected!r}")
@@ -99,6 +123,26 @@ class Command(BaseCommand):
                 self._ok(f"{name} is set")
             else:
                 self._stdout_warn(f"{name} not configured (optional)")
+
+        # ---- Compliance / audit (ERP) ----
+        self._section("Compliance / audit")
+        if getattr(settings, "AUDIT_APPEND_ONLY", False):
+            self._ok("AUDIT_APPEND_ONLY is on (model audit log is append-only)")
+            archive_dir = getattr(settings, "AUDIT_ARCHIVE_DIR", None)
+            if archive_dir:
+                try:
+                    ad = Path(archive_dir)
+                    ad.mkdir(parents=True, exist_ok=True)
+                    probe = ad / ".preflight_write_test"
+                    probe.write_text("", encoding="utf-8")
+                    probe.unlink(missing_ok=True)
+                    self._ok(f"AUDIT_ARCHIVE_DIR is writable ({ad})")
+                except OSError as exc:
+                    warnings.append(f"AUDIT_ARCHIVE_DIR not writable ({archive_dir}): {exc}")
+            if not getattr(settings, "AUDIT_PRUNE_ENABLED", False):
+                self._stdout_warn("AUDIT_PRUNE_ENABLED is off (recommended; use archive_audit_logs + policy before any prune)")
+        else:
+            self._stdout_warn("AUDIT_APPEND_ONLY is off — audit rows can be deleted from Django admin")
 
         # ---- Logging / Monitoring ----
         self._section("Monitoring")

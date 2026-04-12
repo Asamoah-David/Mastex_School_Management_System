@@ -32,6 +32,10 @@ class School(models.Model):
 
     logo_url = models.URLField(max_length=500, blank=True)
     academic_year = models.CharField(max_length=50, blank=True)  # e.g. "2024/2025"
+    subscription_grace_days = models.PositiveSmallIntegerField(
+        default=7,
+        help_text="Days after subscription_end_date before access is fully blocked (read-only / renew flows still allowed).",
+    )
 
     class Meta:
         ordering = ["name"]

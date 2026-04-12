@@ -9,11 +9,18 @@
             <div class="page-title">Notifications</div>
             <div class="page-subtitle">Stay updated with your latest activities</div>
         </div>
-        <button class="btn btn-secondary" onclick="markAllAsRead()">Mark All as Read</button>
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;">
+            <button type="button" class="btn btn-secondary" id="btnMarkAllRead">Mark all as read</button>
+            {% if page_obj.paginator.count %}
+            <span class="page-subtitle" style="margin:0;">{{ page_obj.paginator.count }} total{% if page_obj.paginator.num_pages > 1 %} · page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}{% endif %}</span>
+            {% endif %}
+        </div>
     </div>
+
+    {{ notification_api|json_script:"notification-api-config" }}
     
     {% if notifications %}
-    <div class="notifications-list">
+    <div class="notifications-list notifications-list-scroll">
         {% for notification in notifications %}
         <div class="notification-item {% if not notification.is_read %}unread{% endif %}" 
              data-id="{{ notification.id }}"
@@ -37,6 +44,7 @@
         </div>
         {% endfor %}
     </div>
+    {% include "includes/pagination.html" with page_obj=page_obj %}
     {% else %}
     <div class="empty-state" style="text-align: center; padding: 2rem;">
         <div style="font-size: 3rem; margin-bottom: 1rem;">🔔</div>
@@ -51,6 +59,12 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+}
+.notifications-list-scroll {
+    max-height: min(65vh, 480px);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    -webkit-overflow-scrolling: touch;
 }
 
 .notification-item {
@@ -138,55 +152,76 @@
 </style>
 
 <script>
-function handleNotificationClick(link, id) {
-    markAsRead(id);
-    if (link) {
-        window.location.href = link;
+(function() {
+    var cfgEl = document.getElementById('notification-api-config');
+    var NOTIF_API = cfgEl ? JSON.parse(cfgEl.textContent) : {};
+
+    function handleNotificationClick(link, id) {
+        markAsRead(id);
+        if (link) {
+            window.location.href = link;
+        }
     }
-}
 
-function markAsRead(id) {
-    fetch(`/notifications/${id}/read/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'Content-Type': 'application/json'
-        }
-    }).then(response => response.json()).then(data => {
-        if (data.success) {
-            document.querySelector(`[data-id="${id}"]`).classList.remove('unread');
-            updateNotificationCount();
-        }
-    });
-}
+    function markAsRead(id) {
+        var url = (NOTIF_API.mark_read || '').replace('__ID__', String(id));
+        if (!url) return;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(function(response) { return response.json(); }).then(function(data) {
+            if (data.success) {
+                var row = document.querySelector('.notification-item[data-id="' + id + '"]');
+                if (row) row.classList.remove('unread');
+                if (typeof updateNotificationCount === 'function') updateNotificationCount();
+            }
+        });
+    }
 
-function markAllAsRead() {
-    fetch('/notifications/read-all/', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'Content-Type': 'application/json'
-        }
-    }).then(response => response.json()).then(data => {
-        if (data.success) {
-            document.querySelectorAll('.notification-item').forEach(item => item.classList.remove('unread'));
-            updateNotificationCount();
-        }
-    });
-}
+    function markAllAsRead() {
+        var url = NOTIF_API.mark_all_read;
+        if (!url) return;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(function(response) { return response.json(); }).then(function(data) {
+            if (data.success) {
+                document.querySelectorAll('.notification-item').forEach(function(item) { item.classList.remove('unread'); });
+                if (typeof updateNotificationCount === 'function') updateNotificationCount();
+            }
+        });
+    }
 
-function deleteNotification(id) {
-    fetch(`/notifications/${id}/delete/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'Content-Type': 'application/json'
-        }
-    }).then(response => response.json()).then(data => {
-        if (data.success) {
-            document.querySelector(`[data-id="${id}"]`).remove();
-        }
-    });
-}
+    function deleteNotification(id) {
+        var url = (NOTIF_API.delete || '').replace('__ID__', String(id));
+        if (!url) return;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(function(response) { return response.json(); }).then(function(data) {
+            if (data.success) {
+                var row = document.querySelector('.notification-item[data-id="' + id + '"]');
+                if (row) row.remove();
+            }
+        });
+    }
+
+    window.handleNotificationClick = handleNotificationClick;
+    window.markAsRead = markAsRead;
+    window.markAllAsRead = markAllAsRead;
+    window.deleteNotification = deleteNotification;
+
+    var btn = document.getElementById('btnMarkAllRead');
+    if (btn) btn.addEventListener('click', markAllAsRead);
+})();
 </script>
 {% endblock %}

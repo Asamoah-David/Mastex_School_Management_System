@@ -14,8 +14,17 @@
             <label style="display:block;font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.25rem;">To</label>
             <input type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" style="padding:0.45rem;border-radius:8px;border:1px solid rgba(148,163,184,0.35);background:rgba(15,23,42,0.9);color:var(--text-main);">
         </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.25rem;">Paystack</label>
+            <select name="ps" style="padding:0.45rem;border-radius:8px;border:1px solid rgba(148,163,184,0.35);background:rgba(15,23,42,0.9);color:var(--text-main);min-width:11rem;">
+                <option value="" {% if not ps_filter %}selected{% endif %}>All lines</option>
+                <option value="paystack" {% if ps_filter == "paystack" %}selected{% endif %}>Any Paystack transfer</option>
+                <option value="success" {% if ps_filter == "success" %}selected{% endif %}>Paystack success</option>
+                <option value="failed" {% if ps_filter == "failed" %}selected{% endif %}>Paystack failed</option>
+            </select>
+        </div>
         <button type="submit" class="btn btn-primary">Apply</button>
-        <a href="?from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}&export=csv" class="btn btn-secondary">Download CSV (this range)</a>
+        <a href="?from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}{% if ps_filter %}&ps={{ ps_filter|urlencode }}{% endif %}&export=csv" class="btn btn-secondary">Download CSV (this range)</a>
         <a href="{% url 'operations:export_staff_payroll' %}?from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="btn btn-secondary">Export all staff (same range)</a>
         <a href="{% url 'accounts:staff_payroll_bulk_record' %}" class="btn btn-secondary">Bulk record (offline)</a>
     </form>
@@ -59,6 +68,15 @@
 </div>
 {% endif %}
 
+{% if paystack_staff_enabled and failed_paystack_count %}
+<div class="content-card" style="margin-bottom:1rem;border-left:3px solid #f87171;">
+    <p style="margin:0;font-size:0.9rem;">
+        <strong>{{ failed_paystack_count }}</strong> Paystack staff transfer(s) failed in this date range.
+        Filter <strong>Paystack → Paystack failed</strong> and use <strong>Retry payout</strong> to run a new transfer from the staff profile.
+    </p>
+</div>
+{% endif %}
+
 <div class="content-card">
     {% if page_obj %}
     <table style="width:100%;font-size:0.88rem;border-collapse:collapse;">
@@ -69,6 +87,7 @@
                 <th>Period</th>
                 <th>Amount</th>
                 <th>Method</th>
+                {% if paystack_staff_enabled %}<th>Paystack</th>{% endif %}
                 <th>Reference</th>
                 <th></th>
             </tr>
@@ -83,11 +102,24 @@
                 <td>{{ p.period_label }}</td>
                 <td>{{ p.amount }} {{ p.currency }}</td>
                 <td>{{ p.get_method_display }}</td>
+                {% if paystack_staff_enabled %}
+                <td style="max-width:14rem;font-size:0.8rem;color:var(--text-secondary);">
+                    {% if p.paystack_status %}
+                        {{ p.get_paystack_status_display }}
+                        {% if p.paystack_failure_reason %}
+                        <span title="{{ p.paystack_failure_reason|escape }}"> — {{ p.paystack_failure_reason|truncatechars:48 }}</span>
+                        {% endif %}
+                        {% if p.paystack_status == "failed" %}
+                        <br /><a href="{% url 'accounts:staff_payroll_disburse' p.user_id %}" class="btn btn-sm btn-secondary" style="font-size:0.7rem;margin-top:0.25rem;">Retry payout</a>
+                        {% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                {% endif %}
                 <td style="color:var(--text-secondary);">{{ p.reference|default:"—" }}</td>
                 <td><a href="{% url 'accounts:staff_payroll_payslip' p.id %}" class="btn btn-sm btn-secondary" style="font-size:0.75rem;">Payslip</a></td>
             </tr>
             {% empty %}
-            <tr><td colspan="7" style="padding:1rem;color:var(--text-secondary);">No payroll lines in this date range.</td></tr>
+            <tr><td colspan="{% if paystack_staff_enabled %}8{% else %}7{% endif %}" style="padding:1rem;color:var(--text-secondary);">No payroll lines in this date range.</td></tr>
             {% endfor %}
         </tbody>
     </table>
