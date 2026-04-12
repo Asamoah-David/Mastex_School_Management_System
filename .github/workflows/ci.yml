@@ -96,4 +96,4 @@ jobs:
       - name: Smoke tests (pytest, Django test client)
         run: |
           pip install "pytest>=8.0,<9" "pytest-django>=4.8,<5"
-          pytest e2e_tests -v --tb=short
+          python -m pytest e2e_tests -v --tb=short
