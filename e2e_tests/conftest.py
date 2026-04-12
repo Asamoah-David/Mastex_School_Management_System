@@ -9,6 +9,10 @@ pytest sets up parameters left-to-right, and Playwright must start after DB data
 """
 import os
 
+# Default live_server host is "localhost"; on Linux that often resolves to ::1 while the
+# thread binds 127.0.0.1 — Playwright then misses the server and tests time out.
+os.environ.setdefault("DJANGO_LIVE_TEST_SERVER_ADDRESS", "127.0.0.1:0")
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone

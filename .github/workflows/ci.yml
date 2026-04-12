@@ -82,6 +82,7 @@ jobs:
       CSRF_TRUSTED_ORIGINS: http://127.0.0.1:8000
       BEHIND_TLS_TERMINATING_PROXY: "true"
       CI: "true"
+      DJANGO_LIVE_TEST_SERVER_ADDRESS: "127.0.0.1:0"
     steps:
       - uses: actions/checkout@v4
 
