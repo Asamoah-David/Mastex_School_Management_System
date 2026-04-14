@@ -15,7 +15,7 @@ TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM public.accounts_user u
-    WHERE u.id = auth.uid()
+    WHERE u.id = (auth.uid())::text::bigint
     AND (u.role = 'school_admin' OR u.is_superuser = true)
     AND u.school_id = public.integrations_schoolwebhookendpoint.school_id
   )
@@ -41,7 +41,7 @@ TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM public.accounts_user u
-    WHERE u.id = auth.uid()
+    WHERE u.id = (auth.uid())::text::bigint
     AND (u.role = 'school_admin' OR u.is_superuser = true)
   )
 );
@@ -59,7 +59,7 @@ TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM public.accounts_user u
-    WHERE u.id = auth.uid()
+    WHERE u.id = (auth.uid())::text::bigint
     AND u.school_id = public.academics_studentresultsummary.school_id
   )
 );
@@ -72,7 +72,7 @@ TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM public.accounts_user u
-    WHERE u.id = auth.uid()
+    WHERE u.id = (auth.uid())::text::bigint
     AND (u.role IN ('school_admin', 'teacher') OR u.is_superuser = true)
     AND u.school_id = public.academics_studentresultsummary.school_id
   )
@@ -107,7 +107,7 @@ TO authenticated
 WITH CHECK (
   bucket_id = 'media'
   AND (
-    SPLIT_PART(name, '/', 1) = (SELECT school_id::text FROM public.accounts_user WHERE id = auth.uid())
-    OR EXISTS (SELECT 1 FROM public.accounts_user WHERE id = auth.uid() AND is_superuser = true)
+    SPLIT_PART(name, '/', 1) = (SELECT school_id::text FROM public.accounts_user WHERE id = (auth.uid())::text::bigint)
+    OR EXISTS (SELECT 1 FROM public.accounts_user WHERE id = (auth.uid())::text::bigint AND is_superuser = true)
   )
 );
