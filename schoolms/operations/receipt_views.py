@@ -21,8 +21,10 @@ def _get_school(request):
 
 
 def _get_payment(pk, user, school):
-    """Find payment across FeePayment / StudentPayment models."""
+    """Find payment across ALL payment types: fees, bus, canteen, textbook, hostel."""
     from django.apps import apps
+    
+    # First check standard finance payment models
     for model_name in ("FeePayment", "StudentPayment", "Payment"):
         try:
             Model = apps.get_model("finance", model_name)
@@ -31,7 +33,9 @@ def _get_payment(pk, user, school):
                 return obj
         except Exception:
             pass
-    for model_name in ("FeePayment", "StudentPayment", "Payment"):
+    
+    # Check operations module payment models
+    for model_name in ("BusPayment", "CanteenPayment", "TextbookSale", "HostelFee", "FeePayment", "StudentPayment", "Payment"):
         try:
             Model = apps.get_model("operations", model_name)
             obj = Model.objects.filter(pk=pk).first()
@@ -39,6 +43,7 @@ def _get_payment(pk, user, school):
                 return obj
         except Exception:
             pass
+    
     return None
 
 
@@ -116,7 +121,13 @@ def _build_receipt_pdf(payment, school):
         except Exception:
             fee_type = getattr(payment, "fee_type", "")
 
-    paid_at = getattr(payment, "paid_at", None) or getattr(payment, "created_at", None)
+    # Convert date to datetime if needed to avoid format errors
+    from datetime import datetime, time
+    paid_at = getattr(payment, "paid_at", None) or getattr(payment, "created_at", None) or getattr(payment, "payment_date", None) or getattr(payment, "sale_date", None)
+    
+    if paid_at and not isinstance(paid_at, datetime):
+        paid_at = datetime.combine(paid_at, time.min)
+        
     paid_at_str = paid_at.strftime("%d %b %Y %H:%M") if paid_at else "N/A"
 
     info = [
