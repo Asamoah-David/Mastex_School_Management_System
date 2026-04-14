@@ -60,7 +60,7 @@ USING (
   EXISTS (
     SELECT 1 FROM public.accounts_user u
     WHERE u.id = (auth.uid())::text::bigint
-    AND u.school_id = public.academics_studentresultsummary.school_id
+    AND u.school_id = public.academics_studentresultsummary.school
   )
 );
 
@@ -74,7 +74,7 @@ USING (
     SELECT 1 FROM public.accounts_user u
     WHERE u.id = (auth.uid())::text::bigint
     AND (u.role IN ('school_admin', 'teacher') OR u.is_superuser = true)
-    AND u.school_id = public.academics_studentresultsummary.school_id
+    AND u.school_id = public.academics_studentresultsummary.school
   )
 );
 
