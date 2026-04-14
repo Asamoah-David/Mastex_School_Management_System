@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Pay {{ fee_type_label }} | {{ school.name }}{% endblock %}
+{% block content %}
+<div class="content-card" style="margin-bottom:1rem;">
+  <div class="page-heading">
+    <div>
+      <h1 class="page-title">&#128178; Pay {{ fee_type_label }}</h1>
+      <p class="page-subtitle">Partial &amp; instalment payments are accepted</p>
+    </div>
+    <a href="{{ back_url }}" class="btn btn-secondary">&#8592; Back</a>
+  </div>
+</div>
+<div class="content-card" style="max-width:550px;">
+  <!-- Summary -->
+  <div style="background:#f7f9fc;border-radius:.5rem;padding:1rem;margin-bottom:1.5rem;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.9rem;">
+      <div><b style="color:#1e3a5f;">Fee Type:</b> {{ fee_type_label }}</div>
+      <div><b style="color:#1e3a5f;">Student:</b> {{ student.user.get_full_name|default:student }}</div>
+      <div><b style="color:#1e3a5f;">Total Fee:</b> {{ currency }} {{ total_fee|floatformat:2 }}</div>
+      <div><b style="color:#1e3a5f;">Paid:</b> {{ currency }} {{ total_paid|floatformat:2 }}</div>
+      <div><b style="color:#dc2626;">Balance:</b> <b>{{ currency }} {{ balance|floatformat:2 }}</b></div>
+      <div><b style="color:#1e3a5f;">Status:</b>
+        {% if balance <= 0 %}<span style="color:#16a34a;">&#10004; Fully Paid</span>
+        {% elif total_paid > 0 %}<span style="color:#d97706;">&#8987; Partially Paid</span>
+        {% else %}<span style="color:#dc2626;">&#9940; Unpaid</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if balance > 0 %}
+  <!-- Quick amount buttons -->
+  <div style="margin-bottom:1rem;">
+    <label class="form-label">Quick Amount</label>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setAmount({{ balance|floatformat:2 }})">Full Balance ({{ currency }} {{ balance|floatformat:2 }})</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setAmount({{ half_balance|floatformat:2 }})">Half ({{ currency }} {{ half_balance|floatformat:2 }})</button>
+      {% if fee_type == 'bus' %}
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setAmount({{ daily_rate|floatformat:2 }})">Daily ({{ currency }} {{ daily_rate|floatformat:2 }})</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setAmount({{ weekly_rate|floatformat:2 }})">Weekly ({{ currency }} {{ weekly_rate|floatformat:2 }})</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post" id="paymentForm">
+    {% csrf_token %}
+    <input type="hidden" name="fee_type" value="{{ fee_type }}">
+    <input type="hidden" name="student_id" value="{{ student.id }}">
+    <div class="form-group">
+      <label class="form-label">Amount to Pay ({{ currency }}) <span style="color:red;">*</span></label>
+      <input type="number" id="amountInput" name="amount" class="form-control" min="1" max="{{ balance }}" step="0.01" required placeholder="Enter amount">
+      <small style="color:#888;">Max: {{ currency }} {{ balance|floatformat:2 }}</small>
+    </div>
+    {% if fee_type == 'bus' %}
+    <div class="form-group">
+      <label class="form-label">Payment Period</label>
+      <select name="period" class="form-control" onchange="updateAmount(this.value)">
+        <option value="custom">Custom Amount</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="termly">Full Term</option>
+      </select>
+    </div>
+    {% endif %}
+    <div class="form-group">
+      <label class="form-label">Payment Method</label>
+      <select name="method" class="form-control">
+        <option value="paystack">Online (Paystack)</option>
+        <option value="cash">Cash</option>
+        <option value="bank_transfer">Bank Transfer</option>
+        <option value="momo">Mobile Money</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <input type="text" name="notes" class="form-control" placeholder="e.g. Week 1 bus payment">
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;">
+      &#128178; Proceed to Payment
+    </button>
+  </form>
+  {% else %}
+  <div style="text-align:center;padding:2rem;color:#16a34a;">
+    <div style="font-size:3rem;">&#10004;</div>
+    <h3>Fully Paid</h3>
+    <p>All fees for {{ fee_type_label }} have been paid.</p>
+    <a href="{{ back_url }}" class="btn btn-primary">Back</a>
+  </div>
+  {% endif %}
+
+  <!-- Payment history -->
+  {% if payments %}
+  <div style="margin-top:2rem;border-top:1px solid #ddd;padding-top:1rem;">
+    <h4 style="color:#1e3a5f;margin-bottom:.75rem;">Payment History</h4>
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead>
+        <tr style="background:#f0f4f8;">
+          <th style="padding:6px 8px;text-align:left;">Date</th>
+          <th style="padding:6px 8px;text-align:left;">Period</th>
+          <th style="padding:6px 8px;text-align:right;">Amount</th>
+          <th style="padding:6px 8px;text-align:center;">Receipt</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;">{{ p.created_at|date:"d M Y" }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;">{{ p.period_label|default:"&mdash;" }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">{{ currency }} {{ p.amount|floatformat:2 }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;">
+            <a href="{% url 'operations:receipt_pdf' p.id %}" class="btn btn-sm btn-secondary" target="_blank">PDF</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function setAmount(v) {
+  document.getElementById('amountInput').value = v;
+}
+const dailyRate = {{ daily_rate|default:0 }};
+const weeklyRate = {{ weekly_rate|default:0 }};
+const monthlyRate = {{ monthly_rate|default:0 }};
+const termlyRate = {{ termly_rate|default:0 }};
+function updateAmount(period) {
+  const map = { daily: dailyRate, weekly: weeklyRate, monthly: monthlyRate, termly: termlyRate };
+  if (map[period]) setAmount(map[period]);
+}
+</script>
+{% endblock %}

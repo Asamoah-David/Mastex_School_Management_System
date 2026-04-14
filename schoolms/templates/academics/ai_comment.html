@@ -1,213 +1,75 @@
 {% extends "base.html" %}
 {% load static %}
-
-{% block title %}AI Student Comments - {{ school.name }}{% endblock %}
-
+{% block title %}AI Comment Generator{% endblock %}
 {% block content %}
 <div class="content-card">
-    <div class="page-heading">
-        <div>
-            <h1 class="page-title">🤖 AI Student Comments</h1>
-            <p class="page-subtitle">Generate professional comments for student reports</p>
-        </div>
+  <div class="page-heading">
+    <div>
+      <h1 class="page-title">&#129302; AI Comment Generator</h1>
+      <p class="page-subtitle">Generate personalised teacher comments using AI</p>
     </div>
+    <a href="{% url 'academics:enhanced_report_card' student.id %}" class="btn btn-secondary">&#8592; Back to Report Card</a>
+  </div>
 </div>
-
-<!-- Generate Comment Form -->
-<div class="content-card" style="margin-top: 1rem;">
-    <h3 style="margin-bottom: 1rem;">✨ Generate New Comment</h3>
-    <form id="generateForm">
-        <div class="content-grid">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Student *</label>
-                <select name="student_id" id="studentSelect" required style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                    <option value="">Select Student</option>
-                    {% for student in students %}
-                    <option value="{{ student.id }}">{{ student.user.get_full_name|default:student.user.username }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Term *</label>
-                <select name="term" id="termSelect" required style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                    <option value="">Select Term</option>
-                    {% for term in terms %}
-                    <option value="{{ term.name }}">{{ term.name }}</option>
-                    {% endfor %}
-                    <option value="Term 1">Term 1</option>
-                    <option value="Term 2">Term 2</option>
-                    <option value="Term 3">Term 3</option>
-                </select>
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Comment Type</label>
-                <select name="comment_type" id="commentType" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                    <option value="overall">Overall Summary</option>
-                    <option value="academic">Academic Performance</option>
-                    <option value="behavioral">Behavioral</option>
-                </select>
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">Tone</label>
-                <select name="tone" id="toneSelect" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
-                    <option value="professional">Professional</option>
-                    <option value="encouraging">Encouraging</option>
-                    <option value="detailed">Detailed</option>
-                    <option value="concise">Concise</option>
-                </select>
-            </div>
-        </div>
-        <div style="margin-top: 1rem;">
-            <button type="submit" class="btn btn-primary">🚀 Generate Comment</button>
-        </div>
-    </form>
+<div class="content-card" style="max-width:700px;">
+  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:#f7f9fc;border-radius:.5rem;">
+    <div style="font-size:2rem;">&#127891;</div>
+    <div>
+      <div style="font-weight:600;font-size:1rem;">{{ student.user.get_full_name|default:student.user.username }}</div>
+      <div style="font-size:.85rem;color:#666;">{{ student.class_name|default:"No Class" }} &bull; Admission: {{ student.admission_number|default:"N/A" }}</div>
+    </div>
+  </div>
+  {% if saved_comment %}
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:.5rem;padding:1rem;margin-bottom:1.5rem;">
+    <div style="font-weight:600;color:#16a34a;margin-bottom:.5rem;">&#10004; Current Comment (saved to report card)</div>
+    <p style="margin:0;font-size:.9rem;line-height:1.6;">{{ saved_comment.content }}</p>
+    <div style="font-size:.75rem;color:#888;margin-top:.5rem;">Generated: {{ saved_comment.created_at|date:"d M Y H:i" }} &bull; Term: {{ saved_comment.term|default:"All Terms" }}</div>
+  </div>
+  {% endif %}
+  <form method="post" id="commentForm">
+    {% csrf_token %}
+    <input type="hidden" name="student_id" value="{{ student.id }}">
+    <div class="form-group">
+      <label class="form-label">Select Term</label>
+      <select name="term_id" class="form-control">
+        <option value="">All Terms</option>
+        {% for t in terms %}
+        <option value="{{ t.id }}" {% if t.is_current %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Additional Instructions (optional)</label>
+      <input type="text" name="instructions" class="form-control" placeholder="e.g. Focus on maths improvement, mention good behaviour">
+    </div>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+      <button type="submit" name="action" value="generate" class="btn btn-primary" id="generateBtn">
+        &#9889; Generate AI Comment
+      </button>
+      {% if generated_comment %}
+      <button type="submit" name="action" value="save" class="btn btn-success">
+        &#10003; Save to Report Card
+      </button>
+      {% endif %}
+    </div>
+  </form>
+  {% if generated_comment %}
+  <div style="margin-top:1.5rem;background:#eff6ff;border:1px solid #93c5fd;border-radius:.5rem;padding:1rem;">
+    <div style="font-weight:600;color:#1e40af;margin-bottom:.5rem;">&#129302; Generated Comment (preview)</div>
+    <p style="margin:0;font-size:.9rem;line-height:1.6;">{{ generated_comment }}</p>
+    <input type="hidden" name="generated_comment" value="{{ generated_comment }}">
+  </div>
+  {% endif %}
+  {% if error %}
+  <div style="margin-top:1rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:.5rem;padding:1rem;color:#dc2626;">
+    {{ error }}
+  </div>
+  {% endif %}
 </div>
-
-<!-- Generated Comment Display -->
-<div id="commentResult" style="display: none; margin-top: 1rem;" class="content-card">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-        <div>
-            <h3 style="margin-bottom: 0.25rem;">📝 Generated Comment</h3>
-            <p style="font-size: 0.85rem; color: var(--text-soft);">
-                For: <strong id="studentName"></strong> | Avg Score: <strong id="avgScore"></strong>% | Attendance: <strong id="attendance"></strong>%
-            </p>
-        </div>
-        <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-secondary" onclick="copyComment()">📋 Copy</button>
-            <button class="btn btn-secondary" onclick="regenerateComment()">🔄 Regenerate</button>
-        </div>
-    </div>
-    <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 0.75rem; padding: 1rem;">
-        <textarea id="commentText" rows="4" style="width: 100%; background: transparent; border: none; color: var(--text-main); font-size: 0.9rem; line-height: 1.6;"></textarea>
-    </div>
-    <div style="margin-top: 1rem;">
-        <button class="btn btn-primary" onclick="saveComment()">💾 Save Comment</button>
-    </div>
-</div>
-
-<!-- Recent Comments -->
-<div class="content-card" style="margin-top: 1rem;">
-    <h3 style="margin-bottom: 1rem;">📋 Recent Comments</h3>
-    {% if recent_comments %}
-    <div class="table-card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Student</th>
-                    <th>Term</th>
-                    <th>Type</th>
-                    <th>Tone</th>
-                    <th>Comment</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for comment in recent_comments %}
-                <tr>
-                    <td>{{ comment.student.user.get_full_name|default:comment.student.user.username }}</td>
-                    <td>{{ comment.term }}</td>
-                    <td>{{ comment.get_comment_type_display }}</td>
-                    <td>{{ comment.get_tone_display }}</td>
-                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        {{ comment.content|truncatechars:50 }}
-                    </td>
-                    <td>{{ comment.created_at|date:"M d, Y" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">No comments generated yet.</div>
-    {% endif %}
-</div>
-
 <script>
-let currentCommentId = null;
-
-document.getElementById('generateForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    generateComment();
+document.getElementById('generateBtn')?.addEventListener('click', function() {
+  this.textContent = '&#9889; Generating...';
+  this.disabled = true;
 });
-
-function generateComment() {
-    const formData = {
-        student_id: document.getElementById('studentSelect').value,
-        term: document.getElementById('termSelect').value,
-        comment_type: document.getElementById('commentType').value,
-        tone: document.getElementById('toneSelect').value
-    };
-    
-    if (!formData.student_id || !formData.term) {
-        alert('Please select a student and term');
-        return;
-    }
-    
-    fetch('{% url "academics:generate_ai_comment" %}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
-        body: JSON.stringify(formData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            currentCommentId = data.comment.id;
-            document.getElementById('studentName').textContent = data.comment.student;
-            document.getElementById('avgScore').textContent = data.comment.avg_score;
-            document.getElementById('attendance').textContent = data.comment.attendance_rate;
-            document.getElementById('commentText').value = data.comment.content;
-            document.getElementById('commentResult').style.display = 'block';
-        } else {
-            alert('Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to generate comment');
-    });
-}
-
-function regenerateComment() {
-    generateComment();
-}
-
-function copyComment() {
-    const text = document.getElementById('commentText').value;
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Comment copied to clipboard!');
-    });
-}
-
-function saveComment() {
-    const content = document.getElementById('commentText').value;
-    
-    fetch('{% url "academics:save_comment" %}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
-        body: JSON.stringify({
-            comment_id: currentCommentId,
-            content: content
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Comment saved successfully!');
-            location.reload();
-        } else {
-            alert('Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to save comment');
-    });
-}
 </script>
 {% endblock %}

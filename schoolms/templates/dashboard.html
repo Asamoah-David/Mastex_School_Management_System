@@ -22,6 +22,75 @@
     </div>
 </div>
 
+<!-- ══ Super Admin Subscription Metrics & Charts ══ -->
+<div class="content-card dash-section" style="margin-bottom:1.5rem;">
+  <h3 class="section-title" style="margin-bottom:1rem;">📊 Platform Metrics &amp; Trends</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:.75rem;padding:1.25rem;color:#fff;text-align:center;">
+      <div style="font-size:2rem;font-weight:700;">{{ total_schools|default:"0" }}</div>
+      <div style="font-size:.8rem;opacity:.85;">Total Schools</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#047857,#10b981);border-radius:.75rem;padding:1.25rem;color:#fff;text-align:center;">
+      <div style="font-size:2rem;font-weight:700;">{{ active_sub_schools_count|default:"0" }}</div>
+      <div style="font-size:.8rem;opacity:.85;">Active Subscriptions</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#b45309,#f59e0b);border-radius:.75rem;padding:1.25rem;color:#fff;text-align:center;">
+      <div style="font-size:2rem;font-weight:700;">{{ trial_schools_count|default:"0" }}</div>
+      <div style="font-size:.8rem;opacity:.85;">On Trial</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#991b1b,#ef4444);border-radius:.75rem;padding:1.25rem;color:#fff;text-align:center;">
+      <div style="font-size:2rem;font-weight:700;">{{ expired_schools_count|default:"0" }}</div>
+      <div style="font-size:.8rem;opacity:.85;">Expired</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#312e81,#6366f1);border-radius:.75rem;padding:1.25rem;color:#fff;text-align:center;">
+      <div style="font-size:2rem;font-weight:700;">{{ total_students|default:"0" }}</div>
+      <div style="font-size:.8rem;opacity:.85;">Total Students</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#0e7490,#06b6d4);border-radius:.75rem;padding:1.25rem;color:#fff;text-align:center;">
+      <div style="font-size:1.2rem;font-weight:700;">{{ fee_collected|format_ghs }}</div>
+      <div style="font-size:.8rem;opacity:.85;">Fees Collected</div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:1.5rem;align-items:start;">
+    <!-- Subscription Status Donut -->
+    <div style="text-align:center;">
+      <h4 style="font-size:.9rem;color:var(--text-secondary);margin-bottom:.75rem;">Subscription Status</h4>
+      <canvas id="subStatusChart" height="200"></canvas>
+    </div>
+    <!-- Monthly Registrations Bar -->
+    <div>
+      <h4 style="font-size:.9rem;color:var(--text-secondary);margin-bottom:.75rem;">School Registrations (last 6 months)</h4>
+      <canvas id="monthlyRegChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Expiring soon alert table -->
+  {% if expiring_soon_schools %}
+  <div style="margin-top:1.5rem;">
+    <h4 style="font-size:.9rem;color:#b45309;margin-bottom:.5rem;">⚠️ Subscriptions Expiring Within 14 Days</h4>
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead><tr style="background:#fef3c7;">
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #fde68a;">School</th>
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #fde68a;">Expires</th>
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #fde68a;">Plan</th>
+      </tr></thead>
+      <tbody>
+        {% for s in expiring_soon_schools %}
+        <tr style="border-bottom:1px solid #f5f5f5;">
+          <td style="padding:6px 10px;">{{ s.name }}</td>
+          <td style="padding:6px 10px;color:#991b1b;">{{ s.subscription_end|date:"d M Y" }}</td>
+          <td style="padding:6px 10px;">{{ s.get_subscription_plan_display|default:s.subscription_plan }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+<!-- ══ End Platform Metrics ══ -->
+
 <div class="content-card erp-workspace-card">
     <h3 class="section-title" style="margin-bottom:1rem;">Workspaces</h3>
     <div class="erp-module-group">

@@ -1,4 +1,6 @@
 from django.urls import path
+from accounts.superadmin_views import superadmin_metrics
+
 from django.contrib.auth import views as auth_views
 from .views import (
     login_view,
@@ -121,4 +123,5 @@ urlpatterns = [
         superuser_edit_credentials,
         name="superuser_edit_credentials",
     ),
+    path('super/metrics/', superadmin_metrics, name='superadmin_metrics'),
 ]

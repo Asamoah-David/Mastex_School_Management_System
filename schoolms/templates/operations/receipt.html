@@ -1,92 +1,71 @@
 {% extends "base.html" %}
-{% load static custom_filters %}
-
+{% load static %}
+{% block title %}Receipt #{{ payment.id }} | {{ school.name }}{% endblock %}
 {% block content %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card" id="receipt-card">
-                <div class="card-header bg-primary text-white text-center">
-                    <h4>{{ school.name }}</h4>
-                    <p class="mb-0">{{ school.address }}</p>
-                    <p class="mb-0">Tel: {{ school.phone }}</p>
-                </div>
-                <div class="card-body">
-                    <div class="text-center mb-4">
-                        <h3>RECEIPT</h3>
-                        <p class="text-muted">Receipt #: {{ receipt_number }}</p>
-                    </div>
-                    
-                    <table class="table table-borderless">
-                        <tr>
-                            <td><strong>Date:</strong></td>
-                            <td>{{ date|date:"d M Y" }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Student Name:</strong></td>
-                            <td>{{ student.user.get_full_name }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Payment Type:</strong></td>
-                            <td>{{ type }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Description:</strong></td>
-                            <td>{{ description }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Amount:</strong></td>
-                            <td><h4 class="text-success mb-0">{{ amount|format_ghs }}</h4></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Amount in Words:</strong></td>
-                            <td class="text-uppercase">{{ amount|text_to_words }} Ghana Cedis Only</td>
-                        </tr>
-                    </table>
-                    
-                    <hr>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Collected By:</strong><br>{{ collected_by }}</p>
-                        </div>
-                        <div class="col-md-6 text-end">
-                            <p><strong>Authorized Signature:</strong><br><br>_________________________</p>
-                        </div>
-                    </div>
-                    
-                    <hr>
-                    
-                    <div class="text-center text-muted">
-                        <small>
-                            This is an official receipt from {{ school.name }}<br>
-                            Thank you for your payment!
-                        </small>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="text-center mt-4">
-                <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-secondary">
-                    <i class="bi bi-arrow-left"></i> Back to Dashboard
-                </a>
-            </div>
-        </div>
+<div class="content-card" style="margin-bottom:1rem;">
+  <div class="page-heading">
+    <div>
+      <h1 class="page-title">&#129534; Payment Receipt</h1>
+      <p class="page-subtitle">Receipt #{{ payment.id }}</p>
     </div>
+    <div style="display:flex;gap:.5rem;">
+      <a href="{% url 'operations:receipt_pdf' payment.id %}" class="btn btn-primary" target="_blank">&#11015; Download PDF</a>
+      <button onclick="window.print()" class="btn btn-secondary">&#128438; Print</button>
+    </div>
+  </div>
 </div>
-
-<style>
-@media print {
-    .btn, .navbar, .sidebar {
-        display: none !important;
-    }
-    body {
-        background: white !important;
-    }
-    #receipt-card {
-        border: 2px solid #000;
-        box-shadow: none;
-    }
-}
-</style>
+<div id="receipt" class="content-card" style="max-width:600px;margin:0 auto;padding:2rem;">
+  <div style="text-align:center;border-bottom:2px solid #1e3a5f;padding-bottom:1rem;margin-bottom:1.5rem;">
+    <h2 style="color:#1e3a5f;margin:0;font-size:1.4rem;">{{ school.name|upper }}</h2>
+    {% if school.address %}<p style="margin:2px 0;color:#555;font-size:.85rem;">{{ school.address }}</p>{% endif %}
+    {% if school.phone %}<p style="margin:0;color:#555;font-size:.85rem;">Tel: {{ school.phone }}</p>{% endif %}
+    <h3 style="margin-top:.75rem;color:#1e3a5f;font-size:1rem;letter-spacing:2px;">OFFICIAL RECEIPT</h3>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem 1.5rem;font-size:.88rem;margin-bottom:1.5rem;">
+    <div><b style="color:#1e3a5f;">Receipt No.:</b> #{{ payment.id }}</div>
+    <div><b style="color:#1e3a5f;">Date:</b> {{ payment.paid_at|date:"d M Y H:i"|default:payment.created_at|date:"d M Y H:i" }}</div>
+    <div><b style="color:#1e3a5f;">Student:</b> {{ payment.student.user.get_full_name|default:payment.student }}</div>
+    <div><b style="color:#1e3a5f;">Class:</b> {{ payment.student.class_name|default:"&mdash;" }}</div>
+    <div><b style="color:#1e3a5f;">Fee Type:</b> {{ payment.get_fee_type_display|default:payment.fee_type }}</div>
+    <div><b style="color:#1e3a5f;">Payment Method:</b> {{ payment.get_method_display|default:payment.method|default:"Online" }}</div>
+    {% if payment.reference %}<div><b style="color:#1e3a5f;">Reference:</b> {{ payment.reference }}</div>{% endif %}
+    {% if payment.period_label %}<div><b style="color:#1e3a5f;">Period:</b> {{ payment.period_label }}</div>{% endif %}
+  </div>
+  <div style="background:#f7f9fc;border:1px solid #ddd;border-radius:.5rem;padding:1rem;margin-bottom:1.5rem;">
+    <table style="width:100%;border-collapse:collapse;font-size:.9rem;">
+      <tr style="border-bottom:1px solid #ddd;">
+        <td style="padding:6px 0;font-weight:600;color:#1e3a5f;">Description</td>
+        <td style="padding:6px 0;text-align:right;font-weight:600;color:#1e3a5f;">Amount</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;">{{ payment.get_fee_type_display|default:payment.description|default:"School Fee Payment" }}
+          {% if payment.period_label %}<br><small style="color:#666;">{{ payment.period_label }}</small>{% endif %}</td>
+        <td style="padding:8px 0;text-align:right;font-size:1.1rem;font-weight:600;">{{ school.currency|default:"GHS" }} {{ payment.amount|floatformat:2 }}</td>
+      </tr>
+      {% if payment.balance_before is not None %}
+      <tr style="border-top:1px solid #eee;">
+        <td style="padding:4px 0;color:#888;font-size:.82rem;">Balance before payment</td>
+        <td style="padding:4px 0;text-align:right;color:#888;font-size:.82rem;">{{ school.currency|default:"GHS" }} {{ payment.balance_before|floatformat:2 }}</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 0;color:#16a34a;font-size:.82rem;">Balance after payment</td>
+        <td style="padding:4px 0;text-align:right;color:#16a34a;font-size:.82rem;">{{ school.currency|default:"GHS" }} {{ payment.balance_after|floatformat:2 }}</td>
+      </tr>
+      {% endif %}
+    </table>
+  </div>
+  <div style="text-align:center;background:{% if payment.status == 'paid' %}#f0fdf4{% else %}#fef9c3{% endif %};border:1px solid {% if payment.status == 'paid' %}#86efac{% else %}#fde047{% endif %};border-radius:.5rem;padding:.75rem;margin-bottom:1.5rem;">
+    <span style="font-weight:700;font-size:1rem;color:{% if payment.status == 'paid' %}#16a34a{% else %}#ca8a04{% endif %};">
+      {% if payment.status == 'paid' %}&#10004; PAYMENT CONFIRMED{% else %}&#9203; PENDING{% endif %}
+    </span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:2rem;padding-top:1rem;border-top:1px solid #ddd;font-size:.82rem;text-align:center;">
+    <div><div style="border-top:1px solid #888;padding-top:.25rem;">Cashier / Accountant</div></div>
+    <div><div style="border-top:1px solid #888;padding-top:.25rem;">Parent / Guardian</div></div>
+  </div>
+  <div style="text-align:center;margin-top:1.5rem;font-size:.72rem;color:#aaa;">
+    Thank you for your payment. This is an official receipt from {{ school.name }}. Powered by Mastex SchoolOS.
+  </div>
+</div>
+<style>@media print{.sidebar,nav,.page-heading .btn,header{display:none!important}body{background:white!important}#receipt{box-shadow:none!important;border:none!important}}</style>
 {% endblock %}

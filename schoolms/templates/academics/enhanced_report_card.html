@@ -1,182 +1,89 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}Enhanced Report Card - {{ student.user.get_full_name }}{% endblock %}
-{% block page_title %}Enhanced Report Card{% endblock %}
-{% block page_subtitle %}{{ student.user.get_full_name|default:student.user.username }} - {{ student.class_name }}{% endblock %}
-
+{% load static custom_filters %}
+{% block title %}Report Card - {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
 {% block content %}
-
-<div class="content-card">
-    {# Student Photo and Info Header #}
-    <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
-        <div style="flex-shrink: 0;">
-            {% if student.user.profile_photo %}
-            <img src="{{ student.user.profile_photo }}" alt="Photo" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #4F46E5;">
-            {% else %}
-            <div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #4F46E5, #4338CA); color: white; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: bold;">
-                {{ student.user.get_full_name|slice:":1"|upper }}
-            </div>
-            {% endif %}
-        </div>
-        <div>
-            <h3 style="margin: 0 0 0.5rem;">{{ student.user.get_full_name }}</h3>
-            <p style="margin: 0; color: #6b7280;">{{ student.class_name }} | {{ student.admission_number }}</p>
-        </div>
+<div class="content-card" style="margin-bottom:1rem;">
+  <div class="page-heading">
+    <div>
+      <h1 class="page-title">&#128203; Student Report Card</h1>
+      <p class="page-subtitle">{{ student.user.get_full_name|default:student.user.username }} &mdash; {{ term.name|default:"All Terms" }}</p>
     </div>
-    
-    {# Grading Policy Info #}
-    <div style="background: #EEF2FF; border: 1px solid #C7D2FE; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
-        <h4 style="margin: 0 0 0.5rem 0; color: #4338CA;">📊 Grading Policy</h4>
-        <p style="margin: 0; color: #6B7280;">
-            Continuous Assessment (CA): <strong>{{ policy.ca_weight }}%</strong> | 
-            Exam: <strong>{{ policy.exam_weight }}%</strong>
-        </p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+      <a href="{% url 'academics:download_report_card' student.id %}{% if term %}?term={{ term.id }}{% endif %}" class="btn btn-primary" target="_blank">&#11015; Download PDF</a>
+      <button onclick="window.print()" class="btn btn-secondary">&#128438; Print</button>
+      {% if can_manage %}<a href="{% url 'academics:ai_comment' student.id %}" class="btn btn-secondary">&#129302; AI Comment</a>{% endif %}
     </div>
-    
-    {# Key Metrics #}
-    <div class="content-grid" style="margin-bottom:1.5rem;">
-        <div class="metric">
-            <div class="metric-label">Term GPA</div>
-            <div class="metric-value">{{ term_gpa|floatformat:2 }}</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">Cumulative GPA</div>
-            <div class="metric-value">{{ cumulative_gpa|floatformat:2 }}</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">Term Position</div>
-            <div class="metric-value">
-                {% if term_position %}
-                    {{ term_position }}{% if term_position == 1 %}st{% elif term_position == 2 %}nd{% elif term_position == 3 %}rd{% else %}th{% endif %}
-                {% else %}—{% endif %}
-            </div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">Cumulative Position</div>
-            <div class="metric-value">
-                {% if cumulative_position %}
-                    {{ cumulative_position }}{% if cumulative_position == 1 %}st{% elif cumulative_position == 2 %}nd{% elif cumulative_position == 3 %}rd{% else %}th{% endif %}
-                {% else %}—{% endif %}
-            </div>
-        </div>
-    </div>
-    
-    {# Attendance Summary Section #}
-    {% if attendance_total %}
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
-        <h4 style="margin:0 0 0.75rem 0;color:#166534;">📅 Attendance Summary</h4>
-        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
-            <div><strong>Total Days:</strong> {{ attendance_total }}</div>
-            <div style="color:#16a34a;"><strong>Present:</strong> {{ attendance_present }}</div>
-            <div style="color:#dc2626;"><strong>Absent:</strong> {{ attendance_absent }}</div>
-            <div style="color:#ca8a04;"><strong>Late:</strong> {{ attendance_late }}</div>
-            <div style="color:#2563eb;font-weight:bold;"><strong>Attendance Rate:</strong> {{ attendance_rate }}%</div>
-        </div>
-    </div>
-    {% endif %}
-    
-    {# Term Filter with Actions #}
-    <form method="get" style="margin-bottom:1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-        <select name="term" title="Select term" onchange="this.form.submit()" style="padding:0.5rem;">
-            <option value="">All terms</option>
-            {% for t in terms %}
-            <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
-            {% endfor %}
-        </select>
-        <a href="{% url 'academics:enhanced_report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}" class="btn btn-secondary" download>
-            📄 Download PDF
-        </a>
-        {% if is_school_leadership or request.user.is_superuser %}
-        <button type="button" onclick="window.print()" class="btn btn-secondary">
-            🖨️ Print
-        </button>
-        {% endif %}
-        {% if not results %}
-        <a href="{% url 'academics:assessment_score_upload' %}" class="btn btn-primary">
-            ➕ Upload Scores
-        </a>
-        {% endif %}
-    </form>
-    
-    {# Results Table #}
-    {% if results %}
-    <div class="table-card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Subject</th>
-                    <th>CA Score ({{ policy.ca_weight }}%)</th>
-                    <th>Exam Score ({{ policy.exam_weight }}%)</th>
-                    <th>Final Score</th>
-                    <th>Grade</th>
-                    <th>Grade Point</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in results %}
-                <tr>
-                    <td>{{ item.summary.subject.name }}</td>
-                    <td>{{ item.summary.ca_score|floatformat:1 }}</td>
-                    <td>{{ item.summary.exam_score|floatformat:1 }}</td>
-                    <td><strong>{{ item.summary.final_score|floatformat:1 }}</strong></td>
-                    <td><span class="tag">{{ item.summary.grade }}</span></td>
-                    <td>{{ item.summary.grade_point|floatformat:1 }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    {# Assessment Details (Collapsible) #}
-    {% if results.0.assessments %}
-    <div style="margin-top: 2rem;">
-        <h4 style="margin-bottom: 1rem;">📋 Assessment Details</h4>
-        {% for item in results %}
-        <div style="margin-bottom: 1.5rem; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem;">
-            <h5 style="margin: 0 0 0.75rem 0;">{{ item.summary.subject.name }}</h5>
-            
-            {# CA Scores #}
-            {% if item.assessments %}
-            <div style="margin-bottom: 0.75rem;">
-                <strong>Continuous Assessments:</strong>
-                <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem;">
-                    {% for assessment in item.assessments %}
-                    <div style="background: #f3f4f6; padding: 0.5rem 1rem; border-radius: 4px;">
-                        <span style="color: #6b7280;">{{ assessment.assessment_type.name }}:</span>
-                        <strong>{{ assessment.score }}</strong>/{{ assessment.max_score }}
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-            
-            {# Exam Score #}
-            {% if item.exam %}
-            <div>
-                <strong>Exam Score:</strong> {{ item.exam.score }}/{{ item.exam.max_score }}
-                {% if item.exam.exam_type %} ({{ item.exam.exam_type.name }}){% endif %}
-            </div>
-            {% endif %}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-    
-    {% else %}
-    <div class="empty-state">
-        No results for selected term. Please upload scores first.
-        <br><br>
-        <a href="{% url 'academics:assessment_score_upload' %}" class="btn btn-primary">➕ Upload CA Scores</a>
-        <a href="{% url 'academics:exam_score_upload' %}" class="btn btn-secondary" style="margin-left: 0.5rem;">📝 Upload Exam Scores</a>
-    </div>
-    {% endif %}
+  </div>
 </div>
-
-<style>
-@media print {
-    .sidebar, .top-bar, .button-row, form, a.btn, footer { display: none !important; }
-    .main-content { margin-left: 0 !important; }
-    .content-card { box-shadow: none; border: none; }
-}
-</style>
+<div id="reportCard" class="content-card" style="max-width:900px;margin:0 auto;padding:2rem;">
+  <div style="text-align:center;margin-bottom:1.5rem;border-bottom:3px solid #1e3a5f;padding-bottom:1rem;">
+    <h2 style="color:#1e3a5f;font-size:1.5rem;margin:0;">{{ school.name|upper }}</h2>
+    {% if school.address %}<p style="margin:4px 0;color:#555;font-size:.9rem;">{{ school.address }}</p>{% endif %}
+    {% if school.phone %}<p style="margin:0;color:#555;font-size:.9rem;">Tel: {{ school.phone }}</p>{% endif %}
+    <h3 style="margin-top:1rem;color:#1e3a5f;letter-spacing:2px;font-size:1.1rem;">STUDENT REPORT CARD</h3>
+    {% if term %}<p style="color:#666;font-size:.9rem;margin:0;">{{ term.name }}</p>{% endif %}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem 2rem;margin-bottom:1.5rem;font-size:.9rem;">
+    <div><b style="color:#1e3a5f;">Student Name:</b> {{ student.user.get_full_name|default:student.user.username }}</div>
+    <div><b style="color:#1e3a5f;">Admission No.:</b> {{ student.admission_number|default:"&mdash;" }}</div>
+    <div><b style="color:#1e3a5f;">Class:</b> {{ student.class_name|default:"&mdash;" }}</div>
+    <div><b style="color:#1e3a5f;">Academic Year:</b> {{ school.academic_year|default:"&mdash;" }}</div>
+    <div><b style="color:#1e3a5f;">Term:</b> {{ term.name|default:"&mdash;" }}</div>
+    <div><b style="color:#1e3a5f;">Date Issued:</b> {% now "d M Y" %}</div>
+    <div><b style="color:#1e3a5f;">Attendance:</b> {{ attendance_text|default:"N/A" }}</div>
+    <div><b style="color:#1e3a5f;">Term Position:</b> {{ term_position|default:"&mdash;" }}</div>
+  </div>
+  <h4 style="color:#1e3a5f;margin-bottom:.75rem;border-left:4px solid #1e3a5f;padding-left:.5rem;">Academic Performance</h4>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+      <thead>
+        <tr style="background:#1e3a5f;color:#fff;">
+          <th style="padding:8px 12px;text-align:left;border:1px solid #2563eb;">Subject</th>
+          <th style="padding:8px;text-align:center;border:1px solid #2563eb;">CA ({{ ca_weight|default:"50" }}%)</th>
+          <th style="padding:8px;text-align:center;border:1px solid #2563eb;">Exam ({{ exam_weight|default:"50" }}%)</th>
+          <th style="padding:8px;text-align:center;border:1px solid #2563eb;">Final (/100)</th>
+          <th style="padding:8px;text-align:center;border:1px solid #2563eb;">Grade</th>
+          <th style="padding:8px;text-align:center;border:1px solid #2563eb;">Remarks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in subject_rows %}
+        <tr style="background:{% if forloop.counter|divisibleby:2 %}#f7f9fc{% else %}#ffffff{% endif %};">
+          <td style="padding:8px 12px;border:1px solid #ddd;font-weight:500;">{{ row.subject }}</td>
+          <td style="padding:8px;text-align:center;border:1px solid #ddd;">{{ row.ca|default:"&mdash;" }}</td>
+          <td style="padding:8px;text-align:center;border:1px solid #ddd;">{{ row.exam|default:"&mdash;" }}</td>
+          <td style="padding:8px;text-align:center;border:1px solid #ddd;font-weight:600;">{{ row.final|default:"&mdash;" }}</td>
+          <td style="padding:8px;text-align:center;border:1px solid #ddd;"><b>{{ row.grade }}</b></td>
+          <td style="padding:8px;text-align:center;border:1px solid #ddd;font-size:.82rem;">{{ row.remarks|default:"&mdash;" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#888;">No results for this term yet. {% if can_manage %}<a href="{% url 'academics:results_management' %}">Add results</a>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.78rem;color:#888;margin:.5rem 0 1rem;">Grading: CA ({{ ca_weight|default:"50" }}%) + Exam ({{ exam_weight|default:"50" }}%) = Final | A=80-100 B=70-79 C=60-69 D=50-59 F=0-49</p>
+  {% if subject_rows %}
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:1rem 0 1.5rem;text-align:center;">
+    <div style="background:#e8f0fe;border-radius:.5rem;padding:.75rem;border:1px solid #9ab0d4;"><div style="font-size:1.4rem;font-weight:700;color:#1e3a5f;">{{ overall_avg|default:"&mdash;" }}%</div><div style="font-size:.78rem;color:#555;">Overall Average</div></div>
+    <div style="background:#e8f0fe;border-radius:.5rem;padding:.75rem;border:1px solid #9ab0d4;"><div style="font-size:1.4rem;font-weight:700;color:#1e3a5f;">{{ term_gpa|default:"&mdash;" }}</div><div style="font-size:.78rem;color:#555;">Term GPA</div></div>
+    <div style="background:#e8f0fe;border-radius:.5rem;padding:.75rem;border:1px solid #9ab0d4;"><div style="font-size:1.4rem;font-weight:700;color:#1e3a5f;">{{ term_position|default:"&mdash;" }}</div><div style="font-size:.78rem;color:#555;">Term Position</div></div>
+    <div style="background:#e8f0fe;border-radius:.5rem;padding:.75rem;border:1px solid #9ab0d4;"><div style="font-size:.9rem;font-weight:700;color:#1e3a5f;">{{ attendance_text|default:"&mdash;" }}</div><div style="font-size:.78rem;color:#555;">Attendance</div></div>
+  </div>
+  {% endif %}
+  <div style="border-top:1px solid #ddd;padding-top:1rem;margin-top:.5rem;">
+    <h4 style="color:#1e3a5f;margin-bottom:.5rem;border-left:4px solid #1e3a5f;padding-left:.5rem;">Class Teacher's Comment</h4>
+    <div style="background:#f9fafb;border:1px solid #e0e0e0;border-radius:.5rem;padding:1rem;min-height:60px;font-size:.9rem;line-height:1.6;color:#333;">
+      {% if ai_comment %}{{ ai_comment.content }}<div style="margin-top:.5rem;font-size:.75rem;color:#888;">&#129302; AI-generated &bull; {{ ai_comment.created_at|date:"d M Y" }}{% if can_manage %} &bull; <a href="{% url 'academics:ai_comment' student.id %}">Regenerate</a>{% endif %}</div>
+      {% else %}<span style="color:#aaa;">No teacher comment yet. {% if can_manage %}<a href="{% url 'academics:ai_comment' student.id %}" style="color:#4F46E5;font-weight:600;">&#129302; Generate AI Comment</a>{% endif %}</span>{% endif %}
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2rem;margin-top:2rem;padding-top:1rem;border-top:1px solid #ddd;font-size:.85rem;">
+    <div><div style="border-top:1px solid #888;padding-top:.25rem;color:#333;">Class Teacher</div></div>
+    <div><div style="border-top:1px solid #888;padding-top:.25rem;color:#333;">Head Teacher</div></div>
+    <div><div style="border-top:1px solid #888;padding-top:.25rem;color:#333;">Parent / Guardian</div></div>
+  </div>
+  <div style="text-align:center;margin-top:1.5rem;padding-top:.75rem;border-top:1px solid #eee;font-size:.75rem;color:#999;">Official report card from {{ school.name }}. Powered by Mastex SchoolOS.</div>
+</div>
+<style>@media print{.sidebar,nav,.page-heading .btn,header{display:none!important}body{background:white!important}#reportCard{box-shadow:none!important;border:none!important}}</style>
 {% endblock %}

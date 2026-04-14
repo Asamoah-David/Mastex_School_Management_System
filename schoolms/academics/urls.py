@@ -3,6 +3,7 @@ from . import views
 from . import import_views
 from . import analytics_views
 from . import advanced_analytics
+from . import ai_comment_views
 from . import pdf_report
 from . import timetable_generator
 
@@ -89,6 +90,7 @@ urlpatterns = [
     
     # AI Student Comments
     path("ai-comment/", advanced_analytics.ai_comment_page, name="ai_comment_page"),
+    path("ai-comment/<int:student_id>/", ai_comment_views.ai_comment_page, name="ai_comment"),
     path("ai-comment/generate/", advanced_analytics.generate_ai_comment, name="generate_ai_comment"),
     path("ai-comment/save/", advanced_analytics.save_comment, name="save_comment"),
     

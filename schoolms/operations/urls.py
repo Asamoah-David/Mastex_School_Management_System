@@ -1,4 +1,7 @@
 from django.urls import path
+from operations.receipt_views import receipt_view, receipt_pdf_view
+from operations.partial_payment_views import partial_payment_page
+
 from django.views.generic import RedirectView
 from . import views
 from . import payment_views
@@ -396,4 +399,8 @@ urlpatterns = [
     path("financial-reports/budget-vs-actual/", advanced_views.budget_vs_actual, name="budget_vs_actual"),
     path("financial-reports/income-statement/", advanced_views.income_statement, name="income_statement"),
     path("financial-reports/expense-breakdown/", advanced_views.expense_breakdown, name="expense_breakdown"),
+    path('receipt/<int:payment_id>/', receipt_view, name='receipt'),
+    path('receipt/<int:payment_id>/pdf/', receipt_pdf_view, name='receipt_pdf'),
+    path('pay/<str:fee_type>/', partial_payment_page, name='partial_payment'),
+    path('pay/', partial_payment_page, name='partial_payment_default'),
 ]

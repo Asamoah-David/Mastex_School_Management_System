@@ -348,6 +348,7 @@ def dashboard(request):
             trial_schools_count = 0
             active_sub_schools_count = 0
             expired_schools_count = 0
+            expiring_soon_schools = []
         else:
             total_schools = School.objects.filter(is_active=True).count()
             total_students = Student.objects.count()
@@ -364,6 +365,18 @@ def dashboard(request):
             trial_schools_count = School.objects.filter(is_active=True, subscription_status="trial").count()
             active_sub_schools_count = School.objects.filter(is_active=True, subscription_status="active").count()
             expired_schools_count = School.objects.filter(subscription_status="expired").count()
+            # Schools expiring within 14 days
+            from datetime import timedelta
+            _now = timezone.now().date()
+            _cutoff = _now + timedelta(days=14)
+            expiring_soon_schools = list(
+                School.objects.filter(
+                    subscription_status__in=("active", "trial"),
+                    subscription_end__isnull=False,
+                    subscription_end__gte=_now,
+                    subscription_end__lte=_cutoff,
+                ).order_by("subscription_end")[:10]
+            )
 
         fee_billed = fee_agg["billed"] or Decimal("0")
         fee_collected = fee_agg["collected"] or Decimal("0")
@@ -397,6 +410,7 @@ def dashboard(request):
             "trial_schools_count": trial_schools_count,
             "active_sub_schools_count": active_sub_schools_count,
             "expired_schools_count": expired_schools_count,
+            "expiring_soon_schools": expiring_soon_schools,
             "recent_activities": recent_activities_for_dashboard(
                 user=request.user, school=school, limit=12
             ),

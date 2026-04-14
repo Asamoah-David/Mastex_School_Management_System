@@ -98,6 +98,18 @@ class SchoolMiddleware:
 
         if subscription_hard_block_applies(user_school):
             if not any(request.path.startswith(p) for p in self._subscription_paths):
+                # For AJAX/JSON requests, return JSON error instead of HTML
+                is_ajax = (
+                    request.headers.get("X-Requested-With") == "XMLHttpRequest"
+                    or "application/json" in request.headers.get("Accept", "")
+                    or "application/json" in request.headers.get("Content-Type", "")
+                )
+                if is_ajax:
+                    from django.http import JsonResponse
+                    return JsonResponse(
+                        {"error": "School subscription has expired. Please contact your school administrator."},
+                        status=200,
+                    )
                 return render(
                     request,
                     "finance/subscription_expired.html",

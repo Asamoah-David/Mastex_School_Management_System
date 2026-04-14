@@ -1,67 +1,121 @@
-import groq
-from django.conf import settings
+"""
+AI Assistant Utilities
+======================
+Provides ask_ai() and ask_ai_with_context() which always return a string
+(never raise exceptions) so the chatbot endpoint always responds with a
+valid message.
+"""
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def _get_client():
-    """
-    Lazily configure and return the Groq client.
-    """
-    api_key = getattr(settings, "GROQ_API_KEY", "") or ""
-    if not api_key:
-        return None
-    return groq.Groq(api_key=api_key)
+# ── Groq client ───────────────────────────────────────────────────────────────
 
-
-def ask_ai(prompt):
-    """
-    Call the AI assistant using Groq (Llama model).
-    Falls back to predefined responses if API is unavailable.
-    """
-    client = _get_client()
-    
-    # Define fallback responses for common school-related questions
-    fallback_responses = {
-        "fee": "To pay school fees, please log into your parent or student portal and navigate to the Fees section. You can make payments online using Paystack or visit the school office.",
-        "fees": "To pay school fees, please log into your parent or student portal and navigate to the Fees section. You can make payments online using Paystack or visit the school office.",
-        "result": "To view results, go to your portal and click on 'Academics' > 'My Results'. If you're a parent, you can view your child's results from the parent dashboard.",
-        "results": "To view results, go to your portal and click on 'Academics' > 'My Results'. If you're a parent, you can view your child's results from the parent dashboard.",
-        "attendance": "To check attendance, visit your student portal and go to 'Attendance' in the sidebar. Parents can view their child's attendance from the parent dashboard.",
-        "homework": "You can access homework from your student portal under 'Academics' > 'Homework'. Submit assignments directly through the portal.",
-        "contact": "You can contact the school through the messaging feature in your portal, or visit the school in person during office hours.",
-        "exam": "Online exams are available in your portal under 'Academics' > 'Online Exams'. Make sure to read the instructions before starting.",
-        "library": "Visit the school library catalog from your portal to search for books. You can also check your borrowed books under 'My Books'.",
-        "transport": "Bus routes and transport information can be found in your portal under 'Transport' or 'Operations' > 'Bus'.",
-        "hostel": "Hostel information is available in your portal under 'Operations' > 'Hostel'.",
-        "timetable": "Your class timetable is available in your portal under 'Academics' > 'Timetable'.",
-    }
-    
-    # Check if we can use the real AI
-    if client is None:
-        # Try to find a matching fallback response
-        prompt_lower = prompt.lower()
-        for key, response in fallback_responses.items():
-            if key in prompt_lower:
-                return response
-        
-        return "I'm here to help with school-related questions! You can ask me about: paying fees, viewing results, checking attendance, homework, exams, library, transport, hostel, timetable, or contacting the school. How can I assist you today?"
-    
+def _get_groq_client():
+    """Lazily configure and return the Groq client. Returns None if unavailable."""
     try:
-        chat_completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are a helpful school management assistant. Provide clear, concise, and educational responses."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=1024
-        )
-        return chat_completion.choices[0].message.content
-    except groq.RateLimitError as e:
-        # Fall back to predefined responses on rate limit
-        return "I'm experiencing high demand right now. Please try again in a moment. For quick help, you can also check your portal for school information."
-    except groq.APIConnectionError as e:
-        # Fall back on connection errors
-        return "I'm having trouble connecting right now. Please check your internet connection and try again. You can also find help in your school portal."
-    except Exception as e:
-        # Fall back on any other error
-        return "I'm here to help! Ask me about paying fees, viewing results, checking attendance, homework, exams, library, transport, or other school matters."
+        import groq
+        from django.conf import settings
+        api_key = getattr(settings, "GROQ_API_KEY", "") or ""
+        if not api_key:
+            return None
+        return groq.Groq(api_key=api_key)
+    except Exception:
+        return None
+
+
+# ── Fallback knowledge base ───────────────────────────────────────────────────
+
+_FALLBACK = {
+    "fee": "To pay school fees, log into your parent or student portal and navigate to the Fees section. You can make payments online via Paystack or visit the school's finance office. Partial / instalment payments are also supported — just choose your amount when paying.",
+    "fees": "To pay school fees, log into your parent or student portal and navigate to the Fees section. You can make payments online via Paystack or visit the school's finance office. Partial / instalment payments are also supported.",
+    "pay": "You can pay any fee (school fees, bus, hostel, canteen, textbook) from your portal. Navigate to the relevant section and click 'Pay'. Partial payments are accepted — enter any amount up to the balance.",
+    "payment": "Payments can be made online via Paystack directly from your portal. After a successful payment a receipt is automatically generated and available for download as PDF.",
+    "receipt": "Receipts are automatically generated after each payment. Go to your portal → Payments → Payment History, then click 'Download Receipt' to get a PDF copy.",
+    "result": "To view results, go to your portal and click 'Academics' → 'My Results'. Parents can see their child's results from the parent dashboard under 'Academics'.",
+    "results": "To view results, navigate to Academics → My Results in your portal. Report cards (including CA breakdown and exam scores) are downloadable as PDF.",
+    "report": "Report cards show your CA score (50%), Exam score (50%), final weighted grade, and AI-generated teacher comments. Download the PDF from Academics → Report Cards.",
+    "grade": "Grades are calculated as 50% Continuous Assessment (CA) + 50% End-of-Term Exam by default. Your school admin can adjust these weights.",
+    "attendance": "To check attendance, visit your student portal and go to 'Attendance'. Parents can view their child's attendance from the parent dashboard.",
+    "homework": "Access homework from your student portal under Academics → Homework. Submit assignments directly through the portal before the due date.",
+    "exam": "Online exams are available in your portal under Academics → Online Exams. Read all instructions carefully before starting. Your results are shown immediately after submission.",
+    "quiz": "Quizzes are found under Academics → Quizzes in your portal. You can attempt a quiz based on the number of attempts your teacher has allowed.",
+    "contact": "Contact the school through the Messaging feature in your portal, or visit the school in person during office hours.",
+    "library": "Visit the school library catalog from your portal to search for and borrow books. Check your borrowed books under Operations → Library → My Issues.",
+    "transport": "Bus routes and transport information are in your portal under Operations → Bus. You can pay for bus service daily, weekly, or for the full term.",
+    "bus": "Bus payments can be made daily, weekly, or for the full term. Go to Operations → Bus → My Bus to see your route and make a payment.",
+    "hostel": "Hostel information and fees are under Operations → Hostel in your portal. Instalment payments are supported — pay as much as you can afford each time.",
+    "timetable": "Your class timetable is available under Academics → Timetable in your portal.",
+    "canteen": "Canteen services are managed under Operations → Canteen. You can pay for meals per visit or in advance.",
+    "textbook": "Textbook information is under Operations → Textbooks. You can pay for books individually.",
+    "admission": "Admission applications can be submitted online through the Admissions portal. Upload all required documents and wait for approval notification.",
+    "password": "To reset your password, click 'Forgot Password' on the login page and enter your registered email address.",
+    "login": "Go to your school's Mastex portal URL and enter your username and password. Contact admin if you need your login credentials.",
+    "announcement": "School announcements are displayed on your dashboard and under Operations → Announcements.",
+    "certificate": "Academic certificates and awards are available under Operations → Certificates in your portal.",
+}
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def ask_ai(prompt: str) -> str:
+    """Call the AI. Falls back to built-in responses if Groq is unavailable.
+    Always returns a string, never raises.
+    """
+    return ask_ai_with_context(prompt)
+
+
+def ask_ai_with_context(
+    prompt: str,
+    school_name: str = "your school",
+    user_name: str = "",
+    user_role: str = "user",
+) -> str:
+    """Context-aware AI response. Always returns a string, never raises."""
+
+    client = _get_groq_client()
+
+    # ── 1. Try Groq LLM ──────────────────────────────────────────────────────
+    if client is not None:
+        try:
+            system_prompt = (
+                f"You are a friendly and helpful school management assistant for {school_name}. "
+                "You help students, parents, and staff with questions about the school system. "
+                "Keep responses concise (max 3 paragraphs), clear, and supportive. "
+                "If the user asks about fees, mention that partial payments are accepted. "
+                "If the user asks about report cards, mention the CA+Exam breakdown and PDF download. "
+                "Always be encouraging and professional."
+            )
+            if user_name:
+                system_prompt += f" The user's name is {user_name} and their role is {user_role}."
+
+            completion = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=512,
+            )
+            return completion.choices[0].message.content
+
+        except Exception as exc:
+            logger.info("Groq API unavailable (%s), using fallback", type(exc).__name__)
+
+    # ── 2. Keyword-based fallback ────────────────────────────────────────────
+    prompt_lower = prompt.lower()
+    for key, response in _FALLBACK.items():
+        if key in prompt_lower:
+            return response
+
+    # ── 3. Generic helpful response ──────────────────────────────────────────
+    return (
+        f"Hello! I'm the {school_name} school assistant. 😊 I can help you with:\n\n"
+        "📚 **Academics** – Results, report cards, homework, exams, quizzes, timetable\n"
+        "💰 **Payments** – School fees, bus, hostel, canteen, textbook payments & receipts\n"
+        "📋 **Operations** – Attendance, library, transport, hostel, announcements\n"
+        "🔐 **Account** – Login issues, password reset, profile\n\n"
+        "What would you like to know about?"
+    )

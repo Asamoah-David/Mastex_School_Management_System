@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Super Admin Metrics | Mastex SchoolOS{% endblock %}
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="content-card" style="margin-bottom:1rem;">
+  <div class="page-heading">
+    <div>
+      <h1 class="page-title">&#128202; Super Admin Metrics</h1>
+      <p class="page-subtitle">Platform-wide analytics &amp; subscription overview</p>
+    </div>
+    <div style="display:flex;gap:.5rem;">
+      <a href="?export=csv" class="btn btn-secondary">&#11015; Export CSV</a>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem;">
+  {% for kpi in kpis %}
+  <div class="content-card" style="padding:1.25rem;border-left:4px solid {{ kpi.color }};">
+    <div style="font-size:1.8rem;font-weight:700;color:{{ kpi.color }};">{{ kpi.value }}</div>
+    <div style="font-size:.85rem;color:#666;margin-top:.25rem;">{{ kpi.label }}</div>
+    {% if kpi.change is not None %}
+    <div style="font-size:.75rem;margin-top:.25rem;color:{% if kpi.change >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+      {% if kpi.change >= 0 %}&#9650;{% else %}&#9660;{% endif %} {{ kpi.change|floatformat:1 }}% this month
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+  <!-- Subscription Trend -->
+  <div class="content-card" style="padding:1.5rem;">
+    <h3 style="color:#1e3a5f;margin-bottom:1rem;">Subscription Trend (12 months)</h3>
+    <canvas id="subChart" height="200"></canvas>
+  </div>
+  <!-- Revenue Trend -->
+  <div class="content-card" style="padding:1.5rem;">
+    <h3 style="color:#1e3a5f;margin-bottom:1rem;">Monthly Revenue</h3>
+    <canvas id="revChart" height="200"></canvas>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+  <!-- Plan breakdown pie -->
+  <div class="content-card" style="padding:1.5rem;">
+    <h3 style="color:#1e3a5f;margin-bottom:1rem;">Schools by Plan</h3>
+    <canvas id="planChart" height="220"></canvas>
+  </div>
+  <!-- Active vs expired -->
+  <div class="content-card" style="padding:1.5rem;">
+    <h3 style="color:#1e3a5f;margin-bottom:1rem;">Subscription Status</h3>
+    <canvas id="statusChart" height="220"></canvas>
+  </div>
+</div>
+
+<!-- Schools table -->
+<div class="content-card" style="padding:1.5rem;">
+  <h3 style="color:#1e3a5f;margin-bottom:1rem;">All Schools</h3>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.87rem;">
+      <thead>
+        <tr style="background:#1e3a5f;color:#fff;">
+          <th style="padding:8px 12px;text-align:left;">School</th>
+          <th style="padding:8px;text-align:center;">Plan</th>
+          <th style="padding:8px;text-align:center;">Status</th>
+          <th style="padding:8px;text-align:center;">Students</th>
+          <th style="padding:8px;text-align:center;">Expires</th>
+          <th style="padding:8px;text-align:center;">Revenue</th>
+          <th style="padding:8px;text-align:center;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in schools %}
+        <tr style="background:{% if forloop.counter|divisibleby:2 %}#f7f9fc{% else %}#ffffff{% endif %};">
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">{{ s.name }}</td>
+          <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;"><span style="background:#e8f0fe;color:#1e3a5f;border-radius:9999px;padding:2px 8px;font-size:.78rem;">{{ s.subscription_plan|default:"basic" }}</span></td>
+          <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">
+            <span style="background:{% if s.subscription_active %}#f0fdf4{% else %}#fef2f2{% endif %};color:{% if s.subscription_active %}#16a34a{% else %}#dc2626{% endif %};border-radius:9999px;padding:2px 8px;font-size:.78rem;">
+              {% if s.subscription_active %}Active{% else %}Expired{% endif %}
+            </span>
+          </td>
+          <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">{{ s.student_count|default:0 }}</td>
+          <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">{{ s.subscription_expiry|date:"d M Y"|default:"&mdash;" }}</td>
+          <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">{{ s.currency|default:"GHS" }} {{ s.total_revenue|default:0|floatformat:2 }}</td>
+          <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">
+            <a href="/schools/{{ s.id }}/dashboard/" class="btn btn-sm btn-secondary">View</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;padding:1.5rem;color:#888;">No schools found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const months = {{ chart_months|safe }};
+const subData = {{ chart_subs|safe }};
+const revData = {{ chart_revenue|safe }};
+const planLabels = {{ plan_labels|safe }};
+const planValues = {{ plan_values|safe }};
+const statusLabels = ['Active', 'Expired', 'Trial'];
+const statusValues = {{ status_values|safe }};
+
+new Chart(document.getElementById('subChart'), {
+  type: 'line',
+  data: { labels: months, datasets: [{ label: 'New Subscriptions', data: subData, borderColor: '#1e3a5f', backgroundColor: 'rgba(30,58,95,.1)', tension: .4, fill: true }] },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+
+new Chart(document.getElementById('revChart'), {
+  type: 'bar',
+  data: { labels: months, datasets: [{ label: 'Revenue', data: revData, backgroundColor: '#2563eb', borderRadius: 6 }] },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+
+new Chart(document.getElementById('planChart'), {
+  type: 'doughnut',
+  data: { labels: planLabels, datasets: [{ data: planValues, backgroundColor: ['#1e3a5f','#2563eb','#60a5fa','#93c5fd','#bfdbfe'] }] },
+  options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+});
+
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: ['#16a34a','#dc2626','#d97706'] }] },
+  options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+});
+</script>
+{% endblock %}

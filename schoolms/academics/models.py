@@ -414,17 +414,86 @@ class QuizAttempt(models.Model):
 # ==========================================
 
 class GradingPolicy(models.Model):
-    """School grading policy settings."""
-    school = models.OneToOneField(School, on_delete=models.CASCADE)
+    """School grading policy settings.
+    Supports both the legacy OneToOne relationship and the newer per-school
+    named policies with CA/Exam weight splitting.
+    """
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='grading_policies')
+    name = models.CharField(max_length=100, default='Default Policy')
+    # CA vs Exam weighting (must sum to 100)
+    ca_weight = models.FloatField(default=50.0, help_text="Continuous Assessment weight %")
+    exam_weight = models.FloatField(default=50.0, help_text="End-of-term Exam weight %")
+    is_default = models.BooleanField(default=False)
+    # Legacy fields kept for backward compatibility
     use_custom_grades = models.BooleanField(default=False)
     pass_mark = models.FloatField(default=50.0)
     allows_decimal = models.BooleanField(default=True)
     max_score = models.FloatField(default=100.0)
-    use_weighted_averages = models.BooleanField(default=False)
+    use_weighted_averages = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Grading Policy"
+        verbose_name_plural = "Grading Policies"
+
     def __str__(self):
-        return f"Grading Policy - {self.school.name}"
+        return f"{self.name} – {self.school.name}"
+
+    @classmethod
+    def get_active_policy(cls, school):
+        """Return the default grading policy for a school, creating one if needed."""
+        policy = cls.objects.filter(school=school, is_default=True).first()
+        if not policy:
+            policy = cls.objects.filter(school=school).first()
+        if not policy:
+            policy = cls.objects.create(
+                school=school,
+                name='Default Policy',
+                ca_weight=50.0,
+                exam_weight=50.0,
+                is_default=True,
+            )
+        return policy
+
+
+class GradePoint(models.Model):
+    """Grade point values for GPA calculation."""
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    grade = models.CharField(max_length=5, choices=[
+        ('A+', 'A+'), ('A', 'A'), ('A-', 'A-'),
+        ('B+', 'B+'), ('B', 'B'), ('B-', 'B-'),
+        ('C+', 'C+'), ('C', 'C'), ('C-', 'C-'),
+        ('D+', 'D+'), ('D', 'D'), ('D-', 'D-'),
+        ('F', 'F'),
+    ])
+    min_score = models.FloatField()
+    max_score = models.FloatField()
+    point_value = models.FloatField()
+    scale = models.CharField(max_length=5, choices=[('5.0', '5.0 Scale'), ('4.0', '4.0 Scale')], default='5.0')
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-min_score']
+        unique_together = [('school', 'grade', 'scale')]
+
+    def __str__(self):
+        return f"{self.grade} ({self.point_value}) – {self.school.name}"
+
+
+def get_grade_point_value(school, score, scale='5.0'):
+    """Return numeric grade point for a score on the given scale."""
+    points = list(GradePoint.objects.filter(school=school, scale=scale).order_by('-min_score'))
+    for gp in points:
+        if gp.min_score <= score <= gp.max_score:
+            return gp.point_value
+    # Default 5.0-scale fallback
+    if score >= 90: return 5.0
+    if score >= 80: return 4.5
+    if score >= 70: return 4.0
+    if score >= 60: return 3.0
+    if score >= 50: return 2.0
+    return 0.0
 
 
 class AssessmentScore(models.Model):
@@ -439,7 +508,7 @@ class AssessmentScore(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     term = models.ForeignKey(Term, on_delete=models.CASCADE)
-    
+
     class Meta:
         ordering = ['-date']
         verbose_name = 'Assessment Score'
@@ -447,9 +516,16 @@ class AssessmentScore(models.Model):
         indexes = [
             models.Index(fields=["student", "subject", "term"], name="idx_ascore_stu_sub_term"),
         ]
-    
+
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.max_score}"
+
+    @property
+    def normalized_score(self):
+        """Score normalised to 0-100 scale."""
+        if self.max_score and self.max_score > 0:
+            return round((self.score / self.max_score) * 100, 2)
+        return 0.0
 
 
 class ExamScore(models.Model):
@@ -463,14 +539,47 @@ class ExamScore(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     exam_type = models.ForeignKey(ExamType, on_delete=models.SET_NULL, null=True, blank=True)
     term = models.ForeignKey(Term, on_delete=models.CASCADE)
-    
+
     class Meta:
         verbose_name = 'Exam Score'
         verbose_name_plural = 'Exam Scores'
         unique_together = [('student', 'subject', 'term')]
-    
+
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.max_score}"
+
+    @property
+    def normalized_score(self):
+        """Score normalised to 0-100 scale."""
+        if self.max_score and self.max_score > 0:
+            return round((self.score / self.max_score) * 100, 2)
+        return 0.0
+
+
+class StudentResultSummary(models.Model):
+    """Computed result summary per student/subject/term."""
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='result_summaries')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    term = models.ForeignKey(Term, on_delete=models.CASCADE)
+    ca_score = models.FloatField(default=0)
+    exam_score = models.FloatField(default=0)
+    final_score = models.FloatField(default=0)
+    grade = models.CharField(max_length=5, blank=True)
+    grade_point = models.FloatField(default=0)
+    term_position = models.PositiveIntegerField(null=True, blank=True)
+    cumulative_position = models.PositiveIntegerField(null=True, blank=True)
+    gpa = models.FloatField(default=0)
+    cumulative_gpa = models.FloatField(default=0)
+    calculated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['term', 'student']
+        verbose_name = 'Student Result Summary'
+        verbose_name_plural = 'Student Result Summaries'
+        unique_together = [('student', 'subject', 'term')]
+
+    def __str__(self):
+        return f"{self.student} – {self.subject} – {self.term}: {self.final_score}"
 
 
 # ==========================================
