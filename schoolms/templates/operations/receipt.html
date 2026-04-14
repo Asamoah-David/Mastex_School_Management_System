@@ -9,7 +9,9 @@
       <p class="page-subtitle">Receipt #{{ payment.id }}</p>
     </div>
     <div style="display:flex;gap:.5rem;">
+      {% if payment.id and payment.id|add:0 > 0 %}
       <a href="{% url 'operations:receipt_pdf' payment.id %}" class="btn btn-primary" target="_blank">&#11015; Download PDF</a>
+      {% endif %}
       <button onclick="window.print()" class="btn btn-secondary">&#128438; Print</button>
     </div>
   </div>
