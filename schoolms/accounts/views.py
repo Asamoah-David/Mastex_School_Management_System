@@ -372,10 +372,10 @@ def dashboard(request):
             expiring_soon_schools = list(
                 School.objects.filter(
                     subscription_status__in=("active", "trial"),
-                    subscription_end__isnull=False,
-                    subscription_end__gte=_now,
-                    subscription_end__lte=_cutoff,
-                ).order_by("subscription_end")[:10]
+                    subscription_end_date__isnull=False,
+                    subscription_end_date__gte=_now,
+                    subscription_end_date__lte=_cutoff,
+                ).order_by("subscription_end_date")[:10]
             )
 
         fee_billed = fee_agg["billed"] or Decimal("0")
