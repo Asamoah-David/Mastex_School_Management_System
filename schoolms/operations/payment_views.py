@@ -1314,6 +1314,11 @@ def generate_receipt(request, payment_type, payment_id):
         messages.error(request, "Access denied")
         return redirect("operations:my_payments")
     
+    # Convert date to datetime for template date formatting compatibility (fixes TypeError with H:i format)
+    from datetime import datetime, time
+    if not isinstance(date, datetime):
+        date = datetime.combine(date, time.min)
+    
     # Create mock payment object for template compatibility
     payment = type('DummyPayment', (object,), {
         'id': payment_id,
@@ -1325,6 +1330,10 @@ def generate_receipt(request, payment_type, payment_id):
         'status': 'paid',
         'student': student,
         'method': 'online',
+        'reference': None,
+        'period_label': None,
+        'balance_before': None,
+        'balance_after': None,
     })()
     
     context = {
