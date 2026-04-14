@@ -1314,7 +1314,21 @@ def generate_receipt(request, payment_type, payment_id):
         messages.error(request, "Access denied")
         return redirect("operations:my_payments")
     
+    # Create mock payment object for template compatibility
+    payment = type('DummyPayment', (object,), {
+        'id': payment_id,
+        'paid_at': date,
+        'created_at': date,
+        'amount': amount,
+        'description': description,
+        'fee_type': payment_type,
+        'status': 'paid',
+        'student': student,
+        'method': 'online',
+    })()
+    
     context = {
+        'payment': payment,
         'student': student,
         'amount': amount,
         'date': date,
