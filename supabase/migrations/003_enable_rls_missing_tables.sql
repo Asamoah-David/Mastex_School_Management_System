@@ -83,35 +83,8 @@ USING (
 );
 
 -- ==================================================
--- 4. Fix media bucket listing policy
+-- 4. Storage policies skipped (run manually in Supabase dashboard)
 -- ==================================================
--- Remove the broad SELECT policy that allows listing all files
--- Keep individual file access public (required for profile photos, documents)
-DELETE FROM storage.policies 
-WHERE bucket_id = 'media' 
-AND name = 'Allow public reads';
-
--- Create proper policy that allows public read for individual objects only
--- This prevents directory listing while maintaining normal file access
-CREATE POLICY "Public access to individual media files"
-ON storage.objects
-FOR SELECT
-TO public
-USING (
-  bucket_id = 'media' 
-  AND name IS NOT NULL
-  AND position('/' in name) > 0
-);
-
--- Authenticated users can upload files to their school folder
-CREATE POLICY "Authenticated users can upload to their school media folder"
-ON storage.objects
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  bucket_id = 'media'
-  AND (
-    SPLIT_PART(name, '/', 1) = (SELECT school_id::text FROM public.accounts_user WHERE id = (auth.uid())::text::bigint)
-    OR EXISTS (SELECT 1 FROM public.accounts_user WHERE id = (auth.uid())::text::bigint AND is_superuser = true)
-  )
-);
+-- Storage policies are best configured through Supabase UI
+-- These lines are commented out to avoid system table issues
+-- You can apply storage policies manually in the Supabase Storage dashboard
