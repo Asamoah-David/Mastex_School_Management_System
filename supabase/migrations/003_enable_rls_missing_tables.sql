@@ -58,23 +58,27 @@ FOR SELECT
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.accounts_user u
+    SELECT 1 
+    FROM public.accounts_user u
+    JOIN public.students_student s ON s.id = public.academics_studentresultsummary.student_id
     WHERE u.id = (auth.uid())::text::bigint
-    AND u.school_id = public.academics_studentresultsummary.school
+    AND u.school_id = s.school_id
   )
 );
 
--- Only school admins and teachers can write summaries
+-- Only school admins and teachers can manage summaries
 CREATE POLICY "Admins and teachers can manage result summaries" 
 ON public.academics_studentresultsummary
 FOR ALL
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.accounts_user u
+    SELECT 1 
+    FROM public.accounts_user u
+    JOIN public.students_student s ON s.id = public.academics_studentresultsummary.student_id
     WHERE u.id = (auth.uid())::text::bigint
     AND (u.role IN ('school_admin', 'teacher') OR u.is_superuser = true)
-    AND u.school_id = public.academics_studentresultsummary.school
+    AND u.school_id = s.school_id
   )
 );
 
