@@ -116,9 +116,16 @@ function payTextbook(textbookId, price) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: 'textbook_id=' + textbookId + '&quantity=' + quantity + '&student_id={{ portal_student.id }}'
+        body: 'textbook_id=' + textbookId + '&quantity=' + quantity + '&payment_method=card&student_id={{ portal_student.id }}'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error('Server returned ' + response.status + ': ' + (text.substring(0, 100) || 'Unknown error'));
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             console.log('Payment initialized:', data);

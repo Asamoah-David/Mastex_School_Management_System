@@ -77,7 +77,7 @@ class Expense(models.Model):
     void_reason = models.CharField(max_length=500, blank=True, default="")
     paid_at = models.DateTimeField(null=True, blank=True)
 
-    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='recorded_expenses')
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_expenses')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

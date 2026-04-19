@@ -73,7 +73,7 @@ class TextbookSale(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
 
     sale_date = models.DateField(auto_now_add=True)
-    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="textbook_sales_recorded")
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="textbook_sales_recorded")
     payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
     payment_status = models.CharField(max_length=20, default='pending')  # pending, completed, failed
 

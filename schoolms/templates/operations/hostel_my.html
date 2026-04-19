@@ -166,7 +166,14 @@ function payHostel(feeId, amount) {
         },
         body: 'fee_id=' + feeId + '&payment_method=card'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error('Server returned ' + response.status + ': ' + (text.substring(0, 100) || 'Unknown error'));
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             console.log('Payment initialized:', data);

@@ -21,7 +21,7 @@ class CanteenPayment(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.CharField(max_length=255, blank=True)  # e.g. "Lunch", "Snack"
     payment_date = models.DateField(auto_now_add=True)
-    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="canteen_payments_recorded")
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="canteen_payments_recorded")
     payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
     payment_status = models.CharField(max_length=20, default='pending')  # pending, completed, failed
 
