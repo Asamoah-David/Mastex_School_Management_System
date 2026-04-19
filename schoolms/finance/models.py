@@ -8,6 +8,7 @@ from core.tenancy import SchoolScopedManager
 
 class FeeStructure(models.Model):
     """Defines fee types and amounts per class or school-wide."""
+    objects = models.Manager()
     scoped = SchoolScopedManager()
 
     school = models.ForeignKey(School, on_delete=models.CASCADE)
@@ -32,6 +33,7 @@ class FeeStructure(models.Model):
 
 class Fee(models.Model):
     """Individual student fee with partial payment support."""
+    objects = models.Manager()
     scoped = SchoolScopedManager()
 
     school = models.ForeignKey(School, on_delete=models.CASCADE)
@@ -218,6 +220,7 @@ class PaymentTransaction(models.Model):
 class SubscriptionPayment(models.Model):
     """Track school subscription payments (Paystack) for audit and idempotency."""
 
+    objects = models.Manager()
     scoped = SchoolScopedManager()
 
     STATUS_CHOICES = [
