@@ -12,7 +12,11 @@
             <p style="margin:0;font-size:.85rem;color:var(--text-secondary);">{{ certificate.get_certificate_type_display }} · {{ certificate.academic_year }}{% if certificate.term %} · {{ certificate.term }}{% endif %}</p>
         </div>
         <div class="button-row" style="margin:0;flex-wrap:wrap;">
+            {% if certificate.pdf %}
+            <a href="{% url 'operations:certificate_pdf_open' certificate.pk %}" class="btn btn-primary" target="_blank" rel="noopener">Open PDF</a>
+            {% else %}
             <a href="{% url 'operations:certificate_pdf' certificate.pk %}" class="btn btn-primary" target="_blank" rel="noopener">Download PDF</a>
+            {% endif %}
             <a href="{% url 'operations:certificate_list' %}" class="btn btn-secondary">Back to list</a>
             {% if can_manage %}
             <a href="{% url 'operations:certificate_delete' certificate.pk %}" class="btn btn-danger">Delete</a>

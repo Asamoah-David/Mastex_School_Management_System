@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+
+{% block title %}Ledger entry · {% if school %}{{ school.name }}{% else %}Platform{% endif %}{% endblock %}
+{% block page_title %}Ledger entry{% endblock %}
+{% block page_subtitle %}{{ tx.reference }}{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+
+<div class="content-card" style="margin-bottom: 1rem;">
+    <div class="button-row" style="flex-wrap:wrap; gap:0.5rem;">
+        <a href="{% url 'finance:payment_ledger_list' %}" class="btn btn-secondary btn-sm">Back to ledger</a>
+        <form method="post" action="{% url 'finance:payment_ledger_toggle_review' tx.pk %}" style="display:inline;">
+            {% csrf_token %}
+            {% if tx.review_status == 'reviewed' %}
+                <input type="hidden" name="review" value="open">
+                <button type="submit" class="btn btn-secondary btn-sm">Mark open</button>
+            {% else %}
+                <input type="hidden" name="review" value="reviewed">
+                <button type="submit" class="btn btn-primary btn-sm">Mark reviewed</button>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="content-card">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Reference</div>
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <div id="tx-reference" style="font-weight:600; word-break:break-all;">{{ tx.reference }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="copyLedgerRef()">Copy</button>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Created</div>
+            <div>{{ tx.created_at|date:"M d, Y H:i" }}</div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Updated</div>
+            <div>{{ tx.updated_at|date:"M d, Y H:i" }}</div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">School</div>
+            <div>{{ tx.school.name|default:"—" }}</div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Provider</div>
+            <div>{{ tx.provider }}</div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Status</div>
+            <div>{{ tx.status }}</div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Review</div>
+            <div>
+                {{ tx.review_status }}
+                {% if tx.reviewed_at %}
+                    <small>({{ tx.reviewed_at|date:"M d, Y H:i" }})</small>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Type</div>
+            <div>{{ tx.payment_type|default:"—" }}</div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Amount</div>
+            <div>{{ tx.amount|format_ghs }}</div>
+        </div>
+        <div>
+            <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8);">Object ID</div>
+            <div>{{ tx.object_id|default:"—" }}</div>
+        </div>
+    </div>
+
+    <hr style="margin:1rem 0; border:0; border-top:1px solid rgba(148,163,184,0.25);">
+
+    <div style="margin-bottom:1rem;">
+        <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8); margin-bottom:0.35rem;">Related IDs (from metadata)</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem;">
+            <div><strong>fee_id</strong>: {{ tx.metadata.fee_id|default:"—" }}</div>
+            <div><strong>fee_payment_id</strong>: {{ tx.metadata.fee_payment_id|default:"—" }}</div>
+            <div><strong>hostel_fee_id</strong>: {{ tx.metadata.hostel_fee_id|default:"—" }}</div>
+            <div><strong>canteen_payment_id</strong>: {{ tx.metadata.canteen_payment_id|default:"—" }}</div>
+            <div><strong>bus_payment_id</strong>: {{ tx.metadata.bus_payment_id|default:"—" }}</div>
+            <div><strong>textbook_sale_id</strong>: {{ tx.metadata.textbook_sale_id|default:"—" }}</div>
+        </div>
+    </div>
+
+    <div>
+        <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8); margin-bottom:0.35rem;">Metadata</div>
+        <pre style="white-space:pre-wrap; word-break:break-word; background:rgba(15,23,42,0.35); padding:0.75rem; border-radius:0.5rem; overflow:auto;">{{ tx.metadata|default:{}|pprint }}</pre>
+    </div>
+</div>
+
+<script>
+function copyLedgerRef() {
+    const el = document.getElementById('tx-reference');
+    if (!el) return;
+    const text = (el.textContent || '').trim();
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+    } else {
+        const tmp = document.createElement('textarea');
+        tmp.value = text;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+    }
+}
+</script>
+{% endblock %}

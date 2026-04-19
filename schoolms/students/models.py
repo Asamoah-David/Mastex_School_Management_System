@@ -91,6 +91,12 @@ class Student(models.Model):
     class Meta:
         verbose_name = "Student"
         verbose_name_plural = "Students"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "admission_number"],
+                name="uniq_student_admission_number_per_school",
+            ),
+        ]
         indexes = [
             models.Index(fields=["school", "class_name"], name="idx_student_school_class"),
             models.Index(fields=["school", "status"], name="idx_student_school_status"),

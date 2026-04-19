@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from students.models import Student
 from schools.models import School
@@ -74,6 +75,22 @@ class GradeBoundary(models.Model):
     class Meta:
         ordering = ["-min_score"]
         unique_together = ("school", "grade")
+
+    def clean(self):
+        super().clean()
+        if self.min_score < 0 or self.max_score < 0:
+            raise ValidationError("Grade boundaries cannot be negative.")
+        if self.min_score > self.max_score:
+            raise ValidationError("Grade boundary min_score cannot exceed max_score.")
+        if self.max_score > 100:
+            raise ValidationError("Grade boundary max_score cannot exceed 100.")
+
+    def save(self, *args, **kwargs):
+        # Keep stable precision while retaining FloatField compatibility.
+        self.min_score = round(float(self.min_score), 2)
+        self.max_score = round(float(self.max_score), 2)
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.grade} ({self.min_score}-{self.max_score})"
@@ -257,6 +274,21 @@ class Result(models.Model):
                 name="uniq_result_stu_sub_exam_term",
             ),
         ]
+
+    def clean(self):
+        super().clean()
+        if self.total_score <= 0:
+            raise ValidationError({"total_score": "Total score must be greater than 0."})
+        if self.score < 0:
+            raise ValidationError({"score": "Score cannot be negative."})
+        if self.score > self.total_score:
+            raise ValidationError({"score": "Score cannot exceed total_score."})
+
+    def save(self, *args, **kwargs):
+        # Normalize precision to reduce float drift around grade boundaries.
+        self.score = round(float(self.score), 2)
+        self.total_score = round(float(self.total_score), 2)
+        super().save(*args, **kwargs)
     
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.total_score}"
@@ -296,6 +328,19 @@ class ExamSchedule(models.Model):
     def __str__(self):
         return f"{self.subject} - {self.exam_date}"
 
+    def clean(self):
+        super().clean()
+        if self.school_id and self.subject_id and getattr(self.subject, "school_id", None) != self.school_id:
+            raise ValidationError({"subject": "Subject must belong to the same school as the exam schedule."})
+        if self.school_id and self.term_id and getattr(self.term, "school_id", None) != self.school_id:
+            raise ValidationError({"term": "Term must belong to the same school as the exam schedule."})
+        if self.school_id and self.school_class_id and getattr(self.school_class, "school_id", None) != self.school_id:
+            raise ValidationError({"school_class": "Class must belong to the same school as the exam schedule."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 class Timetable(models.Model):
     """Weekly timetable."""
@@ -318,6 +363,19 @@ class Timetable(models.Model):
 
     def __str__(self):
         return f"{self.class_name} - {self.subject} - {self.day_of_week}"
+
+    def clean(self):
+        super().clean()
+        if self.school_id and self.subject_id and getattr(self.subject, "school_id", None) != self.school_id:
+            raise ValidationError({"subject": "Subject must belong to the same school as the timetable entry."})
+        if self.school_id and self.teacher_id and getattr(self.teacher, "school_id", None) not in (None, self.school_id):
+            raise ValidationError({"teacher": "Teacher must belong to the same school as the timetable entry."})
+        if self.school_id and self.school_class_id and getattr(self.school_class, "school_id", None) != self.school_id:
+            raise ValidationError({"school_class": "Class must belong to the same school as the timetable entry."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class Quiz(models.Model):
@@ -404,6 +462,17 @@ class QuizAttempt(models.Model):
         indexes = [
             models.Index(fields=["student", "is_completed"], name="idx_quizatt_stu_done"),
         ]
+
+    def clean(self):
+        super().clean()
+        if self.score is not None:
+            if self.score < 0 or self.score > 100:
+                raise ValidationError({"score": "Quiz score must be between 0 and 100."})
+
+    def save(self, *args, **kwargs):
+        if self.score is not None:
+            self.score = round(float(self.score), 2)
+        super().save(*args, **kwargs)
     
     def __str__(self):
         return f"{self.student} - {self.quiz.title}"
@@ -436,6 +505,20 @@ class GradingPolicy(models.Model):
     class Meta:
         verbose_name = "Grading Policy"
         verbose_name_plural = "Grading Policies"
+
+    def clean(self):
+        super().clean()
+        if self.ca_weight < 0 or self.exam_weight < 0:
+            raise ValidationError("CA and exam weights cannot be negative.")
+        total = round(float(self.ca_weight) + float(self.exam_weight), 4)
+        if total != 100.0:
+            raise ValidationError(
+                {"ca_weight": "CA and exam weights must sum to 100.", "exam_weight": "CA and exam weights must sum to 100."}
+            )
+        if self.max_score <= 0:
+            raise ValidationError({"max_score": "Maximum score must be greater than 0."})
+        if self.pass_mark < 0 or self.pass_mark > self.max_score:
+            raise ValidationError({"pass_mark": "Pass mark must be between 0 and max_score."})
 
     def __str__(self):
         return f"{self.name} – {self.school.name}"

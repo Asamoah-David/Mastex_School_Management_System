@@ -132,6 +132,8 @@ class Certificate(models.Model):
     
     # PDF stored as bytes (for generated certificates)
     pdf_file = models.BinaryField(null=True, blank=True)
+
+    pdf = models.FileField(upload_to="certificates/%Y/%m/%d/", null=True, blank=True)
     
     # Metadata
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="issued_certificates")
@@ -148,7 +150,9 @@ class StudentIDCard(models.Model):
     """Student ID Card management"""
     student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='id_card')
     school = models.ForeignKey(School, on_delete=models.CASCADE)
-    card_number = models.CharField(max_length=50, unique=True)
+    # Card numbers are unique per school, not globally: two schools may
+    # legitimately reuse the same human-facing card number series.
+    card_number = models.CharField(max_length=50)
     photo = models.ImageField(
         upload_to='id_cards/', null=True, blank=True,
         validators=[FileExtensionValidator(allowed_extensions=_IMAGE_EXTENSIONS)],
@@ -161,6 +165,12 @@ class StudentIDCard(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "card_number"],
+                name="uniq_studentidcard_school_card_number",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.card_number}"
@@ -170,7 +180,8 @@ class StaffIDCard(models.Model):
     """Staff ID Card management"""
     staff = models.OneToOneField(User, on_delete=models.CASCADE, related_name='id_card')
     school = models.ForeignKey(School, on_delete=models.CASCADE)
-    card_number = models.CharField(max_length=50, unique=True)
+    # See StudentIDCard: per-school uniqueness, not global.
+    card_number = models.CharField(max_length=50)
     position = models.CharField(max_length=100, blank=True)
     photo = models.ImageField(
         upload_to='staff_id_cards/', null=True, blank=True,
@@ -184,6 +195,12 @@ class StaffIDCard(models.Model):
     
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "card_number"],
+                name="uniq_staffidcard_school_card_number",
+            ),
+        ]
     
     def __str__(self):
         return f"{self.staff.get_full_name()} - {self.card_number}"

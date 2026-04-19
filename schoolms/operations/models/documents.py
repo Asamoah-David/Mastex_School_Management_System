@@ -2,10 +2,13 @@ from django.db import models
 from accounts.models import User
 from students.models import Student
 from schools.models import School
+from core.tenancy import SchoolScopedManager
 
 
 class StudentDocument(models.Model):
     """Store student documents"""
+    scoped = SchoolScopedManager()
+
     DOCUMENT_TYPES = (
         ('birth_certificate', 'Birth Certificate'),
         ('report_card', 'Report Card'),
@@ -20,9 +23,11 @@ class StudentDocument(models.Model):
     document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPES)
     title = models.CharField(max_length=200)
     file_path = models.CharField(max_length=255)  # Path to stored file
+    file = models.FileField(upload_to="student_documents/%Y/%m/%d/", null=True, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     expiry_date = models.DateField(null=True, blank=True)  # For documents that expire
+    notes = models.TextField(blank=True, default="")
     
     class Meta:
         ordering = ["-uploaded_at"]

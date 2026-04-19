@@ -1,6 +1,7 @@
 from django.db import models
 from accounts.models import User
 from schools.models import School
+from django.core.exceptions import ValidationError
 
 
 class TimetableSlot(models.Model):
@@ -35,6 +36,19 @@ class TimetableSlot(models.Model):
     def __str__(self):
         return f"{self.class_name} - {self.day} P{self.period_number} - {self.subject.name}"
 
+    def clean(self):
+        super().clean()
+        if self.school_id and self.subject_id and getattr(self.subject, "school_id", None) != self.school_id:
+            raise ValidationError({"subject": "Subject must belong to the same school as the timetable slot."})
+        if self.school_id and self.teacher_id and getattr(self.teacher, "school_id", None) not in (None, self.school_id):
+            raise ValidationError({"teacher": "Teacher must belong to the same school as the timetable slot."})
+        if self.school_id and self.school_class_id and getattr(self.school_class, "school_id", None) != self.school_id:
+            raise ValidationError({"school_class": "Class must belong to the same school as the timetable slot."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 class TimetableConflict(models.Model):
     """Track timetable conflicts"""
@@ -48,3 +62,15 @@ class TimetableConflict(models.Model):
     
     class Meta:
         ordering = ["-created_at"]
+
+    def clean(self):
+        super().clean()
+        # Ensure both slots are within this school.
+        if self.school_id and self.slot_1_id and getattr(self.slot_1, "school_id", None) != self.school_id:
+            raise ValidationError({"slot_1": "slot_1 must belong to the same school as the conflict."})
+        if self.school_id and self.slot_2_id and getattr(self.slot_2, "school_id", None) != self.school_id:
+            raise ValidationError({"slot_2": "slot_2 must belong to the same school as the conflict."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

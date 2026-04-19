@@ -2,6 +2,7 @@ from django.db import models
 from accounts.models import User
 from students.models import Student
 from schools.models import School
+from django.core.exceptions import ValidationError
 
 
 class CanteenItem(models.Model):
@@ -29,6 +30,23 @@ class CanteenPayment(models.Model):
         indexes = [
             models.Index(fields=["school", "student"], name="idx_canteen_school_stu"),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["payment_reference"],
+                condition=models.Q(payment_reference__isnull=False)
+                & ~models.Q(payment_reference=""),
+                name="uniq_canteenpayment_payment_reference_nonempty",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.amount} GHS ({self.payment_date})"
+
+    def clean(self):
+        super().clean()
+        if self.student_id and self.school_id and getattr(self.student, "school_id", None) != self.school_id:
+            raise ValidationError({"student": "Student must belong to the same school as the payment."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

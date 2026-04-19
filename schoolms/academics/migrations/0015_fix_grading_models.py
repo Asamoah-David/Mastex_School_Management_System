@@ -10,18 +10,7 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('academics', '0012_onlinemeeting_fields'),
-        ('students', '0007_add_quiz_and_term_dates'),
-        ('schools', '0006_school_subscription_amount'),
-    ]
-
-    operations = [
-        # ── GradingPolicy: add new columns if missing ────────────────────────
-        migrations.RunSQL(
-            sql="""
+_PG_FIX_GRADINGPOLICY_SQL = """
                 DO $$
                 BEGIN
                     -- Convert school_id to ForeignKey (allow multiple policies per school)
@@ -121,13 +110,52 @@ class Migration(migrations.Migration):
                             ADD COLUMN use_weighted_averages boolean NOT NULL DEFAULT true;
                     END IF;
                 END $$;
-            """,
-            reverse_sql=migrations.RunSQL.noop,
-        ),
+"""
 
-        # ── GradePoint table ─────────────────────────────────────────────────
-        migrations.RunSQL(
-            sql="""
+
+def _fix_gradingpolicy_fields(apps, schema_editor):
+    connection = schema_editor.connection
+    vendor = connection.vendor
+
+    if vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(_PG_FIX_GRADINGPOLICY_SQL)
+        return
+
+    if vendor == "sqlite":
+        GradingPolicy = apps.get_model("academics", "GradingPolicy")
+        table = GradingPolicy._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"PRAGMA table_info({table})")
+            existing = {row[1] for row in cursor.fetchall()}
+
+            to_add = [
+                ("name", "varchar(100) NOT NULL DEFAULT 'Default Policy'"),
+                ("ca_weight", "REAL NOT NULL DEFAULT 50.0"),
+                ("exam_weight", "REAL NOT NULL DEFAULT 50.0"),
+                ("is_default", "bool NOT NULL DEFAULT 0"),
+                ("created_at", "datetime NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+                ("use_custom_grades", "bool NOT NULL DEFAULT 0"),
+                ("pass_mark", "REAL NOT NULL DEFAULT 50.0"),
+                ("allows_decimal", "bool NOT NULL DEFAULT 1"),
+                ("max_score", "REAL NOT NULL DEFAULT 100.0"),
+                ("use_weighted_averages", "bool NOT NULL DEFAULT 1"),
+            ]
+
+            for column, coltype in to_add:
+                if column not in existing:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+        return
+
+
+def _create_gradepoint_table(apps, schema_editor):
+    connection = schema_editor.connection
+    vendor = connection.vendor
+
+    if vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS academics_gradepoint (
                     id bigserial PRIMARY KEY,
                     school_id integer NOT NULL REFERENCES schools_school(id) ON DELETE CASCADE,
@@ -139,13 +167,38 @@ class Migration(migrations.Migration):
                     is_default boolean NOT NULL DEFAULT false,
                     UNIQUE (school_id, grade, scale)
                 );
-            """,
-            reverse_sql="DROP TABLE IF EXISTS academics_gradepoint;",
-        ),
+                """
+            )
+        return
 
-        # ── StudentResultSummary table ────────────────────────────────────────
-        migrations.RunSQL(
-            sql="""
+    if vendor == "sqlite":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS academics_gradepoint (
+                    id integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    school_id integer NOT NULL REFERENCES schools_school(id) ON DELETE CASCADE,
+                    grade varchar(5) NOT NULL,
+                    min_score real NOT NULL,
+                    max_score real NOT NULL,
+                    point_value real NOT NULL,
+                    scale varchar(5) NOT NULL DEFAULT '5.0',
+                    is_default bool NOT NULL DEFAULT 0,
+                    UNIQUE (school_id, grade, scale)
+                );
+                """
+            )
+        return
+
+
+def _create_studentresultsummary_table(apps, schema_editor):
+    connection = schema_editor.connection
+    vendor = connection.vendor
+
+    if vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS academics_studentresultsummary (
                     id bigserial PRIMARY KEY,
                     student_id integer NOT NULL REFERENCES students_student(id) ON DELETE CASCADE,
@@ -163,9 +216,53 @@ class Migration(migrations.Migration):
                     calculated_at timestamp with time zone NOT NULL DEFAULT now(),
                     UNIQUE (student_id, subject_id, term_id)
                 );
-            """,
-            reverse_sql="DROP TABLE IF EXISTS academics_studentresultsummary;",
-        ),
+                """
+            )
+        return
+
+    if vendor == "sqlite":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS academics_studentresultsummary (
+                    id integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    student_id integer NOT NULL REFERENCES students_student(id) ON DELETE CASCADE,
+                    subject_id integer NOT NULL REFERENCES academics_subject(id) ON DELETE CASCADE,
+                    term_id integer NOT NULL REFERENCES academics_term(id) ON DELETE CASCADE,
+                    ca_score real NOT NULL DEFAULT 0,
+                    exam_score real NOT NULL DEFAULT 0,
+                    final_score real NOT NULL DEFAULT 0,
+                    grade varchar(5) NOT NULL DEFAULT '',
+                    grade_point real NOT NULL DEFAULT 0,
+                    term_position integer,
+                    cumulative_position integer,
+                    gpa real NOT NULL DEFAULT 0,
+                    cumulative_gpa real NOT NULL DEFAULT 0,
+                    calculated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (student_id, subject_id, term_id)
+                );
+                """
+            )
+        return
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('academics', '0012_onlinemeeting_fields'),
+        ('students', '0007_add_quiz_and_term_dates'),
+        ('schools', '0006_school_subscription_amount'),
+    ]
+
+    operations = [
+        # ── GradingPolicy: add new columns if missing ────────────────────────
+        migrations.RunPython(_fix_gradingpolicy_fields, migrations.RunPython.noop),
+
+        # ── GradePoint table ─────────────────────────────────────────────────
+        migrations.RunPython(_create_gradepoint_table, migrations.RunPython.noop),
+
+        # ── StudentResultSummary table ────────────────────────────────────────
+        migrations.RunPython(_create_studentresultsummary_table, migrations.RunPython.noop),
 
         # ── normalized_score: no DB changes needed (it's a property) ─────────
 

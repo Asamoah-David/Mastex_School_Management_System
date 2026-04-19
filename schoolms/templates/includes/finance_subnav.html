@@ -8,6 +8,10 @@
         <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'payment_dashboard' %}btn-primary{% else %}btn-secondary{% endif %}">Payment dashboard</a>
         <a href="{% url 'operations:record_payment' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'record_payment' %}btn-primary{% else %}btn-secondary{% endif %}">Record payment</a>
         <a href="{% url 'finance:payment_history_list' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_history_list' %}btn-primary{% else %}btn-secondary{% endif %}">Payment history</a>
+        <a href="{% url 'finance:payment_ledger_list' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_ledger_list' %}btn-primary{% else %}btn-secondary{% endif %}">Unified ledger</a>
+        <a href="{% url 'finance:payment_ledger_queue_page' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_ledger_queue_page' %}btn-primary{% else %}btn-secondary{% endif %}">Reconciliation queue</a>
+        <a href="{% url 'finance:payment_ledger_queue_export_csv' %}" class="btn btn-sm btn-secondary" title="Export open reconciliation queue">Queue CSV</a>
+        <a href="{% url 'finance:payment_ledger_health' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_ledger_health' %}btn-primary{% else %}btn-secondary{% endif %}">Ledger health</a>
         {% if is_school_admin or can_manage_finance or user.is_superuser or is_super_admin %}
         <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-sm {% if ns == 'finance' and rn|default:''|slice:':13' == 'fee_structure' %}btn-primary{% else %}btn-secondary{% endif %}">Fee structures</a>
         {% endif %}

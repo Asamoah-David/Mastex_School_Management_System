@@ -30,6 +30,7 @@ from operations.models.hostel import (
     HostelRoom,
     HostelAssignment,
     HostelFee,
+    HostelFeePayment,
 )
 from operations.models.announcements import (
     Announcement,
@@ -106,7 +107,7 @@ __all__ = [
     # library
     "LibraryBook", "LibraryIssue",
     # hostel
-    "Hostel", "HostelRoom", "HostelAssignment", "HostelFee",
+    "Hostel", "HostelRoom", "HostelAssignment", "HostelFee", "HostelFeePayment",
     # announcements
     "Announcement", "StaffLeave", "ActivityLog",
     # health

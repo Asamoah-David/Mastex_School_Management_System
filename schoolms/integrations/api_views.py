@@ -1,6 +1,7 @@
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -48,10 +49,10 @@ class StaffLeaveListAPIView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         if not can_access_staff_leave_portal(user):
-            return StaffLeave.objects.none()
+            raise PermissionDenied("You do not have access to the staff leave portal.")
         school = getattr(user, "school", None)
         if not school:
-            return StaffLeave.objects.none()
+            raise PermissionDenied("No school is linked to your account.")
         base = StaffLeave.objects.filter(school=school).select_related("staff", "reviewed_by")
         if can_review_staff_leave(user):
             return base.order_by("-start_date", "-created_at")
@@ -68,10 +69,10 @@ class ExpenseListAPIView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         if not user_can_manage_school(user):
-            return Expense.objects.none()
+            raise PermissionDenied("You do not have permission to view school expenses.")
         school = getattr(user, "school", None)
         if not school:
-            return Expense.objects.none()
+            raise PermissionDenied("No school is linked to your account.")
         return (
             Expense.objects.filter(school=school)
             .select_related("category", "recorded_by", "approved_by")

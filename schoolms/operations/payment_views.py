@@ -2,6 +2,7 @@
 Payment Views for Canteen, Bus, Textbooks, and Hostel with Paystack Integration
 """
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db import transaction
 from django.db.models import F
 from django.contrib import messages
 from django.http import JsonResponse
@@ -11,6 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.conf import settings
 import uuid
+from decimal import Decimal
 
 from accounts.decorators import login_required, parent_required, student_required
 from accounts.permissions import user_can_manage_school
@@ -21,6 +23,16 @@ from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook,
 from finance.paystack_service import paystack_service
 from finance.models import Fee, FeePayment
 from core.utils import FEE_PAYSTACK_RETURN_SESSION_KEY, safe_internal_redirect_path
+from operations.services.portal_payments import (
+    mark_bus_payment_completed,
+    mark_bus_payment_failed,
+    mark_canteen_payment_completed,
+    mark_canteen_payment_failed,
+    mark_hostel_fee_completed,
+    mark_hostel_fee_failed,
+    mark_textbook_sale_completed,
+    mark_textbook_sale_failed,
+)
 
 
 def _get_paystack_public_key(request):
@@ -195,7 +207,12 @@ def canteen_initiate_payment(request):
         return err
     
     item_id = request.POST.get('item_id')
-    quantity = int(request.POST.get('quantity', 1))
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+    except (TypeError, ValueError):
+        quantity = 1
+    if quantity <= 0:
+        quantity = 1
     payment_method = request.POST.get('payment_method', 'card')
     
     try:
@@ -203,21 +220,21 @@ def canteen_initiate_payment(request):
     except CanteenItem.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Item not found'}, status=404)
     
-    total_amount = float(item.price) * quantity
-    
-    # Create pending payment record
-    payment = CanteenPayment.objects.create(
-        school=student.school,
-        student=student,
-        amount=total_amount,
-        description=f"{item.name} x{quantity}",
-        payment_status='pending'
-    )
-    
+    total_amount = (Decimal(str(item.price)) * Decimal(quantity)).quantize(Decimal("0.01"))
+
     # Generate unique reference
     reference = f"CANTEEN_{uuid.uuid4().hex[:12].upper()}"
-    payment.payment_reference = reference
-    payment.save()
+
+    # Create pending payment record (atomic so reference can't be lost under concurrency)
+    with transaction.atomic():
+        payment = CanteenPayment.objects.create(
+            school=student.school,
+            student=student,
+            amount=total_amount,
+            description=f"{item.name} x{quantity}",
+            payment_reference=reference,
+            payment_status='pending'
+        )
     
     # Get parent email for payment using helper function
     parent_email = _get_parent_email(student, request)
@@ -251,7 +268,7 @@ def canteen_initiate_payment(request):
     
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
-        amount=total_amount,
+        amount=float(total_amount),
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
@@ -268,14 +285,18 @@ def canteen_initiate_payment(request):
             'email': parent_email or student.user.email
         })
     else:
-        payment.payment_status = 'failed'
-        payment.save()
+        with transaction.atomic():
+            p = CanteenPayment.objects.select_for_update().filter(pk=payment.pk).first()
+            if p and p.payment_status != "completed":
+                p.payment_status = 'failed'
+                p.save(update_fields=["payment_status"])
         return JsonResponse({
             'success': False,
             'error': result.get('message', 'Payment initialization failed')
         })
 
 
+@login_required
 def canteen_payment_verify(request):
     """Verify Paystack payment for canteen."""
     # First try to find by payment_id from query parameter (most reliable)
@@ -294,32 +315,29 @@ def canteen_payment_verify(request):
     result = paystack_service.verify_payment(reference) if reference else None
     
     payment = None
-    
-    # Try to find by payment_id
-    if payment_id:
-        try:
-            payment = CanteenPayment.objects.get(id=payment_id)
-        except CanteenPayment.DoesNotExist:
-            pass
-    
-    # Fallback: try to find by payment_reference
-    if not payment and reference:
-        try:
-            payment = CanteenPayment.objects.get(payment_reference=reference)
-        except CanteenPayment.DoesNotExist:
-            pass
-    
-    if payment:
-        if result and result.get('status') and result['data']['status'] == 'success':
-            payment.payment_status = 'completed'
-            payment.save()
-            messages.success(request, "Payment successful! Your order has been placed.")
-        else:
-            payment.payment_status = 'failed'
-            payment.save()
-            messages.error(request, "Payment failed. Please try again.")
-    else:
-        messages.error(request, "Payment record not found")
+    try:
+        with transaction.atomic():
+            if payment_id:
+                payment = CanteenPayment.objects.select_for_update().filter(id=payment_id).first()
+            if not payment and reference:
+                payment = CanteenPayment.objects.select_for_update().filter(payment_reference=reference).first()
+
+            if payment:
+                if payment.payment_status == 'completed':
+                    messages.info(request, "Payment already confirmed.")
+                    return redirect('operations:canteen_my')
+
+                if result and result.get('status') and result['data']['status'] == 'success':
+                    mark_canteen_payment_completed(payment=payment, reference=reference)
+                    messages.success(request, "Payment successful! Your order has been placed.")
+                else:
+                    # Do not overwrite a completion that might have happened via webhook in parallel.
+                    mark_canteen_payment_failed(payment=payment, reference=reference)
+                    messages.error(request, "Payment failed. Please try again.")
+            else:
+                messages.error(request, "Payment record not found")
+    except Exception:
+        messages.error(request, "Payment verification failed. Please try again.")
     
     return redirect('operations:canteen_my')
 
@@ -394,22 +412,22 @@ def bus_initiate_payment(request):
     
     if existing:
         return JsonResponse({'success': False, 'error': 'Already paid for this term'}, status=400)
-    amount = float(route.fee_per_term)
-    
-    # Create pending payment record
-    payment = BusPayment.objects.create(
-        school=student.school,
-        student=student,
-        route=route,
-        amount=amount,
-        term_period=term,
-        payment_status='pending'
-    )
-    
+    amount = Decimal(str(route.fee_per_term or 0)).quantize(Decimal("0.01"))
+
     # Generate unique reference
     reference = f"BUS_{uuid.uuid4().hex[:12].upper()}"
-    payment.payment_reference = reference
-    payment.save()
+
+    # Create pending payment record (atomic so reference can't be lost under concurrency)
+    with transaction.atomic():
+        payment = BusPayment.objects.create(
+            school=student.school,
+            student=student,
+            route=route,
+            amount=amount,
+            term_period=term,
+            payment_reference=reference,
+            payment_status='pending'
+        )
     
     # Get parent email using helper function
     parent_email = _get_parent_email(student, request)
@@ -445,7 +463,7 @@ def bus_initiate_payment(request):
     
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
-        amount=amount,
+        amount=float(amount),
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
@@ -463,14 +481,18 @@ def bus_initiate_payment(request):
             'email': pe,
         })
     else:
-        payment.payment_status = 'failed'
-        payment.save()
+        with transaction.atomic():
+            p = BusPayment.objects.select_for_update().filter(pk=payment.pk).first()
+            if p and p.payment_status != "completed":
+                p.payment_status = 'failed'
+                p.save(update_fields=["payment_status"])
         return JsonResponse({
             'success': False,
             'error': result.get('message', 'Payment initialization failed')
         })
 
 
+@login_required
 def bus_payment_verify(request):
     """Verify Paystack payment for bus."""
     # First try to find by payment_id from query parameter (most reliable)
@@ -489,34 +511,28 @@ def bus_payment_verify(request):
     result = paystack_service.verify_payment(reference) if reference else None
     
     payment = None
-    
-    # Try to find by payment_id
-    if payment_id:
-        try:
-            payment = BusPayment.objects.get(id=payment_id)
-        except BusPayment.DoesNotExist:
-            pass
-    
-    # Fallback: try to find by payment_reference
-    if not payment and reference:
-        try:
-            payment = BusPayment.objects.get(payment_reference=reference)
-        except BusPayment.DoesNotExist:
-            pass
-    
-    if payment:
-        if result and result.get('status') and result['data']['status'] == 'success':
-            payment.payment_status = 'completed'
-            payment.paid = True
-            payment.payment_date = timezone.now().date()
-            payment.save()
-            messages.success(request, "Payment successful! Your bus pass is now active.")
-        else:
-            payment.payment_status = 'failed'
-            payment.save()
-            messages.error(request, "Payment failed. Please try again.")
-    else:
-        messages.error(request, "Payment record not found")
+    try:
+        with transaction.atomic():
+            if payment_id:
+                payment = BusPayment.objects.select_for_update().filter(id=payment_id).first()
+            if not payment and reference:
+                payment = BusPayment.objects.select_for_update().filter(payment_reference=reference).first()
+
+            if payment:
+                if payment.payment_status == 'completed':
+                    messages.info(request, "Payment already confirmed.")
+                    return redirect('operations:bus_my')
+
+                if result and result.get('status') and result['data']['status'] == 'success':
+                    mark_bus_payment_completed(payment=payment, reference=reference)
+                    messages.success(request, "Payment successful! Your bus pass is now active.")
+                else:
+                    mark_bus_payment_failed(payment=payment, reference=reference)
+                    messages.error(request, "Payment failed. Please try again.")
+            else:
+                messages.error(request, "Payment record not found")
+    except Exception:
+        messages.error(request, "Payment verification failed. Please try again.")
     
     return redirect('operations:bus_my')
 
@@ -578,22 +594,22 @@ def textbook_initiate_payment(request):
     except Textbook.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Textbook not found or insufficient stock'}, status=404)
     
-    total_amount = float(textbook.price) * quantity
-    
-    # Create pending sale record
-    sale = TextbookSale.objects.create(
-        school=student.school,
-        student=student,
-        textbook=textbook,
-        quantity=quantity,
-        amount=total_amount,
-        payment_status='pending'
-    )
-    
+    total_amount = (Decimal(str(textbook.price)) * Decimal(quantity)).quantize(Decimal("0.01"))
+
     # Generate unique reference
     reference = f"TEXTBOOK_{uuid.uuid4().hex[:12].upper()}"
-    sale.payment_reference = reference
-    sale.save()
+
+    # Create pending sale record (atomic so reference can't be lost under concurrency)
+    with transaction.atomic():
+        sale = TextbookSale.objects.create(
+            school=student.school,
+            student=student,
+            textbook=textbook,
+            quantity=quantity,
+            amount=total_amount,
+            payment_reference=reference,
+            payment_status='pending'
+        )
     
     # Get parent email using helper function
     parent_email = _get_parent_email(student, request)
@@ -626,7 +642,7 @@ def textbook_initiate_payment(request):
     
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
-        amount=total_amount,
+        amount=float(total_amount),
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
@@ -644,14 +660,18 @@ def textbook_initiate_payment(request):
             'email': pe,
         })
     else:
-        sale.payment_status = 'failed'
-        sale.save()
+        with transaction.atomic():
+            s = TextbookSale.objects.select_for_update().filter(pk=sale.pk).first()
+            if s and s.payment_status != "completed":
+                s.payment_status = 'failed'
+                s.save(update_fields=["payment_status"])
         return JsonResponse({
             'success': False,
             'error': result.get('message', 'Payment initialization failed')
         })
 
 
+@login_required
 def textbook_payment_verify(request):
     """Verify Paystack payment for textbooks."""
     # First try to find by payment_id from query parameter (most reliable)
@@ -670,36 +690,35 @@ def textbook_payment_verify(request):
     result = paystack_service.verify_payment(reference) if reference else None
     
     sale = None
-    
-    # Try to find by payment_id
-    if payment_id:
-        try:
-            sale = TextbookSale.objects.get(id=payment_id)
-        except TextbookSale.DoesNotExist:
-            pass
-    
-    # Fallback: try to find by payment_reference
-    if not sale and reference:
-        try:
-            sale = TextbookSale.objects.get(payment_reference=reference)
-        except TextbookSale.DoesNotExist:
-            pass
-    
-    if sale:
-        if result and result.get('status') and result['data']['status'] == 'success':
-            sale.payment_status = 'completed'
-            sale.save()
-            # Reduce stock
-            if sale.textbook:
-                sale.textbook.stock -= sale.quantity
-                sale.textbook.save()
-            messages.success(request, "Payment successful! Your textbook(s) have been reserved.")
-        else:
-            sale.payment_status = 'failed'
-            sale.save()
-            messages.error(request, "Payment failed. Please try again.")
-    else:
-        messages.error(request, "Payment record not found")
+    try:
+        with transaction.atomic():
+            if payment_id:
+                sale = TextbookSale.objects.select_for_update().select_related("textbook").filter(id=payment_id).first()
+            if not sale and reference:
+                sale = TextbookSale.objects.select_for_update().select_related("textbook").filter(payment_reference=reference).first()
+
+            if sale:
+                if sale.payment_status == 'completed':
+                    messages.info(request, "Payment already confirmed.")
+                    return redirect('operations:textbook_my')
+
+                if result and result.get('status') and result['data']['status'] == 'success':
+                    mark_textbook_sale_completed(sale=sale, reference=reference)
+
+                    if sale.textbook_id:
+                        updated = Textbook.objects.filter(
+                            pk=sale.textbook_id, stock__gte=sale.quantity
+                        ).update(stock=F('stock') - sale.quantity)
+                        if not updated:
+                            messages.warning(request, "Payment confirmed, but textbook stock was insufficient. Please contact the school.")
+                    messages.success(request, "Payment successful! Your textbook(s) have been reserved.")
+                else:
+                    mark_textbook_sale_failed(sale=sale, reference=reference)
+                    messages.error(request, "Payment failed. Please try again.")
+            else:
+                messages.error(request, "Payment record not found")
+    except Exception:
+        messages.error(request, "Payment verification failed. Please try again.")
     
     return redirect('operations:textbook_my')
 
@@ -733,13 +752,18 @@ def hostel_initiate_payment(request):
     if fee.payment_status == 'completed' or fee.paid:
         return JsonResponse({'success': False, 'error': 'Already paid'}, status=400)
 
-    amount = float(fee.amount)
+    amount = fee.balance if hasattr(fee, "balance") else fee.amount
+    amount = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
 
     # Generate unique reference
     reference = f"HOSTEL_{uuid.uuid4().hex[:12].upper()}"
-    fee.payment_reference = reference
-    fee.payment_status = 'pending'
-    fee.save()
+    with transaction.atomic():
+        fee = HostelFee.objects.select_for_update().select_related('student', 'student__user', 'hostel', 'school').get(id=fee_id)
+        if fee.payment_status == 'completed' or fee.paid:
+            return JsonResponse({'success': False, 'error': 'Already paid'}, status=400)
+        fee.payment_reference = reference
+        fee.payment_status = 'pending'
+        fee.save(update_fields=["payment_reference", "payment_status"])
 
     # Get parent email using helper function
     parent_email = _get_parent_email(student, request)
@@ -772,7 +796,7 @@ def hostel_initiate_payment(request):
     
     result = paystack_service.initialize_payment(
         email=parent_email or student.user.email,
-        amount=amount,
+        amount=float(amount),
         callback_url=callback_url,
         reference=reference,
         metadata=metadata,
@@ -788,14 +812,18 @@ def hostel_initiate_payment(request):
             'payment_id': fee.id  # Return payment_id for reliable lookup
         })
     else:
-        fee.payment_status = 'failed'
-        fee.save()
+        with transaction.atomic():
+            f = HostelFee.objects.select_for_update().filter(pk=fee.pk).first()
+            if f and f.payment_status != "completed" and not f.paid:
+                f.payment_status = 'failed'
+                f.save(update_fields=["payment_status"])
         return JsonResponse({
             'success': False,
             'error': result.get('message', 'Payment initialization failed')
         })
 
 
+@login_required
 def hostel_payment_verify(request):
     """Verify Paystack payment for hostel fees."""
     # First try to find by payment_id from query parameter (most reliable)
@@ -814,34 +842,28 @@ def hostel_payment_verify(request):
     result = paystack_service.verify_payment(reference) if reference else None
     
     fee = None
-    
-    # Try to find by payment_id
-    if payment_id:
-        try:
-            fee = HostelFee.objects.get(id=payment_id)
-        except HostelFee.DoesNotExist:
-            pass
-    
-    # Fallback: try to find by payment_reference
-    if not fee and reference:
-        try:
-            fee = HostelFee.objects.get(payment_reference=reference)
-        except HostelFee.DoesNotExist:
-            pass
-    
-    if fee:
-        if result and result.get('status') and result['data']['status'] == 'success':
-            fee.payment_status = 'completed'
-            fee.paid = True
-            fee.payment_date = timezone.now().date()
-            fee.save()
-            messages.success(request, "Payment successful! Your hostel fee is now cleared.")
-        else:
-            fee.payment_status = 'failed'
-            fee.save()
-            messages.error(request, "Payment failed. Please try again.")
-    else:
-        messages.error(request, "Payment record not found")
+    try:
+        with transaction.atomic():
+            if payment_id:
+                fee = HostelFee.objects.select_for_update().filter(id=payment_id).first()
+            if not fee and reference:
+                fee = HostelFee.objects.select_for_update().filter(payment_reference=reference).first()
+
+            if fee:
+                if fee.payment_status == 'completed' or fee.paid:
+                    messages.info(request, "Payment already confirmed.")
+                    return redirect('operations:hostel_my')
+
+                if result and result.get('status') and result['data']['status'] == 'success':
+                    mark_hostel_fee_completed(fee=fee, reference=reference)
+                    messages.success(request, "Payment successful! Your hostel fee is now cleared.")
+                else:
+                    mark_hostel_fee_failed(fee=fee, reference=reference)
+                    messages.error(request, "Payment failed. Please try again.")
+            else:
+                messages.error(request, "Payment record not found")
+    except Exception:
+        messages.error(request, "Payment verification failed. Please try again.")
     
     return redirect('operations:hostel_my')
 
@@ -891,8 +913,8 @@ def payment_dashboard(request):
     pending_fees = total_fees - paid_fees
     
     # Get amounts
-    total_amount = sum(float(f.amount) for f in fees)
-    total_collected = sum(float(f.amount_paid) for f in fees)
+    total_amount = sum((f.amount or Decimal("0")) for f in fees)
+    total_collected = sum((f.amount_paid or Decimal("0")) for f in fees)
     
     # Get other payments (canteen, bus, textbook) with date filtering
     canteen_payments = CanteenPayment.objects.filter(school=school).select_related('student', 'student__user', 'recorded_by')
@@ -940,10 +962,10 @@ def payment_dashboard(request):
     school_fees_filtered = fees.filter(paid=True)
     
     # Calculate totals by type (show all totals regardless of filter for the summary cards)
-    canteen_total_all = sum(float(p.amount) for p in canteen_payments.filter(payment_status='completed'))
-    bus_total_all = sum(float(p.amount) for p in bus_payments.filter(paid=True))
-    textbook_total_all = sum(float(s.amount) for s in textbook_sales.filter(payment_status='completed'))
-    hostel_total_all = sum(float(f.amount) for f in hostel_fees.filter(paid=True))
+    canteen_total_all = sum((p.amount or Decimal("0")) for p in canteen_payments.filter(payment_status='completed'))
+    bus_total_all = sum((p.amount or Decimal("0")) for p in bus_payments.filter(paid=True))
+    textbook_total_all = sum((s.amount or Decimal("0")) for s in textbook_sales.filter(payment_status='completed'))
+    hostel_total_all = sum((f.amount or Decimal("0")) for f in hostel_fees.filter(paid=True))
     school_fees_total_all = total_collected
     
     # Use totals based on filter
@@ -962,7 +984,7 @@ def payment_dashboard(request):
                 'student': f.student,
                 'date': f.created_at,
                 'type': 'School Fee',
-                'amount': float(f.amount_paid),
+                'amount': f.amount_paid,
                 'description': f.term or 'School Fee',
             })
     
@@ -972,7 +994,7 @@ def payment_dashboard(request):
                 'student': p.student,
                 'date': p.payment_date,
                 'type': 'Canteen',
-                'amount': float(p.amount),
+                'amount': p.amount,
                 'description': p.description,
                 'id': p.id,
             })
@@ -983,7 +1005,7 @@ def payment_dashboard(request):
                 'student': p.student,
                 'date': p.payment_date,
                 'type': 'Bus',
-                'amount': float(p.amount),
+                'amount': p.amount,
                 'description': p.route.name if p.route else 'Bus Fee',
                 'id': p.id,
             })
@@ -994,7 +1016,7 @@ def payment_dashboard(request):
                 'student': s.student,
                 'date': s.sale_date,
                 'type': 'Textbook',
-                'amount': float(s.amount),
+                'amount': s.amount,
                 'description': s.textbook.title if s.textbook else 'Textbook',
                 'id': s.id,
             })
@@ -1005,7 +1027,7 @@ def payment_dashboard(request):
                 'student': h.student,
                 'date': h.payment_date,
                 'type': 'Hostel',
-                'amount': float(h.amount),
+                'amount': h.amount,
                 'description': f"Hostel Fee - {h.term}" if h.term else 'Hostel Fee',
                 'id': h.id,
             })
@@ -1154,7 +1176,7 @@ def record_payment(request):
             student = Student.objects.get(id=student_id, school=school)
             fee = Fee.objects.get(id=fee_id, student=student)
             
-            amount_decimal = float(amount)
+            amount_decimal = Decimal(str(amount))
             
             if amount_decimal <= 0:
                 messages.error(request, "Amount must be positive")
@@ -1204,29 +1226,29 @@ def my_payments(request):
     school_fees = Fee.objects.filter(student=student).order_by('-created_at')
     
     # Calculate totals for school fees
-    school_fees_total = sum(float(fee.amount) for fee in school_fees)
-    school_fees_outstanding = sum(float(fee.remaining_balance) for fee in school_fees)
+    school_fees_total = sum((fee.amount or Decimal("0")) for fee in school_fees)
+    school_fees_outstanding = sum((fee.remaining_balance or Decimal("0")) for fee in school_fees)
     
     # Get canteen payments (completed only for the summary card)
     canteen = CanteenPayment.objects.filter(
         student=student,
         payment_status='completed'
     ).order_by('-payment_date')
-    canteen_total = sum(float(p.amount) for p in canteen)
+    canteen_total = sum((p.amount or Decimal("0")) for p in canteen)
     
     # Get bus payments (completed only)
     bus = BusPayment.objects.filter(
         student=student,
         payment_status='completed'
     ).order_by('-payment_date')
-    bus_total = sum(float(p.amount) for p in bus)
+    bus_total = sum((p.amount or Decimal("0")) for p in bus)
     
     # Get textbook sales (completed only)
     textbooks = TextbookSale.objects.filter(
         student=student,
         payment_status='completed'
     ).order_by('-id')
-    textbook_total = sum(float(s.amount) for s in textbooks)
+    textbook_total = sum((s.amount or Decimal("0")) for s in textbooks)
     
     # Calculate totals
     total_paid = school_fees_total - school_fees_outstanding + canteen_total + bus_total + textbook_total
@@ -1372,14 +1394,14 @@ def initiate_online_payment(request):
     if not user_can_access_student_payment(request.user, fee.student):
         return JsonResponse({"success": False, "error": "Forbidden"}, status=403)
 
-    remaining = float(fee.remaining_balance)
+    remaining = fee.remaining_balance
     if remaining <= 0:
         return JsonResponse({"success": False, "error": "Fee already paid"}, status=400)
 
     amount_str = request.POST.get("amount")
     if amount_str:
         try:
-            amount = float(amount_str)
+            amount = Decimal(str(amount_str))
             if amount <= 0:
                 amount = remaining
             elif amount > remaining:
@@ -1389,7 +1411,7 @@ def initiate_online_payment(request):
     else:
         amount = remaining
 
-    amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+    amount_net, amount_gross = compute_paystack_gross_from_net(amount)
     charge_amount = float(amount_gross)
 
     stu = fee.student
@@ -1555,7 +1577,7 @@ def send_payment_reminder(request):
                 if not fees.exists():
                     continue
 
-                total_pending = sum(float(f.remaining_balance) for f in fees)
+                total_pending = sum((f.remaining_balance or Decimal("0")) for f in fees)
 
                 parent_phone = None
                 if student.parent and student.parent.phone:

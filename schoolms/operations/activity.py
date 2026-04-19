@@ -4,12 +4,37 @@ from __future__ import annotations
 
 
 def client_ip_from_request(request) -> str | None:
+    """Return the best-effort client IP, honoring trusted proxy configuration.
+
+    Behavior:
+    - If ``settings.TRUSTED_PROXY_COUNT`` (int) is set and > 0, trust that many
+      right-most hops in ``X-Forwarded-For`` and return the left-most client-side
+      IP beyond those hops. This prevents header spoofing by untrusted clients
+      when exactly N proxies are known to sit in front of the app.
+    - If it is 0 (or unset), fall back to ``REMOTE_ADDR`` (do NOT trust XFF).
+      Earlier behavior read the first XFF entry unconditionally, which is
+      spoofable; production deployments should set ``TRUSTED_PROXY_COUNT``.
+    """
     if not request:
         return None
-    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if xff:
-        return xff.split(",")[0].strip() or None
-    return request.META.get("REMOTE_ADDR")
+    try:
+        from django.conf import settings
+
+        trusted = int(getattr(settings, "TRUSTED_PROXY_COUNT", 0) or 0)
+    except Exception:
+        trusted = 0
+
+    remote = request.META.get("REMOTE_ADDR")
+    if trusted <= 0:
+        return remote
+
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "") or ""
+    parts = [p.strip() for p in xff.split(",") if p.strip()]
+    if not parts:
+        return remote
+    # Strip the N right-most (trusted) hops; the next one is the client-claimed IP.
+    client_index = max(0, len(parts) - trusted - 1)
+    return parts[client_index] or remote
 
 
 def log_school_activity(

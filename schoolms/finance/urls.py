@@ -25,6 +25,18 @@ urlpatterns = [
     
     # School-facing fee management
     path("fees/", views.fee_list, name="fee_list"),
+
+    # Unified payment ledger
+    path("ledger/", views.payment_ledger_list, name="payment_ledger_list"),
+    path("ledger/queue/", views.payment_ledger_queue, name="payment_ledger_queue"),
+    path("ledger/queue/view/", views.payment_ledger_queue_page, name="payment_ledger_queue_page"),
+    path("ledger/queue/export.csv", views.payment_ledger_queue_export_csv, name="payment_ledger_queue_export_csv"),
+    path("ledger/<int:pk>/", views.payment_ledger_detail, name="payment_ledger_detail"),
+    path("ledger/<int:pk>/review/", views.payment_ledger_toggle_review, name="payment_ledger_toggle_review"),
+    path("ledger/bulk-review/", views.payment_ledger_bulk_review, name="payment_ledger_bulk_review"),
+    path("ledger/bulk-review/preview/", views.payment_ledger_bulk_review_preview, name="payment_ledger_bulk_review_preview"),
+    path("ledger/export.csv", views.payment_ledger_export_csv, name="payment_ledger_export_csv"),
+    path("ledger/health/", views.payment_ledger_health, name="payment_ledger_health"),
     
     # Payment receipt
     path("receipt/<int:pk>/", views.payment_receipt, name="payment_receipt"),

@@ -137,11 +137,37 @@ def _build_report_card_pdf_bytes(*, school, student, results, average, term_labe
         if logo_url:
             import requests
             from io import BytesIO
-            r = requests.get(logo_url, timeout=5)
-            if r.ok and r.content:
-                logo = Image(BytesIO(r.content))
-                logo.drawHeight = 18 * mm
-                logo.drawWidth = 18 * mm
+            from urllib.parse import urlparse
+            import ipaddress
+            import socket
+
+            def _is_public_host(u: str) -> bool:
+                try:
+                    p = urlparse(u)
+                    if p.scheme not in ("http", "https"):
+                        return False
+                    host = p.hostname
+                    if not host:
+                        return False
+                    # Resolve DNS and block private/loopback/link-local/etc.
+                    ip = socket.gethostbyname(host)
+                    addr = ipaddress.ip_address(ip)
+                    return not (
+                        addr.is_private
+                        or addr.is_loopback
+                        or addr.is_link_local
+                        or addr.is_multicast
+                        or addr.is_reserved
+                    )
+                except Exception:
+                    return False
+
+            if _is_public_host(logo_url):
+                r = requests.get(logo_url, timeout=5)
+                if r.ok and r.content:
+                    logo = Image(BytesIO(r.content))
+                    logo.drawHeight = 18 * mm
+                    logo.drawWidth = 18 * mm
     except Exception:
         logo = None
 
@@ -348,6 +374,21 @@ def _ensure_core_academics_for_school(school):
     if not school:
         return
 
+    # Avoid mutating configuration on every request.
+    # Run at most once per day per school, and only when a leadership user visits.
+    # This preserves the historical "dropdowns never empty" behavior while
+    # reducing production surprise and race/latency risk.
+    try:
+        from django.core.cache import cache
+
+        cache_key = f"core_academics_seeded:{school.pk}"
+        if cache.get(cache_key):
+            return
+        cache.set(cache_key, 1, 86400)
+    except Exception:
+        # If cache is unavailable, fall back to the previous behavior.
+        pass
+
     for name in CORE_TERMS:
         Term.objects.get_or_create(school=school, name=name)
     for name in CORE_EXAM_TYPES:
@@ -421,8 +462,10 @@ def result_upload(request):
             },
         )
 
+    from accounts.permissions import can_upload_results
+
     # Only admins, teachers, and super admins can upload results
-    if not _user_can_manage_school(request) and not getattr(user, "is_super_admin", False):
+    if not can_upload_results(user) and not getattr(user, "is_super_admin", False):
         return render(
             request,
             "academics/result_upload.html",
@@ -497,24 +540,56 @@ def result_upload(request):
                         subject=subject, exam_type=exam_type, term=term,
                     )
                 }
+                from django.db import transaction
+
                 saved_count = 0
                 to_create = []
-                for sid, score_val in score_entries.items():
-                    student = students_by_id.get(sid)
-                    if not student:
-                        continue
-                    existing = existing_results.get(sid)
-                    if existing:
-                        existing.score = score_val
-                        existing.save(update_fields=["score", "updated_at"])
-                    else:
-                        to_create.append(Result(
-                            student=student, subject=subject,
-                            exam_type=exam_type, term=term, score=score_val,
-                        ))
-                    saved_count += 1
-                if to_create:
-                    Result.objects.bulk_create(to_create)
+                updated_count = 0
+                with transaction.atomic():
+                    for sid, score_val in score_entries.items():
+                        student = students_by_id.get(sid)
+                        if not student:
+                            continue
+                        existing = existing_results.get(sid)
+                        if existing:
+                            old_score = existing.score
+                            existing.score = score_val
+                            existing.save(update_fields=["score", "updated_at"])
+                            if old_score != score_val:
+                                updated_count += 1
+                        else:
+                            to_create.append(
+                                Result(
+                                    student=student,
+                                    subject=subject,
+                                    exam_type=exam_type,
+                                    term=term,
+                                    score=score_val,
+                                )
+                            )
+                        saved_count += 1
+                    if to_create:
+                        Result.objects.bulk_create(to_create)
+
+                try:
+                    from audit.models import AuditLog
+
+                    AuditLog.log_action(
+                        user=request.user,
+                        action="import",
+                        model_name="Result",
+                        object_id=None,
+                        object_repr=f"Bulk result upload: class={class_name or ''} subject={subject.id} exam_type={exam_type.id} term={term.id}",
+                        changes={
+                            "saved_count": saved_count,
+                            "created_count": len(to_create),
+                            "updated_count": updated_count,
+                        },
+                        request=request,
+                        school=school,
+                    )
+                except Exception:
+                    pass
                 
                 if saved_count > 0:
                     messages.success(request, f"Successfully saved {saved_count} score(s)")
@@ -592,7 +667,8 @@ def result_autosave(request):
     school = _get_school(request)
     if not school:
         return JsonResponse({"error": "No school"}, status=403)
-    if not _user_can_manage_school(request):
+    from accounts.permissions import can_upload_results
+    if not can_upload_results(request.user):
         return JsonResponse({"error": "Permission denied"}, status=403)
 
     student_id = request.POST.get("student_id")
@@ -619,10 +695,25 @@ def result_autosave(request):
     except (Student.DoesNotExist, Subject.DoesNotExist, ExamType.DoesNotExist, Term.DoesNotExist):
         return JsonResponse({"error": "Invalid selection"}, status=400)
 
-    Result.objects.update_or_create(
+    obj, created = Result.objects.update_or_create(
         student=student, subject=subject, exam_type=exam_type, term=term,
         defaults={"score": score},
     )
+    try:
+        from audit.models import AuditLog
+
+        AuditLog.log_action(
+            user=request.user,
+            action="create" if created else "update",
+            model_name="Result",
+            object_id=obj.pk,
+            object_repr=str(obj)[:255],
+            changes={"score": score},
+            request=request,
+            school=school,
+        )
+    except Exception:
+        pass
     return JsonResponse({"ok": True, "saved_score": score})
 
 
@@ -633,7 +724,8 @@ def result_list(request):
     if not school:
         return redirect("home")
     
-    if not _user_can_manage_school(request):
+    from accounts.permissions import can_upload_results
+    if not can_upload_results(request.user):
         return redirect("home")
     
     # Get filter parameters
@@ -684,7 +776,8 @@ def result_edit(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not _user_can_manage_school(request):
+    from accounts.permissions import can_upload_results
+    if not can_upload_results(request.user):
         return redirect("home")
     result = get_object_or_404(
         Result.objects.select_related(
@@ -697,8 +790,24 @@ def result_edit(request, pk):
         score = request.POST.get("score")
         if score:
             try:
+                old_score = result.score
                 result.score = float(score)
                 result.save()
+                try:
+                    from audit.models import AuditLog
+
+                    AuditLog.log_action(
+                        user=request.user,
+                        action="update",
+                        model_name="Result",
+                        object_id=result.pk,
+                        object_repr=str(result)[:255],
+                        changes={"score": {"from": old_score, "to": result.score}},
+                        request=request,
+                        school=school,
+                    )
+                except Exception:
+                    pass
                 messages.success(request, "Result updated successfully!")
             except ValueError:
                 messages.error(request, "Invalid score value.")
@@ -711,7 +820,8 @@ def result_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not _user_can_manage_school(request):
+    from accounts.permissions import can_upload_results
+    if not can_upload_results(request.user):
         return redirect("home")
     result = get_object_or_404(
         Result.objects.select_related("student", "student__user", "subject", "exam_type", "term"),
@@ -719,6 +829,21 @@ def result_delete(request, pk):
         student__school=school,
     )
     if request.method == "POST":
+        try:
+            from audit.models import AuditLog
+
+            AuditLog.log_action(
+                user=request.user,
+                action="delete",
+                model_name="Result",
+                object_id=result.pk,
+                object_repr=str(result)[:255],
+                changes={"score": result.score},
+                request=request,
+                school=school,
+            )
+        except Exception:
+            pass
         result.delete()
         messages.success(request, "Result deleted successfully!")
         return redirect("academics:result_list")
@@ -1285,6 +1410,36 @@ def _timetable_class_slot_conflicts(school, class_name, day_of_week, start_time,
     ]
 
 
+def _timetable_teacher_or_room_conflicts(
+    school,
+    day_of_week,
+    start_time,
+    end_time,
+    *,
+    teacher=None,
+    venue="",
+    exclude_pk=None,
+):
+    """Find overlapping slots for the same teacher and/or room on a day."""
+    qs = Timetable.objects.filter(school=school, day_of_week=day_of_week)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    overlaps = [
+        row
+        for row in qs
+        if _timetable_times_overlap(start_time, end_time, row.start_time, row.end_time)
+    ]
+
+    teacher_hits = []
+    venue_hits = []
+    if teacher is not None:
+        teacher_hits = [row for row in overlaps if row.teacher_id == teacher.id]
+    venue_norm = (venue or "").strip().lower()
+    if venue_norm:
+        venue_hits = [row for row in overlaps if (row.venue or "").strip().lower() == venue_norm]
+    return teacher_hits, venue_hits
+
+
 # Timetable
 @login_required
 def timetable_list(request):
@@ -1342,11 +1497,16 @@ def timetable_create(request):
 
         class_name = (request.POST.get("class_name") or "").strip()
         subject_id = request.POST.get("subject")
+        teacher_id = request.POST.get("teacher")
+        venue = (request.POST.get("venue") or "").strip()
         day = (request.POST.get("day") or "").strip()
         start_time = (request.POST.get("start_time") or "").strip()
         end_time = (request.POST.get("end_time") or "").strip()
 
         subject = Subject.objects.filter(id=subject_id, school=school).first()
+        teacher = None
+        if teacher_id:
+            teacher = User.objects.filter(id=teacher_id).first()
         if not (class_name and subject and day and start_time and end_time):
             messages.error(request, "Please fill all required fields.")
         else:
@@ -1368,13 +1528,45 @@ def timetable_create(request):
                         "Adjust the time or remove the conflicting entry.",
                     )
                 else:
+                    teacher_conflicts, venue_conflicts = _timetable_teacher_or_room_conflicts(
+                        school,
+                        day,
+                        st,
+                        et,
+                        teacher=teacher,
+                        venue=venue,
+                    )
+                    if teacher_conflicts:
+                        cls = ", ".join(sorted({c.class_name for c in teacher_conflicts}))[:200]
+                        messages.error(
+                            request,
+                            f"Selected teacher already has overlapping lesson(s) on {day}: {cls}.",
+                        )
+                        return render(
+                            request,
+                            "academics/timetable_form.html",
+                            {"school": school, "subjects": subjects, "suggested_classes": suggested_classes},
+                        )
+                    if venue_conflicts:
+                        cls = ", ".join(sorted({c.class_name for c in venue_conflicts}))[:200]
+                        messages.error(
+                            request,
+                            f"Venue '{venue}' is already booked on {day} for: {cls}.",
+                        )
+                        return render(
+                            request,
+                            "academics/timetable_form.html",
+                            {"school": school, "subjects": subjects, "suggested_classes": suggested_classes},
+                        )
                     Timetable.objects.create(
                         school=school,
                         class_name=class_name,
                         subject=subject,
+                        teacher=teacher,
                         day_of_week=day,
                         start_time=st,
                         end_time=et,
+                        venue=venue,
                     )
                     messages.success(request, "Timetable entry created.")
                     return redirect("academics:timetable_list")

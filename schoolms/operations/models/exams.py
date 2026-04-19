@@ -2,6 +2,7 @@ from django.db import models
 from accounts.models import User
 from students.models import Student
 from schools.models import School
+from django.core.exceptions import ValidationError
 
 
 class ExamHall(models.Model):
@@ -34,6 +35,17 @@ class SeatingPlan(models.Model):
     def __str__(self):
         return f"{self.exam_schedule.subject.name} - {self.hall.name}"
 
+    def clean(self):
+        super().clean()
+        if self.school_id and self.hall_id and getattr(self.hall, "school_id", None) != self.school_id:
+            raise ValidationError({"hall": "Hall must belong to the same school as the seating plan."})
+        if self.school_id and self.exam_schedule_id and getattr(self.exam_schedule, "school_id", None) != self.school_id:
+            raise ValidationError({"exam_schedule": "Exam schedule must belong to the same school as the seating plan."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 class SeatAssignment(models.Model):
     """Individual seat assignments"""
@@ -47,6 +59,19 @@ class SeatAssignment(models.Model):
     
     def __str__(self):
         return f"{self.student} - Row {self.row_number}, Seat {self.seat_number}"
+
+    def clean(self):
+        super().clean()
+        # Ensure student belongs to the same school as the seating plan.
+        if self.seating_plan_id and self.student_id:
+            sp_school_id = getattr(self.seating_plan, "school_id", None)
+            st_school_id = getattr(self.student, "school_id", None)
+            if sp_school_id and st_school_id and sp_school_id != st_school_id:
+                raise ValidationError({"student": "Student must belong to the same school as the seating plan."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class OnlineExam(models.Model):
@@ -83,6 +108,17 @@ class OnlineExam(models.Model):
     
     def __str__(self):
         return f"{self.title} - {self.subject.name}"
+
+    def clean(self):
+        super().clean()
+        if self.school_id and self.subject_id and getattr(self.subject, "school_id", None) != self.school_id:
+            raise ValidationError({"subject": "Subject must belong to the same school as the exam."})
+        if self.school_id and self.created_by_id and getattr(self.created_by, "school_id", None) not in (None, self.school_id):
+            raise ValidationError({"created_by": "Creator must belong to the same school as the exam."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class ExamQuestion(models.Model):
@@ -142,6 +178,18 @@ class ExamAttempt(models.Model):
     
     def __str__(self):
         return f"{self.student} - {self.exam.title} (#{self.attempt_number})"
+
+    def clean(self):
+        super().clean()
+        if self.exam_id and self.student_id:
+            ex_school_id = getattr(self.exam, "school_id", None)
+            st_school_id = getattr(self.student, "school_id", None)
+            if ex_school_id and st_school_id and ex_school_id != st_school_id:
+                raise ValidationError({"student": "Student must belong to the same school as the exam."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class ExamAnswer(models.Model):

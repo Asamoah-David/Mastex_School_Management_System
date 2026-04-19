@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from schools.models import School
@@ -223,12 +224,36 @@ class User(AbstractUser):
         return {'uid': uid, 'token': token}
     
     # Secondary roles helper methods
+    def _valid_role_values(self):
+        return {choice[0] for choice in ROLE_CHOICES}
+
+    def _normalized_secondary_roles(self, roles_list, *, strict=True):
+        valid = self._valid_role_values()
+        out = []
+        seen = set()
+        for role in roles_list or []:
+            r = (role or "").strip()
+            if not r:
+                continue
+            if r not in valid:
+                if strict:
+                    raise ValidationError({"secondary_roles": f"Invalid secondary role: {r}"})
+                continue
+            if r == self.role:
+                continue
+            if r in seen:
+                continue
+            seen.add(r)
+            out.append(r)
+        return out
+
     @property
     def get_secondary_roles_list(self):
         """Get secondary roles as a list of role strings"""
         if not self.secondary_roles:
             return []
-        return [r.strip() for r in self.secondary_roles.split(',') if r.strip()]
+        raw = [r.strip() for r in self.secondary_roles.split(',') if r.strip()]
+        return self._normalized_secondary_roles(raw, strict=False)
     
     @property
     def secondary_roles_display(self):
@@ -251,14 +276,14 @@ class User(AbstractUser):
     
     def set_secondary_roles(self, roles_list):
         """Set secondary roles from a list of role values"""
-        self.secondary_roles = ','.join(roles_list)
+        self.secondary_roles = ','.join(self._normalized_secondary_roles(roles_list))
     
     def add_secondary_role(self, role_value):
         """Add a secondary role"""
         roles = self.get_secondary_roles_list
         if role_value not in roles and role_value != self.role:
             roles.append(role_value)
-            self.secondary_roles = ','.join(roles)
+            self.secondary_roles = ','.join(self._normalized_secondary_roles(roles))
     
     def remove_secondary_role(self, role_value):
         """Remove a secondary role"""
@@ -266,6 +291,12 @@ class User(AbstractUser):
         if role_value in roles:
             roles.remove(role_value)
             self.secondary_roles = ','.join(roles)
+
+    def clean(self):
+        super().clean()
+        # Validate and normalize secondary_roles CSV in all save paths.
+        roles = [r.strip() for r in (self.secondary_roles or "").split(',') if r.strip()]
+        self.secondary_roles = ','.join(self._normalized_secondary_roles(roles))
 
 
 # Staff HR (contracts, role audit, teaching allocation, payroll) — see hr_models.py

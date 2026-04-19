@@ -1812,6 +1812,7 @@ def hostel_fee_create(request):
 @login_required
 def hostel_fee_mark_paid(request, pk):
     from accounts.permissions import user_can_manage_school
+    from operations.models import HostelFeePayment
     school = _get_school(request)
     if not school:
         return redirect("home")
@@ -1819,9 +1820,29 @@ def hostel_fee_mark_paid(request, pk):
         return redirect("home")
     fee = get_object_or_404(HostelFee, pk=pk, school=school)
     if request.method == "POST":
-        fee.paid = True
-        fee.payment_date = timezone.now().date()
-        fee.save(update_fields=["paid", "payment_date"])
+        from django.db import transaction
+        with transaction.atomic():
+            fee = HostelFee.objects.select_for_update().get(pk=fee.pk, school=school)
+            if not fee.paid:
+                fee.paid = True
+                fee.payment_status = "completed"
+                fee.payment_date = timezone.now().date()
+                fee.amount_paid = fee.amount
+                rec = {
+                    "amount": str(fee.amount),
+                    "date": str(fee.payment_date),
+                    "reference": "MANUAL",
+                }
+                if fee.payment_history is None:
+                    fee.payment_history = []
+                fee.payment_history.append(rec)
+                fee.save(update_fields=["paid", "payment_status", "payment_date", "amount_paid", "payment_history"])
+                HostelFeePayment.objects.create(
+                    hostel_fee=fee,
+                    amount=fee.amount,
+                    payment_reference="",
+                    recorded_by=request.user if request.user.is_authenticated else None,
+                )
         from django.contrib import messages
         messages.success(request, "Marked as paid.")
         return redirect("operations:hostel_fees")
@@ -2329,17 +2350,20 @@ def admission_approve(request, pk):
                 )
                 return redirect('operations:admission_approve', pk=application.pk)
 
-            credential_msg = (
-                f"Welcome! Your child has been admitted to {application.school.name}. "
-                f"Parent login: {parent_username} Password: {parent_pw}. "
-                f"Student login: {student_username} Password: {student_pw}"
+            # SECURITY: Do not persist plaintext credentials in session or outbound
+            # notifications. Usernames are surfaced immediately in success messages,
+            # and parent onboarding uses password-reset flow where email exists.
+
+            notify_msg = (
+                f"Admission update: {application.first_name} has been admitted to {application.school.name}. "
+                "Please contact the school to complete onboarding or use the password reset page if an email is registered."
             )
             sms_sent = False
             try:
                 from messaging.utils import send_sms
 
                 if application.parent_phone:
-                    send_sms(application.parent_phone, credential_msg)
+                    send_sms(application.parent_phone, notify_msg)
                     sms_sent = True
             except Exception:
                 logger.warning("Failed to send admission approval SMS", exc_info=True)
@@ -2350,7 +2374,7 @@ def admission_approve(request, pk):
 
                     send_mail(
                         f"Admission Approved - {application.school.name}",
-                        credential_msg,
+                        notify_msg,
                         None,
                         [application.parent_email],
                         fail_silently=True,
@@ -2358,7 +2382,22 @@ def admission_approve(request, pk):
                 except Exception:
                     logger.warning("Failed to send admission approval email", exc_info=True)
 
+            if application.parent_email:
+                try:
+                    from accounts.forms import SecurePasswordResetForm
+
+                    f = SecurePasswordResetForm(data={"email": application.parent_email})
+                    if f.is_valid():
+                        f.save(request=request, use_https=request.is_secure())
+                except Exception:
+                    logger.warning("Failed to send admission password reset email", exc_info=True)
+
             messages.success(request, "Application approved! Student and parent accounts created.")
+            messages.info(
+                request,
+                f"Created usernames — Parent: {parent_username}, Student: {student_username}. "
+                "For security, passwords are not sent via SMS/email. Communicate initial access securely."
+            )
             if request.POST.get("create_initial_fees") == "on" and fee_lines_created == 0:
                 messages.warning(
                     request,
@@ -2779,9 +2818,53 @@ def certificate_pdf(request, pk):
     
     # Return PDF response
     buffer.seek(0)
-    response = HttpResponse(buffer, content_type='application/pdf')
+    pdf_bytes = buffer.getvalue()
+
+    try:
+        from django.core.files.base import ContentFile
+
+        if not getattr(certificate, "pdf", None):
+            name = f"certificate_{certificate.pk}.pdf"
+            certificate.pdf.save(name, ContentFile(pdf_bytes), save=True)
+    except Exception:
+        pass
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="certificate_{certificate.student.admission_number or certificate.pk}.pdf"'
     return response
+
+
+@login_required
+def certificate_pdf_open(request, pk):
+    """Open a stored certificate PDF with authorization checks."""
+    from accounts.permissions import user_can_manage_school
+    from django.http import FileResponse, Http404
+
+    school = _get_school(request)
+    if not school and not (request.user.is_superuser or getattr(request.user, 'is_super_admin', False)):
+        raise Http404
+
+    certificate = get_object_or_404(
+        Certificate.objects.select_related("student", "student__user", "school"),
+        pk=pk,
+    )
+
+    if school and certificate.school_id != school.id:
+        raise Http404
+
+    can_view = user_can_manage_school(request.user) or request.user.is_superuser
+    can_view = can_view or (certificate.student and certificate.student.user_id == request.user.id)
+    if not can_view:
+        raise Http404
+
+    if not certificate.pdf:
+        raise Http404
+
+    f = certificate.pdf
+    f.open('rb')
+    r = FileResponse(f, as_attachment=False)
+    r["Cache-Control"] = "no-store"
+    return r
 
 
 @login_required
@@ -3299,7 +3382,7 @@ def document_list(request):
         children = Student.objects.filter(parent=request.user, school=school)
         documents = StudentDocument.objects.filter(student__in=children).select_related('student', 'student__user').order_by('-uploaded_at')[:200]
     elif user_can_manage_school(request.user) or request.user.is_superuser:
-        qs = StudentDocument.objects.filter(school=school).select_related('student', 'student__user', 'uploaded_by').order_by('-uploaded_at')
+        qs = StudentDocument.scoped.for_school(school).select_related('student', 'student__user', 'uploaded_by').order_by('-uploaded_at')
         page_obj = paginate(request, qs, per_page=50)
         documents = page_obj
     else:
@@ -3338,20 +3421,65 @@ def document_upload(request):
     if request.method == 'POST':
         student_id = request.POST.get('student')
         document_type = request.POST.get('document_type')
-        title = request.POST.get('title', '').strip()
+        title = (request.POST.get('title', '') or '').strip()[:200]
+        notes = request.POST.get('notes', '').strip()
+        upload = request.FILES.get('file')
         
         if student_id and document_type and title:
-            student = Student.objects.filter(id=student_id, school=school).first()
-            if student:
-                # In a real app, you'd handle file upload here
-                StudentDocument.objects.create(
+            student = None
+            if role == 'student':
+                student = Student.objects.filter(id=student_id, user=request.user, school=school).first()
+            elif role == 'parent':
+                student = Student.objects.filter(id=student_id, parent=request.user, school=school).first()
+            elif user_can_manage_school(request.user) or request.user.is_superuser:
+                student = Student.objects.filter(id=student_id, school=school).first()
+
+            if not student:
+                from django.contrib import messages
+                messages.error(request, 'Invalid student selection.')
+            elif not upload:
+                from django.contrib import messages
+                messages.error(request, 'Please select a file to upload.')
+            else:
+                max_bytes = 10 * 1024 * 1024
+                if getattr(upload, 'size', 0) and upload.size > max_bytes:
+                    from django.contrib import messages
+                    messages.error(request, 'File is too large. Maximum allowed size is 10MB.')
+                    return redirect('operations:document_upload')
+
+                doc = StudentDocument.objects.create(
                     student=student,
                     school=school,
                     document_type=document_type,
                     title=title,
-                    file_path=f"documents/{student_id}/{title}",
+                    file=upload,
+                    file_path='',
                     uploaded_by=request.user
                 )
+                if doc.file:
+                    StudentDocument.objects.filter(pk=doc.pk).update(file_path=str(doc.file.name))
+                if notes:
+                    StudentDocument.objects.filter(pk=doc.pk).update(notes=notes)
+                try:
+                    from audit.services import write_audit
+
+                    write_audit(
+                        user=request.user,
+                        action="create",
+                        model_name="StudentDocument",
+                        object_id=doc.pk,
+                        object_repr=str(doc)[:255],
+                        changes={
+                            "student_id": doc.student_id,
+                            "document_type": doc.document_type,
+                            "title": doc.title,
+                            "file_path": doc.file_path,
+                        },
+                        request=request,
+                        school=school,
+                    )
+                except Exception:
+                    pass
                 from django.contrib import messages
                 messages.success(request, 'Document uploaded successfully!')
                 return redirect('operations:document_list')
@@ -3360,6 +3488,66 @@ def document_upload(request):
         'school': school,
         'students': students
     })
+
+
+@login_required
+def document_download(request, pk):
+    """Download/view a student document with authorization checks."""
+    from accounts.permissions import user_can_manage_school
+    from django.http import FileResponse, Http404
+
+    school = _get_school(request)
+    role = getattr(request.user, 'role', None)
+
+    if school:
+        doc = get_object_or_404(
+            StudentDocument.objects.select_related('student', 'student__user', 'uploaded_by'),
+            pk=pk,
+            school=school,
+        )
+    elif request.user.is_superuser or getattr(request.user, 'is_super_admin', False):
+        doc = get_object_or_404(
+            StudentDocument.objects.select_related('student', 'student__user', 'uploaded_by'),
+            pk=pk,
+        )
+    else:
+        raise Http404
+
+    allowed = False
+    if role == 'student':
+        allowed = doc.student_id and getattr(doc.student, 'user_id', None) == request.user.id
+    elif role == 'parent':
+        allowed = doc.student_id and getattr(doc.student, 'parent_id', None) == request.user.id
+    elif user_can_manage_school(request.user) or request.user.is_superuser:
+        allowed = True
+
+    if not allowed:
+        raise Http404
+
+    if not doc.file:
+        raise Http404
+
+    try:
+        from audit.services import write_audit
+
+        write_audit(
+            user=request.user,
+            action="view",
+            model_name="StudentDocument",
+            object_id=doc.pk,
+            object_repr=str(doc)[:255],
+            changes={"student_id": doc.student_id, "document_type": doc.document_type},
+            request=request,
+            school=getattr(doc, "school", None),
+        )
+    except Exception:
+        pass
+
+    f = doc.file
+    f.open('rb')
+    r = FileResponse(f, as_attachment=False)
+    r["Cache-Control"] = "no-store"
+    return r
 
 
 # ==================== ALUMNI ====================
@@ -7422,16 +7610,26 @@ def homework_submit(request, homework_id):
 
     if request.method == 'POST':
         submission_text = request.POST.get('submission_text', '').strip()
-        file = request.FILES.get('file')
+        upload = request.FILES.get('file')
+        notes = request.POST.get('notes', '').strip()
 
-        if submission_text or file:
-            AssignmentSubmission.objects.create(
+        if submission_text or upload:
+            max_bytes = 10 * 1024 * 1024
+            if upload and getattr(upload, 'size', 0) and upload.size > max_bytes:
+                messages.error(request, 'File is too large. Maximum allowed size is 10MB.')
+                return redirect('operations:homework_submit', homework_id=homework_id)
+
+            sub = AssignmentSubmission.objects.create(
                 homework=homework,
                 student=student,
                 submission_text=submission_text,
-                file=file,
+                file=upload,
+                file_path='',
+                notes=notes or '',
                 submitted_at=timezone.now()
             )
+            if sub.file:
+                AssignmentSubmission.objects.filter(pk=sub.pk).update(file_path=str(sub.file.name))
             messages.success(request, 'Homework submitted successfully!')
             return redirect('operations:homework_for_student')
         else:
@@ -7535,6 +7733,47 @@ def my_submissions(request):
         'submissions': submissions,
         'school': school
     })
+
+
+@login_required
+def assignment_submission_download(request, pk):
+    """Download/view an assignment submission file with authorization checks."""
+    from accounts.permissions import user_can_manage_school
+    from django.http import FileResponse, Http404
+
+    school = _get_school(request)
+    if not school:
+        raise Http404
+
+    sub = get_object_or_404(
+        AssignmentSubmission.objects.select_related(
+            'homework', 'homework__subject', 'student', 'student__user'
+        ),
+        pk=pk,
+    )
+
+    # Tenant check
+    if not sub.homework_id or not sub.homework.subject_id or sub.homework.subject.school_id != school.id:
+        raise Http404
+
+    role = getattr(request.user, 'role', None)
+    allowed = False
+    if role == 'student':
+        allowed = sub.student_id and getattr(sub.student, 'user_id', None) == request.user.id
+    elif user_can_manage_school(request.user) or request.user.is_superuser:
+        allowed = True
+
+    if not allowed:
+        raise Http404
+
+    if not sub.file:
+        raise Http404
+
+    f = sub.file
+    f.open('rb')
+    r = FileResponse(f, as_attachment=False)
+    r["Cache-Control"] = "no-store"
+    return r
 
 
 # ==================== ONLINE EXAMS ====================

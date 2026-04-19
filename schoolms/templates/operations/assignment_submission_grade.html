@@ -25,7 +25,9 @@
             {% else %}
             <p class="text-muted mb-0">No text submitted.</p>
             {% endif %}
-            {% if submission.file_path %}
+            {% if submission.file %}
+            <p class="mt-2 mb-0 small"><strong>File:</strong> <a href="{% url 'operations:assignment_submission_download' submission.pk %}" target="_blank" rel="noopener">Open</a></p>
+            {% elif submission.file_path %}
             <p class="mt-2 mb-0 small"><strong>File:</strong> {{ submission.file_path }}</p>
             {% endif %}
         </div>
@@ -36,13 +38,13 @@
             <form method="post">
                 {% csrf_token %}
                 <div class="mb-3">
-                    <label class="form-label">Grade</label>
-                    <input type="text" name="grade" class="form-control" value="{{ submission.grade }}" required
+                    <label class="form-label" for="grade">Grade</label>
+                    <input type="text" name="grade" id="grade" class="form-control" value="{{ submission.grade }}" required
                            placeholder="e.g. 85 or A">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Feedback</label>
-                    <textarea name="feedback" class="form-control" rows="4">{{ submission.feedback }}</textarea>
+                    <label class="form-label" for="feedback">Feedback</label>
+                    <textarea name="feedback" id="feedback" class="form-control" rows="4">{{ submission.feedback }}</textarea>
                 </div>
                 <button type="submit" class="btn btn-primary">Save grade</button>
             </form>

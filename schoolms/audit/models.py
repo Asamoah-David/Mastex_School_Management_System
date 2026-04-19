@@ -31,6 +31,7 @@ class AuditLog(models.Model):
     changes = models.JSONField(default=dict, blank=True, help_text="Dictionary of field changes")
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=500, blank=True)
+    request_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     school = models.ForeignKey(
         'schools.School',
@@ -70,6 +71,7 @@ class AuditLog(models.Model):
         if request:
             kwargs['ip_address'] = cls._get_client_ip(request)
             kwargs['user_agent'] = request.META.get('HTTP_USER_AGENT', '')[:500]
+            kwargs['request_id'] = (getattr(request, 'request_id', None) or request.META.get('HTTP_X_REQUEST_ID', '') or '')[:64]
         
         if school:
             kwargs['school'] = school

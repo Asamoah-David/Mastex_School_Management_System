@@ -27,13 +27,22 @@ def _safe_referer(request, fallback="/"):
         return ref
     return fallback
 
-from .models import Fee, FeeStructure, FeePayment
+from .models import Fee, FeeStructure, FeePayment, SubscriptionPayment, PaymentTransaction
+from payments.services.ledger import PaymentTypes, record_payment_transaction
+from finance.services.fee_payments import complete_fee_payment, net_amount_for_school_fee
+from operations.services.portal_payments import (
+    mark_bus_payment_completed,
+    mark_canteen_payment_completed,
+    mark_hostel_fee_completed,
+    mark_textbook_sale_completed,
+)
 from .paystack_service import compute_paystack_gross_from_net, paystack_service
 from accounts.models import User
 from messaging.utils import send_sms
 from schools.models import School
 from core.pagination import paginate
 from core.utils import FEE_PAYSTACK_RETURN_SESSION_KEY, safe_internal_redirect_path
+from audit.services import write_audit
 import logging
 logger = logging.getLogger(__name__)
 
@@ -53,59 +62,17 @@ def _redirect_after_fee_paystack(request):
 
 
 def _net_amount_for_school_fee(reference, fee_id, paystack_major_units):
-    """
-    Amount to credit against the fee: use pending FeePayment.amount (net) when present,
-    else fall back to Paystack-reported total (legacy rows / pass-fee disabled).
-    """
-    pending = FeePayment.objects.filter(
-        paystack_reference=reference, status="pending", fee_id=fee_id
-    ).first()
-    if pending:
-        return float(pending.amount)
-    return float(paystack_major_units)
+    return net_amount_for_school_fee(reference=reference, fee_id=fee_id, paystack_major_units=paystack_major_units)
 
 
 def _complete_fee_payment(fee_id, reference, paid_amount, paystack_id, channel):
-    """
-    Atomically complete a fee payment. Uses select_for_update to prevent
-    race conditions between callback and webhook processing the same reference.
-    Returns True if payment was newly completed, False if already processed.
-    """
-    with transaction.atomic():
-        already_completed = FeePayment.objects.filter(
-            paystack_reference=reference, status="completed"
-        ).exists()
-        if already_completed:
-            return False
-
-        pending = FeePayment.objects.select_for_update().filter(
-            paystack_reference=reference, status="pending"
-        ).first()
-
-        if pending:
-            pending.status = "completed"
-            pending.amount = paid_amount
-            pending.paystack_payment_id = paystack_id
-            pending.payment_method = channel
-            pending.save()
-        else:
-            fee = Fee.objects.get(id=fee_id)
-            FeePayment.objects.create(
-                fee=fee, amount=paid_amount,
-                paystack_payment_id=paystack_id,
-                paystack_reference=reference,
-                payment_method=channel,
-                status="completed",
-            )
-
-        Fee.objects.select_for_update().filter(id=fee_id).update(
-            amount_paid=models.F('amount_paid') + paid_amount,
-            paystack_payment_id=paystack_id,
-            paystack_reference=reference,
-        )
-        fee = Fee.objects.get(id=fee_id)
-        fee.save()  # triggers paid=True auto-set
-        return True
+    return complete_fee_payment(
+        fee_id=fee_id,
+        reference=reference,
+        paid_amount=paid_amount,
+        paystack_id=paystack_id,
+        channel=channel,
+    )
 
 
 def is_paystack_configured():
@@ -244,21 +211,23 @@ def pay_with_paystack(request, fee_id):
     if remaining <= 0:
         messages.error(request, "This fee has already been fully paid.")
         return redirect(_safe_referer(request))
+
+    remaining_dec = remaining if isinstance(remaining, Decimal) else Decimal(str(remaining))
     
     amount = request.GET.get("amount")
     if amount:
         try:
-            amount = float(amount)
-            if amount <= 0:
-                amount = remaining
-            elif amount > remaining:
-                amount = remaining
+            amount_dec = Decimal(str(amount))
+            if amount_dec <= Decimal("0"):
+                amount_dec = remaining_dec
+            elif amount_dec > remaining_dec:
+                amount_dec = remaining_dec
         except (ValueError, TypeError):
-            amount = remaining
+            amount_dec = remaining_dec
     else:
-        amount = remaining
+        amount_dec = remaining_dec
 
-    amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+    amount_net, amount_gross = compute_paystack_gross_from_net(amount_dec)
     charge_amount = float(amount_gross)
     
     student_user = fee.student.user if fee.student else None
@@ -342,17 +311,18 @@ def pay_with_paystack_custom_amount(request, fee_id):
     if request.method == "POST":
         amount_str = request.POST.get("amount", "")
         try:
-            amount = float(amount_str)
-            if amount <= 0:
+            amount_dec = Decimal(str(amount_str))
+            if amount_dec <= Decimal("0"):
                 messages.error(request, "Amount must be greater than 0.")
                 return redirect(_safe_referer(request))
             
             remaining = fee.remaining_balance
-            if amount > remaining:
+            remaining_dec = remaining if isinstance(remaining, Decimal) else Decimal(str(remaining))
+            if amount_dec > remaining_dec:
                 messages.warning(request, f"Amount exceeds remaining balance of GHS {remaining}. Paying GHS {remaining} instead.")
-                amount = remaining
+                amount_dec = remaining_dec
 
-            amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+            amount_net, amount_gross = compute_paystack_gross_from_net(amount_dec)
             charge_amount = float(amount_gross)
             
             student_user = fee.student.user if fee.student else None
@@ -413,7 +383,6 @@ def pay_with_paystack_custom_amount(request, fee_id):
                 _store_fee_paystack_return(request, request.POST.get("next"))
                 request.session[f"paystack_ref_{fee_id}"] = reference
                 request.session[f"paystack_payment_id_{fee_id}"] = pending_payment.id
-                request.session[f"paystack_amount_{fee_id}"] = float(amount_net)
                 return redirect(response["data"]["authorization_url"])
             else:
                 # Mark payment as failed if initialization failed
@@ -443,30 +412,91 @@ def paystack_callback(request, fee_id):
         messages.error(request, "Payment reference not found.")
         return redirect("home")
     
+    # Enforce fee ownership / tenant binding before applying payment
+    try:
+        fee = _fee_for_payment_request(request.user, fee_id)
+    except Http404:
+        messages.error(request, "Fee record not found.")
+        return _redirect_after_fee_paystack(request)
+
     # Verify payment with Paystack
     response = paystack_service.verify_payment(reference)
     
     if response.get("status") and response.get("data", {}).get("status") == "success":
         data = response["data"]
-        paystack_charged = float(data.get("amount", 0)) / 100
+        md = data.get("metadata") or {}
+        md_fee_id = md.get("fee_id")
+        md_payment_type = md.get("payment_type")
+        md_school_id = md.get("school_id")
+
+        if md_fee_id is None or md_school_id is None:
+            messages.error(request, "Payment verification failed.")
+            return _redirect_after_fee_paystack(request)
+        try:
+            if int(md_fee_id) != int(fee_id):
+                messages.error(request, "Payment verification failed.")
+                return _redirect_after_fee_paystack(request)
+            if int(md_school_id) != int(fee.school_id):
+                messages.error(request, "Payment verification failed.")
+                return _redirect_after_fee_paystack(request)
+        except (TypeError, ValueError):
+            messages.error(request, "Payment verification failed.")
+            return _redirect_after_fee_paystack(request)
+        if md_payment_type and md_payment_type not in ("school_fee", "fee"):
+            messages.error(request, "Payment verification failed.")
+            return _redirect_after_fee_paystack(request)
+
+        try:
+            paystack_charged = Decimal(str(data.get("amount", 0))) / Decimal("100")
+        except Exception:
+            paystack_charged = Decimal("0")
         net_credited = _net_amount_for_school_fee(reference, fee_id, paystack_charged)
         channel = data.get("authorization", {}).get("channel", "card")
         paystack_id = data.get("id")
         
         try:
-            was_new = _complete_fee_payment(fee_id, reference, net_credited, paystack_id, channel)
+            with transaction.atomic():
+                pending = (
+                    FeePayment.objects.select_for_update()
+                    .filter(fee_id=fee_id, paystack_reference=reference)
+                    .order_by("-pk")
+                    .first()
+                )
+                if not pending:
+                    messages.error(request, "Payment verification failed.")
+                    return _redirect_after_fee_paystack(request)
+                if pending.status == "completed":
+                    messages.info(request, "This payment has already been recorded.")
+                    return _redirect_after_fee_paystack(request)
+                if pending.status != "pending":
+                    messages.error(request, "Payment verification failed.")
+                    return _redirect_after_fee_paystack(request)
+
+                was_new = _complete_fee_payment(fee_id, reference, net_credited, paystack_id, channel)
 
             if was_new:
                 _notify_fee_payer_after_payment(fee_id, reference, float(net_credited))
                 extra = ""
-                if paystack_charged > net_credited + 0.001:
-                    extra = f" (GHS {paystack_charged:.2f} charged including processing uplift)"
+                try:
+                    if paystack_charged > net_credited + Decimal("0.001"):
+                        extra = f" (GHS {paystack_charged:.2f} charged including processing uplift)"
+                except Exception:
+                    pass
                 messages.success(
                     request,
                     f"GHS {net_credited:.2f} applied to the fee successfully.{extra}",
                 )
             else:
-                messages.info(request, "This payment has already been recorded.")
+                record_payment_transaction(
+                    reference=reference,
+                    school_id=fee.school_id,
+                    amount=net_credited,
+                    status="failed",
+                    payment_type="school_fee",
+                    object_id=str(fee_id),
+                    metadata={"fee_id": fee_id},
+                )
+                messages.error(request, "Payment verification failed.")
 
             return _redirect_after_fee_paystack(request)
 
@@ -477,6 +507,15 @@ def paystack_callback(request, fee_id):
         FeePayment.objects.filter(
             paystack_reference=reference, status="pending"
         ).update(status="failed")
+        record_payment_transaction(
+            reference=reference,
+            school_id=fee.school_id,
+            amount=Decimal("0"),
+            status="failed",
+            payment_type="school_fee",
+            object_id=str(fee_id),
+            metadata={"fee_id": fee_id},
+        )
         error_msg = response.get("message", "Payment verification failed.")
         messages.error(request, f"Payment was not successful: {error_msg}")
 
@@ -530,7 +569,9 @@ def paystack_webhook(request):
     before being redirected back to the site.
     """
     if request.method != "POST":
-        return HttpResponse(status=405)
+        r = HttpResponse(status=405)
+        r["Cache-Control"] = "no-store"
+        return r
     
     # HMAC-SHA512 of raw body; Paystack uses your API secret key (settings.PAYSTACK_WEBHOOK_SIGNING_SECRET).
     webhook_secret = settings.PAYSTACK_WEBHOOK_SIGNING_SECRET
@@ -538,30 +579,40 @@ def paystack_webhook(request):
         logger.error(
             "Paystack webhook signing key missing: set PAYSTACK_SECRET_KEY (and optionally PAYSTACK_WEBHOOK_SECRET)"
         )
-        return HttpResponse("Paystack secret key not configured", status=500)
+        r = HttpResponse("Paystack secret key not configured", status=500)
+        r["Cache-Control"] = "no-store"
+        return r
     
     signature = request.headers.get("x-paystack-signature")
     if not signature:
         logger.warning("Paystack webhook received without signature header")
-        return HttpResponse("Missing signature", status=403)
+        r = HttpResponse("Missing signature", status=403)
+        r["Cache-Control"] = "no-store"
+        return r
     
     body = request.body
     if not paystack_service.verify_webhook_signature(body, signature, webhook_secret):
         logger.warning("Invalid Paystack webhook signature")
-        return HttpResponse("Invalid signature", status=403)
+        r = HttpResponse("Invalid signature", status=403)
+        r["Cache-Control"] = "no-store"
+        return r
     
     try:
         payload = json.loads(request.body)
     except json.JSONDecodeError:
         logger.error("Invalid JSON in webhook payload")
-        return HttpResponse(status=400)
+        r = HttpResponse(status=400)
+        r["Cache-Control"] = "no-store"
+        return r
     
     event = payload.get("event")
     logger.info(f"Paystack webhook received: event={event}")
 
     if event in ("transfer.success", "transfer.failed", "transfer.reversed"):
         _paystack_webhook_staff_transfer(payload, event)
-        return HttpResponse(status=200)
+        r = HttpResponse(status=200)
+        r["Cache-Control"] = "no-store"
+        return r
     
     if event == "charge.success":
         data = payload.get("data", {})
@@ -576,32 +627,96 @@ def paystack_webhook(request):
             # Handle School Fee Payments
             if payment_type == "school_fee" or payment_type == "fee":
                 fee_id = metadata.get("fee_id")
+                school_id = metadata.get("school_id")
+                if not fee_id or school_id is None:
+                    logger.warning(
+                        "paystack_webhook school_fee ignored: missing required metadata reference=%s fee_id=%s school_id=%s",
+                        reference,
+                        fee_id,
+                        school_id,
+                    )
+                    return HttpResponse(status=200)
                 if fee_id:
                     try:
-                        paystack_charged = float(data.get("amount", 0)) / 100
-                        net_credited = _net_amount_for_school_fee(reference, fee_id, paystack_charged)
-                        channel = data.get("authorization", {}).get("channel", "card")
-                        paystack_id = data.get("id")
-                        was_new = _complete_fee_payment(
-                            fee_id, reference, net_credited, paystack_id, channel
-                        )
+                        with transaction.atomic():
+                            pending = (
+                                FeePayment.objects.select_for_update()
+                                .select_related("fee")
+                                .filter(paystack_reference=reference, status="pending")
+                                .order_by("-pk")
+                                .first()
+                            )
+                            if not pending:
+                                logger.warning(
+                                    "paystack_webhook school_fee ignored: no pending FeePayment reference=%s meta_fee_id=%s meta_school_id=%s",
+                                    reference,
+                                    fee_id,
+                                    school_id,
+                                )
+                                return HttpResponse(status=200)
+
+                            if pending.fee_id != int(fee_id):
+                                logger.warning(
+                                    "paystack_webhook school_fee ignored: reference=%s fee_id mismatch meta=%s db=%s meta_school_id=%s db_school_id=%s",
+                                    reference,
+                                    fee_id,
+                                    pending.fee_id,
+                                    school_id,
+                                    pending.fee.school_id,
+                                )
+                                return HttpResponse(status=200)
+
+                            try:
+                                if int(pending.fee.school_id) != int(school_id):
+                                    logger.warning(
+                                        "paystack_webhook school_fee ignored: reference=%s school_id mismatch meta=%s db=%s meta_fee_id=%s db_fee_id=%s",
+                                        reference,
+                                        school_id,
+                                        pending.fee.school_id,
+                                        fee_id,
+                                        pending.fee_id,
+                                    )
+                                    return HttpResponse(status=200)
+                            except (TypeError, ValueError):
+                                logger.warning(
+                                    "paystack_webhook school_fee ignored: reference=%s invalid school_id=%s meta_fee_id=%s",
+                                    reference,
+                                    school_id,
+                                    fee_id,
+                                )
+                                return HttpResponse(status=200)
+
+                            try:
+                                paystack_charged = Decimal(str(data.get("amount", 0))) / Decimal("100")
+                            except Exception:
+                                paystack_charged = Decimal("0")
+
+                            net_credited = _net_amount_for_school_fee(
+                                reference, pending.fee_id, paystack_charged
+                            )
+                            channel = data.get("authorization", {}).get("channel", "card")
+                            paystack_id = data.get("id")
+                            was_new = _complete_fee_payment(
+                                pending.fee_id, reference, net_credited, paystack_id, channel
+                            )
+
                         if was_new:
                             logger.info(
                                 "paystack_webhook school_fee recorded fee_id=%s "
                                 "paystack_reference=%s net=%s gross=%s",
-                                fee_id,
+                                pending.fee_id,
                                 reference,
                                 net_credited,
                                 paystack_charged,
                             )
                             _notify_fee_payer_after_payment(
-                                fee_id, reference, float(net_credited)
+                                pending.fee_id, reference, float(net_credited)
                             )
                         else:
                             logger.info(
-                                "paystack_webhook school_fee duplicate paystack_reference=%s fee_id=%s",
+                                "paystack_webhook school_fee duplicate/ignored paystack_reference=%s fee_id=%s",
                                 reference,
-                                fee_id,
+                                pending.fee_id,
                             )
                     except Fee.DoesNotExist:
                         logger.error(f"Fee not found: fee_id={fee_id}")
@@ -612,15 +727,14 @@ def paystack_webhook(request):
                 if payment_id:
                     try:
                         from operations.models import CanteenPayment
-                        payment = CanteenPayment.objects.get(id=payment_id)
-                        if payment.payment_status != 'completed':
-                            payment.payment_status = 'completed'
-                            from django.utils import timezone
-                            payment.payment_date = timezone.now().date()
-                            payment.save()
-                            logger.info(f"Canteen payment completed: payment_id={payment_id}")
-                        else:
-                            logger.info(f"Canteen payment already completed: payment_id={payment_id}")
+                        from django.utils import timezone
+                        with transaction.atomic():
+                            payment = CanteenPayment.objects.select_for_update().get(id=payment_id)
+                            if payment.payment_status != 'completed':
+                                mark_canteen_payment_completed(payment=payment, reference=reference)
+                                logger.info(f"Canteen payment completed: payment_id={payment_id}")
+                            else:
+                                logger.info(f"Canteen payment already completed: payment_id={payment_id}")
                     except CanteenPayment.DoesNotExist:
                         logger.error(f"Canteen payment not found: payment_id={payment_id}")
             
@@ -630,16 +744,15 @@ def paystack_webhook(request):
                 if payment_id:
                     try:
                         from operations.models import BusPayment
-                        payment = BusPayment.objects.get(id=payment_id)
-                        if payment.payment_status != 'completed':
-                            payment.payment_status = 'completed'
-                            payment.paid = True
-                            from django.utils import timezone
-                            payment.payment_date = timezone.now().date()
-                            payment.save()
-                            logger.info(f"Bus payment completed: payment_id={payment_id}")
-                        else:
-                            logger.info(f"Bus payment already completed: payment_id={payment_id}")
+                        from django.utils import timezone
+
+                        with transaction.atomic():
+                            payment = BusPayment.objects.select_for_update().get(id=payment_id)
+                            if payment.payment_status != 'completed':
+                                mark_bus_payment_completed(payment=payment, reference=reference)
+                                logger.info(f"Bus payment completed: payment_id={payment_id}")
+                            else:
+                                logger.info(f"Bus payment already completed: payment_id={payment_id}")
                     except BusPayment.DoesNotExist:
                         logger.error(f"Bus payment not found: payment_id={payment_id}")
             
@@ -652,8 +765,7 @@ def paystack_webhook(request):
                         with transaction.atomic():
                             sale = TextbookSale.objects.select_for_update().get(id=payment_id)
                             if sale.payment_status != 'completed':
-                                sale.payment_status = 'completed'
-                                sale.save()
+                                mark_textbook_sale_completed(sale=sale, reference=reference)
                                 if sale.textbook:
                                     updated = Textbook.objects.filter(
                                         id=sale.textbook_id, stock__gte=sale.quantity
@@ -674,20 +786,28 @@ def paystack_webhook(request):
                 if payment_id:
                     try:
                         from operations.models import HostelFee
-                        fee = HostelFee.objects.get(id=payment_id)
-                        if fee.payment_status != 'completed':
-                            fee.payment_status = 'completed'
-                            fee.paid = True
-                            from django.utils import timezone
-                            fee.payment_date = timezone.now().date()
-                            fee.save()
-                            logger.info(f"Hostel payment completed: fee_id={payment_id}")
-                        else:
-                            logger.info(f"Hostel payment already completed: fee_id={payment_id}")
+                        from django.utils import timezone
+
+                        with transaction.atomic():
+                            fee = HostelFee.objects.select_for_update().get(id=payment_id)
+                            if fee.payment_status != 'completed' and not fee.paid:
+                                mark_hostel_fee_completed(fee=fee, reference=reference)
+                                logger.info(f"Hostel payment completed: fee_id={payment_id}")
+                            else:
+                                logger.info(f"Hostel payment already completed: fee_id={payment_id}")
                     except HostelFee.DoesNotExist:
                         logger.error(f"Hostel fee not found: fee_id={payment_id}")
-    
-    return HttpResponse(status=200)
+
+            else:
+                logger.info(
+                    "paystack_webhook charge.success ignored: unknown payment_type=%s reference=%s",
+                    payment_type,
+                    reference,
+                )
+
+    r = HttpResponse(status=200)
+    r["Cache-Control"] = "no-store"
+    return r
 
 
 
@@ -722,30 +842,83 @@ def fee_list(request):
             if fee:
                 if action == "mark_paid":
                     # Mark entire fee as paid
+                    try:
+                        before_paid = Decimal(str(fee.amount_paid or Decimal("0")))
+                        total = Decimal(str(fee.amount or Decimal("0")))
+                        delta = total - before_paid
+                        if delta < Decimal("0"):
+                            delta = Decimal("0")
+                    except Exception:
+                        delta = None
                     fee.amount_paid = fee.amount
                     fee.save()
+                    if delta is not None and delta > Decimal("0"):
+                        try:
+                            import uuid
+
+                            record_payment_transaction(
+                                provider="manual",
+                                reference=f"MANUAL_FEE_MARKPAID_{fee.pk}_{uuid.uuid4().hex[:10].upper()}",
+                                school_id=getattr(fee, "school_id", None),
+                                amount=delta,
+                                status="completed",
+                                payment_type=PaymentTypes.SCHOOL_FEE_MANUAL,
+                                object_id=str(fee.pk),
+                                metadata={"fee_id": fee.pk, "action": "mark_paid"},
+                            )
+                        except Exception:
+                            pass
                     messages.success(request, "Fee marked as fully paid.")
                 elif action == "mark_partially_paid":
                     partial_amount = request.POST.get("partial_amount")
                     if partial_amount:
                         try:
-                            amount = float(partial_amount)
-                            fee.amount_paid = float(fee.amount_paid) + amount
+                            amount = Decimal(str(partial_amount))
+                            fee.amount_paid = (fee.amount_paid or Decimal("0")) + amount
                             fee.save()
+                            if amount > Decimal("0"):
+                                try:
+                                    import uuid
+
+                                    record_payment_transaction(
+                                        provider="manual",
+                                        reference=f"MANUAL_FEE_PARTIAL_{fee.pk}_{uuid.uuid4().hex[:10].upper()}",
+                                        school_id=getattr(fee, "school_id", None),
+                                        amount=amount,
+                                        status="completed",
+                                        payment_type=PaymentTypes.SCHOOL_FEE_MANUAL,
+                                        object_id=str(fee.pk),
+                                        metadata={"fee_id": fee.pk, "action": "mark_partially_paid"},
+                                    )
+                                except Exception:
+                                    pass
                             messages.success(request, f"Added GHS {amount} to payment.")
                         except (ValueError, TypeError):
                             messages.error(request, "Invalid amount.")
                 elif action == "record_offline":
                     offline_amount = request.POST.get("offline_amount", str(fee.remaining_balance))
                     try:
-                        amount = float(offline_amount)
+                        amount = Decimal(str(offline_amount))
                         # Payment row first, then F() update so Fee post_save does not double-notify.
-                        FeePayment.objects.create(
+                        fp = FeePayment.objects.create(
                             fee=fee,
                             amount=amount,
                             payment_method="offline",
                             status="completed",
                         )
+                        try:
+                            record_payment_transaction(
+                                provider="offline",
+                                reference=f"OFFLINE_FEE_{fee.pk}_{fp.pk}",
+                                school_id=getattr(fee, "school_id", None),
+                                amount=amount,
+                                status="completed",
+                                payment_type=PaymentTypes.SCHOOL_FEE_OFFLINE,
+                                object_id=str(fee.pk),
+                                metadata={"fee_id": fee.pk, "fee_payment_id": fp.pk},
+                            )
+                        except Exception:
+                            pass
                         Fee.objects.filter(pk=fee.pk).update(
                             amount_paid=models.F("amount_paid") + amount
                         )
@@ -809,7 +982,7 @@ def fee_structure_create(request):
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         try:
-            amount = float(request.POST.get("amount", 0))
+            amount = Decimal(str(request.POST.get("amount", 0)))
             class_name = request.POST.get("class_name", "").strip()
             term = request.POST.get("term", "").strip()
             if name and amount >= 0:
@@ -841,7 +1014,7 @@ def fee_structure_edit(request, pk):
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         try:
-            amount = float(request.POST.get("amount", 0))
+            amount = Decimal(str(request.POST.get("amount", 0)))
             class_name = request.POST.get("class_name", "").strip()
             term = request.POST.get("term", "").strip()
             is_active = request.POST.get("is_active") == "on"
@@ -970,21 +1143,32 @@ def pay_subscription(request):
         return redirect("finance:subscription")
     
     # Subscription list price (net to platform); customer may pay gross if fee pass-through is on.
-    amount = float(school.subscription_amount) if school.subscription_amount else 1500
-    amount_net, amount_gross = compute_paystack_gross_from_net(Decimal(str(amount)))
+    amount_dec = (
+        school.subscription_amount
+        if isinstance(getattr(school, "subscription_amount", None), Decimal)
+        else Decimal(str(school.subscription_amount))
+    ) if school.subscription_amount else Decimal("1500")
+    amount_net, amount_gross = compute_paystack_gross_from_net(amount_dec)
     charge_amount = float(amount_gross)
     
     # Get admin's email
     email = request.user.email or "admin@school.com"
     
     # Build callback URL
-    # Store school_id in session for reliable lookup during callback
-    request.session['subscription_school_id'] = school.id
     callback_url = request.build_absolute_uri(
-        reverse("finance:subscription_callback") + f"?school_id={school.id}"
+        reverse("finance:subscription_callback")
     )
     # Create a unique reference
     reference = f"SCHOOL_SUB_{school.id}_{uuid.uuid4().hex[:8].upper()}"
+
+    SubscriptionPayment.objects.create(
+        school=school,
+        user=request.user,
+        amount=amount_net,
+        gross_amount=amount_gross,
+        paystack_reference=reference,
+        status="pending",
+    )
     
     # Initialize payment with Paystack
     response = paystack_service.initialize_payment(
@@ -1000,11 +1184,8 @@ def pay_subscription(request):
             "amount_gross": float(amount_gross),
         },
     )
-    
+
     if response.get("status") and response.get("data", {}).get("authorization_url"):
-        # Store reference in session
-        request.session["paystack_sub_ref"] = reference
-        request.session["paystack_sub_school_id"] = school.id
         return redirect(response["data"]["authorization_url"])
     else:
         error_msg = response.get("message", "Could not initialize payment. Please try again.")
@@ -1016,7 +1197,7 @@ def pay_subscription(request):
 def subscription_callback(request):
     """
     Handle Paystack subscription payment callback.
-    School ID is retrieved from session only (not from query params) for security.
+    School ID is resolved from SubscriptionPayment by Paystack reference.
     """
     reference = request.GET.get("reference")
     
@@ -1029,14 +1210,22 @@ def subscription_callback(request):
     if response.get("status") and response.get("data", {}).get("status") == "success":
         data = response["data"]
         
-        # Only trust session for school ID (not query params to prevent tampering)
-        school_id = request.session.pop("paystack_sub_school_id", None)
-        if not school_id:
-            school_id = getattr(request.user, "school_id", None)
-        
-        if school_id:
+        sp = (
+            SubscriptionPayment.objects.select_related("school")
+            .filter(paystack_reference=reference)
+            .order_by("-pk")
+            .first()
+        )
+        if not sp:
+            messages.error(request, "Payment verification failed.")
+            return redirect("finance:subscription")
+
+        if sp.status == "completed":
+            return redirect("finance:subscription")
+
+        school = sp.school
+        if school:
             try:
-                school = School.objects.get(id=school_id)
                 
                 from django.utils import timezone
                 now = timezone.now()
@@ -1051,14 +1240,20 @@ def subscription_callback(request):
                 school.subscription_end_date = new_end_date
                 school.subscription_status = "active"
                 school.save()
+
+                sp.status = "completed"
+                sp.paystack_payment_id = data.get("id")
+                sp.payment_method = data.get("authorization", {}).get("channel", "")
+                sp.save(update_fields=["status", "paystack_payment_id", "payment_method", "updated_at"])
                 
                 messages.success(request, f"Subscription renewed successfully! Valid until {new_end_date.strftime('%Y-%m-%d')}")
                 
             except School.DoesNotExist:
                 messages.error(request, "School not found.")
-        else:
-            messages.error(request, "School information not found.")
     else:
+        SubscriptionPayment.objects.filter(
+            paystack_reference=reference, status="pending"
+        ).update(status="failed")
         error_msg = response.get("message", "Payment verification failed.")
         messages.error(request, f"Payment was not successful: {error_msg}")
     
@@ -1222,6 +1417,65 @@ def payment_receipt(request, pk):
 
 
 @login_required
+def payment_ledger_health(request):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to view the payment ledger.")
+        return redirect("accounts:dashboard")
+
+    qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+
+    try:
+        days = int(request.GET.get("days") or 30)
+    except Exception:
+        days = 30
+    days = max(1, min(days, 365))
+
+    from django.utils import timezone
+
+    since = timezone.now() - timezone.timedelta(days=days)
+    qs = qs.filter(created_at__gte=since)
+
+    date_from = since.date().strftime("%Y-%m-%d")
+    date_to = timezone.now().date().strftime("%Y-%m-%d")
+
+    from django.db.models import Count, Sum
+
+    by_type_provider = (
+        qs.values("provider", "payment_type", "status")
+        .annotate(count=Count("id"), amount=Sum("amount"))
+        .order_by("provider", "payment_type", "status")
+    )
+
+    recent_failed = (
+        qs.filter(status="failed")
+        .order_by("-created_at")
+        [:50]
+    )
+
+    return render(
+        request,
+        "finance/payment_ledger_health.html",
+        {
+            "school": school,
+            "days": days,
+            "filter_from": date_from,
+            "filter_to": date_to,
+            "by_type_provider": list(by_type_provider),
+            "recent_failed": recent_failed,
+        },
+    )
+
+
+@login_required
 def check_payment_status(request):
     """
     Allow authenticated users to check payment status using their payment reference.
@@ -1353,7 +1607,7 @@ def payment_history_delete(request, pk):
     if not payment:
         messages.error(request, "Payment not found or you do not have permission.")
         return redirect("finance:payment_history_list")
-    
+
     # Only allow deleting pending or failed payments
     if payment.status == "completed":
         messages.error(request, "Cannot delete completed payments. Contact system administrator.")
@@ -1410,6 +1664,856 @@ def payment_history_delete_multiple(request):
         messages.success(request, f"Successfully deleted {deleted_count} payment record(s).")
     
     return redirect("finance:payment_history_list")
+
+
+@login_required
+def payment_ledger_list(request):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to view the payment ledger.")
+        return redirect("accounts:dashboard")
+
+    qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+
+    status_any = (request.GET.get("status_any") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    if status_any:
+        parts = [p.strip() for p in status_any.split(",") if p.strip()]
+        allowed = {"pending", "completed", "failed"}
+        parts = [p for p in parts if p in allowed]
+        if parts:
+            qs = qs.filter(status__in=parts)
+    elif status in ("pending", "completed", "failed"):
+        qs = qs.filter(status=status)
+
+    provider = (request.GET.get("provider") or "").strip()
+    if provider:
+        qs = qs.filter(provider__icontains=provider)
+
+    reference = (request.GET.get("reference") or "").strip()
+    if reference:
+        qs = qs.filter(reference__icontains=reference)
+
+    payment_type = (request.GET.get("payment_type") or "").strip()
+    if payment_type:
+        qs = qs.filter(payment_type__icontains=payment_type)
+
+    review_status = (request.GET.get("review") or "").strip()
+    if review_status in ("open", "reviewed"):
+        qs = qs.filter(review_status=review_status)
+
+    date_from = (request.GET.get("from") or "").strip()
+    date_to = (request.GET.get("to") or "").strip()
+    if date_from or date_to:
+        try:
+            from datetime import datetime, time
+
+            from django.utils import timezone
+
+            tz = timezone.get_current_timezone()
+            if date_from:
+                d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+                start = timezone.make_aware(datetime.combine(d0, time.min), tz)
+                qs = qs.filter(created_at__gte=start)
+            if date_to:
+                d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+                end = timezone.make_aware(datetime.combine(d1, time.max), tz)
+                qs = qs.filter(created_at__lte=end)
+        except Exception:
+            pass
+
+    from django.db.models import Count as _Count
+    from django.db.models import Sum as _Sum
+    summary = {
+        "total_count": qs.count(),
+        "completed_count": qs.filter(status="completed").count(),
+        "failed_count": qs.filter(status="failed").count(),
+        "pending_count": qs.filter(status="pending").count(),
+        "completed_amount": (qs.filter(status="completed").aggregate(v=_Sum("amount"))["v"] or Decimal("0")),
+        "failed_amount": (qs.filter(status="failed").aggregate(v=_Sum("amount"))["v"] or Decimal("0")),
+    }
+
+
+    try:
+        limit = int(request.GET.get("limit") or "")
+    except Exception:
+        limit = ""
+
+    qs = qs.order_by("-created_at")
+    page_obj = paginate(request, qs, per_page=50)
+
+    return render(
+        request,
+        "finance/payment_ledger_list.html",
+        {
+            "is_queue": False,
+            "page_obj": page_obj,
+            "transactions": page_obj,
+            "school": school,
+            "filter_status": status,
+            "filter_status_any": status_any,
+            "filter_provider": provider,
+            "filter_reference": reference,
+            "filter_payment_type": payment_type,
+            "filter_review": review_status,
+            "filter_from": date_from,
+            "filter_to": date_to,
+            "filter_limit": limit,
+            "summary": summary,
+        },
+    )
+
+
+@login_required
+def payment_ledger_queue(request):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to view the payment ledger.")
+        return redirect("accounts:dashboard")
+
+    try:
+        days = int(request.GET.get("days") or 30)
+    except Exception:
+        days = 30
+    days = max(1, min(days, 365))
+
+    since = timezone.now() - timezone.timedelta(days=days)
+    date_from = since.date().strftime("%Y-%m-%d")
+    date_to = timezone.now().date().strftime("%Y-%m-%d")
+
+    from urllib.parse import urlencode
+
+    qs = {
+        "review": "open",
+        "from": date_from,
+        "to": date_to,
+    }
+    queue = (request.GET.get("queue") or "").strip().lower()
+    if queue == "pending":
+        qs["status"] = "pending"
+    elif queue == "failed":
+        qs["status"] = "failed"
+    else:
+        qs["status_any"] = "pending,failed"
+
+    url = reverse("finance:payment_ledger_list") + "?" + urlencode(qs)
+    return redirect(url)
+
+
+@login_required
+def payment_ledger_queue_page(request):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to view the payment ledger.")
+        return redirect("accounts:dashboard")
+
+    try:
+        days = int(request.GET.get("days") or 30)
+    except Exception:
+        days = 30
+    days = max(1, min(days, 365))
+
+    since = timezone.now() - timezone.timedelta(days=days)
+    default_from = since.date().strftime("%Y-%m-%d")
+    default_to = timezone.now().date().strftime("%Y-%m-%d")
+
+    qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+
+    status_any = (request.GET.get("status_any") or "").strip() or "pending,failed"
+    status = (request.GET.get("status") or "").strip()
+    if status:
+        if status in ("pending", "completed", "failed"):
+            qs = qs.filter(status=status)
+    else:
+        parts = [p.strip() for p in status_any.split(",") if p.strip()]
+        allowed = {"pending", "completed", "failed"}
+        parts = [p for p in parts if p in allowed]
+        if parts:
+            qs = qs.filter(status__in=parts)
+
+    review_status = (request.GET.get("review") or "").strip() or "open"
+    if review_status in ("open", "reviewed"):
+        qs = qs.filter(review_status=review_status)
+
+    provider = (request.GET.get("provider") or "").strip()
+    if provider:
+        qs = qs.filter(provider__icontains=provider)
+
+    reference = (request.GET.get("reference") or "").strip()
+    if reference:
+        qs = qs.filter(reference__icontains=reference)
+
+    payment_type = (request.GET.get("payment_type") or "").strip()
+    if payment_type:
+        qs = qs.filter(payment_type__icontains=payment_type)
+
+    date_from = (request.GET.get("from") or "").strip() or default_from
+    date_to = (request.GET.get("to") or "").strip() or default_to
+    if date_from or date_to:
+        try:
+            from datetime import datetime, time
+
+            tz = timezone.get_current_timezone()
+            if date_from:
+                d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+                start = timezone.make_aware(datetime.combine(d0, time.min), tz)
+                qs = qs.filter(created_at__gte=start)
+            if date_to:
+                d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+                end = timezone.make_aware(datetime.combine(d1, time.max), tz)
+                qs = qs.filter(created_at__lte=end)
+        except Exception:
+            pass
+
+    from django.db.models import Sum as _Sum
+    summary = {
+        "total_count": qs.count(),
+        "completed_count": qs.filter(status="completed").count(),
+        "failed_count": qs.filter(status="failed").count(),
+        "pending_count": qs.filter(status="pending").count(),
+        "completed_amount": (qs.filter(status="completed").aggregate(v=_Sum("amount"))["v"] or Decimal("0")),
+        "failed_amount": (qs.filter(status="failed").aggregate(v=_Sum("amount"))["v"] or Decimal("0")),
+    }
+
+    try:
+        limit = int(request.GET.get("limit") or "")
+    except Exception:
+        limit = ""
+
+    qs = qs.order_by("-created_at")
+    page_obj = paginate(request, qs, per_page=50)
+
+    from django.db.models import Count as _Count
+
+    queue_days = days
+    queue_since = timezone.now() - timezone.timedelta(days=queue_days)
+    queue_qs = PaymentTransaction.objects.all().select_related("school")
+    if school and not user.is_superuser:
+        queue_qs = queue_qs.filter(school=school)
+    queue_qs = queue_qs.filter(review_status="open", status__in=["pending", "failed"], created_at__gte=queue_since)
+
+    queue_summary = {
+        "open_pending_count": queue_qs.filter(status="pending").count(),
+        "open_pending_amount": (queue_qs.filter(status="pending").aggregate(v=_Sum("amount"))["v"] or Decimal("0")),
+        "open_failed_count": queue_qs.filter(status="failed").count(),
+        "open_failed_amount": (queue_qs.filter(status="failed").aggregate(v=_Sum("amount"))["v"] or Decimal("0")),
+    }
+
+    queue_by_provider = (
+        queue_qs.values("provider", "status")
+        .annotate(count=_Count("id"), amount=_Sum("amount"))
+        .order_by("provider", "status")
+    )
+
+    return render(
+        request,
+        "finance/payment_ledger_list.html",
+        {
+            "is_queue": True,
+            "queue_days": queue_days,
+            "queue_summary": queue_summary,
+            "queue_by_provider": queue_by_provider,
+            "page_obj": page_obj,
+            "transactions": page_obj,
+            "school": school,
+            "filter_status": status,
+            "filter_status_any": status_any,
+            "filter_provider": provider,
+            "filter_reference": reference,
+            "filter_payment_type": payment_type,
+            "filter_review": review_status,
+            "filter_from": date_from,
+            "filter_to": date_to,
+            "filter_limit": limit,
+            "summary": summary,
+        },
+    )
+
+
+@login_required
+def payment_ledger_detail(request, pk):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to view the payment ledger.")
+        return redirect("accounts:dashboard")
+
+    qs = PaymentTransaction.objects.select_related("school", "reviewed_by").filter(pk=pk)
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+    tx = qs.first()
+    if not tx:
+        messages.error(request, "Ledger entry not found or you do not have permission.")
+        nxt = safe_internal_redirect_path((request.POST.get("next") or "").strip())
+        if nxt:
+            return redirect(nxt)
+        return redirect(_safe_referer(request, fallback=reverse("finance:payment_ledger_list")))
+
+    return render(
+        request,
+        "finance/payment_ledger_detail.html",
+        {"tx": tx, "school": school},
+    )
+
+
+@login_required
+def payment_ledger_toggle_review(request, pk):
+    if request.method != "POST":
+        return redirect("finance:payment_ledger_detail", pk=pk)
+
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to update ledger review status.")
+        return redirect("accounts:dashboard")
+
+    qs = PaymentTransaction.objects.select_related("school").filter(pk=pk)
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+    tx = qs.first()
+    if not tx:
+        messages.error(request, "Ledger entry not found or you do not have permission.")
+        return redirect("finance:payment_ledger_list")
+
+    from django.utils import timezone
+
+    desired = (request.POST.get("review") or "").strip().lower()
+    old = tx.review_status
+    if desired == "reviewed":
+        tx.review_status = "reviewed"
+        tx.reviewed_at = timezone.now()
+        tx.reviewed_by = user
+        tx.save(update_fields=["review_status", "reviewed_at", "reviewed_by"])
+        messages.success(request, "Ledger entry marked as reviewed.")
+    elif desired == "open":
+        tx.review_status = "open"
+        tx.reviewed_at = None
+        tx.reviewed_by = None
+        tx.save(update_fields=["review_status", "reviewed_at", "reviewed_by"])
+        messages.success(request, "Ledger entry marked as open.")
+    else:
+        messages.error(request, "Invalid review status.")
+
+    if desired in ("reviewed", "open") and old != tx.review_status:
+        write_audit(
+            user=user,
+            action="update",
+            model_name="finance.PaymentTransaction",
+            object_id=tx.pk,
+            object_repr=f"PaymentTransaction {tx.reference}"[:255],
+            changes={"review_status": {"old": old, "new": tx.review_status}},
+            request=request,
+            school=getattr(tx, "school", None),
+        )
+
+    return redirect("finance:payment_ledger_detail", pk=pk)
+
+
+@login_required
+def payment_ledger_bulk_review(request):
+    if request.method != "POST":
+        return redirect("finance:payment_ledger_list")
+
+    user = request.user
+    school = getattr(user, "school", None)
+
+    post_next = safe_internal_redirect_path((request.POST.get("next") or "").strip())
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to update ledger review status.")
+        return redirect("accounts:dashboard")
+
+    desired = (request.POST.get("review") or "").strip().lower()
+    scope = (request.POST.get("scope") or "selected").strip().lower()
+    if desired not in ("reviewed", "open"):
+        messages.error(request, "Invalid review status.")
+        return redirect("finance:payment_ledger_list")
+
+    if scope == "all" and (request.POST.get("confirm_all") or "") != "1":
+        messages.error(request, "Confirmation required for bulk action on all filtered results.")
+        if post_next:
+            return redirect(post_next)
+        else:
+            return redirect(_safe_referer(request, fallback=reverse("finance:payment_ledger_list")))
+
+    enforce_queue = (request.POST.get("enforce_queue") or "") == "1"
+
+    MAX_BULK_ALL = 5000
+
+    qs = PaymentTransaction.objects.all()
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+
+    status_any = (request.GET.get("status_any") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    if status_any:
+        parts = [p.strip() for p in status_any.split(",") if p.strip()]
+        allowed = {"pending", "completed", "failed"}
+        parts = [p for p in parts if p in allowed]
+        if parts:
+            qs = qs.filter(status__in=parts)
+    elif status in ("pending", "completed", "failed"):
+        qs = qs.filter(status=status)
+
+    provider = (request.GET.get("provider") or "").strip()
+    if provider:
+        qs = qs.filter(provider__icontains=provider)
+
+    reference = (request.GET.get("reference") or "").strip()
+    if reference:
+        qs = qs.filter(reference__icontains=reference)
+
+    payment_type = (request.GET.get("payment_type") or "").strip()
+    if payment_type:
+        qs = qs.filter(payment_type__icontains=payment_type)
+
+    review_status = (request.GET.get("review") or "").strip()
+    if review_status in ("open", "reviewed"):
+        qs = qs.filter(review_status=review_status)
+
+    date_from = (request.GET.get("from") or "").strip()
+    date_to = (request.GET.get("to") or "").strip()
+    if date_from or date_to:
+        try:
+            from datetime import datetime, time
+
+            from django.utils import timezone
+
+            tz = timezone.get_current_timezone()
+            if date_from:
+                d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+                start = timezone.make_aware(datetime.combine(d0, time.min), tz)
+                qs = qs.filter(created_at__gte=start)
+            if date_to:
+                d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+                end = timezone.make_aware(datetime.combine(d1, time.max), tz)
+                qs = qs.filter(created_at__lte=end)
+        except Exception:
+            pass
+
+    if scope == "all":
+        target_qs = qs
+    else:
+        raw_ids = request.POST.getlist("ids")
+        try:
+            ids = [int(x) for x in raw_ids if str(x).strip()]
+        except Exception:
+            ids = []
+        target_qs = qs.filter(id__in=ids)
+
+    from django.utils import timezone
+
+    if desired == "reviewed":
+        updated = target_qs.update(review_status="reviewed", reviewed_at=timezone.now(), reviewed_by_id=user.id)
+        messages.success(request, f"Marked {updated} ledger entries as reviewed.")
+    else:
+        updated = target_qs.update(review_status="open", reviewed_at=None, reviewed_by=None)
+        messages.success(request, f"Marked {updated} ledger entries as open.")
+
+    write_audit(
+        user=user,
+        action="update",
+        model_name="finance.PaymentTransaction",
+        object_id=None,
+        object_repr="Bulk ledger review update",
+        changes={
+            "desired": desired,
+            "scope": scope,
+            "enforce_queue": enforce_queue,
+            "updated": updated,
+            "filters": {
+                "status": status,
+                "status_any": status_any,
+                "provider": provider,
+                "reference": reference,
+                "payment_type": payment_type,
+                "review": review_status,
+                "from": date_from,
+                "to": date_to,
+            },
+        },
+        request=request,
+        school=school,
+    )
+
+    if post_next:
+        return redirect(post_next)
+    return redirect(_safe_referer(request, fallback=reverse("finance:payment_ledger_list")))
+
+
+@login_required
+def payment_ledger_export_csv(request):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to export the payment ledger.")
+        return redirect("accounts:dashboard")
+
+    qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+
+    status_any = (request.GET.get("status_any") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    if status_any:
+        parts = [p.strip() for p in status_any.split(",") if p.strip()]
+        allowed = {"pending", "completed", "failed"}
+        parts = [p for p in parts if p in allowed]
+        if parts:
+            qs = qs.filter(status__in=parts)
+    elif status in ("pending", "completed", "failed"):
+        qs = qs.filter(status=status)
+
+    provider = (request.GET.get("provider") or "").strip()
+    if provider:
+        qs = qs.filter(provider__icontains=provider)
+
+    reference = (request.GET.get("reference") or "").strip()
+    if reference:
+        qs = qs.filter(reference__icontains=reference)
+
+    payment_type = (request.GET.get("payment_type") or "").strip()
+    if payment_type:
+        qs = qs.filter(payment_type__icontains=payment_type)
+
+    review_status = (request.GET.get("review") or "").strip()
+    if review_status in ("open", "reviewed"):
+        qs = qs.filter(review_status=review_status)
+
+    date_from = (request.GET.get("from") or "").strip()
+    date_to = (request.GET.get("to") or "").strip()
+    if date_from or date_to:
+        try:
+            from datetime import datetime, time
+
+            from django.utils import timezone
+
+            tz = timezone.get_current_timezone()
+            if date_from:
+                d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+                start = timezone.make_aware(datetime.combine(d0, time.min), tz)
+                qs = qs.filter(created_at__gte=start)
+            if date_to:
+                d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+                end = timezone.make_aware(datetime.combine(d1, time.max), tz)
+                qs = qs.filter(created_at__lte=end)
+        except Exception:
+            pass
+
+    # Hard cap to prevent expensive exports.
+    try:
+        limit = int(request.GET.get("limit") or 5000)
+    except Exception:
+        limit = 5000
+    limit = max(1, min(limit, 20000))
+
+    write_audit(
+        user=user,
+        action="export",
+        model_name="finance.PaymentTransaction",
+        object_id=None,
+        object_repr="Payment ledger export",
+        changes={
+            "limit": limit,
+            "filters": {
+                "status": status,
+                "status_any": status_any,
+                "provider": provider,
+                "reference": reference,
+                "payment_type": payment_type,
+                "review": review_status,
+                "from": date_from,
+                "to": date_to,
+            },
+        },
+        request=request,
+        school=school,
+    )
+
+    qs = qs.order_by("-created_at")[:limit]
+
+    import csv
+
+    from django.http import HttpResponse
+
+    resp = HttpResponse(content_type="text/csv; charset=utf-8")
+    resp["Cache-Control"] = "no-store"
+    resp["Content-Disposition"] = 'attachment; filename="payment_ledger.csv"'
+    w = csv.writer(resp)
+    w.writerow([
+        "created_at",
+        "updated_at",
+        "school_id",
+        "school_name",
+        "provider",
+        "status",
+        "review_status",
+        "reviewed_at",
+        "reviewed_by",
+        "payment_type",
+        "amount",
+        "currency",
+        "reference",
+        "object_id",
+    ])
+    for tx in qs:
+        w.writerow([
+            tx.created_at.isoformat() if tx.created_at else "",
+            tx.updated_at.isoformat() if tx.updated_at else "",
+            tx.school_id or "",
+            getattr(tx.school, "name", "") if getattr(tx, "school_id", None) else "",
+            tx.provider,
+            tx.status,
+            getattr(tx, "review_status", ""),
+            tx.reviewed_at.isoformat() if getattr(tx, "reviewed_at", None) else "",
+            getattr(getattr(tx, "reviewed_by", None), "username", "") if getattr(tx, "reviewed_by_id", None) else "",
+            tx.payment_type,
+            str(tx.amount),
+            tx.currency,
+            tx.reference,
+            tx.object_id,
+        ])
+    return resp
+
+
+@login_required
+def payment_ledger_queue_export_csv(request):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        messages.error(request, "You do not have permission to export the payment ledger.")
+        return redirect("accounts:dashboard")
+
+    qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+
+    try:
+        days = int(request.GET.get("days") or 30)
+    except Exception:
+        days = 30
+    days = max(1, min(days, 365))
+
+    since = timezone.now() - timezone.timedelta(days=days)
+    default_from = since.date().strftime("%Y-%m-%d")
+    default_to = timezone.now().date().strftime("%Y-%m-%d")
+
+    provider = (request.GET.get("provider") or "").strip()
+    if provider:
+        qs = qs.filter(provider__icontains=provider)
+
+    reference = (request.GET.get("reference") or "").strip()
+    if reference:
+        qs = qs.filter(reference__icontains=reference)
+
+    payment_type = (request.GET.get("payment_type") or "").strip()
+    if payment_type:
+        qs = qs.filter(payment_type__icontains=payment_type)
+
+    qs = qs.filter(review_status="open").filter(status__in=["pending", "failed"])
+
+    date_from = (request.GET.get("from") or "").strip() or default_from
+    date_to = (request.GET.get("to") or "").strip() or default_to
+    if date_from or date_to:
+        try:
+            from datetime import datetime, time
+
+            tz = timezone.get_current_timezone()
+            if date_from:
+                d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+                start = timezone.make_aware(datetime.combine(d0, time.min), tz)
+                qs = qs.filter(created_at__gte=start)
+            if date_to:
+                d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+                end = timezone.make_aware(datetime.combine(d1, time.max), tz)
+                qs = qs.filter(created_at__lte=end)
+        except Exception:
+            pass
+
+    try:
+        limit = int(request.GET.get("limit") or 5000)
+    except Exception:
+        limit = 5000
+    limit = max(1, min(limit, 20000))
+
+    write_audit(
+        user=user,
+        action="export",
+        model_name="finance.PaymentTransaction",
+        object_id=None,
+        object_repr="Reconciliation queue export",
+        changes={
+            "limit": limit,
+            "filters": {
+                "provider": provider,
+                "reference": reference,
+                "payment_type": payment_type,
+                "review": "open",
+                "status_any": "pending,failed",
+                "from": date_from,
+                "to": date_to,
+                "days": days,
+            },
+        },
+        request=request,
+        school=school,
+    )
+
+    qs = qs.order_by("-created_at")[:limit]
+
+    import csv
+
+    resp = HttpResponse(content_type="text/csv; charset=utf-8")
+    resp["Cache-Control"] = "no-store"
+    resp["Content-Disposition"] = 'attachment; filename="reconciliation_queue.csv"'
+    w = csv.writer(resp)
+    w.writerow([
+        "created_at",
+        "school_id",
+        "school_name",
+        "provider",
+        "status",
+        "review_status",
+        "payment_type",
+        "amount",
+        "currency",
+        "reference",
+        "reviewed_at",
+        "reviewed_by",
+    ])
+    for tx in qs:
+        w.writerow([
+            tx.created_at.isoformat() if tx.created_at else "",
+            tx.school_id or "",
+            getattr(tx.school, "name", "") if getattr(tx, "school_id", None) else "",
+            tx.provider,
+            tx.status,
+            getattr(tx, "review_status", ""),
+            tx.payment_type,
+            str(tx.amount),
+            tx.currency,
+            tx.reference,
+            tx.reviewed_at.isoformat() if getattr(tx, "reviewed_at", None) else "",
+            getattr(getattr(tx, "reviewed_by", None), "username", "") if getattr(tx, "reviewed_by_id", None) else "",
+        ])
+    return resp
+
+
+@login_required
+def payment_ledger_bulk_review_preview(request):
+    user = request.user
+    school = getattr(user, "school", None)
+
+    if not school and not user.is_superuser:
+        return JsonResponse({"ok": False, "error": "no_school"}, status=403)
+
+    if not (user.is_superuser or user_can_manage_school(user)):
+        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    qs = PaymentTransaction.objects.all()
+    if school and not user.is_superuser:
+        qs = qs.filter(school=school)
+
+    status_any = (request.GET.get("status_any") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    if status_any:
+        parts = [p.strip() for p in status_any.split(",") if p.strip()]
+        allowed = {"pending", "completed", "failed"}
+        parts = [p for p in parts if p in allowed]
+        if parts:
+            qs = qs.filter(status__in=parts)
+    elif status in ("pending", "completed", "failed"):
+        qs = qs.filter(status=status)
+
+    provider = (request.GET.get("provider") or "").strip()
+    if provider:
+        qs = qs.filter(provider__icontains=provider)
+
+    reference = (request.GET.get("reference") or "").strip()
+    if reference:
+        qs = qs.filter(reference__icontains=reference)
+
+    payment_type = (request.GET.get("payment_type") or "").strip()
+    if payment_type:
+        qs = qs.filter(payment_type__icontains=payment_type)
+
+    review_status = (request.GET.get("review") or "").strip()
+    if review_status in ("open", "reviewed"):
+        qs = qs.filter(review_status=review_status)
+
+    enforce_queue = (request.GET.get("enforce_queue") or "") == "1"
+    if enforce_queue:
+        qs = qs.filter(review_status="open").filter(status__in=["pending", "failed"])
+
+    date_from = (request.GET.get("from") or "").strip()
+    date_to = (request.GET.get("to") or "").strip()
+    if date_from or date_to:
+        try:
+            from datetime import datetime, time
+
+            tz = timezone.get_current_timezone()
+            if date_from:
+                d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+                start = timezone.make_aware(datetime.combine(d0, time.min), tz)
+                qs = qs.filter(created_at__gte=start)
+            if date_to:
+                d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+                end = timezone.make_aware(datetime.combine(d1, time.max), tz)
+                qs = qs.filter(created_at__lte=end)
+        except Exception:
+            pass
+
+    from django.db.models import Sum as _Sum
+
+    total_count = qs.count()
+    total_amount = qs.aggregate(v=_Sum("amount"))["v"] or Decimal("0")
+    return JsonResponse({"ok": True, "count": total_count, "amount": str(total_amount)})
 
 
 # ============ Subscription Cron Endpoint (for Railway/external cron services) ============

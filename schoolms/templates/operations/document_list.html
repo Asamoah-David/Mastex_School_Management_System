@@ -6,13 +6,20 @@
     <h2>📄 Documents</h2>
     {% if documents %}
     <table class="data-table">
-        <thead><tr><th>Student</th><th>Type</th><th>Title</th><th>Uploaded</th></tr></thead>
+        <thead><tr><th>Student</th><th>Type</th><th>Title</th><th>File</th><th>Uploaded</th></tr></thead>
         <tbody>
         {% for doc in documents %}
         <tr>
             <td>{{ doc.student.user.get_full_name }}</td>
             <td>{{ doc.document_type|title }}</td>
             <td>{{ doc.title }}</td>
+            <td>
+                {% if doc.file %}
+                    <a href="{% url 'operations:document_download' doc.pk %}" target="_blank" rel="noopener">Open</a>
+                {% else %}
+                    {{ doc.file_path }}
+                {% endif %}
+            </td>
             <td>{{ doc.uploaded_at|date:"M d, Y" }}</td>
         </tr>
         {% endfor %}

@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from accounts.models import User
 from students.models import Student
@@ -48,6 +49,28 @@ class LibraryIssue(models.Model):
             models.Index(fields=["school", "student"], name="idx_libissue_school_stu"),
             models.Index(fields=["school", "return_date"], name="idx_libissue_school_ret"),
         ]
+        constraints = [
+            # Prevent two concurrent active (issued/overdue) issues of the same
+            # book to the same student. Returned or lost records can coexist.
+            models.UniqueConstraint(
+                fields=["student", "book"],
+                condition=models.Q(status__in=["issued", "overdue"]),
+                name="uniq_active_libissue_student_book",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.book.title}"
+
+    def clean(self):
+        super().clean()
+        # Enforce school consistency across FK targets. Prevents silent
+        # cross-tenant mixing via admin / forms / bulk imports.
+        if self.school_id and self.book_id:
+            b_school = getattr(self.book, "school_id", None)
+            if b_school is not None and b_school != self.school_id:
+                raise ValidationError({"book": "Book must belong to the same school as the issue."})
+        if self.school_id and self.student_id:
+            s_school = getattr(self.student, "school_id", None)
+            if s_school is not None and s_school != self.school_id:
+                raise ValidationError({"student": "Student must belong to the same school as the issue."})

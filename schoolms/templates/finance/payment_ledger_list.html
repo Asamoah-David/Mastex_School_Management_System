@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+
+{% block title %}Payment ledger · {% if school %}{{ school.name }}{% else %}Platform{% endif %}{% endblock %}
+{% block page_title %}Payment ledger{% endblock %}
+{% block page_subtitle %}Unified reconciliation ledger{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+
+{% if is_queue|default:False %}
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+        <div>
+            <strong>Reconciliation queue</strong>
+            <small>(open items; last {{ queue_days|default:30 }} days)</small>
+        </div>
+        <form method="get" action="{% url 'finance:payment_ledger_queue_page' %}" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; margin:0;">
+            <div>
+                <label for="queue-days" style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Days</label>
+                <input id="queue-days" type="number" name="days" value="{{ queue_days|default:30 }}" class="form-control" style="min-width:7rem; padding:0.35rem 0.5rem;" min="1" max="365" title="Days">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Refresh</button>
+            <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_queue_export_csv' %}?days={{ queue_days|default:30 }}&provider={{ filter_provider|default:''|urlencode }}&reference={{ filter_reference|default:''|urlencode }}&payment_type={{ filter_payment_type|default:''|urlencode }}">Export queue CSV</a>
+        </form>
+    </div>
+    <div class="button-row" style="margin-top:0.75rem; flex-wrap:wrap; gap:0.35rem;">
+        <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_queue_page' %}">All (open)</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_queue_page' %}?provider=paystack">Paystack</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_queue_page' %}?provider=manual">Manual</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_queue_page' %}?provider=offline">Offline</a>
+    </div>
+
+    <form method="post" action="{% url 'finance:payment_ledger_bulk_review' %}?{{ request.GET.urlencode }}" style="margin-top:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="scope" value="all">
+        <input type="hidden" name="enforce_queue" value="1">
+        <input type="hidden" name="confirm_all" id="queue-confirm-all" value="0">
+        <button type="submit" class="btn btn-primary btn-sm" name="review" value="reviewed" onclick="return confirmQueueBulk('reviewed');">Mark ALL filtered reviewed</button>
+        <button type="submit" class="btn btn-secondary btn-sm" name="review" value="open" onclick="return confirmQueueBulk('open');">Mark ALL filtered open</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="previewQueueBulk()">Preview affected</button>
+        <small style="color:var(--text-soft,#94a3b8);">This affects all rows in the current filtered queue.</small>
+    </form>
+</div>
+
+{% if queue_summary %}
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:center;">
+        <div><strong>Open pending</strong>: {{ queue_summary.open_pending_count }} ({{ queue_summary.open_pending_amount|format_ghs }})</div>
+        <div><strong>Open failed</strong>: {{ queue_summary.open_failed_count }} ({{ queue_summary.open_failed_amount|format_ghs }})</div>
+    </div>
+</div>
+{% endif %}
+
+{% if queue_by_provider %}
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <h3 style="margin:0 0 0.75rem;">Open queue by provider/status</h3>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Provider</th>
+                    <th>Status</th>
+                    <th>Count</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in queue_by_provider %}
+                <tr>
+                    <td>{{ row.provider|default:"—" }}</td>
+                    <td>{{ row.status|default:"—" }}</td>
+                    <td>
+                        <a href="{% url 'finance:payment_ledger_queue_page' %}?provider={{ row.provider|urlencode }}&status={{ row.status|urlencode }}&review=open&days={{ queue_days|default:30 }}">{{ row.count }}</a>
+                    </td>
+                    <td>{{ row.amount|default:0|format_ghs }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;">
+        <div>
+            <label for="ledger-status" style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Status</label>
+            <select id="ledger-status" name="status" title="Status" class="form-control" style="min-width:10rem; padding:0.35rem 0.5rem;">
+                <option value="" {% if not filter_status %}selected{% endif %}>All</option>
+                <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+                <option value="completed" {% if filter_status == 'completed' %}selected{% endif %}>Completed</option>
+                <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>Failed</option>
+            </select>
+        </div>
+        <div>
+            <label for="ledger-review" style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Review</label>
+            <select id="ledger-review" name="review" title="Review" class="form-control" style="min-width:10rem; padding:0.35rem 0.5rem;">
+                <option value="" {% if not filter_review %}selected{% endif %}>All</option>
+                <option value="open" {% if filter_review == 'open' %}selected{% endif %}>Open</option>
+                <option value="reviewed" {% if filter_review == 'reviewed' %}selected{% endif %}>Reviewed</option>
+            </select>
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Provider</label>
+            <input type="text" name="provider" value="{{ filter_provider|default:'' }}" class="form-control" style="min-width:10rem; padding:0.35rem 0.5rem;" placeholder="paystack / offline / manual">
+        </div>
+        <div style="flex:1; min-width:14rem;">
+            <label style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Reference contains</label>
+            <input type="text" name="reference" value="{{ filter_reference|default:'' }}" class="form-control" style="width:100%; padding:0.35rem 0.5rem;" placeholder="Search reference">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Type</label>
+            <input type="text" name="payment_type" value="{{ filter_payment_type|default:'' }}" class="form-control" style="min-width:10rem; padding:0.35rem 0.5rem;" placeholder="school_fee / hostel / manual">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">From</label>
+            <input type="date" name="from" value="{{ filter_from|default:'' }}" class="form-control" style="min-width:11rem; padding:0.35rem 0.5rem;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">To</label>
+            <input type="date" name="to" value="{{ filter_to|default:'' }}" class="form-control" style="min-width:11rem; padding:0.35rem 0.5rem;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Export limit</label>
+            <input type="number" name="limit" value="{{ filter_limit|default:'' }}" class="form-control" style="min-width:8rem; padding:0.35rem 0.5rem;" placeholder="5000" min="1" max="20000">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        <a href="{% url 'finance:payment_ledger_list' %}" class="btn btn-secondary btn-sm">Reset</a>
+        <a href="{% url 'finance:payment_ledger_export_csv' %}?{{ request.GET.urlencode }}" class="btn btn-secondary btn-sm">Export CSV</a>
+        <a href="{% url 'finance:payment_ledger_queue_page' %}" class="btn btn-secondary btn-sm">Reconciliation queue (open)</a>
+        <a href="{% url 'finance:payment_ledger_queue_page' %}?status=failed&review=open" class="btn btn-secondary btn-sm">Failed (open)</a>
+        <a href="{% url 'finance:payment_ledger_queue_page' %}?status=pending&review=open" class="btn btn-secondary btn-sm">Pending (open)</a>
+    </form>
+</div>
+
+{% if summary %}
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:center;">
+        <div><strong>Total</strong>: {{ summary.total_count }}</div>
+        <div><strong>Completed</strong>: {{ summary.completed_count }} ({{ summary.completed_amount|format_ghs }})</div>
+        <div><strong>Failed</strong>: {{ summary.failed_count }} ({{ summary.failed_amount|format_ghs }})</div>
+        <div><strong>Pending</strong>: {{ summary.pending_count }}</div>
+    </div>
+</div>
+{% endif %}
+
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <div style="font-size:0.75rem;color:var(--text-soft,#94a3b8); margin-bottom:0.35rem;">Share current filters</div>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <label for="ledger-share-url" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;">Share URL</label>
+        <input id="ledger-share-url" class="form-control" title="Share URL" style="flex:1; min-width:18rem; padding:0.35rem 0.5rem;" readonly value="{{ request.build_absolute_uri }}">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="copyLedgerUrl()">Copy link</button>
+    </div>
+</div>
+
+<div class="content-card">
+    {% if not transactions %}
+        <div class="empty-state">No ledger entries found.</div>
+    {% else %}
+        <div class="table-card">
+            {% if page_obj and page_obj.object_list %}
+            <form method="post" action="{% url 'finance:payment_ledger_bulk_review' %}?{{ request.GET.urlencode }}" style="margin:0;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <div class="button-row" style="margin:0 0 0.75rem; gap:0.5rem; flex-wrap:wrap;">
+                    <input type="hidden" name="scope" id="bulk-scope" value="selected">
+                    <button type="submit" class="btn btn-primary btn-sm" name="review" value="reviewed">Mark reviewed</button>
+                    <button type="submit" class="btn btn-secondary btn-sm" name="review" value="open">Mark open</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="setBulkScopeAll()">Apply to all filtered</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="setBulkScopeSelected()">Apply to selected only</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:2.5rem;">
+                                <input type="checkbox" id="select-all" title="Select all" onclick="toggleSelectAll()">
+                            </th>
+                            <th>Date</th>
+                            <th>Provider</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Review</th>
+                            <th>Reviewed at</th>
+                            <th>Reviewed by</th>
+                            <th>Amount</th>
+                            <th>Reference</th>
+                            <th>School</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tx in transactions %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="ids" value="{{ tx.id }}" class="tx-select" title="Select">
+                            </td>
+                            <td><small>{{ tx.created_at|date:"M d, Y H:i" }}</small></td>
+                            <td><small>{{ tx.provider }}</small></td>
+                            <td><small>{{ tx.payment_type|default:"—" }}</small></td>
+                            <td><small>{{ tx.status }}</small></td>
+                            <td><small>{{ tx.review_status }}</small></td>
+                            <td><small>{% if tx.reviewed_at %}{{ tx.reviewed_at|date:"M d, Y H:i" }}{% else %}—{% endif %}</small></td>
+                            <td><small>{% if tx.reviewed_by %}{{ tx.reviewed_by.username }}{% else %}—{% endif %}</small></td>
+                            <td><small>{{ tx.amount|format_ghs }}</small></td>
+                            <td><a href="{% url 'finance:payment_ledger_detail' tx.pk %}"><small>{{ tx.reference }}</small></a></td>
+                            <td><small>{{ tx.school.name|default:"—" }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </form>
+            {% include 'includes/pagination.html' %}
+            {% else %}
+                <div class="empty-state">No ledger entries match your filters.</div>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function copyLedgerUrl() {
+    const el = document.getElementById('ledger-share-url');
+    if (!el) return;
+    const text = (el.value || '').trim();
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+    } else {
+        el.removeAttribute('readonly');
+        el.select();
+        document.execCommand('copy');
+        el.setAttribute('readonly', 'readonly');
+    }
+}
+
+function toggleSelectAll() {
+    var all = document.getElementById('select-all');
+    var items = document.querySelectorAll('.tx-select');
+    for (var i = 0; i < items.length; i++) {
+        items[i].checked = all.checked;
+    }
+}
+
+function setBulkScopeAll() {
+    var el = document.getElementById('bulk-scope');
+    if (el) el.value = 'all';
+}
+
+function setBulkScopeSelected() {
+    var el = document.getElementById('bulk-scope');
+    if (el) el.value = 'selected';
+}
+
+function confirmQueueBulk(desired) {
+    var el = document.getElementById('queue-confirm-all');
+    if (!el) return true;
+    var msg = 'Apply bulk action to ALL filtered queue rows?';
+    if (desired === 'reviewed') msg = 'Mark ALL filtered queue rows as reviewed?';
+    if (desired === 'open') msg = 'Mark ALL filtered queue rows as open?';
+    var ok = window.confirm(msg);
+    el.value = ok ? '1' : '0';
+    return ok;
+}
+
+function previewQueueBulk() {
+    var url = "{% url 'finance:payment_ledger_bulk_review_preview' %}?{{ request.GET.urlencode }}&enforce_queue=1";
+    fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            if (!data || !data.ok) {
+                window.alert('Preview failed');
+                return;
+            }
+            window.alert('Affected rows: ' + data.count + '\nTotal amount: ' + data.amount);
+        })
+        .catch(function(){ window.alert('Preview failed'); });
+}
+</script>
+{% endblock %}

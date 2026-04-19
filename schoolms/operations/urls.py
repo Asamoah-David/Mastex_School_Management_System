@@ -175,6 +175,7 @@ urlpatterns = [
     path("certificates/", views.certificate_list, name="certificate_list"),
     path("certificates/create/", views.certificate_create, name="certificate_create"),
     path("certificates/<int:pk>/", views.certificate_view, name="certificate_view"),
+    path("certificates/<int:pk>/open/", views.certificate_pdf_open, name="certificate_pdf_open"),
     path("certificates/<int:pk>/pdf/", views.certificate_pdf, name="certificate_pdf"),
     path("certificates/<int:pk>/delete/", views.certificate_delete, name="certificate_delete"),
     
@@ -208,6 +209,7 @@ urlpatterns = [
     # Documents
     path("documents/", views.document_list, name="document_list"),
     path("documents/upload/", views.document_upload, name="document_upload"),
+    path("documents/<int:pk>/download/", views.document_download, name="document_download"),
     
     # Alumni
     path("alumni/", views.alumni_list, name="alumni_list"),
@@ -332,6 +334,7 @@ urlpatterns = [
     # Assignment Submissions
     path("submissions/", views.assignment_submission_list, name="assignment_submission_list"),
     path("submissions/<int:pk>/grade/", views.assignment_submission_grade, name="assignment_submission_grade"),
+    path("submissions/<int:pk>/download/", views.assignment_submission_download, name="assignment_submission_download"),
     path("my-submissions/", views.my_submissions, name="my_submissions"),
     
     # Online Exams

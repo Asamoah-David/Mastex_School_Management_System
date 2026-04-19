@@ -13,11 +13,17 @@ class ForcePasswordChangeMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
+    # Prefixes that must remain reachable while a forced change is pending, so
+    # the change page and auth flows render correctly (CSS/images, password
+    # reset confirmation, favicon).
+    ALLOWED_PREFIXES = ("/static", "/media", "/favicon", "/accounts/password-reset")
+
     def __call__(self, request):
         if request.user.is_authenticated and getattr(request.user, "must_change_password", False):
             change_url = reverse("accounts:force_password_change")
             logout_url = reverse("logout")
             allowed = {change_url, logout_url}
-            if request.path not in allowed and not request.path.startswith("/static"):
+            path = request.path or ""
+            if path not in allowed and not any(path.startswith(p) for p in self.ALLOWED_PREFIXES):
                 return redirect(change_url)
         return self.get_response(request)

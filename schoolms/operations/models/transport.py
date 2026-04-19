@@ -2,6 +2,7 @@ from django.db import models
 from accounts.models import User
 from students.models import Student
 from schools.models import School
+from django.core.exceptions import ValidationError
 
 
 class BusRoute(models.Model):
@@ -29,9 +30,28 @@ class BusPayment(models.Model):
         indexes = [
             models.Index(fields=["school", "student"], name="idx_bus_school_stu"),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["payment_reference"],
+                condition=models.Q(payment_reference__isnull=False)
+                & ~models.Q(payment_reference=""),
+                name="uniq_buspayment_payment_reference_nonempty",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.amount} GHS (Bus)"
+
+    def clean(self):
+        super().clean()
+        if self.route_id and self.school_id and getattr(self.route, "school_id", None) != self.school_id:
+            raise ValidationError({"route": "Route must belong to the same school as the payment."})
+        if self.student_id and self.school_id and getattr(self.student, "school_id", None) != self.school_id:
+            raise ValidationError({"student": "Student must belong to the same school as the payment."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class Textbook(models.Model):
@@ -62,6 +82,25 @@ class TextbookSale(models.Model):
         indexes = [
             models.Index(fields=["school", "student"], name="idx_txtsale_school_stu"),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["payment_reference"],
+                condition=models.Q(payment_reference__isnull=False)
+                & ~models.Q(payment_reference=""),
+                name="uniq_textbooksale_payment_reference_nonempty",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.textbook.title} x{self.quantity}"
+
+    def clean(self):
+        super().clean()
+        if self.textbook_id and self.school_id and getattr(self.textbook, "school_id", None) != self.school_id:
+            raise ValidationError({"textbook": "Textbook must belong to the same school as the sale."})
+        if self.student_id and self.school_id and getattr(self.student, "school_id", None) != self.school_id:
+            raise ValidationError({"student": "Student must belong to the same school as the sale."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

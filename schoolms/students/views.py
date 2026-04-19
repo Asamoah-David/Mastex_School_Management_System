@@ -55,8 +55,12 @@ def parent_dashboard(request):
     try:
         from finance.models import Fee, FeePayment
         from academics.models import Result, ExamType, Term, ExamSchedule
-        
-        children = Student.objects.filter(parent=request.user).select_related("school", "user")
+
+        user_school = getattr(request.user, "school", None)
+        children_qs = Student.objects.filter(parent=request.user).select_related("school", "user")
+        if user_school:
+            children_qs = children_qs.filter(school=user_school)
+        children = children_qs
         
         # Handle case with no children
         if not children:
@@ -90,7 +94,11 @@ def parent_dashboard(request):
         
         # Get fees for all children
         children_ids = [c.id for c in children]
-        fees = Fee.objects.filter(student_id__in=children_ids).select_related("student", "student__user").order_by("-created_at")
+        fees = (
+            Fee.objects.filter(student_id__in=children_ids, school__in=[c.school for c in children])
+            .select_related("student", "student__user")
+            .order_by("-created_at")
+        )
         
         # Group fees by child
         fees_by_child = {}
@@ -102,7 +110,10 @@ def parent_dashboard(request):
         
         # Get results for all children
         results_by_child = {}
-        results = Result.objects.filter(student_id__in=children_ids).select_related("student", "subject", "exam_type", "term")
+        results = (
+            Result.objects.filter(student_id__in=children_ids, student__school__in=[c.school for c in children])
+            .select_related("student", "subject", "exam_type", "term")
+        )
         
         for result in results:
             child_id = result.student_id

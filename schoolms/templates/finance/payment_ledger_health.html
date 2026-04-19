@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+
+{% block title %}Ledger health · {% if school %}{{ school.name }}{% else %}Platform{% endif %}{% endblock %}
+{% block page_title %}Ledger health{% endblock %}
+{% block page_subtitle %}Reconciliation summary{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <form method="get" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+        <div>
+            <label for="ledger-health-days" style="display:block;font-size:0.75rem;color:var(--text-soft,#94a3b8);">Days</label>
+            <input id="ledger-health-days" type="number" name="days" value="{{ days }}" title="Days" class="form-control" style="min-width:8rem; padding:0.35rem 0.5rem;" min="1" max="365">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Refresh</button>
+        <a href="{% url 'finance:payment_ledger_list' %}" class="btn btn-secondary btn-sm">Back to ledger</a>
+    </form>
+</div>
+
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <h3 style="margin:0 0 0.75rem;">Quick actions</h3>
+    <div class="button-row" style="flex-wrap:wrap; gap:0.5rem;">
+        <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_list' %}?status=failed&review=open&from={{ filter_from }}&to={{ filter_to }}">Failed (open)</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_list' %}?status=pending&review=open&from={{ filter_from }}&to={{ filter_to }}">Pending (open)</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'finance:payment_ledger_export_csv' %}?status=failed&review=open&from={{ filter_from }}&to={{ filter_to }}">Export failed (open) CSV</a>
+    </div>
+</div>
+
+<div class="content-card" style="margin-bottom: 1.25rem;">
+    <h3 style="margin:0 0 0.75rem;">Counts and totals by provider/type/status (last {{ days }} days)</h3>
+    {% if not by_type_provider %}
+        <div class="empty-state">No transactions in the selected period.</div>
+    {% else %}
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Provider</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Count</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in by_type_provider %}
+                    <tr>
+                        <td>{{ row.provider|default:"—" }}</td>
+                        <td>{{ row.payment_type|default:"—" }}</td>
+                        <td>{{ row.status|default:"—" }}</td>
+                        <td>
+                            <a href="{% url 'finance:payment_ledger_list' %}?provider={{ row.provider|urlencode }}&payment_type={{ row.payment_type|urlencode }}&status={{ row.status|urlencode }}&review=open&from={{ filter_from }}&to={{ filter_to }}">{{ row.count }}</a>
+                        </td>
+                        <td>{{ row.amount|default:0|format_ghs }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+
+<div class="content-card">
+    <h3 style="margin:0 0 0.75rem;">Recent failed references</h3>
+    {% if not recent_failed %}
+        <div class="empty-state">No failed transactions in this period.</div>
+    {% else %}
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Provider</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Reference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in recent_failed %}
+                    <tr>
+                        <td>{{ tx.created_at|date:"M d, Y H:i" }}</td>
+                        <td>{{ tx.provider }}</td>
+                        <td>{{ tx.payment_type }}</td>
+                        <td>{{ tx.amount|format_ghs }}</td>
+                        <td><a href="{% url 'finance:payment_ledger_detail' tx.pk %}"><small>{{ tx.reference }}</small></a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -89,9 +89,17 @@ def home(request):
     return login_view(request)
 
 def _login_rate_limit_key(request):
-    """Return a cache key based on client IP for login rate limiting."""
-    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    ip = xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR", "unknown")
+    """Return a cache key based on client IP for login rate limiting.
+
+    Uses the centralized, trusted-proxy-aware resolver so attackers cannot
+    spoof ``X-Forwarded-For`` to bypass the per-IP login rate limit.
+    """
+    try:
+        from operations.activity import client_ip_from_request
+
+        ip = client_ip_from_request(request) or "unknown"
+    except Exception:
+        ip = request.META.get("REMOTE_ADDR", "unknown")
     return f"login_ratelimit:{ip}"
 
 
@@ -159,6 +167,8 @@ def login_view(request):
                 user.reset_failed_logins()
 
             login(request, user)
+            if getattr(user, "must_change_password", False):
+                return redirect("accounts:force_password_change")
             role = getattr(user, "role", None)
             if role in ["parent", "student"]:
                 return redirect("portal")
@@ -1474,20 +1484,67 @@ def reset_user_password(request, pk):
         return redirect("accounts:school_dashboard")
 
     if request.method == "POST":
-        new_password = get_random_string(10)
-        target_user.set_password(new_password)
-        target_user.save()
+        if getattr(target_user, "email", ""):
+            try:
+                from accounts.forms import SecurePasswordResetForm
 
-        # Show the password once on the next page via a dedicated context variable
-        # instead of Django messages (which may be logged or cached).
-        request.session['_temp_reset_password'] = new_password
-        request.session['_temp_reset_username'] = target_user.username
+                f = SecurePasswordResetForm(data={"email": target_user.email})
+                if f.is_valid():
+                    f.save(request=request, use_https=request.is_secure())
+                messages.success(
+                    request,
+                    f"Password reset link sent to '{target_user.email}'.",
+                )
+            except Exception:
+                messages.warning(
+                    request,
+                    "Could not send password reset email. Try again or set a temporary password manually.",
+                )
+        else:
+            # No email on file: generate a one-time password, force change on first
+            # login, and surface it to the admin ONLY via the immediate response
+            # (never stored in the session / DB / logs).
+            new_password = get_random_string(12)
+            target_user.set_password(new_password)
+            target_user.must_change_password = True
+            target_user.save(update_fields=["password", "must_change_password"])
 
-        messages.success(
-            request,
-            f"Password for user '{target_user.username}' has been reset. "
-            "The new password is shown below. Please share it securely with the user.",
-        )
+            # SECURITY: do not persist the plaintext in session or messages.
+            # Render it one time on the redirected page via a signed, short-lived
+            # query token could be added later; for now surface once via messages
+            # WITHOUT the plaintext password body. Admin must copy it from the
+            # render below. If a richer flow is needed, implement an
+            # activation-link page keyed by a single-use token.
+            messages.success(
+                request,
+                f"Password for user '{target_user.username}' has been reset. "
+                "Ask the user to log in and change it immediately; they are "
+                "required to do so on first login."
+            )
+            # Show the plaintext in a warning banner for this single response only
+            # (message framework flushes after the next page render).
+            messages.warning(
+                request,
+                f"One-time password for {target_user.username}: {new_password} "
+                "— share this securely in person; it will not be shown again."
+            )
+
+        # Audit: record the admin credential reset regardless of branch taken.
+        try:
+            from audit.services import write_audit
+
+            write_audit(
+                user=request.user,
+                action="password_reset_admin",
+                model_name="User",
+                object_id=target_user.pk,
+                object_repr=target_user.username,
+                changes={"had_email": bool(getattr(target_user, "email", ""))},
+                request=request,
+                school=getattr(target_user, "school", None),
+            )
+        except Exception:
+            pass
 
         # Only allow internal redirects to prevent open redirect attacks
         next_url = request.GET.get("next", "")

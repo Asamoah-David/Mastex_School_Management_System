@@ -2,6 +2,8 @@ from django.core.cache import cache
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.http import HttpResponseForbidden
+from django.conf import settings
 
 from core.subscription_access import (
     maybe_update_subscription_status_from_dates,
@@ -46,7 +48,7 @@ class SchoolMiddleware:
             if not request.user.is_authenticated:
                 return redirect(reverse("accounts:login"))
             if not request.user.is_superuser and getattr(request.user, "role", "") != "super_admin":
-                return redirect(reverse("accounts:school_dashboard"))
+                return HttpResponseForbidden("Forbidden")
 
         if request.user.is_authenticated:
             resp = self._enforce_school_access(request)
@@ -59,8 +61,19 @@ class SchoolMiddleware:
     @staticmethod
     def _resolve_school_from_host(request):
         host = request.get_host().split(":")[0]
-        if "." not in host or "localhost" in host or "onrender" in host:
+        if host in ("localhost", "127.0.0.1"):
             return None
+        if "." not in host:
+            return None
+
+        suffixes = getattr(settings, "TENANT_DOMAIN_SUFFIXES", None)
+        if suffixes:
+            try:
+                allowed = any(host.endswith(sfx) for sfx in suffixes)
+            except TypeError:
+                allowed = False
+            if not allowed:
+                return None
         subdomain = host.split(".")[0]
         cache_key = f"school_subdomain:{subdomain}"
         school = cache.get(cache_key)
@@ -106,10 +119,12 @@ class SchoolMiddleware:
                 )
                 if is_ajax:
                     from django.http import JsonResponse
-                    return JsonResponse(
+                    r = JsonResponse(
                         {"error": "School subscription has expired. Please contact your school administrator."},
-                        status=200,
+                        status=403,
                     )
+                    r["Cache-Control"] = "no-store"
+                    return r
                 return render(
                     request,
                     "finance/subscription_expired.html",

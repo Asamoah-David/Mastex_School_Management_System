@@ -62,6 +62,11 @@ _required_hosts = {
 _env_hosts = {h.strip() for h in env("ALLOWED_HOSTS", "").split(",") if h.strip()}
 ALLOWED_HOSTS = sorted(_required_hosts | _env_hosts)
 
+# Tenant subdomain resolution (schools.middleware.SchoolMiddleware)
+# Only hosts ending with one of these suffixes will be treated as tenant hosts.
+# Examples: ".onrender.com", ".railway.app".
+TENANT_DOMAIN_SUFFIXES = tuple(h for h in ALLOWED_HOSTS if isinstance(h, str) and h.startswith("."))
+
 # ---------------------------------------------------------------------------
 # Apps & Middleware
 # ---------------------------------------------------------------------------
@@ -101,6 +106,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "core.middleware.RequestIdMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",

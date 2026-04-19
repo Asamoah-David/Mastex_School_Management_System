@@ -74,6 +74,25 @@ def health_check(request):
     return JsonResponse(status)
 
 
+def ready_check(request):
+    """Readiness probe.
+
+    Returns non-200 when the database is unavailable so load balancers can stop
+    routing traffic to an unhealthy instance.
+    """
+    status = {"status": "ok", "database": "ok"}
+    http_status = 200
+    try:
+        connection.ensure_connection()
+    except Exception:
+        status["database"] = "unavailable"
+        status["status"] = "unavailable"
+        http_status = 503
+    r = JsonResponse(status, status=http_status)
+    r["Cache-Control"] = "no-store"
+    return r
+
+
 handler404 = custom_404
 handler500 = custom_500
 
@@ -84,6 +103,7 @@ urlpatterns = [
         RedirectView.as_view(url=f"{settings.STATIC_URL}favicon.png", permanent=False),
     ),
     path("health/", health_check, name="health_check"),
+    path("ready/", ready_check, name="ready_check"),
     path("admin/", admin.site.urls),
     path("schools/register/", school_register, name="school_register"),
     path("schools/", include("schools.urls")),

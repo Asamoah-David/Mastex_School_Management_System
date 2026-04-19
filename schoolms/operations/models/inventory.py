@@ -1,6 +1,7 @@
 from django.db import models
 from accounts.models import User
 from schools.models import School
+from django.core.exceptions import ValidationError
 
 
 class InventoryCategory(models.Model):
@@ -8,10 +9,18 @@ class InventoryCategory(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
-    
+
     class Meta:
         verbose_name_plural = "Inventory Categories"
-    
+        constraints = [
+            # Per-school uniqueness so admins cannot silently create duplicate
+            # categories that split inventory counts and reporting.
+            models.UniqueConstraint(
+                fields=["school", "name"],
+                name="uniq_invcategory_school_name",
+            ),
+        ]
+
     def __str__(self):
         return self.name
 
@@ -42,6 +51,15 @@ class InventoryItem(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.quantity})"
+
+    def clean(self):
+        super().clean()
+        if self.category_id and self.school_id and getattr(self.category, "school_id", None) != self.school_id:
+            raise ValidationError({"category": "Category must belong to the same school as the item."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
     
     @property
     def is_low_stock(self):
@@ -70,3 +88,12 @@ class InventoryTransaction(models.Model):
     
     def __str__(self):
         return f"{self.transaction_type} - {self.item.name} ({self.quantity})"
+
+    def clean(self):
+        super().clean()
+        if self.item_id and self.school_id and getattr(self.item, "school_id", None) != self.school_id:
+            raise ValidationError({"item": "Item must belong to the same school as the transaction."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
