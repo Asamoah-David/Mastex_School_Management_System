@@ -206,6 +206,10 @@ def pay_with_paystack(request, fee_id):
     except Http404:
         messages.error(request, "You do not have permission to pay this fee.")
         return redirect("/")
+
+    if fee.school and not fee.school.is_payout_setup_active:
+        messages.error(request, "Online fee payments are not yet available for this school. The school must complete payout setup first.")
+        return redirect(_safe_referer(request))
     
     remaining = fee.remaining_balance
     if remaining <= 0:
@@ -245,7 +249,7 @@ def pay_with_paystack(request, fee_id):
     reference = f"SCHOOL_FEE_{fee_id}_{uuid.uuid4().hex[:8].upper()}"
     
     school_subaccount = None
-    if fee.school and fee.school.paystack_subaccount_code:
+    if fee.school and fee.school.is_payout_setup_active:
         school_subaccount = fee.school.paystack_subaccount_code
     
     pending_payment = FeePayment.objects.create(
@@ -308,6 +312,10 @@ def pay_with_paystack_custom_amount(request, fee_id):
         messages.error(request, "You do not have permission to pay this fee.")
         return redirect("/")
 
+    if fee.school and not fee.school.is_payout_setup_active:
+        messages.error(request, "Online fee payments are not yet available for this school. The school must complete payout setup first.")
+        return redirect(_safe_referer(request))
+
     if request.method == "POST":
         amount_str = request.POST.get("amount", "")
         try:
@@ -343,7 +351,7 @@ def pay_with_paystack_custom_amount(request, fee_id):
             
             # Get school's subaccount if configured
             school_subaccount = None
-            if fee.school and fee.school.paystack_subaccount_code:
+            if fee.school and fee.school.is_payout_setup_active:
                 school_subaccount = fee.school.paystack_subaccount_code
             
             # Create pending payment record for tracking
@@ -554,11 +562,55 @@ def _paystack_webhook_staff_transfer(payload: dict, event: str) -> None:
         pay.paystack_failure_reason = str(reason)[:2000]
         pay.save(update_fields=["paystack_status", "paystack_failure_reason"])
         logger.warning("Staff payroll transfer failed: ref=%s payment_id=%s", ref, pay.pk)
+        # Release reserved funds if this was from a payout request
+        _release_funds_for_failed_transfer(ref, "failed")
     elif event == "transfer.reversed":
         pay.paystack_status = "failed"
         pay.paystack_failure_reason = "Transfer reversed."
         pay.save(update_fields=["paystack_status", "paystack_failure_reason"])
         logger.warning("Staff payroll transfer reversed: ref=%s payment_id=%s", ref, pay.pk)
+        # Release reserved funds if this was from a payout request
+        _release_funds_for_failed_transfer(ref, "reversed")
+
+
+def _release_funds_for_failed_transfer(reference: str, event: str) -> None:
+    """Release reserved funds for a payout request when transfer fails/reverses."""
+    from finance.models import StaffPayoutRequest
+    from finance.services.school_funds import release_reserved_funds
+
+    req = StaffPayoutRequest.objects.filter(reference=reference).first()
+    if not req:
+        return
+    if req.status not in ("funds_reserved", "executing"):
+        return
+    
+    try:
+        release_reserved_funds(
+            school_id=req.school_id,
+            amount=req.amount,
+            reference=f"AUTO-RELEASE-{reference}-{event.upper()}",
+            description=f"Auto-release after {event} for payout {reference}",
+            currency=req.currency,
+            metadata={
+                "payout_request_id": req.pk,
+                "payout_reference": req.reference,
+                "original_ledger_ref": req.ledger_reference,
+                "trigger_event": event,
+            },
+        )
+        req.status = "failed"
+        req.failed_at = timezone.now()
+        req.failure_reason = f"Transfer {event}. Reserved funds released."
+        req.save(update_fields=["status", "failed_at", "failure_reason"])
+        logger.info(
+            "Released reserved funds for failed payout: ref=%s req_id=%s event=%s",
+            reference, req.pk, event
+        )
+    except Exception as e:
+        logger.exception(
+            "Failed to release reserved funds for payout: ref=%s req_id=%s event=%s error=%s",
+            reference, getattr(req, "pk", None), event, e
+        )
 
 
 @csrf_exempt
@@ -1324,6 +1376,10 @@ def parent_fee_list(request):
     )
 
     paystack_available = is_paystack_configured()
+    if paystack_available:
+        user_school = getattr(request.user, "school", None)
+        if user_school:
+            paystack_available = user_school.is_payout_setup_active
 
     return render(
         request,
@@ -2554,3 +2610,262 @@ def run_subscription_check(request):
             "status": "error",
             "message": str(e)
         }, status=500)
+
+
+# ---------------------------------------------------------------------------
+#  Staff Payout Requests — maker-checker workflow views
+# ---------------------------------------------------------------------------
+
+@login_required
+def payout_request_list(request):
+    """List payout requests for the current school. Finance managers + leadership."""
+    from accounts.permissions import can_manage_finance
+    from finance.models import StaffPayoutRequest
+    from finance.services.school_funds import get_balance
+    from core.pagination import paginate
+
+    if not can_manage_finance(request.user):
+        messages.error(request, "You do not have permission to view payout requests.")
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    status_filter = request.GET.get("status", "").strip()
+    qs = StaffPayoutRequest.objects.filter(school=school).select_related(
+        "staff_user", "requested_by", "approved_by",
+    )
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    balance = get_balance(school.pk)
+    page_obj = paginate(request, qs, per_page=50)
+    return render(request, "finance/payout_request_list.html", {
+        "requests": page_obj,
+        "balance": balance,
+        "status_filter": status_filter,
+        "status_choices": StaffPayoutRequest.STATUS_CHOICES,
+    })
+
+
+@login_required
+def payout_request_detail(request, pk):
+    """View full details of a single payout request. Finance managers + leadership."""
+    from accounts.permissions import can_manage_finance
+    from finance.models import StaffPayoutRequest, SchoolFundsLedgerEntry
+
+    if not can_manage_finance(request.user):
+        messages.error(request, "You do not have permission to view payout requests.")
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    req = StaffPayoutRequest.objects.filter(pk=pk, school=school).select_related(
+        "staff_user", "requested_by", "approved_by", "rejected_by", "cancelled_by",
+    ).first()
+    if not req:
+        messages.error(request, "Payout request not found.")
+        return redirect("finance:payout_request_list")
+
+    ledger_entries = []
+    if req.ledger_reference:
+        ledger_entries = SchoolFundsLedgerEntry.objects.filter(
+            school=school, reference=req.ledger_reference,
+        ).order_by("created_at")
+
+    return render(request, "finance/payout_request_detail.html", {
+        "req": req,
+        "ledger_entries": ledger_entries,
+    })
+
+
+@login_required
+def payout_request_create(request):
+    """Create a new payout request (maker). Finance managers only."""
+    from accounts.permissions import can_manage_finance
+    from finance.services.payout_requests import create_payout_request, PayoutError
+    from finance.staff_payroll_paystack import recipient_snapshot_for_route
+
+    if not can_manage_finance(request.user):
+        messages.error(request, "You do not have permission to create payout requests.")
+        return redirect("accounts:school_dashboard")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    if request.method == "GET":
+        from accounts.models import User
+        staff_qs = User.objects.filter(school=school, role__in=[
+            "teacher", "accountant", "librarian", "admin_assistant",
+            "school_nurse", "admission_officer", "hod", "deputy_head",
+            "school_admin", "staff",
+        ]).order_by("first_name", "last_name")
+        from finance.services.school_funds import get_balance
+        balance = get_balance(school.pk)
+        return render(request, "finance/payout_request_create.html", {
+            "staff_list": staff_qs,
+            "balance": balance,
+        })
+
+    # POST
+    from decimal import InvalidOperation
+    staff_id_raw = request.POST.get("staff_user_id", "").strip()
+    amount_raw = request.POST.get("amount", "").strip().replace(",", "")
+    period_label = request.POST.get("period_label", "").strip()
+    route = request.POST.get("route", "").strip()
+    reason = request.POST.get("reason", "").strip()
+
+    try:
+        staff_id = int(staff_id_raw)
+    except (ValueError, TypeError):
+        messages.error(request, "Select a staff member.")
+        return redirect("finance:payout_request_create")
+    try:
+        amount = Decimal(amount_raw)
+    except (InvalidOperation, TypeError):
+        messages.error(request, "Enter a valid amount.")
+        return redirect("finance:payout_request_create")
+
+    from accounts.models import User
+    staff = User.objects.filter(pk=staff_id).first()
+    snap = ""
+    if staff:
+        snap = recipient_snapshot_for_route(staff, route)
+
+    try:
+        req = create_payout_request(
+            school_id=school.pk,
+            staff_user_id=staff_id,
+            amount=amount,
+            period_label=period_label,
+            route=route,
+            requested_by_id=request.user.pk,
+            reason=reason,
+            recipient_snapshot=snap,
+        )
+        messages.success(request, f"Payout request {req.reference} created — awaiting approval.")
+    except PayoutError as e:
+        messages.error(request, str(e))
+        return redirect("finance:payout_request_create")
+
+    return redirect("finance:payout_request_list")
+
+
+@login_required
+def payout_request_approve(request, pk):
+    """Approve a payout request (checker). Leadership only. POST only."""
+    if request.method != "POST":
+        return redirect("finance:payout_request_list")
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        messages.error(request, "Only school leadership can approve payout requests.")
+        return redirect("finance:payout_request_list")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    from finance.models import StaffPayoutRequest
+    from finance.services.payout_requests import approve_payout_request, PayoutError
+
+    req = StaffPayoutRequest.objects.filter(pk=pk, school=school).first()
+    if not req:
+        messages.error(request, "Payout request not found.")
+        return redirect("finance:payout_request_list")
+
+    try:
+        approve_payout_request(request_id=req.pk, approved_by_id=request.user.pk)
+        messages.success(request, f"Payout {req.reference} approved. Funds can now be reserved.")
+    except PayoutError as e:
+        messages.error(request, str(e))
+
+    return redirect("finance:payout_request_list")
+
+
+@login_required
+def payout_request_reserve(request, pk):
+    """Reserve funds for an approved payout request. Leadership only. POST only."""
+    if request.method != "POST":
+        return redirect("finance:payout_request_list")
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        messages.error(request, "Only school leadership can reserve payout funds.")
+        return redirect("finance:payout_request_list")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    from finance.models import StaffPayoutRequest
+    from finance.services.payout_requests import reserve_funds_for_payout, PayoutError
+
+    req = StaffPayoutRequest.objects.filter(pk=pk, school=school).first()
+    if not req:
+        messages.error(request, "Payout request not found.")
+        return redirect("finance:payout_request_list")
+
+    try:
+        reserve_funds_for_payout(request_id=req.pk)
+        messages.success(request, f"Funds reserved for payout {req.reference}.")
+    except PayoutError as e:
+        messages.error(request, str(e))
+
+    return redirect("finance:payout_request_list")
+
+
+@login_required
+def payout_request_reject(request, pk):
+    """Reject a pending payout request. Leadership only. POST only."""
+    if request.method != "POST":
+        return redirect("finance:payout_request_list")
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        messages.error(request, "Only school leadership can reject payout requests.")
+        return redirect("finance:payout_request_list")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    from finance.models import StaffPayoutRequest
+    from finance.services.payout_requests import reject_payout_request, PayoutError
+
+    reason = request.POST.get("reason", "").strip()
+    req = StaffPayoutRequest.objects.filter(pk=pk, school=school).first()
+    if not req:
+        messages.error(request, "Payout request not found.")
+        return redirect("finance:payout_request_list")
+
+    try:
+        reject_payout_request(request_id=req.pk, rejected_by_id=request.user.pk, reason=reason)
+        messages.success(request, f"Payout {req.reference} rejected.")
+    except PayoutError as e:
+        messages.error(request, str(e))
+
+    return redirect("finance:payout_request_list")
+
+
+@login_required
+def payout_request_cancel(request, pk):
+    """Cancel a payout request and release reserved funds. Finance managers. POST only."""
+    if request.method != "POST":
+        return redirect("finance:payout_request_list")
+    from accounts.permissions import can_manage_finance
+    if not can_manage_finance(request.user):
+        messages.error(request, "You do not have permission to cancel payout requests.")
+        return redirect("finance:payout_request_list")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("accounts:dashboard")
+
+    from finance.models import StaffPayoutRequest
+    from finance.services.payout_requests import cancel_payout_request, PayoutError
+
+    reason = request.POST.get("reason", "").strip()
+    req = StaffPayoutRequest.objects.filter(pk=pk, school=school).first()
+    if not req:
+        messages.error(request, "Payout request not found.")
+        return redirect("finance:payout_request_list")
+
+    try:
+        cancel_payout_request(request_id=req.pk, cancelled_by_id=request.user.pk, reason=reason)
+        messages.success(request, f"Payout {req.reference} cancelled.")
+    except PayoutError as e:
+        messages.error(request, str(e))
+
+    return redirect("finance:payout_request_list")

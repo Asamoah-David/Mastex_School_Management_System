@@ -447,6 +447,9 @@ def fees_list(request):
     from django.conf import settings as dj_settings
 
     pay_ok = bool(getattr(dj_settings, "PAYSTACK_SECRET_KEY", ""))
+    user_school = getattr(request.user, "school", None)
+    if pay_ok and user_school:
+        pay_ok = getattr(user_school, "is_payout_setup_active", False)
 
     if is_student(request.user):
         student = Student.objects.filter(user=request.user).select_related("user").first()

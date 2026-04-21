@@ -259,7 +259,7 @@ def canteen_initiate_payment(request):
     # Get school's subaccount if configured
     school = student.school
     school_subaccount = None
-    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+    if school and getattr(school, 'is_payout_setup_active', False):
         school_subaccount = school.paystack_subaccount_code
     
     # Get currency from settings
@@ -449,7 +449,7 @@ def bus_initiate_payment(request):
     # Get school's subaccount if configured
     school = student.school
     school_subaccount = None
-    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+    if school and getattr(school, 'is_payout_setup_active', False):
         school_subaccount = school.paystack_subaccount_code
     
     # Get currency from settings
@@ -633,7 +633,7 @@ def textbook_initiate_payment(request):
     # Get school's subaccount if configured
     school = student.school
     school_subaccount = None
-    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+    if school and getattr(school, 'is_payout_setup_active', False):
         school_subaccount = school.paystack_subaccount_code
     
     # Get currency from settings
@@ -787,7 +787,7 @@ def hostel_initiate_payment(request):
     # Get school's subaccount if configured
     school = student.school
     school_subaccount = None
-    if school and hasattr(school, 'paystack_subaccount_code') and school.paystack_subaccount_code:
+    if school and getattr(school, 'is_payout_setup_active', False):
         school_subaccount = school.paystack_subaccount_code
     
     # Get currency from settings
@@ -1394,6 +1394,9 @@ def initiate_online_payment(request):
     if not user_can_access_student_payment(request.user, fee.student):
         return JsonResponse({"success": False, "error": "Forbidden"}, status=403)
 
+    if fee.school and not fee.school.is_payout_setup_active:
+        return JsonResponse({"success": False, "error": "Online fee payments are not available for this school. The school must complete payout setup first."}, status=403)
+
     remaining = fee.remaining_balance
     if remaining <= 0:
         return JsonResponse({"success": False, "error": "Fee already paid"}, status=400)
@@ -1430,7 +1433,7 @@ def initiate_online_payment(request):
     )
 
     school_subaccount = None
-    if fee.school and fee.school.paystack_subaccount_code:
+    if fee.school and fee.school.is_payout_setup_active:
         school_subaccount = fee.school.paystack_subaccount_code
 
     pending_payment = FeePayment.objects.create(

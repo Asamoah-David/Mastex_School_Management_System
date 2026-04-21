@@ -11,6 +11,7 @@
         <h3>Basic Information</h3>
         <form method="post">
             {% csrf_token %}
+            <input type="hidden" name="section" value="basic">
             <div class="form-group" style="margin-bottom:1rem;">
                 <label>School Name</label>
                 <input type="text" name="name" value="{{ school.name }}" required style="width:100%;padding:0.5rem;">
@@ -40,81 +41,80 @@
             </div>
         </form>
     </div>
-    
-    <!-- Paystack Settings -->
+
+    <!-- Payout Setup -->
     <div class="content-card">
-        <h3>💳 Paystack Payment Settings</h3>
+        <h3>Payout Setup (Bank Details)</h3>
         <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-            Enter your Paystack subaccount details so parents can pay school fees directly to your bank account.
+            Enter your school's bank details below. The system will automatically create a Paystack subaccount so parents can pay fees directly to your bank account.
         </p>
-        
-        {% if school.paystack_subaccount_code %}
+
+        {% if school.paystack_subaccount_status == "active" %}
             <div class="alert alert-success" style="margin-bottom: 1rem;">
-                ✅ Paystack is configured - Parents can pay fees online
+                Payout setup is <strong>active</strong> — Parents can pay fees online.
+                {% if school.paystack_subaccount_code %}<br><small>Subaccount: {{ school.paystack_subaccount_code }}</small>{% endif %}
+            </div>
+        {% elif school.paystack_subaccount_status == "failed" %}
+            <div class="alert alert-danger" style="margin-bottom: 1rem;">
+                Payout setup <strong>failed</strong>. Please check your bank details and try again.
+                {% if school.paystack_subaccount_last_error %}<br><small>{{ school.paystack_subaccount_last_error }}</small>{% endif %}
+            </div>
+        {% elif school.paystack_subaccount_status == "pending" %}
+            <div class="alert alert-warning" style="margin-bottom: 1rem;">
+                Payout setup is <strong>pending</strong> — waiting for Paystack verification.
             </div>
         {% else %}
             <div class="alert alert-warning" style="margin-bottom: 1rem;">
-                ⚠️ Paystack not configured - Parents cannot pay fees online yet
+                Payout not configured — Parents cannot pay fees online yet. Enter your bank details below.
             </div>
         {% endif %}
-        
+
+        {% if not paystack_configured %}
+        <div style="padding: 0.75rem; background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; margin-bottom: 1rem;">
+            <small style="color: #dc2626;">Paystack is not configured on the platform. Contact the platform administrator.</small>
+        </div>
+        {% endif %}
+
         <form method="post">
             {% csrf_token %}
-            <!-- Hidden fields for basic info (resubmit with paystack) -->
-            <input type="hidden" name="name" value="{{ school.name }}">
-            <input type="hidden" name="email" value="{{ school.email|default:'' }}">
-            <input type="hidden" name="phone" value="{{ school.phone|default:'' }}">
-            <input type="hidden" name="address" value="{{ school.address|default:'' }}">
-            <input type="hidden" name="logo_url" value="{{ school.logo_url|default:'' }}">
-            <input type="hidden" name="academic_year" value="{{ school.academic_year|default:'' }}">
-            
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Paystack Subaccount Code <span style="color: red;">*</span></label>
-                <input type="text" name="paystack_subaccount_code" value="{{ school.paystack_subaccount_code|default:'' }}" placeholder="e.g. ACCT_xxxxxxxxxxxx" style="width:100%;padding:0.5rem;">
-                <small style="color: #666;">Get this from your Paystack dashboard → Settings → API Keys & Webhooks</small>
-            </div>
-            
+            <input type="hidden" name="section" value="payout">
+
             <div class="form-group" style="margin-bottom:1rem;">
                 <label>Bank Name</label>
                 <input type="text" name="paystack_bank_name" value="{{ school.paystack_bank_name|default:'' }}" placeholder="e.g. Ghana Commercial Bank" style="width:100%;padding:0.5rem;">
             </div>
-            
+
             <div class="form-group" style="margin-bottom:1rem;">
-                <label>Account Number</label>
-                <input type="text" name="paystack_account_number" value="{{ school.paystack_account_number|default:'' }}" placeholder="e.g. 1234567890" style="width:100%;padding:0.5rem;">
+                <label>Paystack Bank Code <span style="color: red;">*</span></label>
+                <input type="text" name="paystack_bank_code" value="{{ school.paystack_bank_code|default:'' }}" placeholder="e.g. 058 (from Paystack bank list)" required style="width:100%;padding:0.5rem;">
+                <small style="color: #666;">Numeric code from <a href="https://paystack.com/docs/transfers/bank-codes/" target="_blank">Paystack bank list</a>.</small>
             </div>
-            
+
             <div class="form-group" style="margin-bottom:1rem;">
-                <label>Account Name</label>
-                <input type="text" name="paystack_account_name" value="{{ school.paystack_account_name|default:'' }}" placeholder="e.g. ABC School Limited" style="width:100%;padding:0.5rem;">
+                <label>Account Number <span style="color: red;">*</span></label>
+                <input type="text" name="paystack_account_number" value="{{ school.paystack_account_number|default:'' }}" placeholder="e.g. 1234567890" required style="width:100%;padding:0.5rem;">
             </div>
-            
+
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Account Name <span style="color: red;">*</span></label>
+                <input type="text" name="paystack_account_name" value="{{ school.paystack_account_name|default:'' }}" placeholder="e.g. ABC School Limited" required style="width:100%;padding:0.5rem;">
+            </div>
+
             <div class="button-row">
-                <button type="submit" class="btn btn-primary">Save Paystack Settings</button>
+                <button type="submit" class="btn btn-primary" {% if not paystack_configured %}disabled{% endif %}>
+                    {% if school.paystack_subaccount_status == "active" %}Update Payout Details{% else %}Set Up Payout{% endif %}
+                </button>
             </div>
         </form>
-        
+
         <div style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
-            <h4 style="margin: 0 0 0.5rem 0;">📋 How to get Paystack Subaccount Code:</h4>
+            <h4 style="margin: 0 0 0.5rem 0;">How it works:</h4>
             <ol style="margin: 0; padding-left: 1.2rem; color: #666; font-size: 0.85rem;">
-                <li>Sign up at <a href="https://paystack.com" target="_blank">paystack.com</a></li>
-                <li>Complete your merchant KYC verification (required for live payments)</li>
-                <li>Go to Settings → Transfer Receipts</li>
-                <li>Add your bank account details</li>
-                <li>Copy the Subaccount Code (starts with ACCT_)</li>
+                <li>Enter your school's bank details above.</li>
+                <li>The system creates a Paystack subaccount automatically.</li>
+                <li>Once active, parent fee payments go directly to your bank account.</li>
+                <li>Ensure your Paystack merchant account is in <strong>Live Mode</strong> for real payments.</li>
             </ol>
-        </div>
-        
-        <!-- IMPORTANT: Live Mode Warning -->
-        <div style="margin-top: 1rem; padding: 1rem; background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px;">
-            <h4 style="margin: 0 0 0.5rem 0; color: #dc2626;">⚠️ Important - Activate Live Mode!</h4>
-            <ul style="margin: 0; padding-left: 1.2rem; color: #7f1d1d; font-size: 0.85rem;">
-                <li><strong>Your Paystack account must be in Live Mode</strong> to receive real payments</li>
-                <li>Go to Paystack Dashboard → Settings → API Keys & Webhooks</li>
-                <li>Make sure you're viewing <strong>"Live"</strong> mode (not Test)</li>
-                <li>Your subaccount must show as <strong>"Active"</strong> (not "Pending" or "Test")</li>
-                <li>Without Live Mode, parents can only make test payments - no real money will be received</li>
-            </ul>
         </div>
     </div>
 </div>

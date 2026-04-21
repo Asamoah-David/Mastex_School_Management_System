@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Staff Payout Requests{% endblock %}
+{% block page_title %}Staff Payout Requests{% endblock %}
+{% block page_subtitle %}Manage school-funded staff payouts{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+
+<div class="content-card" style="margin-bottom:1.25rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+        <div>
+            <strong>School Funds:</strong>
+            Available <span style="color:#16a34a; font-weight:600;">{{ balance.available_total }}</span> {{ balance.currency|default:"GHS" }}
+            &nbsp;|&nbsp; Reserved <span style="color:#d97706;">{{ balance.reserved_total }}</span>
+            &nbsp;|&nbsp; Paid out {{ balance.paid_out_total }}
+        </div>
+        <a href="{% url 'finance:payout_request_create' %}" class="btn btn-primary">New Payout Request</a>
+    </div>
+</div>
+
+<div class="content-card" style="margin-bottom:0.75rem;">
+    <form method="get" style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        <label for="status-filter"><strong>Filter:</strong></label>
+        <select name="status" id="status-filter" style="padding:0.35rem 0.5rem;">
+            <option value="">All statuses</option>
+            {% for val, label in status_choices %}
+            <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
+    </form>
+</div>
+
+<div class="content-card">
+    {% if requests %}
+    <div style="overflow-x:auto;">
+    <table class="data-table" style="width:100%;">
+        <thead>
+            <tr>
+                <th>Reference</th>
+                <th>Staff</th>
+                <th>Period</th>
+                <th>Amount</th>
+                <th>Route</th>
+                <th>Status</th>
+                <th>Requested by</th>
+                <th>Approved by</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for req in requests %}
+            <tr>
+                <td><a href="{% url 'finance:payout_request_detail' req.pk %}"><code>{{ req.reference }}</code></a></td>
+                <td>{{ req.staff_user.get_full_name|default:req.staff_user.username }}</td>
+                <td>{{ req.period_label }}</td>
+                <td style="text-align:right;">{{ req.amount }} {{ req.currency }}</td>
+                <td>{{ req.get_route_display }}</td>
+                <td>
+                    {% if req.status == "pending_approval" %}<span style="color:#d97706;">Pending Approval</span>
+                    {% elif req.status == "approved" %}<span style="color:#2563eb;">Approved</span>
+                    {% elif req.status == "funds_reserved" %}<span style="color:#7c3aed;">Funds Reserved</span>
+                    {% elif req.status == "completed" %}<span style="color:#16a34a;">Completed</span>
+                    {% elif req.status == "rejected" %}<span style="color:#dc2626;">Rejected</span>
+                    {% elif req.status == "cancelled" %}<span style="color:#6b7280;">Cancelled</span>
+                    {% elif req.status == "failed" %}<span style="color:#dc2626;">Failed</span>
+                    {% elif req.status == "executing" %}<span style="color:#d97706;">Executing</span>
+                    {% else %}{{ req.get_status_display }}
+                    {% endif %}
+                </td>
+                <td>{{ req.requested_by.get_full_name|default:req.requested_by.username|default:"-" }}</td>
+                <td>{{ req.approved_by.get_full_name|default:req.approved_by.username|default:"-" }}</td>
+                <td>{{ req.requested_at|date:"d M Y H:i" }}</td>
+                <td style="white-space:nowrap;">
+                    {% if req.status == "pending_approval" %}
+                        <form method="post" action="{% url 'finance:payout_request_approve' req.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-primary" title="Approve">Approve</button>
+                        </form>
+                        <form method="post" action="{% url 'finance:payout_request_reject' req.pk %}" style="display:inline;" onsubmit="var r=prompt('Reason for rejection (optional):'); if(r===null) return false; this.querySelector('[name=reason]').value=r;">
+                            {% csrf_token %}
+                            <input type="hidden" name="reason" value="">
+                            <button type="submit" class="btn btn-sm btn-secondary" title="Reject">Reject</button>
+                        </form>
+                    {% endif %}
+                    {% if req.status == "approved" %}
+                        <form method="post" action="{% url 'finance:payout_request_reserve' req.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-primary" title="Reserve funds">Reserve Funds</button>
+                        </form>
+                    {% endif %}
+                    {% if req.status == "pending_approval" or req.status == "approved" or req.status == "funds_reserved" %}
+                        <form method="post" action="{% url 'finance:payout_request_cancel' req.pk %}" style="display:inline;" onsubmit="var r=prompt('Reason for cancellation (optional):'); if(r===null) return false; this.querySelector('[name=reason]').value=r;">
+                            {% csrf_token %}
+                            <input type="hidden" name="reason" value="">
+                            <button type="submit" class="btn btn-sm btn-secondary" title="Cancel">Cancel</button>
+                        </form>
+                    {% endif %}
+                    {% if req.status == "funds_reserved" %}
+                        <span style="font-size:0.8rem; color:#7c3aed;">Awaiting execution (not yet enabled)</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% if req.rejection_reason %}
+            <tr><td colspan="10" style="color:#dc2626; font-size:0.85rem; padding-left:2rem;">Rejection: {{ req.rejection_reason }}</td></tr>
+            {% endif %}
+            {% if req.cancellation_reason %}
+            <tr><td colspan="10" style="color:#6b7280; font-size:0.85rem; padding-left:2rem;">Cancelled: {{ req.cancellation_reason }}</td></tr>
+            {% endif %}
+            {% if req.failure_reason %}
+            <tr><td colspan="10" style="color:#dc2626; font-size:0.85rem; padding-left:2rem;">Failure: {{ req.failure_reason }}</td></tr>
+            {% endif %}
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% if requests.has_other_pages %}
+    <div style="margin-top:1rem; display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
+        {% if requests.has_previous %}
+        <a href="?page={{ requests.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn btn-sm btn-secondary">&laquo; Previous</a>
+        {% endif %}
+        <span style="padding:0.35rem 0.75rem; color:#64748b;">Page {{ requests.number }} of {{ requests.paginator.num_pages }}</span>
+        {% if requests.has_next %}
+        <a href="?page={{ requests.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn btn-sm btn-secondary">Next &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <p style="color:#64748b;">No payout requests found{% if status_filter %} for status "{{ status_filter }}"{% endif %}.</p>
+    {% endif %}
+</div>
+
+<div class="content-card" style="margin-top:1.25rem; background:#f8fafc;">
+    <h4 style="margin:0 0 0.5rem;">How payout requests work</h4>
+    <ol style="margin:0; padding-left:1.2rem; color:#64748b; font-size:0.85rem;">
+        <li>A finance manager creates a payout request for a staff member.</li>
+        <li>A <strong>different</strong> school leader reviews and approves (maker-checker).</li>
+        <li>School leadership reserves funds from the school's available balance.</li>
+        <li>Automated execution will be enabled in a future update once all safety controls are in place.</li>
+    </ol>
+</div>
+{% endblock %}

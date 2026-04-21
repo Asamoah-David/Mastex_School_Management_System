@@ -25,6 +25,7 @@
         <a href="{% url 'operations:export_open_fee_balances' %}" class="btn btn-sm btn-secondary" title="Outstanding amounts on open fee lines">Open AR CSV</a>
         {% endif %}
         {% if can_manage_finance %}
+        <a href="{% url 'finance:payout_request_list' %}" class="btn btn-sm {% if ns == 'finance' and rn|default:''|slice:':14' == 'payout_request' %}btn-primary{% else %}btn-secondary{% endif %}">Payout requests</a>
         <a href="{% url 'accounts:staff_payroll_register' %}" class="btn btn-sm {% if ns == 'accounts' and rn == 'staff_payroll_register' %}btn-primary{% else %}btn-secondary{% endif %}">Staff payroll</a>
         <a href="{% url 'accounts:staff_payroll_bulk_record' %}" class="btn btn-sm btn-secondary">Bulk payroll</a>
         <a href="{% url 'operations:export_staff_payroll' %}" class="btn btn-sm btn-secondary">Payroll CSV</a>

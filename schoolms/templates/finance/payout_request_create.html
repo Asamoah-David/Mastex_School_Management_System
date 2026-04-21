@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}New Payout Request{% endblock %}
+{% block page_title %}New Payout Request{% endblock %}
+{% block page_subtitle %}Request a staff payout from school funds{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+
+<div class="content-card" style="margin-bottom:1.25rem;">
+    <strong>Available balance:</strong> <span style="color:#16a34a; font-weight:600;">{{ balance.available_total }}</span> GHS
+    &nbsp;|&nbsp; Reserved: {{ balance.reserved_total }} GHS
+</div>
+
+<div class="content-card" style="max-width:600px;">
+    <h3 style="margin-top:0;">Create Payout Request</h3>
+    <p style="color:#64748b; font-size:0.85rem; margin-bottom:1.25rem;">
+        This request will need approval from a <strong>different</strong> school leader before funds are reserved.
+        Automated execution is not yet enabled.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="staff_user_id">Staff Member <span style="color:red;">*</span></label>
+            <select name="staff_user_id" id="staff_user_id" required style="width:100%; padding:0.5rem;">
+                <option value="">-- Select staff --</option>
+                {% for s in staff_list %}
+                <option value="{{ s.pk }}">{{ s.get_full_name|default:s.username }} ({{ s.get_role_display|default:s.role }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="amount">Amount (GHS) <span style="color:red;">*</span></label>
+            <input type="number" name="amount" id="amount" step="0.01" min="0.01" required style="width:100%; padding:0.5rem;" placeholder="e.g. 1500.00">
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="period_label">Pay Period <span style="color:red;">*</span></label>
+            <input type="text" name="period_label" id="period_label" required style="width:100%; padding:0.5rem;" placeholder="e.g. January 2026, Week 3">
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="route">Payout Route <span style="color:red;">*</span></label>
+            <select name="route" id="route" required style="width:100%; padding:0.5rem;">
+                <option value="">-- Select --</option>
+                <option value="momo">Mobile Money</option>
+                <option value="bank">Bank Transfer</option>
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="reason">Reason / Notes</label>
+            <input type="text" name="reason" id="reason" maxlength="200" style="width:100%; padding:0.5rem;" placeholder="Optional">
+        </div>
+
+        <div class="button-row" style="gap:0.5rem;">
+            <button type="submit" class="btn btn-primary">Submit for Approval</button>
+            <a href="{% url 'finance:payout_request_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

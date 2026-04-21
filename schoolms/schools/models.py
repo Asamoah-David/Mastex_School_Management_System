@@ -24,11 +24,24 @@ class School(models.Model):
     subscription_type = models.CharField(max_length=20, blank=True, default='monthly')  # monthly, yearly
     subscription_amount = models.DecimalField(max_digits=12, decimal_places=2, default=1500, help_text="Monthly subscription fee in GHS")
     
-    # Paystack fields for school fees
-    paystack_subaccount_code = models.CharField(max_length=100, blank=True, null=True, help_text="Paystack subaccount code for receiving school fees")
+    # Paystack fields for school fees (subaccount is created automatically from bank details).
+    paystack_subaccount_code = models.CharField(max_length=100, blank=True, null=True, help_text="Paystack subaccount code (created automatically)")
     paystack_bank_name = models.CharField(max_length=100, blank=True, null=True)
+    paystack_bank_code = models.CharField(max_length=20, blank=True, null=True, help_text="Paystack bank code (from list_banks)")
     paystack_account_number = models.CharField(max_length=20, blank=True, null=True)
     paystack_account_name = models.CharField(max_length=255, blank=True, null=True)
+
+    PAYOUT_SETUP_STATUS_CHOICES = [
+        ("inactive", "Not set up"),
+        ("pending", "Pending verification"),
+        ("active", "Active"),
+        ("failed", "Failed"),
+    ]
+    paystack_subaccount_status = models.CharField(
+        max_length=20, choices=PAYOUT_SETUP_STATUS_CHOICES, default="inactive"
+    )
+    paystack_subaccount_last_error = models.TextField(blank=True, default="")
+    paystack_subaccount_last_synced_at = models.DateTimeField(null=True, blank=True)
 
     logo_url = models.URLField(max_length=500, blank=True)
     academic_year = models.CharField(max_length=50, blank=True)  # e.g. "2024/2025"
@@ -53,6 +66,11 @@ class School(models.Model):
                 return self.subscription_end_date > timezone.now()
             return True
         return False
+
+    @property
+    def is_payout_setup_active(self) -> bool:
+        """School can receive fee payments only when Paystack subaccount is active."""
+        return bool(self.paystack_subaccount_code) and self.paystack_subaccount_status == "active"
 
     @property
     def days_until_expiry(self):

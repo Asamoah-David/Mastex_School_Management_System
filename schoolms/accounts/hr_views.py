@@ -19,6 +19,7 @@ from finance.staff_payroll_paystack import (
     initiate_staff_payroll_paystack_transfer,
     recipient_snapshot_for_route,
     school_staff_paystack_allowed,
+    staff_paystack_school_owned_controls_ready,
     staff_paystack_transfers_enabled,
 )
 
@@ -371,6 +372,8 @@ def staff_payroll_disburse(request, pk: int):
         return redirect("accounts:staff_list")
 
     if request.method == "GET":
+        paystack_global_enabled = staff_paystack_transfers_enabled()
+        paystack_school_owned_ready = staff_paystack_school_owned_controls_ready()
         return render(
             request,
             "accounts/staff_payroll_disburse.html",
@@ -378,7 +381,8 @@ def staff_payroll_disburse(request, pk: int):
                 "staff": staff,
                 "school": school,
                 "paystack_staff_enabled": school_staff_paystack_allowed(request),
-                "paystack_globally_configured": staff_paystack_transfers_enabled(),
+                "paystack_globally_configured": paystack_global_enabled,
+                "paystack_school_owned_ready": paystack_school_owned_ready,
                 "paystack_currency": getattr(settings, "PAYSTACK_CURRENCY", "GHS"),
             },
         )
@@ -420,12 +424,23 @@ def staff_payroll_disburse(request, pk: int):
     method = method_map[mode]
 
     if mode.startswith("paystack_"):
+        if not _require_leadership(request):
+            messages.error(
+                request,
+                "Automated payouts require school leadership approval. Use record-only methods or contact a school leader.",
+            )
+            return redirect("accounts:staff_payroll_disburse", pk=pk)
         if not school_staff_paystack_allowed(request):
             if not staff_paystack_transfers_enabled():
                 messages.error(
                     request,
                     "Paystack staff transfers are disabled. Set PAYSTACK_STAFF_TRANSFERS_ENABLED=1 and ensure PAYSTACK_SECRET_KEY is set. "
-                    "Transfers debit your Paystack merchant balance.",
+                    "Until school-owned payout controls are implemented, keep using record-only payroll methods.",
+                )
+            elif not staff_paystack_school_owned_controls_ready():
+                messages.error(
+                    request,
+                    "Automated payouts are disabled until school-owned funding, reconciliation, and approval controls are fully enabled.",
                 )
             else:
                 messages.error(

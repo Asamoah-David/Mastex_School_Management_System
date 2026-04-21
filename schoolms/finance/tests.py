@@ -262,3 +262,162 @@ class LedgerWriterAndViewsTests(TestCase):
         data = r.json()
         self.assertTrue(data.get("ok"))
         self.assertIn("count", data)
+
+
+# ---------------------------------------------------------------------------
+#  School Funds Ledger — Phase 2 tests
+# ---------------------------------------------------------------------------
+
+class SchoolFundsLedgerTests(TestCase):
+    """Tests for finance.services.school_funds service layer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school_a = School.objects.create(name="Funds School A", subdomain="funds-a")
+        cls.school_b = School.objects.create(name="Funds School B", subdomain="funds-b")
+
+    def test_record_fee_collected_creates_entries_and_updates_balance(self):
+        from finance.services.school_funds import record_fee_collected, get_balance
+        from finance.models import SchoolFundsLedgerEntry
+
+        record_fee_collected(
+            school_id=self.school_a.pk,
+            amount=Decimal("100.00"),
+            reference="REF_LEDGER_001",
+        )
+        bal = get_balance(self.school_a.pk)
+        self.assertEqual(bal["collected_total"], Decimal("100.00"))
+        self.assertEqual(bal["available_total"], Decimal("100.00"))
+
+        entries = SchoolFundsLedgerEntry.objects.filter(
+            school=self.school_a, reference="REF_LEDGER_001"
+        )
+        self.assertEqual(entries.count(), 2)
+        states = set(entries.values_list("state", flat=True))
+        self.assertEqual(states, {"collected", "available"})
+
+    def test_reserve_funds_succeeds_when_sufficient(self):
+        from finance.services.school_funds import record_fee_collected, reserve_funds, get_balance
+
+        record_fee_collected(
+            school_id=self.school_a.pk,
+            amount=Decimal("200.00"),
+            reference="REF_LEDGER_002",
+        )
+        ok = reserve_funds(
+            school_id=self.school_a.pk,
+            amount=Decimal("150.00"),
+            reference="PAYOUT_001",
+        )
+        self.assertTrue(ok)
+        bal = get_balance(self.school_a.pk)
+        self.assertEqual(bal["available_total"], Decimal("50.00"))
+        self.assertEqual(bal["reserved_total"], Decimal("150.00"))
+
+    def test_reserve_funds_fails_when_insufficient(self):
+        from finance.services.school_funds import record_fee_collected, reserve_funds, get_balance
+
+        record_fee_collected(
+            school_id=self.school_b.pk,
+            amount=Decimal("50.00"),
+            reference="REF_LEDGER_003",
+        )
+        ok = reserve_funds(
+            school_id=self.school_b.pk,
+            amount=Decimal("100.00"),
+            reference="PAYOUT_002",
+        )
+        self.assertFalse(ok)
+        bal = get_balance(self.school_b.pk)
+        self.assertEqual(bal["available_total"], Decimal("50.00"))
+        self.assertEqual(bal["reserved_total"], Decimal("0"))
+
+    def test_release_reserved_funds(self):
+        from finance.services.school_funds import (
+            record_fee_collected, reserve_funds,
+            release_reserved_funds, get_balance,
+        )
+
+        record_fee_collected(school_id=self.school_a.pk, amount=Decimal("300.00"), reference="REF_LEDGER_004")
+        reserve_funds(school_id=self.school_a.pk, amount=Decimal("100.00"), reference="PAYOUT_003")
+        release_reserved_funds(school_id=self.school_a.pk, amount=Decimal("100.00"), reference="PAYOUT_003_CANCEL")
+
+        bal = get_balance(self.school_a.pk)
+        self.assertEqual(bal["reserved_total"], Decimal("0"))
+
+    def test_mark_funds_paid_out(self):
+        from finance.services.school_funds import (
+            record_fee_collected, reserve_funds,
+            mark_funds_paid_out, get_balance,
+        )
+
+        record_fee_collected(school_id=self.school_b.pk, amount=Decimal("500.00"), reference="REF_LEDGER_005")
+        reserve_funds(school_id=self.school_b.pk, amount=Decimal("200.00"), reference="PAYOUT_004")
+        mark_funds_paid_out(school_id=self.school_b.pk, amount=Decimal("200.00"), reference="PAYOUT_004_EXEC")
+
+        bal = get_balance(self.school_b.pk)
+        self.assertEqual(bal["reserved_total"], Decimal("0"))
+        self.assertEqual(bal["paid_out_total"], Decimal("200.00"))
+        self.assertEqual(bal["available_total"], Decimal("300.00"))
+
+    def test_cross_school_isolation(self):
+        from finance.services.school_funds import record_fee_collected, get_balance
+
+        record_fee_collected(school_id=self.school_a.pk, amount=Decimal("1000.00"), reference="REF_ISO_A")
+        record_fee_collected(school_id=self.school_b.pk, amount=Decimal("50.00"), reference="REF_ISO_B")
+
+        bal_a = get_balance(self.school_a.pk)
+        bal_b = get_balance(self.school_b.pk)
+
+        # Each school has only its own funds
+        self.assertGreaterEqual(bal_a["collected_total"], Decimal("1000.00"))
+        self.assertLessEqual(bal_b["collected_total"], Decimal("550.00"))  # school_b's total across all tests
+
+    def test_zero_amount_is_ignored(self):
+        from finance.services.school_funds import record_fee_collected, get_balance
+        from finance.models import SchoolFundsLedgerEntry
+
+        before = SchoolFundsLedgerEntry.objects.filter(school=self.school_a).count()
+        record_fee_collected(school_id=self.school_a.pk, amount=Decimal("0"), reference="REF_ZERO")
+        after = SchoolFundsLedgerEntry.objects.filter(school=self.school_a).count()
+        self.assertEqual(before, after)
+
+    def test_negative_amount_is_ignored(self):
+        from finance.services.school_funds import record_fee_collected
+        from finance.models import SchoolFundsLedgerEntry
+
+        before = SchoolFundsLedgerEntry.objects.filter(school=self.school_a).count()
+        record_fee_collected(school_id=self.school_a.pk, amount=Decimal("-10"), reference="REF_NEG")
+        after = SchoolFundsLedgerEntry.objects.filter(school=self.school_a).count()
+        self.assertEqual(before, after)
+
+    def test_ledger_entry_is_append_only(self):
+        from finance.services.school_funds import record_fee_collected
+        from finance.models import SchoolFundsLedgerEntry
+
+        record_fee_collected(school_id=self.school_a.pk, amount=Decimal("10"), reference="REF_APPEND")
+        entry = SchoolFundsLedgerEntry.objects.filter(reference="REF_APPEND").first()
+        self.assertIsNotNone(entry)
+
+        with self.assertRaises(ValueError):
+            entry.description = "tampered"
+            entry.save()
+
+        with self.assertRaises(ValueError):
+            entry.delete()
+
+    def test_rebuild_balance_from_ledger(self):
+        from finance.services.school_funds import (
+            record_fee_collected, reserve_funds,
+            rebuild_balance_from_ledger, get_balance,
+        )
+
+        record_fee_collected(school_id=self.school_a.pk, amount=Decimal("400.00"), reference="REF_REBUILD_1")
+        reserve_funds(school_id=self.school_a.pk, amount=Decimal("50.00"), reference="REF_REBUILD_RES")
+
+        totals = rebuild_balance_from_ledger(self.school_a.pk)
+        bal = get_balance(self.school_a.pk)
+
+        # After rebuild, balance should reflect all entries from all tests for school_a
+        self.assertGreaterEqual(bal["collected_total"], Decimal("400.00"))
+        self.assertIsNotNone(bal["last_reconciled_at"])

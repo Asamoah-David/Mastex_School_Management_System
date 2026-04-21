@@ -7,14 +7,16 @@
 <div class="content-card" style="margin-bottom:1rem;">
     <p style="margin:0; font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
         Record how the school paid this person. <strong>Cash, bank, cheque, and “MoMo recorded”</strong> are ledger entries only (money moved outside the app).
-        <strong>Paystack</strong> sends money from your <strong>Paystack merchant balance</strong> to the staff MoMo or bank account you saved on their profile — enable with <code>PAYSTACK_STAFF_TRANSFERS_ENABLED=1</code> and ensure transfers are allowed on your Paystack account.
+        <strong>Automated payout</strong> is only available when strict school-owned funding controls are enabled. Until then, use record-only methods.
     </p>
     {% if not paystack_staff_enabled %}
     <p style="margin:0.75rem 0 0; font-size:0.85rem; color:#fbbf24;">
-        {% if paystack_globally_configured %}
-        Paystack payouts are <strong>off for your school</strong> (school feature). Offline methods below still work.
-        {% else %}
+        {% if not paystack_globally_configured %}
         Paystack payouts are currently <strong>disabled</strong> (environment / merchant settings). Offline methods below still work.
+        {% elif not paystack_school_owned_ready %}
+        Automated payouts are <strong>disabled</strong> until school-owned funding and reconciliation controls are fully enabled.
+        {% else %}
+        Paystack payouts are <strong>off for your school</strong> (school feature). Offline methods below still work.
         {% endif %}
     </p>
     {% endif %}

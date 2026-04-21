@@ -52,4 +52,13 @@ urlpatterns = [
     
     # Subscription cron endpoint (for Railway/external cron services)
     path("run-subscription-check/", views.run_subscription_check, name="run_subscription_check"),
+
+    # Staff payout requests (maker-checker workflow)
+    path("payouts/", views.payout_request_list, name="payout_request_list"),
+    path("payouts/create/", views.payout_request_create, name="payout_request_create"),
+    path("payouts/<int:pk>/", views.payout_request_detail, name="payout_request_detail"),
+    path("payouts/<int:pk>/approve/", views.payout_request_approve, name="payout_request_approve"),
+    path("payouts/<int:pk>/reserve/", views.payout_request_reserve, name="payout_request_reserve"),
+    path("payouts/<int:pk>/reject/", views.payout_request_reject, name="payout_request_reject"),
+    path("payouts/<int:pk>/cancel/", views.payout_request_cancel, name="payout_request_cancel"),
 ]

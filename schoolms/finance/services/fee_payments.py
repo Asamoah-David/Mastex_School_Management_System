@@ -73,6 +73,55 @@ def complete_fee_payment(*, fee_id: int, reference: str, paid_amount, paystack_i
             },
         )
 
+        # Phase 2: record in school funds ledger (best-effort, nested savepoint)
+        try:
+            with transaction.atomic():
+                from finance.services.school_funds import (
+                    _get_or_create_balance,
+                    _create_entry,
+                )
+
+                _amt = credit.quantize(Decimal("0.01")) if credit > 0 else None
+                if _amt and _amt > 0:
+                    _bal = _get_or_create_balance(pending.fee.school_id)
+                    _cur = currency_code()
+                    _meta = {
+                        "fee_id": pending.fee_id,
+                        "fee_payment_id": pending.pk,
+                        "channel": channel,
+                    }
+                    _create_entry(
+                        school_id=pending.fee.school_id,
+                        amount=_amt,
+                        direction="credit",
+                        state="collected",
+                        source_type="fee_payment",
+                        reference=reference,
+                        description=f"Fee payment #{pending.pk} for fee #{pending.fee_id}",
+                        currency=_cur,
+                        metadata=_meta,
+                    )
+                    _create_entry(
+                        school_id=pending.fee.school_id,
+                        amount=_amt,
+                        direction="credit",
+                        state="available",
+                        source_type="settlement",
+                        reference=reference,
+                        description="Auto-available (settlement reconciliation pending)",
+                        currency=_cur,
+                        metadata=_meta,
+                    )
+                    _bal.collected_total = models.F("collected_total") + _amt
+                    _bal.available_total = models.F("available_total") + _amt
+                    _bal.save(update_fields=["collected_total", "available_total", "updated_at"])
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "school_funds ledger write failed ref=%s fee_id=%s (non-fatal, savepoint rolled back)",
+                reference, pending.fee_id,
+            )
+
         Fee.objects.filter(id=fee_id).update(amount_paid=models.F("amount_paid") + credit)
         fee.refresh_from_db(fields=["amount_paid"])
         fee.save()

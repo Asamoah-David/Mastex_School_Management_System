@@ -18,12 +18,22 @@ def staff_paystack_transfers_enabled() -> bool:
     )
 
 
+def staff_paystack_school_owned_controls_ready() -> bool:
+    """
+    Safety gate for automated payouts.
+    Keep False until school-owned funding controls and reconciliation are live.
+    """
+    return bool(getattr(settings, "PAYSTACK_STAFF_SCHOOL_OWNED_PAYOUTS_READY", False))
+
+
 def school_staff_paystack_allowed(request) -> bool:
     """
     Global Paystack settings must be on; school feature `staff_paystack_transfers` can opt out.
     Missing feature row defaults to enabled (see schools.features.is_feature_enabled).
     """
     if not staff_paystack_transfers_enabled():
+        return False
+    if not staff_paystack_school_owned_controls_ready():
         return False
     from schools.features import is_feature_enabled
 

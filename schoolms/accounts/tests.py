@@ -162,6 +162,12 @@ class StaffPayrollDisburseTests(TestCase):
             school=cls.school,
             role="teacher",
         )
+        cls.school_admin = User.objects.create_user(
+            username="pay_school_admin",
+            password="pass12345",
+            school=cls.school,
+            role="school_admin",
+        )
 
     def setUp(self):
         self.client = Client()
@@ -192,7 +198,11 @@ class StaffPayrollDisburseTests(TestCase):
         self.assertEqual(p.paystack_status, "")
         self.assertEqual(p.school, self.school)
 
-    @override_settings(PAYSTACK_SECRET_KEY="sk_test_dummy", PAYSTACK_STAFF_TRANSFERS_ENABLED=True)
+    @override_settings(
+        PAYSTACK_SECRET_KEY="sk_test_dummy",
+        PAYSTACK_STAFF_TRANSFERS_ENABLED=True,
+        PAYSTACK_STAFF_SCHOOL_OWNED_PAYOUTS_READY=True,
+    )
     @patch("finance.staff_payroll_paystack.paystack_service.initiate_transfer")
     @patch("finance.staff_payroll_paystack.paystack_service.create_transfer_recipient")
     def test_paystack_momo_queues_transfer(self, mock_recipient, mock_transfer):
@@ -206,7 +216,7 @@ class StaffPayrollDisburseTests(TestCase):
         self.teacher.save(
             update_fields=["payroll_momo_number", "payroll_momo_network"]
         )
-        self.client.login(username="pay_acct", password="pass12345")
+        self.client.login(username="pay_school_admin", password="pass12345")
         url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
         r = self.client.post(
             url,
@@ -226,7 +236,11 @@ class StaffPayrollDisburseTests(TestCase):
         self.assertTrue(p.reference.startswith("STF"))
         mock_transfer.assert_called_once()
 
-    @override_settings(PAYSTACK_SECRET_KEY="sk_test_dummy", PAYSTACK_STAFF_TRANSFERS_ENABLED=True)
+    @override_settings(
+        PAYSTACK_SECRET_KEY="sk_test_dummy",
+        PAYSTACK_STAFF_TRANSFERS_ENABLED=True,
+        PAYSTACK_STAFF_SCHOOL_OWNED_PAYOUTS_READY=True,
+    )
     @patch("finance.staff_payroll_paystack.paystack_service.initiate_transfer")
     def test_paystack_blocked_when_school_feature_disabled(self, mock_transfer):
         SchoolFeature.objects.create(
@@ -235,7 +249,7 @@ class StaffPayrollDisburseTests(TestCase):
         self.teacher.payroll_momo_number = "0244000000"
         self.teacher.payroll_momo_network = "MTN"
         self.teacher.save(update_fields=["payroll_momo_number", "payroll_momo_network"])
-        self.client.login(username="pay_acct", password="pass12345")
+        self.client.login(username="pay_school_admin", password="pass12345")
         url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
         self.client.post(
             url,
@@ -251,6 +265,64 @@ class StaffPayrollDisburseTests(TestCase):
         self.assertFalse(
             StaffPayrollPayment.objects.filter(
                 user=self.teacher, period_label="March 2026"
+            ).exists()
+        )
+
+    @override_settings(
+        PAYSTACK_SECRET_KEY="sk_test_dummy",
+        PAYSTACK_STAFF_TRANSFERS_ENABLED=True,
+        PAYSTACK_STAFF_SCHOOL_OWNED_PAYOUTS_READY=True,
+    )
+    @patch("finance.staff_payroll_paystack.paystack_service.initiate_transfer")
+    def test_paystack_blocked_for_non_leadership_user(self, mock_transfer):
+        self.teacher.payroll_momo_number = "0244000000"
+        self.teacher.payroll_momo_network = "MTN"
+        self.teacher.save(update_fields=["payroll_momo_number", "payroll_momo_network"])
+        self.client.login(username="pay_acct", password="pass12345")
+        url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
+        self.client.post(
+            url,
+            {
+                "disbursement_mode": "paystack_momo",
+                "period_label": "April 2026",
+                "paid_on": "2026-04-01",
+                "amount": "50.00",
+                "currency": "GHS",
+            },
+        )
+        mock_transfer.assert_not_called()
+        self.assertFalse(
+            StaffPayrollPayment.objects.filter(
+                user=self.teacher, period_label="April 2026"
+            ).exists()
+        )
+
+    @override_settings(
+        PAYSTACK_SECRET_KEY="sk_test_dummy",
+        PAYSTACK_STAFF_TRANSFERS_ENABLED=True,
+        PAYSTACK_STAFF_SCHOOL_OWNED_PAYOUTS_READY=False,
+    )
+    @patch("finance.staff_payroll_paystack.paystack_service.initiate_transfer")
+    def test_paystack_blocked_when_school_owned_controls_not_ready(self, mock_transfer):
+        self.teacher.payroll_momo_number = "0244000000"
+        self.teacher.payroll_momo_network = "MTN"
+        self.teacher.save(update_fields=["payroll_momo_number", "payroll_momo_network"])
+        self.client.login(username="pay_school_admin", password="pass12345")
+        url = reverse("accounts:staff_payroll_disburse", args=[self.teacher.pk])
+        self.client.post(
+            url,
+            {
+                "disbursement_mode": "paystack_momo",
+                "period_label": "May 2026",
+                "paid_on": "2026-05-01",
+                "amount": "50.00",
+                "currency": "GHS",
+            },
+        )
+        mock_transfer.assert_not_called()
+        self.assertFalse(
+            StaffPayrollPayment.objects.filter(
+                user=self.teacher, period_label="May 2026"
             ).exists()
         )
 

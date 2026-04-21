@@ -374,6 +374,8 @@ PAYSTACK_PASS_FEE_TO_PAYER = env_bool("PAYSTACK_PASS_FEE_TO_PAYER", True)
 PAYSTACK_PROCESSING_FEE_PERCENT = env_float("PAYSTACK_PROCESSING_FEE_PERCENT", 1.95)
 # Outgoing staff salary transfers via Paystack (debits Paystack merchant balance, not subaccounts).
 PAYSTACK_STAFF_TRANSFERS_ENABLED = env_bool("PAYSTACK_STAFF_TRANSFERS_ENABLED", False)
+# Keep automated staff payouts off unless school-owned funding controls are implemented and validated.
+PAYSTACK_STAFF_SCHOOL_OWNED_PAYOUTS_READY = env_bool("PAYSTACK_STAFF_SCHOOL_OWNED_PAYOUTS_READY", False)
 
 # Days after subscription_end_date before school users are fully locked out (per-school override on School.subscription_grace_days).
 SUBSCRIPTION_DEFAULT_GRACE_DAYS = int(env("SUBSCRIPTION_DEFAULT_GRACE_DAYS", "7"))

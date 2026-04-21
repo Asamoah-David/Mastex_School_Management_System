@@ -236,6 +236,60 @@ class PaystackService:
         ).hexdigest()
         return hmac.compare_digest(expected_signature, signature)
 
+    def list_banks(self, *, country: str = "ghana", currency: str | None = None):
+        """List Paystack-supported banks (for building the bank-code dropdown)."""
+        params = {"country": country, "perPage": 100}
+        if currency:
+            params["currency"] = currency
+        try:
+            response = requests.get(
+                f"{self.base_url}/bank",
+                params=params,
+                headers=self._get_headers(),
+                timeout=30,
+            )
+            return response.json()
+        except Exception as e:
+            return {"status": False, "message": str(e)}
+
+    def create_subaccount(
+        self,
+        *,
+        business_name: str,
+        settlement_bank: str,
+        account_number: str,
+        percentage_charge: float = 0.0,
+        primary_contact_email: str | None = None,
+        primary_contact_name: str | None = None,
+        primary_contact_phone: str | None = None,
+        metadata: dict | None = None,
+    ):
+        """Create a Paystack subaccount for a school. `settlement_bank` is the Paystack bank code."""
+        body = {
+            "business_name": (business_name or "").strip()[:200],
+            "settlement_bank": str(settlement_bank).strip(),
+            "account_number": str(account_number).strip(),
+            "percentage_charge": float(percentage_charge or 0),
+        }
+        if primary_contact_email:
+            body["primary_contact_email"] = primary_contact_email.strip()[:200]
+        if primary_contact_name:
+            body["primary_contact_name"] = primary_contact_name.strip()[:200]
+        if primary_contact_phone:
+            body["primary_contact_phone"] = primary_contact_phone.strip()[:30]
+        if metadata:
+            body["metadata"] = metadata
+        try:
+            response = requests.post(
+                f"{self.base_url}/subaccount",
+                json=body,
+                headers=self._get_headers(),
+                timeout=45,
+            )
+            return response.json()
+        except Exception as e:
+            return {"status": False, "message": str(e)}
+
     def create_transfer_recipient(
         self,
         *,

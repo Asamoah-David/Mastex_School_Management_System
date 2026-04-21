@@ -7,6 +7,8 @@ from decimal import Decimal
 
 from django.db.models import Sum, Q, Count
 from django.contrib.auth.hashers import make_password
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.urls import reverse
@@ -1007,18 +1009,32 @@ def staff_register(request):
             elif User.objects.filter(email=email).exists():
                 messages.error(request, "That email is already in use.")
             else:
-                User.objects.create(
-                    username=username,
-                    email=email,
-                    first_name=first_name,
-                    last_name=last_name,
-                    password=make_password(password),
-                    role=role,
-                    school=school,
-                    phone=phone,
-                )
-                messages.success(request, "Staff account created.")
-                return redirect("accounts:staff_list")
+                try:
+                    validate_password(
+                        password,
+                        user=User(
+                            username=username,
+                            email=email,
+                            first_name=first_name,
+                            last_name=last_name,
+                        ),
+                    )
+                except ValidationError as e:
+                    for msg in e.messages:
+                        messages.error(request, msg)
+                else:
+                    User.objects.create_user(
+                        username=username,
+                        email=email,
+                        first_name=first_name,
+                        last_name=last_name,
+                        password=password,
+                        role=role,
+                        school=school,
+                        phone=phone,
+                    )
+                    messages.success(request, "Staff account created.")
+                    return redirect("accounts:staff_list")
         elif request.method == "POST":
             messages.error(request, "Please fill all required fields or select a valid role.")
     return render(request, "accounts/staff_register.html", {"school": school})
