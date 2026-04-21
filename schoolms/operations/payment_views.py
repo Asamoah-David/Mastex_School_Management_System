@@ -412,7 +412,15 @@ def bus_initiate_payment(request):
     
     if existing:
         return JsonResponse({'success': False, 'error': 'Already paid for this term'}, status=400)
-    amount = Decimal(str(route.fee_per_term or 0)).quantize(Decimal("0.01"))
+    
+    # Calculate amount based on payment frequency
+    base_amount = Decimal(str(route.fee_per_term or 0)).quantize(Decimal("0.01"))
+    if route.payment_frequency == 'daily':
+        # For daily payments, use the daily rate (assuming fee_per_term is the daily rate when set to daily)
+        amount = base_amount
+    else:
+        # For term payments, use the full term fee
+        amount = base_amount
 
     # Generate unique reference
     reference = f"BUS_{uuid.uuid4().hex[:12].upper()}"

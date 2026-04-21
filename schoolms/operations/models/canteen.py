@@ -6,8 +6,18 @@ from django.core.exceptions import ValidationError
 
 
 class CanteenItem(models.Model):
+    CATEGORY_CHOICES = [
+        ('breakfast', 'Breakfast'),
+        ('lunch', 'Lunch'),
+        ('snacks', 'Snacks'),
+        ('beverages', 'Beverages'),
+        ('other', 'Other'),
+    ]
+    
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     is_available = models.BooleanField(default=True)
 

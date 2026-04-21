@@ -6,9 +6,15 @@ from django.core.exceptions import ValidationError
 
 
 class BusRoute(models.Model):
+    PAYMENT_FREQUENCY_CHOICES = [
+        ('term', 'Per Term'),
+        ('daily', 'Daily'),
+    ]
+    
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)  # e.g. "Route A - North"
     fee_per_term = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    payment_frequency = models.CharField(max_length=10, choices=PAYMENT_FREQUENCY_CHOICES, default='term')
 
     def __str__(self):
         return f"{self.name} - {self.school.name}"
@@ -57,9 +63,13 @@ class BusPayment(models.Model):
 class Textbook(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
+    author = models.CharField(max_length=200, blank=True)
+    isbn = models.CharField(max_length=20, blank=True)
+    subject = models.CharField(max_length=100, blank=True)
+    class_level = models.CharField(max_length=50, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveIntegerField(default=0)
-    isbn = models.CharField(max_length=20, blank=True)
+    publisher = models.CharField(max_length=200, blank=True)
 
     def __str__(self):
         return f"{self.title} - {self.school.name}"

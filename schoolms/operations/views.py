@@ -320,6 +320,8 @@ def canteen_create(request):
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         price = request.POST.get("price")
+        description = request.POST.get("description", "").strip()
+        category = request.POST.get("category", "").strip()
         is_available = request.POST.get("is_available") == "on"
         
         if name and price:
@@ -328,13 +330,16 @@ def canteen_create(request):
                     school=school,
                     name=name,
                     price=price,
+                    description=description,
+                    category=category,
                     is_available=is_available
                 )
                 from django.contrib import messages
                 messages.success(request, "Canteen item created successfully!")
                 return redirect("operations:canteen_list")
-            except ValueError:
-                pass
+            except Exception as e:
+                from django.contrib import messages
+                messages.error(request, f"Error creating canteen item: {e}")
     
     return render(request, "operations/canteen_form.html", {"school": school})
 
@@ -375,24 +380,29 @@ def bus_create(request):
     ):
         return redirect("operations:bus_list")
     
+    error = None
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         fee_per_term = request.POST.get("fee_per_term")
+        payment_frequency = request.POST.get("payment_frequency", "term")
         
         if name and fee_per_term:
             try:
                 BusRoute.objects.create(
                     school=school,
                     name=name,
-                    fee_per_term=fee_per_term
+                    fee_per_term=fee_per_term,
+                    payment_frequency=payment_frequency
                 )
                 from django.contrib import messages
                 messages.success(request, "Bus route created successfully!")
                 return redirect("operations:bus_list")
-            except ValueError:
-                pass
+            except Exception as e:
+                error = str(e)
+        else:
+            error = "Route name and fee are required."
     
-    return render(request, "operations/bus_form.html", {"school": school})
+    return render(request, "operations/bus_form.html", {"school": school, "error": error})
 
 
 @login_required
@@ -476,24 +486,33 @@ def textbook_create(request):
     
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
+        author = request.POST.get("author", "").strip()
+        isbn = request.POST.get("isbn", "").strip()
+        subject = request.POST.get("subject", "").strip()
+        class_level = request.POST.get("class_level", "").strip()
         price = request.POST.get("price")
         stock = request.POST.get("stock", 0)
-        isbn = request.POST.get("isbn", "").strip()
+        publisher = request.POST.get("publisher", "").strip()
         
         if title and price:
             try:
                 Textbook.objects.create(
                     school=school,
                     title=title,
+                    author=author,
+                    isbn=isbn,
+                    subject=subject,
+                    class_level=class_level,
                     price=price,
                     stock=stock or 0,
-                    isbn=isbn
+                    publisher=publisher
                 )
                 from django.contrib import messages
                 messages.success(request, "Textbook created successfully!")
                 return redirect("operations:textbook_list")
-            except ValueError:
-                pass
+            except Exception as e:
+                from django.contrib import messages
+                messages.error(request, f"Error creating textbook: {e}")
     
     return render(request, "operations/textbook_form.html", {"school": school})
 
