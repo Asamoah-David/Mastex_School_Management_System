@@ -6,31 +6,31 @@
 {% block content %}
 {% include "includes/finance_subnav.html" %}
 
-<div class="content-card" style="margin-bottom:1.25rem;">
-    <a href="{% url 'finance:payout_request_list' %}" style="color:#2563eb;">&larr; Back to list</a>
+<div class="content-card erp-mb-lg">
+    <a href="{% url 'finance:payout_request_list' %}">&larr; Back to list</a>
 </div>
 
-<div class="content-card" style="margin-bottom:1.25rem;">
-    <h3 style="margin-top:0;">Request Summary</h3>
-    <table style="width:100%; max-width:600px; border-collapse:collapse;">
-        <tr><td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Reference</td><td><code>{{ req.reference }}</code></td></tr>
-        <tr><td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Staff Member</td><td>{{ req.staff_user.get_full_name|default:req.staff_user.username }}</td></tr>
-        <tr><td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Amount</td><td>{{ req.amount }} {{ req.currency }}</td></tr>
-        <tr><td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Period</td><td>{{ req.period_label }}</td></tr>
-        <tr><td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Route</td><td>{{ req.get_route_display }}</td></tr>
-        <tr><td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Recipient</td><td>{{ req.recipient_snapshot|default:"-" }}</td></tr>
-        {% if req.reason %}<tr><td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Reason</td><td>{{ req.reason }}</td></tr>{% endif %}
+<div class="content-card erp-mb-lg">
+    <h3 class="erp-title-tight">Request Summary</h3>
+    <table class="erp-detail-table erp-detail-table--compact">
+        <tr><td class="erp-detail-label">Reference</td><td><code>{{ req.reference }}</code></td></tr>
+        <tr><td class="erp-detail-label">Staff Member</td><td>{{ req.staff_user.get_full_name|default:req.staff_user.username }}</td></tr>
+        <tr><td class="erp-detail-label">Amount</td><td>{{ req.amount }} {{ req.currency }}</td></tr>
+        <tr><td class="erp-detail-label">Period</td><td>{{ req.period_label }}</td></tr>
+        <tr><td class="erp-detail-label">Route</td><td>{{ req.get_route_display }}</td></tr>
+        <tr><td class="erp-detail-label">Recipient</td><td>{{ req.recipient_snapshot|default:"-" }}</td></tr>
+        {% if req.reason %}<tr><td class="erp-detail-label">Reason</td><td>{{ req.reason }}</td></tr>{% endif %}
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Status</td>
+            <td class="erp-detail-label">Status</td>
             <td>
-                {% if req.status == "pending_approval" %}<span style="color:#d97706; font-weight:600;">Pending Approval</span>
-                {% elif req.status == "approved" %}<span style="color:#2563eb; font-weight:600;">Approved</span>
-                {% elif req.status == "funds_reserved" %}<span style="color:#7c3aed; font-weight:600;">Funds Reserved</span>
-                {% elif req.status == "completed" %}<span style="color:#16a34a; font-weight:600;">Completed</span>
-                {% elif req.status == "rejected" %}<span style="color:#dc2626; font-weight:600;">Rejected</span>
-                {% elif req.status == "cancelled" %}<span style="color:#6b7280; font-weight:600;">Cancelled</span>
-                {% elif req.status == "failed" %}<span style="color:#dc2626; font-weight:600;">Failed</span>
-                {% elif req.status == "executing" %}<span style="color:#d97706; font-weight:600;">Executing</span>
+                {% if req.status == "pending_approval" %}<span class="erp-status-warning">Pending Approval</span>
+                {% elif req.status == "approved" %}<span class="erp-status-info">Approved</span>
+                {% elif req.status == "funds_reserved" %}<span class="erp-status-accent">Funds Reserved</span>
+                {% elif req.status == "completed" %}<span class="erp-status-positive">Completed</span>
+                {% elif req.status == "rejected" %}<span class="erp-status-danger">Rejected</span>
+                {% elif req.status == "cancelled" %}<span class="erp-status-muted">Cancelled</span>
+                {% elif req.status == "failed" %}<span class="erp-status-danger">Failed</span>
+                {% elif req.status == "executing" %}<span class="erp-status-warning">Executing</span>
                 {% else %}{{ req.get_status_display }}
                 {% endif %}
             </td>
@@ -38,70 +38,70 @@
     </table>
 </div>
 
-<div class="content-card" style="margin-bottom:1.25rem;">
-    <h3 style="margin-top:0;">Audit Trail</h3>
-    <table style="width:100%; max-width:700px; border-collapse:collapse;">
+<div class="content-card erp-mb-lg">
+    <h3 class="erp-title-tight">Audit Trail</h3>
+    <table class="erp-detail-table">
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Requested by</td>
+            <td class="erp-detail-label">Requested by</td>
             <td>{{ req.requested_by.get_full_name|default:req.requested_by.username|default:"-" }}</td>
-            <td style="color:#64748b;">{{ req.requested_at|date:"d M Y H:i" }}</td>
+            <td class="erp-detail-meta">{{ req.requested_at|date:"d M Y H:i" }}</td>
         </tr>
         {% if req.approved_by %}
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Approved by</td>
+            <td class="erp-detail-label">Approved by</td>
             <td>{{ req.approved_by.get_full_name|default:req.approved_by.username }}</td>
-            <td style="color:#64748b;">{{ req.approved_at|date:"d M Y H:i"|default:"-" }}</td>
+            <td class="erp-detail-meta">{{ req.approved_at|date:"d M Y H:i"|default:"-" }}</td>
         </tr>
         {% endif %}
         {% if req.funds_reserved_at %}
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#64748b;">Funds reserved</td>
+            <td class="erp-detail-label">Funds reserved</td>
             <td>Ledger ref: <code>{{ req.ledger_reference }}</code></td>
-            <td style="color:#64748b;">{{ req.funds_reserved_at|date:"d M Y H:i" }}</td>
+            <td class="erp-detail-meta">{{ req.funds_reserved_at|date:"d M Y H:i" }}</td>
         </tr>
         {% endif %}
         {% if req.rejected_by %}
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#dc2626;">Rejected by</td>
+            <td class="erp-detail-label erp-note-danger">Rejected by</td>
             <td>{{ req.rejected_by.get_full_name|default:req.rejected_by.username }}</td>
-            <td style="color:#64748b;">{{ req.rejected_at|date:"d M Y H:i"|default:"-" }}</td>
+            <td class="erp-detail-meta">{{ req.rejected_at|date:"d M Y H:i"|default:"-" }}</td>
         </tr>
         {% if req.rejection_reason %}
-        <tr><td></td><td colspan="2" style="color:#dc2626; font-size:0.85rem;">{{ req.rejection_reason }}</td></tr>
+        <tr><td></td><td colspan="2" class="erp-note-danger erp-text-sm">{{ req.rejection_reason }}</td></tr>
         {% endif %}
         {% endif %}
         {% if req.cancelled_by %}
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#6b7280;">Cancelled by</td>
+            <td class="erp-detail-label erp-note-muted">Cancelled by</td>
             <td>{{ req.cancelled_by.get_full_name|default:req.cancelled_by.username }}</td>
-            <td style="color:#64748b;">{{ req.cancelled_at|date:"d M Y H:i"|default:"-" }}</td>
+            <td class="erp-detail-meta">{{ req.cancelled_at|date:"d M Y H:i"|default:"-" }}</td>
         </tr>
         {% if req.cancellation_reason %}
-        <tr><td></td><td colspan="2" style="color:#6b7280; font-size:0.85rem;">{{ req.cancellation_reason }}</td></tr>
+        <tr><td></td><td colspan="2" class="erp-note-muted erp-text-sm">{{ req.cancellation_reason }}</td></tr>
         {% endif %}
         {% endif %}
         {% if req.completed_at %}
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#16a34a;">Completed</td>
+            <td class="erp-detail-label erp-status-positive">Completed</td>
             <td></td>
-            <td style="color:#64748b;">{{ req.completed_at|date:"d M Y H:i" }}</td>
+            <td class="erp-detail-meta">{{ req.completed_at|date:"d M Y H:i" }}</td>
         </tr>
         {% endif %}
         {% if req.failed_at %}
         <tr>
-            <td style="padding:0.35rem 1rem 0.35rem 0; font-weight:600; color:#dc2626;">Failed</td>
-            <td colspan="2" style="color:#dc2626; font-size:0.85rem;">{{ req.failure_reason|default:"-" }}</td>
+            <td class="erp-detail-label erp-note-danger">Failed</td>
+            <td colspan="2" class="erp-note-danger erp-text-sm">{{ req.failure_reason|default:"-" }}</td>
         </tr>
-        <tr><td></td><td></td><td style="color:#64748b;">{{ req.failed_at|date:"d M Y H:i" }}</td></tr>
+        <tr><td></td><td></td><td class="erp-detail-meta">{{ req.failed_at|date:"d M Y H:i" }}</td></tr>
         {% endif %}
     </table>
 </div>
 
 {% if ledger_entries %}
-<div class="content-card" style="margin-bottom:1.25rem;">
-    <h3 style="margin-top:0;">Ledger Entries</h3>
-    <div style="overflow-x:auto;">
-    <table class="data-table" style="width:100%;">
+<div class="content-card erp-mb-lg">
+    <h3 class="erp-title-tight">Ledger Entries</h3>
+    <div class="table-scroll">
+    <table class="data-table">
         <thead>
             <tr>
                 <th>Time</th>
@@ -118,9 +118,9 @@
                 <td>{{ entry.created_at|date:"d M Y H:i:s" }}</td>
                 <td>{{ entry.direction }}</td>
                 <td>{{ entry.get_state_display }}</td>
-                <td style="text-align:right;">{{ entry.amount }} {{ entry.currency }}</td>
+                <td class="erp-text-right">{{ entry.amount }} {{ entry.currency }}</td>
                 <td>{{ entry.get_source_type_display }}</td>
-                <td style="color:#64748b; font-size:0.85rem;">{{ entry.description }}</td>
+                <td class="erp-status-muted erp-text-sm">{{ entry.description }}</td>
             </tr>
         {% endfor %}
         </tbody>
@@ -130,37 +130,37 @@
 {% endif %}
 
 <div class="content-card">
-    <h3 style="margin-top:0;">Actions</h3>
-    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <h3 class="erp-title-tight">Actions</h3>
+    <div class="erp-actions-row">
         {% if req.status == "pending_approval" %}
-            <form method="post" action="{% url 'finance:payout_request_approve' req.pk %}" style="display:inline;">
+            <form method="post" action="{% url 'finance:payout_request_approve' req.pk %}" class="erp-inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary">Approve</button>
             </form>
-            <form method="post" action="{% url 'finance:payout_request_reject' req.pk %}" style="display:inline;" onsubmit="var r=prompt('Reason for rejection (optional):'); if(r===null) return false; this.querySelector('[name=reason]').value=r;">
+            <form method="post" action="{% url 'finance:payout_request_reject' req.pk %}" class="erp-inline-form" onsubmit="var r=prompt('Reason for rejection (optional):'); if(r===null) return false; this.querySelector('[name=reason]').value=r;">
                 {% csrf_token %}
                 <input type="hidden" name="reason" value="">
                 <button type="submit" class="btn btn-secondary">Reject</button>
             </form>
         {% endif %}
         {% if req.status == "approved" %}
-            <form method="post" action="{% url 'finance:payout_request_reserve' req.pk %}" style="display:inline;">
+            <form method="post" action="{% url 'finance:payout_request_reserve' req.pk %}" class="erp-inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary">Reserve Funds</button>
             </form>
         {% endif %}
         {% if req.status == "pending_approval" or req.status == "approved" or req.status == "funds_reserved" %}
-            <form method="post" action="{% url 'finance:payout_request_cancel' req.pk %}" style="display:inline;" onsubmit="var r=prompt('Reason for cancellation (optional):'); if(r===null) return false; this.querySelector('[name=reason]').value=r;">
+            <form method="post" action="{% url 'finance:payout_request_cancel' req.pk %}" class="erp-inline-form" onsubmit="var r=prompt('Reason for cancellation (optional):'); if(r===null) return false; this.querySelector('[name=reason]').value=r;">
                 {% csrf_token %}
                 <input type="hidden" name="reason" value="">
                 <button type="submit" class="btn btn-secondary">Cancel</button>
             </form>
         {% endif %}
         {% if req.status == "funds_reserved" %}
-            <span style="color:#7c3aed; font-size:0.9rem;">Awaiting execution (not yet enabled)</span>
+            <span class="erp-status-accent">Awaiting execution (not yet enabled)</span>
         {% endif %}
         {% if req.status == "completed" or req.status == "rejected" or req.status == "cancelled" or req.status == "failed" %}
-            <span style="color:#64748b;">No actions available for this status.</span>
+            <span class="erp-status-muted">No actions available for this status.</span>
         {% endif %}
     </div>
 </div>

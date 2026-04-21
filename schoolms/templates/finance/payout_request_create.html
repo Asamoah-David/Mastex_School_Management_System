@@ -6,14 +6,14 @@
 {% block content %}
 {% include "includes/finance_subnav.html" %}
 
-<div class="content-card" style="margin-bottom:1.25rem;">
-    <strong>Available balance:</strong> <span style="color:#16a34a; font-weight:600;">{{ balance.available_total }}</span> GHS
+<div class="content-card erp-mb-lg">
+    <strong>Available balance:</strong> <span class="erp-status-positive">{{ balance.available_total }}</span> GHS
     &nbsp;|&nbsp; Reserved: {{ balance.reserved_total }} GHS
 </div>
 
-<div class="content-card" style="max-width:600px;">
-    <h3 style="margin-top:0;">Create Payout Request</h3>
-    <p style="color:#64748b; font-size:0.85rem; margin-bottom:1.25rem;">
+<div class="content-card erp-max-600">
+    <h3 class="erp-title-tight">Create Payout Request</h3>
+    <p class="erp-status-muted erp-copy-sm erp-mb-lg">
         This request will need approval from a <strong>different</strong> school leader before funds are reserved.
         Automated execution is not yet enabled.
     </p>
@@ -21,9 +21,9 @@
     <form method="post">
         {% csrf_token %}
 
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="staff_user_id">Staff Member <span style="color:red;">*</span></label>
-            <select name="staff_user_id" id="staff_user_id" required style="width:100%; padding:0.5rem;">
+        <div class="form-group">
+            <label for="staff_user_id">Staff Member <span class="erp-note-danger">*</span></label>
+            <select name="staff_user_id" id="staff_user_id" required>
                 <option value="">-- Select staff --</option>
                 {% for s in staff_list %}
                 <option value="{{ s.pk }}">{{ s.get_full_name|default:s.username }} ({{ s.get_role_display|default:s.role }})</option>
@@ -31,31 +31,31 @@
             </select>
         </div>
 
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="amount">Amount (GHS) <span style="color:red;">*</span></label>
-            <input type="number" name="amount" id="amount" step="0.01" min="0.01" required style="width:100%; padding:0.5rem;" placeholder="e.g. 1500.00">
+        <div class="form-group">
+            <label for="amount">Amount (GHS) <span class="erp-note-danger">*</span></label>
+            <input type="number" name="amount" id="amount" step="0.01" min="0.01" required placeholder="e.g. 1500.00">
         </div>
 
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="period_label">Pay Period <span style="color:red;">*</span></label>
-            <input type="text" name="period_label" id="period_label" required style="width:100%; padding:0.5rem;" placeholder="e.g. January 2026, Week 3">
+        <div class="form-group">
+            <label for="period_label">Pay Period <span class="erp-note-danger">*</span></label>
+            <input type="text" name="period_label" id="period_label" required placeholder="e.g. January 2026, Week 3">
         </div>
 
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label for="route">Payout Route <span style="color:red;">*</span></label>
-            <select name="route" id="route" required style="width:100%; padding:0.5rem;">
+        <div class="form-group">
+            <label for="route">Payout Route <span class="erp-note-danger">*</span></label>
+            <select name="route" id="route" required>
                 <option value="">-- Select --</option>
                 <option value="momo">Mobile Money</option>
                 <option value="bank">Bank Transfer</option>
             </select>
         </div>
 
-        <div class="form-group" style="margin-bottom:1rem;">
+        <div class="form-group">
             <label for="reason">Reason / Notes</label>
-            <input type="text" name="reason" id="reason" maxlength="200" style="width:100%; padding:0.5rem;" placeholder="Optional">
+            <input type="text" name="reason" id="reason" maxlength="200" placeholder="Optional">
         </div>
 
-        <div class="button-row" style="gap:0.5rem;">
+        <div class="button-row">
             <button type="submit" class="btn btn-primary">Submit for Approval</button>
             <a href="{% url 'finance:payout_request_list' %}" class="btn btn-secondary">Cancel</a>
         </div>

@@ -414,7 +414,7 @@ header .btn,
 .button-row .btn {
   border-radius: var(--radius-pill);
   padding: 0.45rem 0.95rem;
-  min-height: auto;
+  min-height: unset;
   font-size: var(--text-sm);
   font-weight: 500;
 }
@@ -506,6 +506,8 @@ label.ds-label.required::after {
   padding: var(--space-6) var(--space-8);
   margin: var(--space-6);
   box-shadow: var(--shadow-sm);
+  max-width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 640px) {
@@ -548,6 +550,260 @@ label.ds-label.required::after {
     border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
 }
 .table-responsive table { min-width: 600px; }
+
+.data-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+}
+
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ===== ERP Finance (payout pages) ===== */
+.erp-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.erp-summary-text {
+    color: var(--text-primary, #e5e7eb);
+    line-height: 1.55;
+    min-width: 0;
+}
+
+.erp-status-positive { color: #16a34a; font-weight: 600; }
+.erp-status-warning { color: #d97706; font-weight: 600; }
+.erp-status-danger { color: #dc2626; font-weight: 600; }
+.erp-status-muted { color: #64748b; }
+.erp-status-info { color: #2563eb; font-weight: 600; }
+.erp-status-accent { color: #7c3aed; font-weight: 600; }
+
+.erp-filter-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.erp-filter-select {
+    min-width: 180px;
+}
+
+.erp-inline-form {
+    display: inline;
+}
+
+.erp-nowrap { white-space: nowrap; }
+
+.erp-note-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #64748b;
+    font-size: 0.85rem;
+    line-height: 1.55;
+}
+
+.erp-soft-panel {
+    background: rgba(15, 23, 42, 0.42);
+}
+
+.erp-actions-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.erp-actions-row--center { justify-content: center; }
+
+.erp-mb-lg { margin-bottom: 1.25rem; }
+.erp-mb-md { margin-bottom: 0.75rem; }
+.erp-mt-lg { margin-top: 1.25rem; }
+.erp-max-600 { max-width: 600px; }
+.erp-title-tight { margin-top: 0; }
+.erp-copy-sm { font-size: 0.85rem; line-height: 1.5; }
+.erp-text-right { text-align: right; }
+.erp-text-sm { font-size: 0.85rem; }
+
+.erp-detail-table {
+    width: 100%;
+    max-width: 700px;
+    border-collapse: collapse;
+}
+
+.erp-detail-table--compact {
+    max-width: 600px;
+}
+
+.erp-detail-label {
+    padding: 0.35rem 1rem 0.35rem 0;
+    font-weight: 600;
+    color: #64748b;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.erp-detail-meta { color: #64748b; }
+.erp-note-danger { color: #dc2626; }
+.erp-note-muted { color: #6b7280; }
+
+.erp-help-panel {
+    background: rgba(148, 163, 184, 0.08);
+}
+
+/* ===== GENERAL ERP UTILITIES ===== */
+.erp-grid-two {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.erp-grid-compact { gap: 0.85rem; }
+
+.form-group.full-width { grid-column: 1 / -1; }
+
+.erp-settings-note,
+.erp-form-note {
+    font-size: 0.9rem;
+    color: var(--text-soft);
+    line-height: 1.55;
+    margin-bottom: 1rem;
+}
+
+.erp-progress {
+    width: 100%;
+    max-width: 120px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.25);
+    overflow: hidden;
+}
+
+.erp-progress__bar {
+    height: 100%;
+    border-radius: inherit;
+    background: #22c55e;
+    transition: width 0.2s ease;
+}
+
+.erp-progress__bar--warning { background: #f97316; }
+.erp-progress__bar--success { background: #22c55e; }
+
+.erp-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    z-index: 1000;
+}
+
+.erp-modal.is-open { display: flex; }
+
+.erp-modal__dialog {
+    background: rgba(2, 6, 23, 0.98);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    max-width: 440px;
+    width: min(100%, 440px);
+    box-shadow: 0 20px 45px rgba(2, 6, 23, 0.65);
+}
+
+.erp-radio-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.erp-radio-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.erp-form-section {
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+    padding-top: 0.9rem;
+    margin-top: 0.75rem;
+}
+
+.is-hidden { display: none !important; }
+
+.erp-table-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.erp-table-controls__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.erp-filter-input {
+    min-width: 11rem;
+}
+
+.erp-details-inline summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--accent);
+}
+
+.erp-detail-list {
+    font-size: 0.78rem;
+    margin: 0.5rem 0 0;
+    padding-left: 1rem;
+    color: var(--text-soft);
+}
+
+.erp-input-inline {
+    width: 90px;
+    padding: 0.4rem 0.55rem;
+    border-radius: var(--radius-md, 8px);
+}
+
+@media (max-width: 899px) {
+    .data-table { min-width: 680px; }
+}
+
+@media (max-width: 640px) {
+    .erp-filter-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .erp-filter-form .btn,
+    .erp-filter-select {
+        width: 100%;
+        min-width: 0;
+    }
+    .erp-actions-row .btn {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+    .erp-detail-label {
+        white-space: normal;
+        width: auto;
+    }
+}
 
 /* ===== STATUS BADGES (consistent across all pages) ===== */
 .badge {
@@ -660,7 +916,6 @@ label.ds-label.required::after {
     color: var(--text-main);
 }
 .card-header-action { font-size: 0.78rem; }
-.card-body { }
 .card-footer {
     padding-top: 0.75rem;
     margin-top: 0.75rem;

@@ -58,7 +58,9 @@
             color: var(--text-main);
             display: flex;
             flex-direction: column;
+            overflow-x: clip;
         }
+        html { overflow-x: clip; }
         .app-shell { display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh; }
         header {
             position: sticky;
@@ -95,6 +97,22 @@
         .brand-title { font-size: 1.05rem; font-weight: 650; letter-spacing: 0.02em; }
         .brand-subtitle { font-size: 0.75rem; color: var(--text-soft); }
         .nav-actions { display: flex; align-items: center; gap: 0.5rem; }
+        .nav-search {
+            flex: 1;
+            max-width: 360px;
+            margin: 0 1rem;
+            min-width: 0;
+        }
+        .nav-search-input {
+            width: 100%;
+            min-width: 0;
+            padding: .5rem .75rem;
+            border: 1px solid var(--border-color,#d1d5db);
+            border-radius: .5rem;
+            font-size: .85rem;
+            background: var(--bg-surface,#fff);
+            color: var(--text-primary);
+        }
         .nav-toggle {
             display: inline-flex;
             align-items: center;
@@ -208,6 +226,8 @@
             border: 1px solid rgba(148, 163, 184, 0.35);
             padding: 1.1rem 1.1rem 1.2rem;
             box-shadow: var(--shadow-soft), 0 0 0 1px rgba(0, 0, 0, 0.15);
+            max-width: 100%;
+            overflow-wrap: anywhere;
         }
         .content-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.9rem; margin-top: 0.5rem; }
         .metric {
@@ -257,6 +277,8 @@
             border-radius: 999px;
             padding: 0.35rem 0.6rem;
             cursor: pointer;
+            max-width: min(58vw, 320px);
+            min-width: 0;
         }
         .profile-trigger:focus { outline: none; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35); }
         .profile-avatar {
@@ -268,6 +290,7 @@
         .profile-dropdown {
             position: absolute; right: 0; top: calc(100% + 8px);
             min-width: 220px;
+            width: min(88vw, 320px);
             background: rgba(2, 6, 23, 0.98);
             border: 1px solid rgba(148, 163, 184, 0.35);
             border-radius: 0.9rem;
@@ -317,6 +340,7 @@
             right: 60px;
             top: calc(100% + 8px);
             width: 320px;
+            max-width: calc(100vw - 1rem);
             max-height: 400px;
             background: rgba(2, 6, 23, 0.98);
             border: 1px solid rgba(148, 163, 184, 0.35);
@@ -379,11 +403,56 @@
         
         /* ===== MOBILE RESPONSIVE SIDEBAR ===== */
         @media (max-width: 899px) {
+            .nav {
+                padding: 0.65rem 0.85rem;
+                align-items: center;
+                flex-wrap: wrap;
+                row-gap: 0.55rem;
+            }
+            .brand { flex: 1 1 auto; min-width: 0; }
+            .brand-subtitle { display: none; }
+            .brand-title { font-size: 0.95rem; }
+            .nav-search {
+                order: 3;
+                flex: 1 1 100%;
+                max-width: 100%;
+                margin: 0;
+            }
+            .nav-actions {
+                flex: 0 0 auto;
+                margin-left: auto;
+                min-width: 0;
+                gap: 0.3rem;
+            }
+            .profile-trigger {
+                max-width: 46vw;
+                padding: 0.3rem 0.5rem;
+            }
+            .profile-trigger .pill {
+                max-width: 20vw;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .notification-dropdown {
+                right: 0;
+                left: auto;
+                width: min(94vw, 360px);
+            }
+            .layout {
+                margin-top: 0.85rem;
+                padding: 0 0.75rem 0.5rem;
+                gap: 1rem;
+            }
+            .content-card {
+                padding: 0.9rem;
+                border-radius: 0.9rem;
+            }
             .sidebar {
                 position: fixed;
                 top: 0;
                 left: 0;
-                width: 280px;
+                width: min(86vw, 320px);
                 height: 100vh;
                 z-index: 1000;
 background: rgba(2, 6, 23, 0.98);
@@ -437,6 +506,15 @@ background: rgba(2, 6, 23, 0.98);
             .sidebar { display: flex !important; }
             .sidebar-overlay { display: none !important; }
             .sidebar-close { display: none !important; }
+        }
+        @media (max-width: 560px) {
+            .profile-avatar { width: 24px; height: 24px; font-size: 0.75rem; }
+            .profile-trigger { max-width: 44vw; }
+            .profile-trigger .pill-dot { display: none; }
+            .notification-dropdown { width: min(96vw, 340px); }
+            .page-title { font-size: 1.15rem; }
+            .page-subtitle { font-size: 0.8rem; }
+            th, td { padding: 0.5rem 0.6rem; }
         }
         
         /* ===== ACCESSIBILITY ===== */
@@ -569,8 +647,8 @@ background: rgba(2, 6, 23, 0.98);
                     </div>
                 </a>
                 {% if user.is_authenticated %}
-                <form action="{% url 'accounts:global_search' %}" method="get" class="nav-search" style="flex:1;max-width:360px;margin:0 1rem;">
-                    <input type="search" name="q" placeholder="Search people, fees, classes, ledgers…" value="{{ request.GET|get_item:'q'|default:'' }}" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.85rem;background:var(--bg-surface,#fff);color:var(--text-primary);">
+                <form action="{% url 'accounts:global_search' %}" method="get" class="nav-search">
+                    <input type="search" name="q" placeholder="Search people, fees, classes, ledgers…" value="{{ request.GET|get_item:'q'|default:'' }}" class="nav-search-input">
                 </form>
                 {% endif %}
                 <div class="nav-actions">

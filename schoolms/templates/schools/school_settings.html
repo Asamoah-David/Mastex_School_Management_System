@@ -4,7 +4,7 @@
 {% block page_subtitle %}Update school profile and payment settings{% endblock %}
 
 {% block content %}
-<div class="content-grid" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+<div class="content-grid erp-grid-two">
     
     <!-- Basic Information -->
     <div class="content-card">
@@ -12,29 +12,29 @@
         <form method="post">
             {% csrf_token %}
             <input type="hidden" name="section" value="basic">
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>School Name</label>
-                <input type="text" name="name" value="{{ school.name }}" required style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label class="required" for="id_school_name">School Name</label>
+                <input id="id_school_name" type="text" name="name" value="{{ school.name }}" required>
             </div>
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Email</label>
-                <input type="email" name="email" value="{{ school.email|default:'' }}" style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label for="id_school_email">Email</label>
+                <input id="id_school_email" type="email" name="email" value="{{ school.email|default:'' }}">
             </div>
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Phone</label>
-                <input type="text" name="phone" value="{{ school.phone|default:'' }}" style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label for="id_school_phone">Phone</label>
+                <input id="id_school_phone" type="text" name="phone" value="{{ school.phone|default:'' }}">
             </div>
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Address</label>
-                <textarea name="address" rows="2" style="width:100%;padding:0.5rem;">{{ school.address|default:'' }}</textarea>
+            <div class="form-group">
+                <label for="id_school_address">Address</label>
+                <textarea id="id_school_address" name="address" rows="2">{{ school.address|default:'' }}</textarea>
             </div>
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Logo URL (optional)</label>
-                <input type="url" name="logo_url" value="{{ school.logo_url|default:'' }}" placeholder="https://..." style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label for="id_school_logo">Logo URL (optional)</label>
+                <input id="id_school_logo" type="url" name="logo_url" value="{{ school.logo_url|default:'' }}" placeholder="https://...">
             </div>
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Academic Year (e.g. 2024/2025)</label>
-                <input type="text" name="academic_year" value="{{ school.academic_year|default:'' }}" style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label for="id_academic_year">Academic Year (e.g. 2024/2025)</label>
+                <input id="id_academic_year" type="text" name="academic_year" value="{{ school.academic_year|default:'' }}">
             </div>
             <div class="button-row">
                 <button type="submit" class="btn btn-primary">Save Basic Info</button>
@@ -45,33 +45,33 @@
     <!-- Payout Setup -->
     <div class="content-card">
         <h3>Payout Setup (Bank Details)</h3>
-        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+        <p class="erp-settings-note">
             Enter your school's bank details below. The system will automatically create a Paystack subaccount so parents can pay fees directly to your bank account.
         </p>
 
         {% if school.paystack_subaccount_status == "active" %}
-            <div class="alert alert-success" style="margin-bottom: 1rem;">
+            <div class="alert alert-success">
                 Payout setup is <strong>active</strong> — Parents can pay fees online.
                 {% if school.paystack_subaccount_code %}<br><small>Subaccount: {{ school.paystack_subaccount_code }}</small>{% endif %}
             </div>
         {% elif school.paystack_subaccount_status == "failed" %}
-            <div class="alert alert-danger" style="margin-bottom: 1rem;">
+            <div class="alert alert-danger">
                 Payout setup <strong>failed</strong>. Please check your bank details and try again.
                 {% if school.paystack_subaccount_last_error %}<br><small>{{ school.paystack_subaccount_last_error }}</small>{% endif %}
             </div>
         {% elif school.paystack_subaccount_status == "pending" %}
-            <div class="alert alert-warning" style="margin-bottom: 1rem;">
+            <div class="alert alert-warning">
                 Payout setup is <strong>pending</strong> — waiting for Paystack verification.
             </div>
         {% else %}
-            <div class="alert alert-warning" style="margin-bottom: 1rem;">
+            <div class="alert alert-warning">
                 Payout not configured — Parents cannot pay fees online yet. Enter your bank details below.
             </div>
         {% endif %}
 
         {% if not paystack_configured %}
-        <div style="padding: 0.75rem; background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; margin-bottom: 1rem;">
-            <small style="color: #dc2626;">Paystack is not configured on the platform. Contact the platform administrator.</small>
+        <div class="alert alert-error">
+            <small class="erp-note-danger">Paystack is not configured on the platform. Contact the platform administrator.</small>
         </div>
         {% endif %}
 
@@ -79,25 +79,25 @@
             {% csrf_token %}
             <input type="hidden" name="section" value="payout">
 
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Bank Name</label>
-                <input type="text" name="paystack_bank_name" value="{{ school.paystack_bank_name|default:'' }}" placeholder="e.g. Ghana Commercial Bank" style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label for="id_bank_name">Bank Name</label>
+                <input id="id_bank_name" type="text" name="paystack_bank_name" value="{{ school.paystack_bank_name|default:'' }}" placeholder="e.g. Ghana Commercial Bank">
             </div>
 
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Paystack Bank Code <span style="color: red;">*</span></label>
-                <input type="text" name="paystack_bank_code" value="{{ school.paystack_bank_code|default:'' }}" placeholder="e.g. 058 (from Paystack bank list)" required style="width:100%;padding:0.5rem;">
-                <small style="color: #666;">Numeric code from <a href="https://paystack.com/docs/transfers/bank-codes/" target="_blank">Paystack bank list</a>.</small>
+            <div class="form-group">
+                <label class="required" for="id_bank_code">Paystack Bank Code</label>
+                <input id="id_bank_code" type="text" name="paystack_bank_code" value="{{ school.paystack_bank_code|default:'' }}" placeholder="e.g. 058 (from Paystack bank list)" required>
+                <small class="erp-note-muted">Numeric code from <a href="https://paystack.com/docs/transfers/bank-codes/" target="_blank" rel="noopener">Paystack bank list</a>.</small>
             </div>
 
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Account Number <span style="color: red;">*</span></label>
-                <input type="text" name="paystack_account_number" value="{{ school.paystack_account_number|default:'' }}" placeholder="e.g. 1234567890" required style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label class="required" for="id_account_number">Account Number</label>
+                <input id="id_account_number" type="text" name="paystack_account_number" value="{{ school.paystack_account_number|default:'' }}" placeholder="e.g. 1234567890" required>
             </div>
 
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label>Account Name <span style="color: red;">*</span></label>
-                <input type="text" name="paystack_account_name" value="{{ school.paystack_account_name|default:'' }}" placeholder="e.g. ABC School Limited" required style="width:100%;padding:0.5rem;">
+            <div class="form-group">
+                <label class="required" for="id_account_name">Account Name</label>
+                <input id="id_account_name" type="text" name="paystack_account_name" value="{{ school.paystack_account_name|default:'' }}" placeholder="e.g. ABC School Limited" required>
             </div>
 
             <div class="button-row">
@@ -107,9 +107,9 @@
             </div>
         </form>
 
-        <div style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
-            <h4 style="margin: 0 0 0.5rem 0;">How it works:</h4>
-            <ol style="margin: 0; padding-left: 1.2rem; color: #666; font-size: 0.85rem;">
+        <div class="erp-help-panel erp-mt-lg">
+            <h4 class="erp-title-tight">How it works:</h4>
+            <ol class="erp-note-list">
                 <li>Enter your school's bank details above.</li>
                 <li>The system creates a Paystack subaccount automatically.</li>
                 <li>Once active, parent fee payments go directly to your bank account.</li>

@@ -25,10 +25,11 @@
 </div>
 {% else %}
 <div class="content-card">
-    {% if students|length > 1 %}
-    <form method="get" action="" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
-        <label for="id_student_filter" style="font-size:0.88rem;color:var(--text-secondary);">Show fees for</label>
-        <select name="student" id="id_student_filter" onchange="this.form.submit()" style="padding:0.45rem;border-radius:8px;min-width:14rem;">
+        {% if students|length > 1 %}
+    <form method="get" action="" class="erp-table-controls">
+        <div class="erp-table-controls__group">
+            <label for="id_student_filter">Show fees for</label>
+            <select name="student" id="id_student_filter" onchange="this.form.submit()" class="erp-filter-input">
             <option value="">All children</option>
             {% for s in students %}
             <option value="{{ s.pk }}" {% if active_student and active_student.pk == s.pk %}selected{% endif %}>
@@ -36,15 +37,16 @@
             </option>
             {% endfor %}
         </select>
+        </div>
     </form>
     {% endif %}
     {% if not paystack_available %}
-    <div class="alert alert-warning" style="margin-bottom: 1rem;">
+    <div class="alert alert-warning">
         <strong>Note:</strong> Online payment system is not configured. Please contact the school for payment options.
     </div>
     {% endif %}
-    
-    <table>
+    <div class="table-scroll">
+    <table class="data-table">
         <thead>
             <tr>
                 <th>Student</th>
@@ -67,14 +69,14 @@
                 <td>{{ fee.amount_paid|format_ghs }}</td>
                 <td>
                     {% if fee.remaining_balance > 0 %}
-                        <span style="color: red; font-weight: bold;">{{ fee.remaining_balance|format_ghs }}</span>
+                        <span class="erp-status-danger">{{ fee.remaining_balance|format_ghs }}</span>
                     {% else %}
                         <span>—</span>
                     {% endif %}
                 </td>
                 <td>
-                    <div style="width: 100px; height: 8px; background: #eee; border-radius: 4px; overflow: hidden;">
-                        <div style="width: {{ fee.payment_percentage }}%; height: 100%; background: {% if fee.is_fully_paid %}green{% else %}orange{% endif %};"></div>
+                    <div class="erp-progress">
+                        <div class="erp-progress__bar {% if fee.is_fully_paid %}erp-progress__bar--success{% else %}erp-progress__bar--warning{% endif %}" data-progress="{{ fee.payment_percentage }}"></div>
                     </div>
                     <small>{{ fee.payment_percentage }}%</small>
                 </td>
@@ -90,11 +92,11 @@
                 <td>
                     {% if not fee.is_fully_paid and paystack_available %}
                         <a href="{% url 'finance:pay' fee.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-primary btn-sm">Pay Full</a>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="showCustomPayment({{ fee.id }}, {{ fee.remaining_balance }})">Pay Partially</button>
+                        <button type="button" class="btn btn-secondary btn-sm js-partial-pay" data-fee-id="{{ fee.id }}" data-remaining="{{ fee.remaining_balance|default:0 }}">Pay Partially</button>
                     {% elif not fee.is_fully_paid %}
-                        <span class="text-muted">Contact school</span>
+                        <span class="erp-status-muted">Contact school</span>
                     {% else %}
-                        <span class="text-success">✓ Complete</span>
+                        <span class="erp-status-positive">✓ Complete</span>
                     {% endif %}
                 </td>
                 <td>
@@ -108,22 +110,23 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- Custom Payment Modal -->
-<div id="customPaymentModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; max-width: 400px; width: 90%;">
-        <h3>Pay Custom Amount</h3>
-        <p>Remaining balance: <strong id="modalRemaining">GHS 0.00</strong></p>
+<div id="customPaymentModal" class="erp-modal" aria-hidden="true">
+    <div class="erp-modal__dialog">
+        <h3 class="erp-title-tight">Pay Custom Amount</h3>
+        <p class="erp-status-muted">Remaining balance: <strong id="modalRemaining">GHS 0.00</strong></p>
         <form method="post" action="#" id="customPaymentForm">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <input type="hidden" name="fee_id" id="modalFeeId" value="">
-            <div style="margin-bottom: 1rem;">
-                <label>Amount (GHS):</label>
-                <input type="number" name="amount" id="modalAmount" step="0.01" min="0.01" required style="width: 100%; padding: 0.5rem; margin-top: 0.25rem;">
+            <div class="form-group">
+                <label for="modalAmount">Amount (GHS):</label>
+                <input type="number" name="amount" id="modalAmount" step="0.01" min="0.01" required>
             </div>
-            <div style="display: flex; gap: 1rem;">
+            <div class="erp-actions-row">
                 <button type="submit" class="btn btn-primary">Proceed to Pay</button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
             </div>
@@ -142,11 +145,13 @@ function showCustomPayment(feeId, remaining) {
     document.getElementById('modalRemaining').textContent = formatGhsClient(remaining);
     document.getElementById('modalAmount').max = remaining;
     document.getElementById('customPaymentForm').action = '/finance/pay/' + feeId + '/custom/';
-    document.getElementById('customPaymentModal').style.display = 'block';
+    document.getElementById('customPaymentModal').classList.add('is-open');
+    document.getElementById('customPaymentModal').setAttribute('aria-hidden', 'false');
 }
 
 function closeModal() {
-    document.getElementById('customPaymentModal').style.display = 'none';
+    document.getElementById('customPaymentModal').classList.remove('is-open');
+    document.getElementById('customPaymentModal').setAttribute('aria-hidden', 'true');
 }
 
 // Close modal when clicking outside
@@ -154,6 +159,22 @@ document.getElementById('customPaymentModal').addEventListener('click', function
     if (e.target === this) {
         closeModal();
     }
+});
+
+document.querySelectorAll('.erp-progress__bar[data-progress]').forEach(function(bar){
+    var pct = parseFloat(bar.dataset.progress || '0');
+    if (!isNaN(pct)) {
+        var clamped = Math.max(0, Math.min(100, pct));
+        bar.style.width = clamped + '%';
+    }
+});
+
+document.querySelectorAll('.js-partial-pay').forEach(function(button){
+    button.addEventListener('click', function(){
+        var feeId = button.dataset.feeId;
+        var remaining = parseFloat(button.dataset.remaining || '0');
+        showCustomPayment(feeId, remaining);
+    });
 });
 </script>
 {% endif %}
