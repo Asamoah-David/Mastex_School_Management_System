@@ -13,6 +13,8 @@
     {% endif %}
   </div>
 </div>
+
+{% if student %}
 <div class="content-card" style="max-width:700px;">
   <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:#f7f9fc;border-radius:.5rem;">
     <div style="font-size:2rem;">&#127891;</div>
@@ -68,6 +70,37 @@
   </div>
   {% endif %}
 </div>
+{% else %}
+<div class="content-card" style="max-width:700px;">
+  <div style="background:#f7f9fc;border-radius:.5rem;padding:1.5rem;margin-bottom:1.5rem;">
+    <h3 style="margin-top:0;margin-bottom:1rem;">Select a Student</h3>
+    <div class="form-group">
+      <label class="form-label">Choose a student to generate comments for</label>
+      <select id="studentSelect" class="form-control" onchange="if(this.value) window.location.href='/academics/ai-comment/'+this.value+'/'">
+        <option value="">-- Select Student --</option>
+        {% for s in students %}
+        <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} ({{ s.class_name|default:"No Class" }})</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  {% if recent_comments %}
+  <div>
+    <h3 style="margin-top:0;margin-bottom:1rem;">Recent AI Comments</h3>
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      {% for comment in recent_comments %}
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.5rem;padding:1rem;">
+        <div style="font-weight:600;margin-bottom:.5rem;">{{ comment.student.user.get_full_name|default:comment.student.user.username }}</div>
+        <p style="margin:0;font-size:.9rem;line-height:1.6;margin-bottom:.5rem;">{{ comment.content }}</p>
+        <div style="font-size:.75rem;color:#888;">Generated: {{ comment.created_at|date:"d M Y H:i" }}</div>
+        <a href="/academics/ai-comment/{{ comment.student.id }}/" class="btn btn-sm btn-secondary" style="margin-top:.5rem;">View & Edit</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 <script>
 document.getElementById('generateBtn')?.addEventListener('click', function() {
   this.textContent = '&#9889; Generating...';
