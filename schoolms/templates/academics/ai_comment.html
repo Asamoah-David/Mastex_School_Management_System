@@ -8,7 +8,9 @@
       <h1 class="page-title">&#129302; AI Comment Generator</h1>
       <p class="page-subtitle">Generate personalised teacher comments using AI</p>
     </div>
+    {% if student %}
     <a href="{% url 'academics:enhanced_report_card' student.id %}" class="btn btn-secondary">&#8592; Back to Report Card</a>
+    {% endif %}
   </div>
 </div>
 <div class="content-card" style="max-width:700px;">

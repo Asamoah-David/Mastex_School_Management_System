@@ -299,7 +299,7 @@ def get_class_comparison(school):
     class_data = []
     
     for cls in classes:
-        students = Student.objects.filter(school=school, current_class=cls.name)
+        students = Student.objects.filter(school=school, class_name=cls.name)
         if students.exists():
             avg = Result.objects.filter(student__in=students).aggregate(avg=DB_Avg('score'))['avg'] or 0
             class_data.append({

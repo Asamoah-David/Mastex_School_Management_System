@@ -66,8 +66,12 @@ function addBubble(html, isRight, icon, bgColor) {
     }
     var bubble = document.createElement('div');
     bubble.style.cssText = 'flex:1;padding:1rem;border-radius:12px;' + (isRight ? 'background:#4F46E5;color:white;text-align:right;' : 'background:white;box-shadow:0 1px 3px rgba(0,0,0,0.1);');
+    bubble.style.webkitFontSmoothing = 'antialiased';
+    bubble.style.mozOsxFontSmoothing = 'grayscale';
     var p = document.createElement('p');
     p.style.margin = '0';
+    p.style.webkitFontSmoothing = 'antialiased';
+    p.style.mozOsxFontSmoothing = 'grayscale';
     p.textContent = html;
     bubble.appendChild(p);
     wrapper.appendChild(bubble);
