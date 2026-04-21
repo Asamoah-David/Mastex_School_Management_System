@@ -16,17 +16,17 @@
 
 {% if student %}
 <div class="content-card" style="max-width:700px;">
-  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:#f7f9fc;border-radius:.5rem;">
+  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:#f7f9fc;border-radius:.5rem;color:#000000;">
     <div style="font-size:2rem;">&#127891;</div>
     <div>
-      <div style="font-weight:600;font-size:1rem;">{{ student.user.get_full_name|default:student.user.username }}</div>
+      <div style="font-weight:600;font-size:1rem;color:#000000;">{{ student.user.get_full_name|default:student.user.username }}</div>
       <div style="font-size:.85rem;color:#666;">{{ student.class_name|default:"No Class" }} &bull; Admission: {{ student.admission_number|default:"N/A" }}</div>
     </div>
   </div>
   {% if saved_comment %}
-  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:.5rem;padding:1rem;margin-bottom:1.5rem;">
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:.5rem;padding:1rem;margin-bottom:1.5rem;color:#000000;">
     <div style="font-weight:600;color:#16a34a;margin-bottom:.5rem;">&#10004; Current Comment (saved to report card)</div>
-    <p style="margin:0;font-size:.9rem;line-height:1.6;">{{ saved_comment.content }}</p>
+    <p style="margin:0;font-size:.9rem;line-height:1.6;color:#000000;">{{ saved_comment.content }}</p>
     <div style="font-size:.75rem;color:#888;margin-top:.5rem;">Generated: {{ saved_comment.created_at|date:"d M Y H:i" }} &bull; Term: {{ saved_comment.term|default:"All Terms" }}</div>
   </div>
   {% endif %}
@@ -58,9 +58,9 @@
     </div>
   </form>
   {% if generated_comment %}
-  <div style="margin-top:1.5rem;background:#eff6ff;border:1px solid #93c5fd;border-radius:.5rem;padding:1rem;">
+  <div style="margin-top:1.5rem;background:#eff6ff;border:1px solid #93c5fd;border-radius:.5rem;padding:1rem;color:#000000;">
     <div style="font-weight:600;color:#1e40af;margin-bottom:.5rem;">&#129302; Generated Comment (preview)</div>
-    <p style="margin:0;font-size:.9rem;line-height:1.6;">{{ generated_comment }}</p>
+    <p style="margin:0;font-size:.9rem;line-height:1.6;color:#000000;">{{ generated_comment }}</p>
     <input type="hidden" name="generated_comment" value="{{ generated_comment }}">
   </div>
   {% endif %}
@@ -72,8 +72,8 @@
 </div>
 {% else %}
 <div class="content-card" style="max-width:700px;">
-  <div style="background:#f7f9fc;border-radius:.5rem;padding:1.5rem;margin-bottom:1.5rem;">
-    <h3 style="margin-top:0;margin-bottom:1rem;">Select a Student</h3>
+  <div style="background:#f7f9fc;border-radius:.5rem;padding:1.5rem;margin-bottom:1.5rem;color:#000000;">
+    <h3 style="margin-top:0;margin-bottom:1rem;color:#000000;">Select a Student</h3>
     <div class="form-group">
       <label class="form-label">Choose a student to generate comments for</label>
       <select id="studentSelect" class="form-control" onchange="if(this.value) window.location.href='/academics/ai-comment/'+this.value+'/'">
@@ -89,9 +89,9 @@
     <h3 style="margin-top:0;margin-bottom:1rem;">Recent AI Comments</h3>
     <div style="display:flex;flex-direction:column;gap:1rem;">
       {% for comment in recent_comments %}
-      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.5rem;padding:1rem;">
-        <div style="font-weight:600;margin-bottom:.5rem;">{{ comment.student.user.get_full_name|default:comment.student.user.username }}</div>
-        <p style="margin:0;font-size:.9rem;line-height:1.6;margin-bottom:.5rem;">{{ comment.content }}</p>
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.5rem;padding:1rem;color:#000000;">
+        <div style="font-weight:600;margin-bottom:.5rem;color:#000000;">{{ comment.student.user.get_full_name|default:comment.student.user.username }}</div>
+        <p style="margin:0;font-size:.9rem;line-height:1.6;margin-bottom:.5rem;color:#000000;">{{ comment.content }}</p>
         <div style="font-size:.75rem;color:#888;">Generated: {{ comment.created_at|date:"d M Y H:i" }}</div>
         <a href="/academics/ai-comment/{{ comment.student.id }}/" class="btn btn-sm btn-secondary" style="margin-top:.5rem;">View & Edit</a>
       </div>
