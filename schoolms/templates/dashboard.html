@@ -246,11 +246,7 @@
 {{ ar_aging_chart|json_script:"platform-ar-aging-json" }}
 {{ users_chart_data|default:"[]"|json_script:"users-chart-data" }}
 {{ fees_chart_data|default:"[]"|json_script:"fees-chart-data" }}
-{% if not school %}
-    {{ {"labels": ["Active schools","Inactive schools"], "values": [schools_active_chart|default:0, schools_inactive_chart|default:0]}|json_script:"schools-chart-meta" }}
-{% else %}
-    {{ {"labels": ["Male students","Female students"], "values": [chart_male_students|default:0, chart_female_students|default:0]}|json_script:"schools-chart-meta" }}
-{% endif %}
+{{ schools_chart_meta|default:"{}"|json_script:"schools-chart-meta" }}
 
 <div class="content-card erp-card-spaced">
     <h3 class="section-title erp-chart-card-title">📈 Fee collections (30 days)</h3>

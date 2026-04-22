@@ -486,6 +486,22 @@ def dashboard(request):
             float(fee_collected or 0),
             float(fee_outstanding or 0),
         ]
+        if school:
+            schools_chart_meta = {
+                "labels": ["Male students", "Female students"],
+                "values": [
+                    int(chart_male_students or 0),
+                    int(chart_female_students or 0),
+                ],
+            }
+        else:
+            schools_chart_meta = {
+                "labels": ["Active schools", "Inactive schools"],
+                "values": [
+                    int(schools_active_chart or 0),
+                    int(schools_inactive_chart or 0),
+                ],
+            }
 
         context = {
             "total_schools": total_schools,
@@ -501,6 +517,7 @@ def dashboard(request):
             "fee_outstanding_js": float(fee_outstanding),
             "users_chart_data": users_chart_data,
             "fees_chart_data": fees_chart_data,
+            "schools_chart_meta": schools_chart_meta,
             "school": school,
             "is_superuser": is_superuser,
             "chart_male_students": chart_male_students,
@@ -542,6 +559,10 @@ def dashboard(request):
             "fee_outstanding_js": 0.0,
             "users_chart_data": [0, 0, 0],
             "fees_chart_data": [0.0, 0.0],
+            "schools_chart_meta": {
+                "labels": ["Active schools", "Inactive schools"],
+                "values": [0, 0],
+            },
             "chart_male_students": 0,
             "chart_female_students": 0,
             "schools_active_chart": 0,

@@ -1,3 +1,5 @@
+from datetime import datetime, time, date
+
 from django.db import models
 from django.utils import timezone
 
@@ -59,6 +61,20 @@ class School(models.Model):
 
     def __str__(self):
         return self.name
+
+    def _normalize_subscription_dt(self, value):
+        if not value:
+            return value
+        if isinstance(value, date) and not isinstance(value, datetime):
+            value = datetime.combine(value, time.min)
+        if timezone.is_naive(value):
+            return timezone.make_aware(value)
+        return value
+
+    def save(self, *args, **kwargs):
+        self.subscription_start_date = self._normalize_subscription_dt(self.subscription_start_date)
+        self.subscription_end_date = self._normalize_subscription_dt(self.subscription_end_date)
+        super().save(*args, **kwargs)
 
     @property
     def is_subscription_active(self):
