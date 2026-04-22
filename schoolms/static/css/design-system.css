@@ -873,6 +873,92 @@ label.ds-label.required::after {
   height: 240px;
 }
 
+.erp-platform-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.erp-platform-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.erp-platform-chart-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: var(--radius-lg, 0.9rem);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.erp-platform-chart-card--center {
+  align-items: stretch;
+}
+
+.erp-platform-chart-card--wide {
+  width: 100%;
+}
+
+.erp-platform-chart-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary, #e5e7eb);
+}
+
+.erp-platform-chart-subtext {
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.erp-platform-chart-shell {
+  position: relative;
+  min-height: 220px;
+  width: 100%;
+}
+
+.erp-platform-chart-shell canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.chart-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.85rem;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: inherit;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+}
+
+.chart-empty-state.is-hidden {
+  display: none;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .erp-platform-charts {
+      grid-template-columns: 1fr;
+  }
+  .erp-platform-chart-shell {
+      min-height: 200px;
+  }
+}
+
 @media (max-width: 899px) {
     .data-table { min-width: 680px; }
 }

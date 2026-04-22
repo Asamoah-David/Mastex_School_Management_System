@@ -77,11 +77,17 @@
   <div class="erp-platform-charts">
     <div class="erp-platform-chart-card erp-platform-chart-card--center">
       <h4 class="erp-platform-chart-title">Subscription Status</h4>
-      <canvas id="subStatusChart" height="220"></canvas>
+      <div class="erp-platform-chart-shell">
+        <canvas id="subStatusChart"></canvas>
+        <div class="chart-empty-state is-hidden" id="subStatusEmpty">No subscription status data yet.</div>
+      </div>
     </div>
     <div class="erp-platform-chart-card">
       <h4 class="erp-platform-chart-title">Subscription Revenue (12 months)</h4>
-      <canvas id="subscriptionRevenueChart" height="220"></canvas>
+      <div class="erp-platform-chart-shell">
+        <canvas id="subscriptionRevenueChart"></canvas>
+        <div class="chart-empty-state is-hidden" id="subscriptionRevenueEmpty">No subscription revenue trend yet.</div>
+      </div>
     </div>
   </div>
 
@@ -90,7 +96,10 @@
       <h4 class="erp-platform-chart-title">School Registrations (last 6 months)</h4>
       <span class="erp-platform-chart-subtext">New schools provisioned per month</span>
     </div>
-    <canvas id="registrationTrendChart" height="200"></canvas>
+    <div class="erp-platform-chart-shell">
+      <canvas id="registrationTrendChart"></canvas>
+      <div class="chart-empty-state is-hidden" id="registrationTrendEmpty">No registration activity captured yet.</div>
+    </div>
   </div>
 
   <!-- Expiring soon alert table -->
@@ -412,44 +421,52 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Subscription Status - Doughnut Chart
     const subStatusCtx = document.getElementById('subStatusChart');
+    const subStatusEmpty = document.getElementById('subStatusEmpty');
     if (subStatusCtx) {
         const statusMetaNode = document.getElementById('subscription-status-meta');
         const statusMeta = statusMetaNode ? JSON.parse(statusMetaNode.textContent || '{}') : {};
         const statusLabels = Array.isArray(statusMeta.labels) ? statusMeta.labels : [];
         const statusValues = Array.isArray(statusMeta.values) ? statusMeta.values : [];
-        new Chart(subStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: statusLabels,
-                datasets: [{
-                    data: statusValues,
-                    backgroundColor: [
-                        'rgba(34, 197, 94, 0.85)',
-                        'rgba(251, 191, 36, 0.85)',
-                        'rgba(239, 68, 68, 0.85)',
-                        'rgba(148, 163, 184, 0.85)'
-                    ],
-                    borderColor: ['#22c55e', '#fbbf24', '#ef4444', '#94a3b8'],
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '60%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }
+        const totalStatus = statusValues.reduce((sum, v) => sum + (v || 0), 0);
+        if (totalStatus > 0) {
+            new Chart(subStatusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: statusLabels,
+                    datasets: [{
+                        data: statusValues,
+                        backgroundColor: [
+                            'rgba(34, 197, 94, 0.85)',
+                            'rgba(251, 191, 36, 0.85)',
+                            'rgba(239, 68, 68, 0.85)',
+                            'rgba(148, 163, 184, 0.85)'
+                        ],
+                        borderColor: ['#22c55e', '#fbbf24', '#ef4444', '#94a3b8'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }
+                    }
                 }
-            }
-        });
+            });
+        } else if (subStatusEmpty) {
+            subStatusCtx.classList.add('is-hidden');
+            subStatusEmpty.classList.remove('is-hidden');
+        }
     }
 
     // Subscription Revenue Trend - Line Chart
     const subscriptionRevenueNode = document.getElementById('subscription-revenue-chart');
     const subscriptionRevenueCanvas = document.getElementById('subscriptionRevenueChart');
+    const subscriptionRevenueEmpty = document.getElementById('subscriptionRevenueEmpty');
     if (subscriptionRevenueNode && subscriptionRevenueCanvas) {
         const revenueMeta = JSON.parse(subscriptionRevenueNode.textContent || '{}');
-        if (revenueMeta.labels && revenueMeta.values && revenueMeta.labels.length) {
+        if (revenueMeta.labels && revenueMeta.values && revenueMeta.labels.length && revenueMeta.has_data) {
             new Chart(subscriptionRevenueCanvas, {
                 type: 'line',
                 data: {
@@ -482,17 +499,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                 },
             });
-        } else {
-            subscriptionRevenueCanvas.parentElement.innerHTML = '<div class="empty-state erp-empty-pad"><div class="empty-state-desc">No subscription revenue data yet.</div></div>';
+        } else if (subscriptionRevenueEmpty) {
+            subscriptionRevenueCanvas.classList.add('is-hidden');
+            subscriptionRevenueEmpty.classList.remove('is-hidden');
         }
     }
 
     // School Registrations Trend - Bar Chart
     const registrationNode = document.getElementById('registration-trend-chart');
     const registrationCanvas = document.getElementById('registrationTrendChart');
+    const registrationEmpty = document.getElementById('registrationTrendEmpty');
     if (registrationNode && registrationCanvas) {
         const registrationMeta = JSON.parse(registrationNode.textContent || '{}');
-        if (registrationMeta.labels && registrationMeta.values && registrationMeta.labels.length) {
+        if (registrationMeta.labels && registrationMeta.values && registrationMeta.labels.length && registrationMeta.has_data) {
             new Chart(registrationCanvas, {
                 type: 'bar',
                 data: {
@@ -518,8 +537,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                 },
             });
-        } else {
-            registrationCanvas.parentElement.innerHTML = '<div class="empty-state erp-empty-pad"><div class="empty-state-desc">No new school registrations yet.</div></div>';
+        } else if (registrationEmpty) {
+            registrationCanvas.classList.add('is-hidden');
+            registrationEmpty.classList.remove('is-hidden');
         }
     }
 
