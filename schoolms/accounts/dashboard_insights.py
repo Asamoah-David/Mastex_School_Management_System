@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -407,6 +407,13 @@ def _next_month_start(month_start: date) -> date:
     return date(month_start.year, month_start.month + 1, 1)
 
 
+def _aware_start_of_day(day: date) -> datetime:
+    dt = datetime.combine(day, time.min)
+    if timezone.is_naive(dt):
+        return timezone.make_aware(dt)
+    return dt
+
+
 def build_subscription_revenue_trend(months: int = 12) -> dict[str, Any]:
     from finance.models import SubscriptionPayment
 
@@ -425,9 +432,11 @@ def build_subscription_revenue_trend(months: int = 12) -> dict[str, Any]:
 
     window_start = month_starts[0]
     window_end = _next_month_start(month_starts[-1])
+    window_start_dt = _aware_start_of_day(window_start)
+    window_end_dt = _aware_start_of_day(window_end)
     aggregates = (
         SubscriptionPayment.objects.filter(
-            status="completed", created_at__gte=window_start, created_at__lt=window_end
+            status="completed", created_at__gte=window_start_dt, created_at__lt=window_end_dt
         )
         .annotate(month=TruncMonth("created_at"))
         .values("month")
@@ -486,8 +495,10 @@ def build_registration_trend(months: int = 6) -> dict[str, Any]:
 
     window_start = month_starts[0]
     window_end = _next_month_start(month_starts[-1])
+    window_start_dt = _aware_start_of_day(window_start)
+    window_end_dt = _aware_start_of_day(window_end)
     aggregates = (
-        School.objects.filter(created_at__gte=window_start, created_at__lt=window_end)
+        School.objects.filter(created_at__gte=window_start_dt, created_at__lt=window_end_dt)
         .annotate(month=TruncMonth("created_at"))
         .values("month")
         .annotate(total=Count("id"))

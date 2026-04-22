@@ -480,14 +480,14 @@ def dashboard(request):
         else:
             from datetime import timedelta
 
-            _now = timezone.now().date()
-            _cutoff = _now + timedelta(days=14)
+            now_dt = timezone.now()
+            cutoff = now_dt + timedelta(days=14)
             expiring_soon_schools = list(
                 School.objects.filter(
                     subscription_status__in=("active", "trial"),
                     subscription_end_date__isnull=False,
-                    subscription_end_date__gte=_now,
-                    subscription_end_date__lte=_cutoff,
+                    subscription_end_date__gte=now_dt,
+                    subscription_end_date__lte=cutoff,
                 ).order_by("subscription_end_date")[:10]
             )
 
@@ -524,6 +524,41 @@ def dashboard(request):
                 ],
             }
 
+        subscription_status_counts = metrics.get("subscription_status_counts") or {}
+        subscription_status_meta = {
+            "labels": ["Active", "Trial", "Expired", "Cancelled"],
+            "values": [
+                int(subscription_status_counts.get("active", 0) or 0),
+                int(subscription_status_counts.get("trial", 0) or 0),
+                int(subscription_status_counts.get("expired", 0) or 0),
+                int(subscription_status_counts.get("cancelled", 0) or 0),
+            ],
+        }
+        subscription_revenue_trend = metrics.get("subscription_revenue_trend") or {
+            "labels": [],
+            "values": [],
+            "has_data": False,
+        }
+        subscription_revenue_chart = {
+            "labels": subscription_revenue_trend.get("labels", []),
+            "values": [float(v) for v in subscription_revenue_trend.get("values", [])],
+            "has_data": bool(subscription_revenue_trend.get("has_data")),
+        }
+        registration_trend = metrics.get("registration_trend") or {
+            "labels": [],
+            "values": [],
+            "has_data": False,
+        }
+        registration_trend_chart = {
+            "labels": registration_trend.get("labels", []),
+            "values": [int(v) for v in registration_trend.get("values", [])],
+            "has_data": bool(registration_trend.get("has_data")),
+        }
+        subscription_income_total = metrics.get("subscription_income_total", Decimal("0"))
+        subscription_income_last_30 = metrics.get("subscription_income_last_30", Decimal("0"))
+        subscription_income_mom_delta = metrics.get("subscription_income_mom_delta", Decimal("0"))
+        subscription_income_mom_percent = metrics.get("subscription_income_mom_percent", Decimal("0"))
+
         context = {
             "total_schools": total_schools,
             "total_students": total_students,
@@ -555,6 +590,7 @@ def dashboard(request):
             "trial_schools_count": trial_schools_count,
             "active_sub_schools_count": active_sub_schools_count,
             "expired_schools_count": expired_schools_count,
+            "cancelled_schools_count": metrics.get("cancelled_schools_count", 0),
             "expiring_soon_schools": expiring_soon_schools,
             "recent_activities": recent_activities_for_dashboard(
                 user=request.user, school=school, limit=12
@@ -616,6 +652,7 @@ def dashboard(request):
             "trial_schools_count": 0,
             "active_sub_schools_count": 0,
             "expired_schools_count": 0,
+            "cancelled_schools_count": 0,
             "fee_collection_trend_chart": {"has_data": False, "labels": [], "amounts": [], "days": 30},
             "ar_aging_chart": {"has_data": False, "labels": [], "amounts": []},
         },
