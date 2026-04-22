@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -19,7 +19,7 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Coalesce, TruncDate
+from django.db.models.functions import Coalesce, TruncDate, TruncMonth
 from django.utils import timezone
 
 
@@ -384,6 +384,128 @@ def build_ar_aging_chart(school=None) -> dict[str, Any]:
     amounts = [round(x, 2) for x in amounts]
     has_data = sum(amounts) > 0.005
     return {"labels": labels, "amounts": amounts, "has_data": has_data}
+
+
+def _month_start_series(months: int) -> list[date]:
+    months = max(1, int(months or 1))
+    today = timezone.now().date()
+    current = date(today.year, today.month, 1)
+    series: list[date] = []
+    for _ in range(months):
+        series.append(current)
+        if current.month == 1:
+            current = date(current.year - 1, 12, 1)
+        else:
+            current = date(current.year, current.month - 1, 1)
+    series.reverse()
+    return series
+
+
+def _next_month_start(month_start: date) -> date:
+    if month_start.month == 12:
+        return date(month_start.year + 1, 1, 1)
+    return date(month_start.year, month_start.month + 1, 1)
+
+
+def build_subscription_revenue_trend(months: int = 12) -> dict[str, Any]:
+    from finance.models import SubscriptionPayment
+
+    month_starts = _month_start_series(months)
+    if not month_starts:
+        zero = Decimal("0")
+        return {
+            "labels": [],
+            "values": [],
+            "has_data": False,
+            "total": zero,
+            "last_30_days": zero,
+            "recent_month": zero,
+            "previous_month": zero,
+        }
+
+    window_start = month_starts[0]
+    window_end = _next_month_start(month_starts[-1])
+    aggregates = (
+        SubscriptionPayment.objects.filter(
+            status="completed", created_at__gte=window_start, created_at__lt=window_end
+        )
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(total=Coalesce(Sum("amount"), Decimal("0")))
+    )
+    month_totals: dict[date, Decimal] = {}
+    for row in aggregates:
+        month = row.get("month")
+        if not month:
+            continue
+        month_totals[month.date()] = row.get("total") or Decimal("0")
+
+    labels: list[str] = []
+    values_decimal: list[Decimal] = []
+    for start in month_starts:
+        labels.append(start.strftime("%b %Y"))
+        values_decimal.append(month_totals.get(start, Decimal("0")))
+
+    values = [float(v) for v in values_decimal]
+    has_data = any(v > 0 for v in values)
+    total = sum(values_decimal, Decimal("0"))
+    last_30_days = (
+        SubscriptionPayment.objects.filter(
+            status="completed", created_at__gte=timezone.now() - timedelta(days=30)
+        ).aggregate(total=Coalesce(Sum("amount"), Decimal("0")))
+        ["total"]
+        or Decimal("0")
+    )
+    recent_month = values_decimal[-1] if values_decimal else Decimal("0")
+    previous_month = values_decimal[-2] if len(values_decimal) >= 2 else Decimal("0")
+
+    mom_delta = recent_month - previous_month
+    mom_percent = Decimal("0")
+    if previous_month > 0:
+        mom_percent = (mom_delta / previous_month) * Decimal("100")
+
+    return {
+        "labels": labels,
+        "values": values,
+        "has_data": has_data,
+        "total": total,
+        "last_30_days": last_30_days,
+        "recent_month": recent_month,
+        "previous_month": previous_month,
+        "mom_delta": mom_delta,
+        "mom_percent": mom_percent,
+    }
+
+
+def build_registration_trend(months: int = 6) -> dict[str, Any]:
+    from schools.models import School
+
+    month_starts = _month_start_series(months)
+    if not month_starts:
+        return {"labels": [], "values": [], "has_data": False}
+
+    window_start = month_starts[0]
+    window_end = _next_month_start(month_starts[-1])
+    aggregates = (
+        School.objects.filter(created_at__gte=window_start, created_at__lt=window_end)
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(total=Count("id"))
+    )
+    month_totals: dict[date, int] = {}
+    for row in aggregates:
+        month = row.get("month")
+        if not month:
+            continue
+        month_totals[month.date()] = int(row.get("total") or 0)
+
+    labels: list[str] = []
+    values: list[int] = []
+    for start in month_starts:
+        labels.append(start.strftime("%b %Y"))
+        values.append(month_totals.get(start, 0))
+
+    return {"labels": labels, "values": values, "has_data": any(values)}
 
 
 def build_term_collections_chart(school, limit: int = 8) -> dict[str, Any]:

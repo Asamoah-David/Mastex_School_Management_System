@@ -43,6 +43,8 @@ from accounts.dashboard_insights import (
     build_enrollment_by_class_chart,
     build_fee_collection_trend,
     build_finance_insights,
+    build_registration_trend,
+    build_subscription_revenue_trend,
     build_teacher_academic_insights,
     build_teacher_attendance_trend,
     build_teacher_students_by_class_chart,
@@ -181,6 +183,12 @@ def _get_dashboard_metrics(school):
         fee_billed = fee_agg["billed"] or Decimal("0")
         fee_collected = fee_agg["collected"] or Decimal("0")
         fee_outstanding = max(Decimal("0"), fee_billed - fee_collected)
+        trial_count = School.objects.filter(is_active=True, subscription_status="trial").count()
+        active_count = School.objects.filter(is_active=True, subscription_status="active").count()
+        expired_count = School.objects.filter(subscription_status="expired").count()
+        cancelled_count = School.objects.filter(subscription_status="cancelled").count()
+        subscription_revenue = build_subscription_revenue_trend(months=12)
+        registration_trend = build_registration_trend(months=6)
         return {
             "total_schools": total_schools,
             "total_students": total_students,
@@ -194,9 +202,22 @@ def _get_dashboard_metrics(school):
             "chart_female_students": 0,
             "schools_active_chart": School.objects.filter(is_active=True).count(),
             "schools_inactive_chart": School.objects.filter(is_active=False).count(),
-            "trial_schools_count": School.objects.filter(is_active=True, subscription_status="trial").count(),
-            "active_sub_schools_count": School.objects.filter(is_active=True, subscription_status="active").count(),
-            "expired_schools_count": School.objects.filter(subscription_status="expired").count(),
+            "trial_schools_count": trial_count,
+            "active_sub_schools_count": active_count,
+            "expired_schools_count": expired_count,
+            "cancelled_schools_count": cancelled_count,
+            "subscription_income_total": subscription_revenue.get("total", Decimal("0")),
+            "subscription_income_last_30": subscription_revenue.get("last_30_days", Decimal("0")),
+            "subscription_income_mom_delta": subscription_revenue.get("mom_delta", Decimal("0")),
+            "subscription_income_mom_percent": subscription_revenue.get("mom_percent", Decimal("0")),
+            "subscription_revenue_trend": subscription_revenue,
+            "registration_trend": registration_trend,
+            "subscription_status_counts": {
+                "active": active_count,
+                "trial": trial_count,
+                "expired": expired_count,
+                "cancelled": cancelled_count,
+            },
         }
 
     return _cached_dashboard_data("metrics", school, builder)
@@ -518,6 +539,13 @@ def dashboard(request):
             "users_chart_data": users_chart_data,
             "fees_chart_data": fees_chart_data,
             "schools_chart_meta": schools_chart_meta,
+            "subscription_status_meta": subscription_status_meta,
+            "subscription_revenue_chart": subscription_revenue_chart,
+            "registration_trend_chart": registration_trend_chart,
+            "subscription_income_total": subscription_income_total,
+            "subscription_income_last_30": subscription_income_last_30,
+            "subscription_income_mom_delta": subscription_income_mom_delta,
+            "subscription_income_mom_percent": subscription_income_mom_percent,
             "school": school,
             "is_superuser": is_superuser,
             "chart_male_students": chart_male_students,
@@ -563,6 +591,24 @@ def dashboard(request):
                 "labels": ["Active schools", "Inactive schools"],
                 "values": [0, 0],
             },
+            "subscription_status_meta": {
+                "labels": ["Active", "Trial", "Expired", "Cancelled"],
+                "values": [0, 0, 0, 0],
+            },
+            "subscription_revenue_chart": {
+                "labels": [],
+                "values": [],
+                "has_data": False,
+            },
+            "registration_trend_chart": {
+                "labels": [],
+                "values": [],
+                "has_data": False,
+            },
+            "subscription_income_total": Decimal("0"),
+            "subscription_income_last_30": Decimal("0"),
+            "subscription_income_mom_delta": Decimal("0"),
+            "subscription_income_mom_percent": Decimal("0"),
             "chart_male_students": 0,
             "chart_female_students": 0,
             "schools_active_chart": 0,

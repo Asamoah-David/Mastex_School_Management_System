@@ -24,46 +24,73 @@
 
 <!-- ══ Super Admin Subscription Metrics & Charts ══ -->
 <div class="content-card dash-section erp-platform-metrics">
-  <h3 class="section-title erp-platform-metrics__title">📊 Platform Metrics &amp; Trends</h3>
+  <div class="erp-platform-metrics__header">
+    <div>
+      <h3 class="section-title erp-platform-metrics__title">📊 Platform Metrics &amp; Trends</h3>
+      <p class="erp-copy-muted">Live subscription health, revenue, and registrations across every tenant.</p>
+    </div>
+    <div class="erp-platform-hero-metric">
+      <span class="erp-platform-hero-label">Total subscription income (lifetime)</span>
+      <span class="erp-platform-hero-value">{{ subscription_income_total|format_ghs }}</span>
+      <span class="erp-platform-hero-sub">Last 30 days: {{ subscription_income_last_30|format_ghs }}</span>
+    </div>
+  </div>
+
   <div class="erp-platform-kpis">
     <div class="erp-platform-kpi erp-platform-kpi--schools">
       <div class="erp-platform-kpi__value">{{ total_schools|default:"0" }}</div>
       <div class="erp-platform-kpi__label">Total Schools</div>
+      <div class="erp-platform-kpi__meta">{{ active_sub_schools_count|default:"0" }} active · {{ expired_schools_count|default:"0" }} expired</div>
     </div>
     <div class="erp-platform-kpi erp-platform-kpi--active">
       <div class="erp-platform-kpi__value">{{ active_sub_schools_count|default:"0" }}</div>
       <div class="erp-platform-kpi__label">Active Subscriptions</div>
-    </div>
-    <div class="erp-platform-kpi erp-platform-kpi--trial">
-      <div class="erp-platform-kpi__value">{{ trial_schools_count|default:"0" }}</div>
-      <div class="erp-platform-kpi__label">On Trial</div>
+      <div class="erp-platform-kpi__meta">{{ trial_schools_count|default:"0" }} on trial</div>
     </div>
     <div class="erp-platform-kpi erp-platform-kpi--expired">
       <div class="erp-platform-kpi__value">{{ expired_schools_count|default:"0" }}</div>
       <div class="erp-platform-kpi__label">Expired</div>
+      <div class="erp-platform-kpi__meta">{{ cancelled_schools_count|default:"0" }} cancelled</div>
     </div>
     <div class="erp-platform-kpi erp-platform-kpi--students">
       <div class="erp-platform-kpi__value">{{ total_students|default:"0" }}</div>
       <div class="erp-platform-kpi__label">Total Students</div>
+      <div class="erp-platform-kpi__meta">{{ total_staff|default:"0" }} staff · {{ total_parents|default:"0" }} parents</div>
     </div>
     <div class="erp-platform-kpi erp-platform-kpi--fees">
       <div class="erp-platform-kpi__value erp-platform-kpi__value--currency">{{ fee_collected|format_ghs }}</div>
       <div class="erp-platform-kpi__label">Fees Collected</div>
+      <div class="erp-platform-kpi__meta">Outstanding: {{ fee_outstanding|default:0|format_ghs }}</div>
+    </div>
+    <div class="erp-platform-kpi erp-platform-kpi--income">
+      <div class="erp-platform-kpi__value">{{ subscription_income_last_30|format_ghs }}</div>
+      <div class="erp-platform-kpi__label">Subscription Income · 30d</div>
+      {% with delta=subscription_income_mom_delta percent=subscription_income_mom_percent %}
+      <div class="erp-platform-kpi__meta {% if delta > 0 %}meta-positive{% elif delta < 0 %}meta-negative{% endif %}">
+        {% if delta > 0 %}+{% endif %}{{ delta|floatformat:2 }} GHS vs prev month ({{ percent|floatformat:1 }}%)
+      </div>
+      {% endwith %}
     </div>
   </div>
 
   <!-- Charts row -->
   <div class="erp-platform-charts">
-    <!-- Subscription Status Donut -->
     <div class="erp-platform-chart-card erp-platform-chart-card--center">
       <h4 class="erp-platform-chart-title">Subscription Status</h4>
-      <canvas id="subStatusChart" height="200"></canvas>
+      <canvas id="subStatusChart" height="220"></canvas>
     </div>
-    <!-- Monthly Registrations Bar -->
-    <div>
+    <div class="erp-platform-chart-card">
+      <h4 class="erp-platform-chart-title">Subscription Revenue (12 months)</h4>
+      <canvas id="subscriptionRevenueChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <div class="erp-platform-chart-card erp-platform-chart-card--wide">
+    <div class="erp-platform-chart-card__header">
       <h4 class="erp-platform-chart-title">School Registrations (last 6 months)</h4>
-      <canvas id="monthlyRegChart" height="200"></canvas>
+      <span class="erp-platform-chart-subtext">New schools provisioned per month</span>
     </div>
+    <canvas id="registrationTrendChart" height="200"></canvas>
   </div>
 
   <!-- Expiring soon alert table -->
@@ -89,6 +116,12 @@
     </table>
     </div>
   </div>
+  {% else %}
+    <div class="empty-state erp-empty-pad">
+        <div class="empty-state-icon">✅</div>
+        <div class="empty-state-title">All subscriptions are healthy.</div>
+        <div class="empty-state-desc">We’ll surface schools here when they approach renewal.</div>
+    </div>
   {% endif %}
 </div>
 <!-- ══ End Platform Metrics ══ -->
@@ -247,6 +280,9 @@
 {{ users_chart_data|default:"[]"|json_script:"users-chart-data" }}
 {{ fees_chart_data|default:"[]"|json_script:"fees-chart-data" }}
 {{ schools_chart_meta|default:"{}"|json_script:"schools-chart-meta" }}
+{{ subscription_status_meta|default:"{}"|json_script:"subscription-status-meta" }}
+{{ subscription_revenue_chart|default:"{}"|json_script:"subscription-revenue-chart" }}
+{{ registration_trend_chart|default:"{}"|json_script:"registration-trend-chart" }}
 
 <div class="content-card erp-card-spaced">
     <h3 class="section-title erp-chart-card-title">📈 Fee collections (30 days)</h3>
@@ -374,6 +410,119 @@ document.addEventListener('DOMContentLoaded', function() {
     Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.3)';
     Chart.defaults.font.family = 'system-ui, -apple-system, sans-serif';
     
+    // Subscription Status - Doughnut Chart
+    const subStatusCtx = document.getElementById('subStatusChart');
+    if (subStatusCtx) {
+        const statusMetaNode = document.getElementById('subscription-status-meta');
+        const statusMeta = statusMetaNode ? JSON.parse(statusMetaNode.textContent || '{}') : {};
+        const statusLabels = Array.isArray(statusMeta.labels) ? statusMeta.labels : [];
+        const statusValues = Array.isArray(statusMeta.values) ? statusMeta.values : [];
+        new Chart(subStatusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    data: statusValues,
+                    backgroundColor: [
+                        'rgba(34, 197, 94, 0.85)',
+                        'rgba(251, 191, 36, 0.85)',
+                        'rgba(239, 68, 68, 0.85)',
+                        'rgba(148, 163, 184, 0.85)'
+                    ],
+                    borderColor: ['#22c55e', '#fbbf24', '#ef4444', '#94a3b8'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }
+                }
+            }
+        });
+    }
+
+    // Subscription Revenue Trend - Line Chart
+    const subscriptionRevenueNode = document.getElementById('subscription-revenue-chart');
+    const subscriptionRevenueCanvas = document.getElementById('subscriptionRevenueChart');
+    if (subscriptionRevenueNode && subscriptionRevenueCanvas) {
+        const revenueMeta = JSON.parse(subscriptionRevenueNode.textContent || '{}');
+        if (revenueMeta.labels && revenueMeta.values && revenueMeta.labels.length) {
+            new Chart(subscriptionRevenueCanvas, {
+                type: 'line',
+                data: {
+                    labels: revenueMeta.labels,
+                    datasets: [{
+                        label: 'Subscription income',
+                        data: revenueMeta.values,
+                        borderColor: 'rgba(59, 130, 246, 0.9)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.18)',
+                        fill: true,
+                        tension: 0.25,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return formatGhsCount(ctx.raw);
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { grid: { display: false } },
+                    },
+                },
+            });
+        } else {
+            subscriptionRevenueCanvas.parentElement.innerHTML = '<div class="empty-state erp-empty-pad"><div class="empty-state-desc">No subscription revenue data yet.</div></div>';
+        }
+    }
+
+    // School Registrations Trend - Bar Chart
+    const registrationNode = document.getElementById('registration-trend-chart');
+    const registrationCanvas = document.getElementById('registrationTrendChart');
+    if (registrationNode && registrationCanvas) {
+        const registrationMeta = JSON.parse(registrationNode.textContent || '{}');
+        if (registrationMeta.labels && registrationMeta.values && registrationMeta.labels.length) {
+            new Chart(registrationCanvas, {
+                type: 'bar',
+                data: {
+                    labels: registrationMeta.labels,
+                    datasets: [{
+                        label: 'New schools',
+                        data: registrationMeta.values,
+                        backgroundColor: 'rgba(34, 197, 94, 0.85)',
+                        borderColor: '#22c55e',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false } },
+                    },
+                },
+            });
+        } else {
+            registrationCanvas.parentElement.innerHTML = '<div class="empty-state erp-empty-pad"><div class="empty-state-desc">No new school registrations yet.</div></div>';
+        }
+    }
+
     // Schools Distribution - Doughnut Chart
     const schoolsCtx = document.getElementById('schoolsChart');
     if (schoolsCtx) {
