@@ -112,11 +112,17 @@ def behavior_tracker_dashboard(request):
     recent_records = BehaviorPoint.objects.filter(
         student__in=students
     ).select_related('student', 'student__user', 'awarded_by').order_by('-awarded_at')[:20]
-    
+
+    positive_count = BehaviorPoint.objects.filter(student__in=students, point_type='positive').count()
+    negative_count = BehaviorPoint.objects.filter(student__in=students, point_type='negative').count()
+
     context = {
         'school': school,
         'recent_records': recent_records,
+        'students_by_class': students,
         'classes': [c for c in students.values_list('class_name', flat=True).distinct() if c],
+        'positive_count': positive_count,
+        'negative_count': negative_count,
     }
     return render(request, 'operations/behavior_tracker.html', context)
 
@@ -151,17 +157,21 @@ def add_behavior_points(request):
         
         # Create behavior record
         record = BehaviorPoint.objects.create(
+            school=school,
             student=student,
+            point_type=behavior_type if behavior_type in ('positive', 'negative') else 'positive',
             points=points if behavior_type == 'positive' else -abs(points),
             reason=reason,
             awarded_by=request.user
         )
         
+        from django.db.models import Sum
+        total = student.behavior_points.aggregate(total=Sum('points'))['total'] or 0
         return JsonResponse({
             'success': True,
             'message': f'Behavior points {"added" if points > 0 else "deducted"} successfully',
             'points': record.points,
-            'total_points': student.behavior_points
+            'total_points': total
         })
         
     except Exception as e:
@@ -194,11 +204,13 @@ def get_student_behavior(request, student_id):
             'date': r.awarded_at.strftime('%Y-%m-%d %H:%M') if r.awarded_at else '',
         })
     
+    from django.db.models import Sum
+    total = student.behavior_points.aggregate(total=Sum('points'))['total'] or 0
     return JsonResponse({
         'student': {
             'id': student.id,
             'name': student.user.get_full_name() or student.user.username,
-            'total_points': student.behavior_points,
+            'total_points': total,
         },
         'records': data
     })

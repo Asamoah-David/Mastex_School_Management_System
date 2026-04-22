@@ -117,8 +117,8 @@
         {% for s in expiring_soon_schools %}
         <tr>
           <td>{{ s.name }}</td>
-          <td class="erp-platform-expiring__date">{{ s.subscription_end|date:"d M Y" }}</td>
-          <td>{{ s.get_subscription_plan_display|default:s.subscription_plan }}</td>
+          <td class="erp-platform-expiring__date">{{ s.subscription_end_date|date:"d M Y" }}</td>
+          <td>{{ s.subscription_type }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -331,17 +331,7 @@
     <div class="content-card">
         <h3 class="section-title">📜 Recent Activity</h3>
         {% if recent_activities %}
-        <ul class="activity-list">{% for activity in recent_activities|slice:":5" %}
-            <li class="activity-item">
-                <div class="activity-icon {{ activity.icon_class|default:'school' }}">
-                    {{ activity.icon|default:"📋" }}
-                </div>
-                <div class="activity-content">
-                    <div class="activity-text">{{ activity.description }}</div>
-                    <div class="activity-time">{{ activity.timestamp|timesince }} ago</div>
-                </div>
-            </li>
-            {% endfor %}</ul>
+        <ul class="activity-list">{% for activity in recent_activities|slice:":5" %}<li class="activity-item"><div class="activity-icon {{ activity.icon_class|default:'school' }}">{{ activity.icon|default:"📋" }}</div><div class="activity-content"><div class="activity-text">{{ activity.description }}</div><div class="activity-time">{{ activity.timestamp|timesince }} ago</div></div></li>{% endfor %}</ul>
         <p class="erp-empty-note">
             <a href="{% url 'operations:activity_log_list' %}" class="erp-link-cta">View full activity log →</a>
         </p>

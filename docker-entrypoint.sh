@@ -26,11 +26,6 @@ python manage.py collectstatic --noinput
 echo "==> Creating cache table if needed..."
 python manage.py createcachetable 2>/dev/null || true
 
-if [ "${RUN_PREFLIGHT:-}" = "1" ]; then
-  echo "==> Running production preflight..."
-  python manage.py preflight
-fi
-
 if [ "${RUN_PREFLIGHT:-0}" = "1" ] || [ "${RUN_PREFLIGHT:-0}" = "true" ]; then
   echo "==> Running production preflight..."
   python manage.py preflight || { echo "Preflight failed — set SKIP_PREFLIGHT=1 only for debugging."; exit 1; }

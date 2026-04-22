@@ -2,7 +2,7 @@
 QR Code template tags for Mastex SchoolOS
 """
 from django import template
-from schoolms.core import qr_utils
+from core import qr_utils
 
 register = template.Library()
 

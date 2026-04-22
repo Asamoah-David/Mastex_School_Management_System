@@ -23,6 +23,7 @@ from .models import (
     Certificate, AdmissionApplication, Budget
 )
 from core.export_utils import _Echo, export_to_csv, export_to_excel, export_to_zip
+from core.academic_context import get_current_term_for_school
 from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook, TextbookSale, HostelFee, HostelAssignment
 
 
@@ -1077,11 +1078,18 @@ def export_all_payments(request):
             today = timezone.now().date()
             return queryset.filter(**{f"{date_field}__date": today})
         elif date_filter == 'week':
-            week_ago = timezone.now() - timezone.timedelta(days=7)
+            week_ago = (timezone.now() - timezone.timedelta(days=7)).date()
             return queryset.filter(**{f"{date_field}__gte": week_ago})
         elif date_filter == 'month':
-            month_ago = timezone.now() - timezone.timedelta(days=30)
+            month_ago = (timezone.now() - timezone.timedelta(days=30)).date()
             return queryset.filter(**{f"{date_field}__gte": month_ago})
+        elif date_filter == 'term':
+            current_term = get_current_term_for_school(school)
+            if current_term and current_term.start_date:
+                queryset = queryset.filter(**{f"{date_field}__gte": current_term.start_date})
+                if current_term.end_date:
+                    queryset = queryset.filter(**{f"{date_field}__lte": current_term.end_date})
+            return queryset
         elif start_date:
             from django.utils.dateparse import parse_date
             parsed = parse_date(start_date)
@@ -1183,7 +1191,7 @@ def export_all_payments(request):
                 'student': p.fee.student.user.get_full_name() if p.fee and p.fee.student and p.fee.student.user else '',
                 'admission_no': p.fee.student.admission_number if p.fee and p.fee.student else '',
                 'type': 'School Fee',
-                'description': p.fee.fee_type if p.fee else '',
+                'description': (p.fee.fee_structure.name if p.fee.fee_structure else '') if p.fee else '',
                 'amount': float(p.amount),
                 'status': 'Completed',
             })

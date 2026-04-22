@@ -9,9 +9,10 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.conf import settings
 import uuid
 from decimal import Decimal, InvalidOperation
@@ -19,6 +20,7 @@ from decimal import Decimal, InvalidOperation
 from accounts.decorators import login_required, parent_required, student_required
 from accounts.permissions import user_can_manage_school
 from core.pagination import paginate
+from core.academic_context import get_current_term_for_school
 
 from students.models import Student
 from schools.models import School
@@ -978,26 +980,42 @@ def payment_dashboard(request):
     # Get filter parameters
     date_filter = request.GET.get('date_filter', 'all')
     payment_type = request.GET.get('payment_type', 'all')
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
+    start_date_input = request.GET.get('start_date')
+    end_date_input = request.GET.get('end_date')
+    start_date = parse_date(start_date_input) if start_date_input else None
+    end_date = parse_date(end_date_input) if end_date_input else None
+
+    range_start = None
+    range_end = None
+    today = timezone.now().date()
+
+    if date_filter == 'today':
+        range_start = today
+        range_end = today
+    elif date_filter == 'week':
+        range_start = today - timedelta(days=7)
+        range_end = today
+    elif date_filter == 'month':
+        range_start = today - timedelta(days=30)
+        range_end = today
+    elif date_filter == 'term':
+        current_term = get_current_term_for_school(school)
+        if current_term and current_term.start_date:
+            range_start = current_term.start_date
+            range_end = current_term.end_date or today
+
+    if start_date:
+        range_start = start_date
+    if end_date:
+        range_end = end_date
+
+    # expose resolved dates back to template
+    start_date = range_start
+    end_date = range_end
     
     # Base queryset for fees
     from finance.models import Fee
     fees = Fee.objects.filter(school=school).select_related('student')
-    
-    # Filter by date
-    if date_filter == 'today':
-        from django.utils import timezone
-        today = timezone.now().date()
-        fees = fees.filter(created_at__date=today)
-    elif date_filter == 'week':
-        from django.utils import timezone
-        week_ago = timezone.now() - timezone.timedelta(days=7)
-        fees = fees.filter(created_at__gte=week_ago)
-    elif date_filter == 'month':
-        from django.utils import timezone
-        month_ago = timezone.now() - timezone.timedelta(days=30)
-        fees = fees.filter(created_at__gte=month_ago)
     
     if start_date:
         fees = fees.filter(created_at__date__gte=start_date)
@@ -1018,27 +1036,6 @@ def payment_dashboard(request):
     bus_payments = BusPayment.objects.filter(school=school).select_related('student', 'student__user', 'route')
     textbook_sales = TextbookSale.objects.filter(school=school).select_related('student', 'student__user', 'textbook')
     hostel_fees = HostelFee.objects.filter(school=school).select_related('student', 'student__user')
-    
-    # Apply date filtering to other payments
-    from django.utils import timezone
-    if date_filter == 'today':
-        today = timezone.now().date()
-        canteen_payments = canteen_payments.filter(payment_date=today)
-        bus_payments = bus_payments.filter(payment_date=today)
-        textbook_sales = textbook_sales.filter(sale_date=today)
-        hostel_fees = hostel_fees.filter(payment_date=today)
-    elif date_filter == 'week':
-        week_ago = timezone.now() - timezone.timedelta(days=7)
-        canteen_payments = canteen_payments.filter(payment_date__gte=week_ago)
-        bus_payments = bus_payments.filter(payment_date__gte=week_ago)
-        textbook_sales = textbook_sales.filter(sale_date__gte=week_ago)
-        hostel_fees = hostel_fees.filter(payment_date__gte=week_ago)
-    elif date_filter == 'month':
-        month_ago = timezone.now() - timezone.timedelta(days=30)
-        canteen_payments = canteen_payments.filter(payment_date__gte=month_ago)
-        bus_payments = bus_payments.filter(payment_date__gte=month_ago)
-        textbook_sales = textbook_sales.filter(sale_date__gte=month_ago)
-        hostel_fees = hostel_fees.filter(payment_date__gte=month_ago)
     
     if start_date:
         canteen_payments = canteen_payments.filter(payment_date__gte=start_date)
@@ -1151,6 +1148,13 @@ def payment_dashboard(request):
     bus_payments_page_obj = bus_payments_paginator.get_page(bus_payments_page_number)
     canteen_payments_page_obj = canteen_payments_paginator.get_page(canteen_payments_page_number)
     
+    outstanding_students = (
+        Student.objects.filter(school=school, fee__paid=False)
+        .distinct()
+        .select_related('user')
+        .order_by('user__last_name', 'user__first_name')[:10]
+    )
+
     context = {
         'fees': school_fees_filtered[:20],
         'school_fees': school_fees_filtered[:20],
@@ -1179,7 +1183,7 @@ def payment_dashboard(request):
         'start_date': start_date,
         'end_date': end_date,
         'page_title': 'Payment Dashboard',
-        'outstanding_students': [],
+        'outstanding_students': outstanding_students,
         'bus_payments_page_obj': bus_payments_page_obj,
         'canteen_payments_page_obj': canteen_payments_page_obj,
     }
@@ -1216,25 +1220,25 @@ def student_payment_history(request, student_id):
             })
     
     # Get canteen payments
-    canteen_payments = CanteenPayment.objects.filter(student=student).order_by('-created_at')
+    canteen_payments = CanteenPayment.objects.filter(student=student).order_by('-payment_date')
     for payment in canteen_payments:
         all_payments.append({
             'type': 'canteen',
             'payment': payment,
             'amount': float(payment.amount),
             'status': payment.payment_status,
-            'date': payment.created_at,
+            'date': payment.payment_date,
         })
     
     # Get bus payments
-    bus_payments = BusPayment.objects.filter(student=student).order_by('-created_at')
+    bus_payments = BusPayment.objects.filter(student=student).order_by('-id')
     for payment in bus_payments:
         all_payments.append({
             'type': 'bus',
             'payment': payment,
             'amount': float(payment.amount),
             'status': payment.payment_status,
-            'date': payment.created_at,
+            'date': payment.payment_date,
         })
     
     # Get textbook sales - use sale_date instead of created_at
@@ -1254,13 +1258,33 @@ def student_payment_history(request, student_id):
     # Calculate totals
     total_paid = sum(p['amount'] for p in all_payments if p['status'] == 'completed')
     total_pending = sum(p['amount'] for p in all_payments if p['status'] == 'pending')
-    
+
+    # Per-type totals for template summary cards
+    school_fees_total = sum((f.amount or Decimal('0')) for f in fees)
+    school_fees_paid = sum((f.amount_paid or Decimal('0')) for f in fees)
+    school_fees_outstanding = school_fees_total - school_fees_paid
+    canteen_total = sum((p.amount or Decimal('0')) for p in canteen_payments)
+    bus_total = sum((p.amount or Decimal('0')) for p in bus_payments if p.paid)
+    textbook_total = sum((s.amount or Decimal('0')) for s in textbook_sales)
+    overall_total = school_fees_paid + canteen_total + bus_total + textbook_total
+
     context = {
         'student': student,
         'payments': all_payments,
         'fees': fees,
+        'school_fees': fees,
+        'canteen': canteen_payments,
+        'bus': bus_payments,
+        'textbooks': textbook_sales,
         'total_paid': total_paid,
         'total_pending': total_pending,
+        'school_fees_total': school_fees_total,
+        'school_fees_paid': school_fees_paid,
+        'school_fees_outstanding': school_fees_outstanding,
+        'canteen_total': canteen_total,
+        'bus_total': bus_total,
+        'textbook_total': textbook_total,
+        'overall_total': overall_total,
         'page_title': f'Payment History - {student.user.get_full_name()}',
     }
     return render(request, 'operations/student_payment_history.html', context)
@@ -1481,6 +1505,7 @@ def generate_receipt(request, payment_type, payment_id):
         'balance_after': None,
     })()
     
+    school = getattr(request.user, 'school', None) or (student.school if student else None)
     context = {
         'payment': payment,
         'student': student,
@@ -1488,6 +1513,8 @@ def generate_receipt(request, payment_type, payment_id):
         'date': date,
         'description': description,
         'payment_type': payment_type,
+        'school': school,
+        'has_pdf': False,
         'page_title': 'Payment Receipt',
     }
     return render(request, 'operations/receipt.html', context)

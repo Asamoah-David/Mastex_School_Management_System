@@ -1,4 +1,4 @@
-from schoolms.services.sms_service import SMSService
+from services.sms_service import SMSService
 
 
 def send_fee_reminder(student):

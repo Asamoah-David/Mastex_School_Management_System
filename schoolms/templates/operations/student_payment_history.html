@@ -126,18 +126,9 @@
                                 <tr>
                                     <td>{{ fee.term }}</td>
                                     <td>{{ fee.amount|format_ghs }}</td>
+                                    <td>{{ fee.amount_paid|format_ghs }}</td>
                                     <td>
-                                        {% with paid=0 %}
-                                        {% for payment in fee.feeperpayment_set.all %}
-                                            {% if payment.status == 'completed' %}
-                                                {% with paid=paid|add:payment.amount %}{% endwith %}
-                                            {% endif %}
-                                        {% endfor %}
-                                        {{ paid|format_ghs }}
-                                        {% endwith %}
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-danger">{{ fee.balance_due|default:0|format_ghs }}</span>
+                                        <span class="badge bg-danger">{{ fee.remaining_balance|format_ghs }}</span>
                                     </td>
                                     <td>
                                         <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#fee-{{ fee.id }}">

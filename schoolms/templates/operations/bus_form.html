@@ -4,73 +4,39 @@
 {% block title %}{{ form_title|default:'Add Bus Route' }} - {{ school.name }}{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-2xl mx-auto">
-        <!-- Header -->
-        <div class="mb-6">
-            <a href="{% url 'operations:bus_list' %}" class="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center">
-                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                </svg>
-                Back to Bus Routes
-            </a>
-            <h1 class="text-2xl font-bold text-gray-900">{{ form_title|default:'Add Bus Route' }}</h1>
-        </div>
-
-        <!-- Error Message -->
-        {% if error %}
-        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {{ error }}
-        </div>
-        {% endif %}
-
-        <!-- Form Card -->
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <form method="post" class="space-y-6">
-                {% csrf_token %}
-
-                <!-- Route Name -->
-                <div>
-                    <label for="id_name" class="block text-sm font-medium text-gray-700 mb-1">Route Name *</label>
-                    <input type="text" name="name" id="id_name" required
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="e.g., Route A - East Side">
-                </div>
-
-                <!-- Fee and Payment Frequency Row -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Fee -->
-                    <div>
-                        <label for="id_fee_per_term" class="block text-sm font-medium text-gray-700 mb-1">Fee Amount *</label>
-                        <input type="number" name="fee_per_term" id="id_fee_per_term" step="0.01" min="0" required
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                               placeholder="0.00">
-                    </div>
-
-                    <!-- Payment Frequency -->
-                    <div>
-                        <label for="id_payment_frequency" class="block text-sm font-medium text-gray-700 mb-1">Payment Frequency *</label>
-                        <select name="payment_frequency" id="id_payment_frequency"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="term">Per Term</option>
-                            <option value="daily">Daily</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Submit Button -->
-                <div class="flex justify-end space-x-3 pt-4 border-t">
-                    <a href="{% url 'operations:bus_list' %}"
-                       class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                        Cancel
-                    </a>
-                    <button type="submit"
-                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                        {{ submit_text|default:'Save Route' }}
-                    </button>
-                </div>
-            </form>
+<div class="content-card">
+    <div class="page-heading">
+        <div>
+            <a href="{% url 'operations:bus_list' %}" class="btn btn-secondary btn-sm">&larr; Back to Bus Routes</a>
+            <h2 class="section-title" style="margin-top:0.75rem;">{{ form_title|default:'Add Bus Route' }}</h2>
         </div>
     </div>
+
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="id_name">Route Name <span style="color:#f87171;">*</span></label>
+            <input type="text" name="name" id="id_name" required class="form-control" placeholder="e.g., Route A - East Side">
+        </div>
+        <div class="form-group">
+            <label for="id_fee_per_term">Fee Amount <span style="color:#f87171;">*</span></label>
+            <input type="number" name="fee_per_term" id="id_fee_per_term" step="0.01" min="0" required class="form-control" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label for="id_payment_frequency">Payment Frequency <span style="color:#f87171;">*</span></label>
+            <select name="payment_frequency" id="id_payment_frequency" class="form-control">
+                <option value="term">Per Term</option>
+                <option value="daily">Daily</option>
+            </select>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{{ submit_text|default:'Save Route' }}</button>
+            <a href="{% url 'operations:bus_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
 </div>
 {% endblock %}

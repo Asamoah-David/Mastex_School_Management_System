@@ -33,6 +33,7 @@
                 <div class="col-md-2">
                     <label>Date Filter</label>
                     <select name="date_filter" class="form-select">
+                        <option value="all" {% if date_filter == 'all' or not date_filter %}selected{% endif %}>All time</option>
                         <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Today</option>
                         <option value="week" {% if date_filter == 'week' %}selected{% endif %}>This Week</option>
                         <option value="month" {% if date_filter == 'month' %}selected{% endif %}>This Month</option>
@@ -79,8 +80,8 @@
             <div class="card bg-primary text-white">
                 <div class="card-body">
                     <h5 class="card-title">School Fees</h5>
-                    <h3>{{ total_school_fees|format_ghs }}</h3>
-                    <small>{{ school_fees|length }} Records</small>
+                    <h3>{{ school_fees_total|format_ghs }}</h3>
+                    <small>{{ paid_fees }} Records</small>
                 </div>
             </div>
         </div>
@@ -108,6 +109,16 @@
                     <h5 class="card-title">Textbooks</h5>
                     <h3>{{ textbook_total|format_ghs }}</h3>
                     <small>{{ textbook_count }} Sales</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Hostel Fees</h5>
+                    <h3>{{ hostel_total|format_ghs }}</h3>
                 </div>
             </div>
         </div>
@@ -170,11 +181,11 @@
                                         <a href="{% url 'operations:generate_receipt' 'canteen' payment.id %}" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-receipt"></i> Receipt
                                         </a>
-                                        {% elif payment.type == 'Bus Fees' %}
+                                        {% elif payment.type == 'Bus' %}
                                         <a href="{% url 'operations:generate_receipt' 'bus' payment.id %}" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-receipt"></i> Receipt
                                         </a>
-                                        {% elif payment.type == 'Textbooks' %}
+                                        {% elif payment.type == 'Textbook' %}
                                         <a href="{% url 'operations:generate_receipt' 'textbook' payment.id %}" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-receipt"></i> Receipt
                                         </a>
@@ -355,7 +366,7 @@
         <div class="tab-pane fade {% if payment_type == 'school_fees' %}show active{% endif %}" id="school_fees">
             <div class="card">
                 <div class="card-header">
-                    <h5>School Fees - Total: {{ total_school_fees|format_ghs }}</h5>
+                    <h5>School Fees - Total: {{ school_fees_total|format_ghs }}</h5>
                 </div>
                 <div class="card-body">
                     {% if school_fees %}
@@ -380,11 +391,9 @@
                                     </td>
                                     <td>{{ fee.term }}</td>
                                     <td>{{ fee.amount|format_ghs }}</td>
-                                    <td>{{ fee.paid_amount|default:0|format_ghs }}</td>
+                                    <td>{{ fee.amount_paid|default:0|format_ghs }}</td>
                                     <td>
-                                        {% with balance=fee.amount|add:fee.paid_amount|default:fee.amount %}
-                                        <span class="text-danger">{{ balance|format_ghs }}</span>
-                                        {% endwith %}
+                                        <span class="text-danger">{{ fee.remaining_balance|format_ghs }}</span>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -419,7 +428,7 @@
                         {% for student in outstanding_students %}
                         <tr>
                             <td>{{ student.user.get_full_name }}</td>
-                            <td>{{ student.current_class }}</td>
+                            <td>{{ student.class_name }}</td>
                             <td>
                                 <a href="{% url 'operations:student_payment_history' student.id %}" class="btn btn-sm btn-outline-danger">
                                     <i class="bi bi-eye"></i> View History
