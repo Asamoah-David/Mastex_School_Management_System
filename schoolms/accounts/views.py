@@ -477,6 +477,16 @@ def dashboard(request):
             "ar_aging", school, lambda: build_ar_aging_chart(school=school)
         )
 
+        users_chart_data = [
+            int(total_students or 0),
+            int(total_staff or 0),
+            int(total_parents or 0),
+        ]
+        fees_chart_data = [
+            float(fee_collected or 0),
+            float(fee_outstanding or 0),
+        ]
+
         context = {
             "total_schools": total_schools,
             "total_students": total_students,
@@ -489,6 +499,8 @@ def dashboard(request):
             "unpaid_fees_count": unpaid_fee_records,
             "fee_collected_js": float(fee_collected),
             "fee_outstanding_js": float(fee_outstanding),
+            "users_chart_data": users_chart_data,
+            "fees_chart_data": fees_chart_data,
             "school": school,
             "is_superuser": is_superuser,
             "chart_male_students": chart_male_students,
@@ -528,6 +540,8 @@ def dashboard(request):
             "unpaid_fees_count": 0,
             "fee_collected_js": 0.0,
             "fee_outstanding_js": 0.0,
+            "users_chart_data": [0, 0, 0],
+            "fees_chart_data": [0.0, 0.0],
             "chart_male_students": 0,
             "chart_female_students": 0,
             "schools_active_chart": 0,

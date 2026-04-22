@@ -244,8 +244,8 @@
 
 {{ fee_collection_trend_chart|json_script:"platform-fee-trend-json" }}
 {{ ar_aging_chart|json_script:"platform-ar-aging-json" }}
-{{ [total_students|default:0, total_staff|default:0, total_parents|default:0]|json_script:"users-chart-data" }}
-{{ [fee_collected_js|default:0, fee_outstanding_js|default:0]|json_script:"fees-chart-data" }}
+{{ users_chart_data|default:"[]"|json_script:"users-chart-data" }}
+{{ fees_chart_data|default:"[]"|json_script:"fees-chart-data" }}
 {% if not school %}
     {{ {"labels": ["Active schools","Inactive schools"], "values": [schools_active_chart|default:0, schools_inactive_chart|default:0]}|json_script:"schools-chart-meta" }}
 {% else %}

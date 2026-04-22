@@ -1597,46 +1597,10 @@ def initiate_online_payment(request):
 
 @login_required
 def paystack_callback(request, fee_id):
-    """Handle Paystack payment callback for school fees."""
-    from finance.models import Fee, FeePayment
-    
-    reference = request.GET.get('reference')
-    
-    if not reference:
-        messages.error(request, "Invalid payment reference")
-        return redirect('operations:my_payments')
-    
-    # Verify with Paystack
-    result = paystack_service.verify_payment(reference)
-    
-    try:
-        fee = Fee.objects.get(id=fee_id)
-        
-        if result.get('status') and result['data']['status'] == 'success':
-            amount = float(result["data"]["amount"]) / 100  # Paystack returns pesewas / kobo
-            FeePayment.objects.create(
-                fee=fee,
-                amount=amount,
-                paystack_reference=reference,
-                payment_method="card",
-                status="completed",
-            )
-            Fee.objects.filter(pk=fee.pk).update(
-                amount_paid=F("amount_paid") + amount,
-                paystack_reference=reference,
-            )
-            fee.refresh_from_db()
-            fee.save()
-            
-            messages.success(request, "Payment successful!")
-            return redirect('operations:my_payments')
-        else:
-            messages.error(request, "Payment failed. Please try again.")
-            return redirect('operations:my_payments')
-            
-    except Fee.DoesNotExist:
-        messages.error(request, "Fee record not found")
-        return redirect('operations:my_payments')
+    """Legacy portal callback – delegate to finance handler to keep logic consistent."""
+    from finance import views as finance_views
+
+    return finance_views.paystack_callback(request, fee_id)
 
 
 @csrf_exempt

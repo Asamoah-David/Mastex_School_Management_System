@@ -1048,11 +1048,20 @@ def homework_create(request):
         if title and class_name and subject_id and due:
             try:
                 subject = Subject.objects.get(id=subject_id, school=school)
-                from datetime import datetime
+                from datetime import datetime, time as time_cls
+
                 due_d = datetime.strptime(due, "%Y-%m-%d").date()
+                due_dt = timezone.make_aware(
+                    datetime.combine(due_d, time_cls(hour=23, minute=59))
+                )
                 Homework.objects.create(
-                    school=school, subject=subject, class_name=class_name,
-                    title=title, description=desc, due_date=due_d, created_by=request.user
+                    school=school,
+                    subject=subject,
+                    class_name=class_name,
+                    title=title,
+                    description=desc,
+                    due_date=due_dt,
+                    created_by=request.user,
                 )
                 messages.success(request, "Homework added.")
                 return redirect("academics:homework_list")
