@@ -9,6 +9,8 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
+from datetime import date, datetime, time
+
 from django.utils import timezone
 from django.conf import settings
 import uuid
@@ -34,6 +36,18 @@ from operations.services.portal_payments import (
     mark_textbook_sale_completed,
     mark_textbook_sale_failed,
 )
+
+
+def _payment_datetime(value):
+    """Coerce date/dateTime values to timezone-aware datetimes for sorting."""
+    if value is None:
+        return timezone.now()
+    if isinstance(value, datetime):
+        return value if timezone.is_aware(value) else timezone.make_aware(value, timezone.get_current_timezone())
+    if isinstance(value, date):
+        naive_dt = datetime.combine(value, time.min)
+        return timezone.make_aware(naive_dt, timezone.get_current_timezone())
+    return timezone.now()
 
 
 def _get_paystack_public_key(request):
@@ -1065,7 +1079,7 @@ def payment_dashboard(request):
         for f in school_fees_filtered[:20]:
             recent_payments.append({
                 'student': f.student,
-                'date': f.created_at,
+                'date': _payment_datetime(f.created_at),
                 'type': 'School Fee',
                 'amount': f.amount_paid,
                 'description': f.term or 'School Fee',
@@ -1075,7 +1089,7 @@ def payment_dashboard(request):
         for p in canteen_filtered:
             recent_payments.append({
                 'student': p.student,
-                'date': p.payment_date,
+                'date': _payment_datetime(p.payment_date),
                 'type': 'Canteen',
                 'amount': p.amount,
                 'description': p.description,
@@ -1086,7 +1100,7 @@ def payment_dashboard(request):
         for p in bus_filtered:
             recent_payments.append({
                 'student': p.student,
-                'date': p.payment_date,
+                'date': _payment_datetime(p.payment_date),
                 'type': 'Bus',
                 'amount': p.amount,
                 'description': p.route.name if p.route else 'Bus Fee',
@@ -1097,7 +1111,7 @@ def payment_dashboard(request):
         for s in textbook_filtered:
             recent_payments.append({
                 'student': s.student,
-                'date': s.sale_date,
+                'date': _payment_datetime(s.sale_date),
                 'type': 'Textbook',
                 'amount': s.amount,
                 'description': s.textbook.title if s.textbook else 'Textbook',
@@ -1108,7 +1122,7 @@ def payment_dashboard(request):
         for h in hostel_filtered:
             recent_payments.append({
                 'student': h.student,
-                'date': h.payment_date,
+                'date': _payment_datetime(h.payment_date),
                 'type': 'Hostel',
                 'amount': h.amount,
                 'description': f"Hostel Fee - {h.term}" if h.term else 'Hostel Fee',
@@ -1116,7 +1130,7 @@ def payment_dashboard(request):
             })
     
     # Sort by date descending
-    recent_payments.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+    recent_payments.sort(key=lambda x: x['date'], reverse=True)
     recent_payments = recent_payments[:50]  # Limit to 50 most recent
     
     # Count variables for template
