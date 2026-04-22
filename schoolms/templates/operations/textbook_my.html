@@ -48,6 +48,9 @@
         <div class="empty-state-title">No Textbooks Available</div>
         <div class="empty-state-desc">No textbooks have been added by your school yet.</div>
     </div>
+    {% if page_obj and page_obj.paginator.num_pages > 1 %}
+        {% include "includes/pagination.html" with page_obj=page_obj %}
+    {% endif %}
 </div>
 {% endif %}
 
@@ -62,6 +65,9 @@
         <button type="button" class="btn btn-danger btn-sm" style="margin-left: 0.5rem;" onclick="cancelPending('{{ purchase.id }}', 'textbook')">Cancel</button>
     </div>
     {% endfor %}
+    {% if pending_page and pending_page.paginator.num_pages > 1 %}
+        {% include "includes/pagination.html" with page_obj=pending_page %}
+    {% endif %}
 </div>
 {% endif %}
 

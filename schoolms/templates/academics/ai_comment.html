@@ -15,27 +15,29 @@
 </div>
 
 {% if student %}
-<div class="content-card" style="max-width:700px;">
-  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:#f7f9fc;border-radius:.5rem;color:#000000;">
-    <div style="font-size:2rem;">&#127891;</div>
+<div class="content-card erp-card-narrow">
+  <div class="erp-student-card">
+    <div class="erp-student-card__icon">&#127891;</div>
     <div>
-      <div style="font-weight:600;font-size:1rem;color:#000000;">{{ student.user.get_full_name|default:student.user.username }}</div>
-      <div style="font-size:.85rem;color:#666;">{{ student.class_name|default:"No Class" }} &bull; Admission: {{ student.admission_number|default:"N/A" }}</div>
+      <div class="erp-student-card__title">{{ student.user.get_full_name|default:student.user.username }}</div>
+      <div class="erp-student-card__meta">{{ student.class_name|default:"No Class" }} &bull; Admission: {{ student.admission_number|default:"N/A" }}</div>
     </div>
   </div>
   {% if saved_comment %}
-  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:.5rem;padding:1rem;margin-bottom:1.5rem;color:#000000;">
-    <div style="font-weight:600;color:#16a34a;margin-bottom:.5rem;">&#10004; Current Comment (saved to report card)</div>
-    <p style="margin:0;font-size:.9rem;line-height:1.6;color:#000000;">{{ saved_comment.content }}</p>
-    <div style="font-size:.75rem;color:#888;margin-top:.5rem;">Generated: {{ saved_comment.created_at|date:"d M Y H:i" }} &bull; Term: {{ saved_comment.term|default:"All Terms" }}</div>
+  <div class="alert alert-success" id="saved-comment-alert">
+    <div class="alert-body">
+      <div class="erp-student-card__title">&#10004; Current Comment (saved to report card)</div>
+      <p class="erp-card-note" id="saved-comment-content">{{ saved_comment.content }}</p>
+      <div class="erp-info-note" id="saved-comment-info">Generated: {{ saved_comment.created_at|date:"d M Y H:i" }} &bull; Term: {{ saved_comment.term|default:"All Terms" }}</div>
+    </div>
   </div>
   {% endif %}
   <form method="post" id="commentForm">
     {% csrf_token %}
     <input type="hidden" name="student_id" value="{{ student.id }}">
     <div class="form-group">
-      <label class="form-label" style="color:#000000;">Select Term</label>
-      <select name="term_id" class="form-control">
+      <label class="form-label" for="termSelect">Select Term</label>
+      <select name="term_id" id="termSelect" class="form-control">
         <option value="">All Terms</option>
         {% for t in terms %}
         <option value="{{ t.id }}" {% if t.is_current %}selected{% endif %}>{{ t.name }}</option>
@@ -43,10 +45,10 @@
       </select>
     </div>
     <div class="form-group">
-      <label class="form-label" style="color:#000000;">Additional Instructions (optional)</label>
-      <input type="text" name="instructions" class="form-control" placeholder="e.g. Focus on maths improvement, mention good behaviour">
+      <label class="form-label" for="instructionsInput">Additional Instructions (optional)</label>
+      <input type="text" name="instructions" id="instructionsInput" class="form-control" placeholder="e.g. Focus on maths improvement, mention good behaviour">
     </div>
-    <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+    <div class="erp-form-actions-row">
       <button type="submit" name="action" value="generate" class="btn btn-primary" id="generateBtn">
         &#9889; Generate AI Comment
       </button>
@@ -58,24 +60,26 @@
     </div>
   </form>
   {% if generated_comment %}
-  <div style="margin-top:1.5rem;background:#eff6ff;border:1px solid #93c5fd;border-radius:.5rem;padding:1rem;color:#000000;">
-    <div style="font-weight:600;color:#1e40af;margin-bottom:.5rem;">&#129302; Generated Comment (preview)</div>
-    <p style="margin:0;font-size:.9rem;line-height:1.6;color:#000000;">{{ generated_comment }}</p>
-    <input type="hidden" name="generated_comment" value="{{ generated_comment }}">
+  <div class="alert alert-info erp-mt-lg">
+    <div class="alert-body">
+      <div class="erp-student-card__title">&#129302; Generated Comment (preview)</div>
+      <p class="erp-card-note erp-m-0">{{ generated_comment }}</p>
+      <input type="hidden" name="generated_comment" value="{{ generated_comment }}">
+    </div>
   </div>
   {% endif %}
   {% if error %}
-  <div style="margin-top:1rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:.5rem;padding:1rem;color:#dc2626;">
+  <div class="alert alert-error erp-mt-sm">
     {{ error }}
   </div>
   {% endif %}
 </div>
 {% else %}
-<div class="content-card" style="max-width:700px;">
-  <div style="background:#f7f9fc;border-radius:.5rem;padding:1.5rem;margin-bottom:1.5rem;color:#000000;">
-    <h3 style="margin-top:0;margin-bottom:1rem;color:#000000;">Select a Student</h3>
+<div class="content-card erp-card-narrow">
+  <div class="erp-select-card">
+    <h3 class="erp-section-title-tight">Select a Student</h3>
     <div class="form-group">
-      <label class="form-label" style="color:#000000;">Choose a student to generate comments for</label>
+      <label class="form-label" for="studentSelect">Choose a student to generate comments for</label>
       <select id="studentSelect" class="form-control" onchange="if(this.value) window.location.href='/academics/ai-comment/'+this.value+'/'">
         <option value="">-- Select Student --</option>
         {% for s in students %}
@@ -86,14 +90,14 @@
   </div>
   {% if recent_comments %}
   <div>
-    <h3 style="margin-top:0;margin-bottom:1rem;">Recent AI Comments</h3>
-    <div style="display:flex;flex-direction:column;gap:1rem;">
+    <h3 class="erp-section-title-tight">Recent AI Comments</h3>
+    <div class="erp-card-list">
       {% for comment in recent_comments %}
-      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.5rem;padding:1rem;color:#000000;">
-        <div style="font-weight:600;margin-bottom:.5rem;color:#000000;">{{ comment.student.user.get_full_name|default:comment.student.user.username }}</div>
-        <p style="margin:0;font-size:.9rem;line-height:1.6;margin-bottom:.5rem;color:#000000;">{{ comment.content }}</p>
-        <div style="font-size:.75rem;color:#888;">Generated: {{ comment.created_at|date:"d M Y H:i" }}</div>
-        <a href="/academics/ai-comment/{{ comment.student.id }}/" class="btn btn-sm btn-secondary" style="margin-top:.5rem;">View & Edit</a>
+      <div class="erp-card-list__item">
+        <div class="erp-card-list__title">{{ comment.student.user.get_full_name|default:comment.student.user.username }}</div>
+        <p class="erp-card-note erp-m-0 erp-mb-sm">{{ comment.content }}</p>
+        <div class="erp-card-list__meta">Generated: {{ comment.created_at|date:"d M Y H:i" }}</div>
+        <a href="/academics/ai-comment/{{ comment.student.id }}/" class="btn btn-sm btn-secondary erp-mt-sm">View & Edit</a>
       </div>
       {% endfor %}
     </div>

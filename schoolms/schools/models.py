@@ -36,9 +36,11 @@ class School(models.Model):
         ("pending", "Pending verification"),
         ("active", "Active"),
         ("failed", "Failed"),
+        ("unsupported_bank", "Unsupported bank"),
+        ("pending_manual_review", "Pending manual review"),
     ]
     paystack_subaccount_status = models.CharField(
-        max_length=20, choices=PAYOUT_SETUP_STATUS_CHOICES, default="inactive"
+        max_length=32, choices=PAYOUT_SETUP_STATUS_CHOICES, default="inactive"
     )
     paystack_subaccount_last_error = models.TextField(blank=True, default="")
     paystack_subaccount_last_synced_at = models.DateTimeField(null=True, blank=True)

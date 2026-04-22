@@ -75,19 +75,37 @@
         </div>
         {% endif %}
 
-        <form method="post">
+        <form method="post" id="payoutSetupForm">
             {% csrf_token %}
             <input type="hidden" name="section" value="payout">
 
             <div class="form-group">
-                <label for="id_bank_name">Bank Name</label>
-                <input id="id_bank_name" type="text" name="paystack_bank_name" value="{{ school.paystack_bank_name|default:'' }}" placeholder="e.g. Ghana Commercial Bank">
+                <label class="required" for="id_bank_code">Bank (Paystack verified)</label>
+                {% if paystack_bank_error %}
+                <div class="alert alert-error erp-mt-sm">
+                    {{ paystack_bank_error }}<br>
+                    <small>Please try again later or contact support.</small>
+                </div>
+                {% endif %}
+                <select id="id_bank_code" name="paystack_bank_code" {% if paystack_bank_error %}disabled{% endif %} required>
+                    <option value="">-- Select bank --</option>
+                    {% for bank in paystack_banks %}
+                    <option value="{{ bank.code }}" {% if school.paystack_bank_code == bank.code %}selected{% endif %}>{{ bank.name }} ({{ bank.code }})</option>
+                    {% endfor %}
+                    <option value="{{ paystack_bank_not_listed_value }}" {% if paystack_bank_not_listed_value == school.paystack_bank_code %}selected{% endif %}>My bank is not listed</option>
+                </select>
+                <small class="erp-note-muted">Choose your bank from the live Paystack list. Bank code is stored automatically.</small>
+            </div>
+
+            <div class="form-group" id="unsupportedBankGroup" style="display:none;">
+                <label for="id_unsupported_bank_name">Bank Name (not listed)</label>
+                <input id="id_unsupported_bank_name" type="text" name="unsupported_bank_name" value="{{ unsupported_bank_initial }}" placeholder="Enter your bank name for manual review">
+                <small class="erp-note-muted">We'll notify you when Paystack enables payouts for this bank.</small>
             </div>
 
             <div class="form-group">
-                <label class="required" for="id_bank_code">Paystack Bank Code</label>
-                <input id="id_bank_code" type="text" name="paystack_bank_code" value="{{ school.paystack_bank_code|default:'' }}" placeholder="e.g. 058 (from Paystack bank list)" required>
-                <small class="erp-note-muted">Numeric code from <a href="https://paystack.com/docs/transfers/bank-codes/" target="_blank" rel="noopener">Paystack bank list</a>.</small>
+                <label for="id_bank_name_display">Selected Bank</label>
+                <input id="id_bank_name_display" type="text" value="{{ school.paystack_bank_name|default:'' }}" placeholder="Select a bank above" readonly>
             </div>
 
             <div class="form-group">
@@ -101,11 +119,41 @@
             </div>
 
             <div class="button-row">
-                <button type="submit" class="btn btn-primary" {% if not paystack_configured %}disabled{% endif %}>
+                <button type="submit" class="btn btn-primary" {% if not paystack_configured or paystack_bank_error %}disabled{% endif %}>
                     {% if school.paystack_subaccount_status == "active" %}Update Payout Details{% else %}Set Up Payout{% endif %}
                 </button>
             </div>
         </form>
+
+        {% if paystack_configured %}
+        <script>
+            (function() {
+                const bankSelect = document.getElementById('id_bank_code');
+                const bankDisplay = document.getElementById('id_bank_name_display');
+                const unsupportedGroup = document.getElementById('unsupportedBankGroup');
+                const unsupportedInput = document.getElementById('id_unsupported_bank_name');
+                const notListedValue = '{{ paystack_bank_not_listed_value }}';
+                if (!bankSelect || !bankDisplay) return;
+                const updateDisplay = () => {
+                    const option = bankSelect.options[bankSelect.selectedIndex];
+                    if (option && option.value) {
+                        bankDisplay.value = option.text.replace(/\s*\(.*\)$/, '');
+                    } else {
+                        bankDisplay.value = '';
+                    }
+                    if (unsupportedGroup) {
+                        const isNotListed = option && option.value === notListedValue;
+                        unsupportedGroup.style.display = isNotListed ? 'block' : 'none';
+                        if (!isNotListed && unsupportedInput) {
+                            unsupportedInput.value = '';
+                        }
+                    }
+                };
+                bankSelect.addEventListener('change', updateDisplay);
+                updateDisplay();
+            })();
+        </script>
+        {% endif %}
 
         <div class="erp-help-panel erp-mt-lg">
             <h4 class="erp-title-tight">How it works:</h4>

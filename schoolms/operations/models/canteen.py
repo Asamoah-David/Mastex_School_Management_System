@@ -39,6 +39,14 @@ class CanteenPayment(models.Model):
         ordering = ["-payment_date"]
         indexes = [
             models.Index(fields=["school", "student"], name="idx_canteen_school_stu"),
+            models.Index(
+                fields=["student", "payment_status", "-payment_date"],
+                name="idx_cant_stu_status",
+            ),
+            models.Index(
+                fields=["school", "payment_status", "-payment_date"],
+                name="idx_cant_school_status",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(

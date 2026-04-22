@@ -414,7 +414,7 @@ def bus_payments(request):
     if not user_can_manage_school(request.user):
         return redirect("operations:bus_list")
     qs = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")
-    page_obj = paginate(request, qs, per_page=50)
+    page_obj = paginate(request, qs.order_by("-payment_date", "-id"), per_page=50)
     return render(request, "operations/bus_payments.html", {"payments": page_obj, "page_obj": page_obj, "school": school})
 
 
@@ -694,13 +694,22 @@ def teacher_attendance_list(request):
         messages.warning(request, "Invalid 'from' date; showing today's records instead.")
     if raw_to and to_date == default_day and str(raw_to) != str(default_day):
         messages.warning(request, "Invalid 'to' date; showing today's records instead.")
-    qs = TeacherAttendance.objects.filter(school=school, date__gte=from_date, date__lte=to_date).select_related(
-        "teacher", "marked_by"
+    qs = (
+        TeacherAttendance.objects.filter(school=school, date__gte=from_date, date__lte=to_date)
+        .select_related("teacher", "marked_by")
+        .order_by("-date", "teacher__last_name")
     )
+    page_obj = paginate(request, qs, per_page=50)
     return render(
         request,
         "operations/teacher_attendance_list.html",
-        {"attendances": qs, "school": school, "from_date": from_date, "to_date": to_date},
+        {
+            "attendances": page_obj,
+            "page_obj": page_obj,
+            "school": school,
+            "from_date": from_date,
+            "to_date": to_date,
+        },
     )
 
 
@@ -1883,13 +1892,29 @@ def hostel_my(request):
     if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
         assignment = HostelAssignment.objects.filter(school=school, student=student, is_active=True).select_related("hostel", "room").first() if student else None
-        fees = HostelFee.objects.filter(school=school, student=student).select_related("hostel").order_by("-id")[:200] if student else []
-        pending_fees = (
-            HostelFee.objects.filter(school=school, student=student, payment_status="pending")
-            .select_related("hostel")
-            .order_by("-id")[:50]
+        fees_page = (
+            paginate(
+                request,
+                HostelFee.objects.filter(school=school, student=student)
+                .select_related("hostel")
+                .order_by("-id"),
+                per_page=25,
+                page_param="hostel_fee_page",
+            )
             if student
-            else []
+            else None
+        )
+        pending_page = (
+            paginate(
+                request,
+                HostelFee.objects.filter(school=school, student=student, payment_status="pending")
+                .select_related("hostel")
+                .order_by("-id"),
+                per_page=25,
+                page_param="hostel_pending_page",
+            )
+            if student
+            else None
         )
         return render(
             request,
@@ -1899,21 +1924,39 @@ def hostel_my(request):
                 "mode": "student",
                 "student": student,
                 "assignment": assignment,
-                "fees": fees,
+                "fees": fees_page,
+                "fees_page": fees_page,
                 "paystack_public_key": paystack_public_key,
-                "pending_fees": pending_fees,
+                "pending_fees": pending_page,
+                "pending_page": pending_page,
             },
         )
     if role == "parent":
         children = list(Student.objects.filter(parent=request.user, school=school).select_related("user").order_by("class_name", "admission_number"))
         assignments = HostelAssignment.objects.filter(school=school, student__in=children, is_active=True).select_related("student", "student__user", "hostel", "room")
-        fees = HostelFee.objects.filter(school=school, student__in=children).select_related("student", "student__user", "hostel").order_by("-id")[:400] if children else []
-        pending_fees = (
-            HostelFee.objects.filter(school=school, student__in=children, payment_status="pending")
-            .select_related("student", "student__user", "hostel")
-            .order_by("-id")[:100]
+        fees_page = (
+            paginate(
+                request,
+                HostelFee.objects.filter(school=school, student__in=children)
+                .select_related("student", "student__user", "hostel")
+                .order_by("-id"),
+                per_page=30,
+                page_param="hostel_fee_page",
+            )
             if children
-            else []
+            else None
+        )
+        pending_page = (
+            paginate(
+                request,
+                HostelFee.objects.filter(school=school, student__in=children, payment_status="pending")
+                .select_related("student", "student__user", "hostel")
+                .order_by("-id"),
+                per_page=30,
+                page_param="hostel_pending_page",
+            )
+            if children
+            else None
         )
         return render(
             request,
@@ -1923,9 +1966,11 @@ def hostel_my(request):
                 "mode": "parent",
                 "children": children,
                 "assignments": assignments,
-                "fees": fees,
+                "fees": fees_page,
+                "fees_page": fees_page,
                 "paystack_public_key": paystack_public_key,
-                "pending_fees": pending_fees,
+                "pending_fees": pending_page,
+                "pending_page": pending_page,
             },
         )
     return redirect("home")

@@ -6,33 +6,26 @@
 {% block content %}
 {% include "includes/finance_subnav.html" %}
 <div class="content-card">
-    <form method="post">
+    <form method="post" novalidate>
         {% csrf_token %}
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Name (e.g. Tuition, Development Levy)</label>
-            <input type="text" name="name" required maxlength="100" style="width:100%;padding:0.5rem;" value="{{ structure.name|default:'' }}">
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Amount (GHS)</label>
-            <input type="number" name="amount" required min="0" step="0.01" style="padding:0.5rem;" value="{{ structure.amount|default:'' }}">
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Class (leave empty for all)</label>
-            <input type="text" name="class_name" maxlength="100" placeholder="e.g. Form 1A" style="width:100%;padding:0.5rem;" value="{{ structure.class_name|default:'' }}">
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>Term (optional)</label>
-            <input type="text" name="term" maxlength="50" placeholder="e.g. Term 1 2025" style="width:100%;padding:0.5rem;" value="{{ structure.term|default:'' }}">
-        </div>
-        {% if structure %}
-        <div class="form-group" style="margin-bottom:1rem;">
-            <label>
-                <input type="checkbox" name="is_active" {% if structure.is_active %}checked{% endif %}>
-                Active (visible to students/parents)
-            </label>
+        {% if form.errors %}
+        <div class="alert" style="background:rgba(239,68,68,0.15);color:#fecaca;padding:0.75rem 1rem;border-radius:0.5rem;margin-bottom:1rem;">
+            Please fix the highlighted errors below.
         </div>
         {% endif %}
-        <div class="button-row">
+        {% for field in form %}
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="id_{{ field.name }}" style="display:block;margin-bottom:0.35rem;color:#e2e8f0;font-size:0.9rem;">{{ field.label }}{% if field.field.required %}<span style="color:#f87171;">*</span>{% endif %}</label>
+            {{ field }}
+            {% if field.help_text %}
+            <small style="display:block;color:#94a3b8;margin-top:0.25rem;">{{ field.help_text }}</small>
+            {% endif %}
+            {% for error in field.errors %}
+            <div style="color:#f87171;font-size:0.8rem;margin-top:0.25rem;">{{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        <div class="button-row" style="display:flex;gap:0.75rem;">
             <button type="submit" class="btn btn-primary">{% if structure %}Save Changes{% else %}Add{% endif %}</button>
             <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-secondary">Cancel</a>
         </div>

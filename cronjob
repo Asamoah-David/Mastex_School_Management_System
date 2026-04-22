@@ -6,3 +6,7 @@
 
 # Run check_subscriptions every day at 6am (check expired subscriptions and notify)
 0 6 * * * cd /app && python manage.py check_subscriptions >> /var/log/cron.log 2>&1
+
+# Run audit log pruning every Sunday at 3am once retention + pruning are enabled
+# Requires AUDIT_PRUNE_ENABLED=1, AUDIT_RETENTION_DAYS set, and CRON_SECRET_KEY configured
+0 3 * * 0 curl -X POST -H "X-Cron-Key: $CRON_SECRET_KEY" "https://your-domain/audit/run-prune/" >> /var/log/cron.log 2>&1

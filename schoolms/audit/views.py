@@ -1,10 +1,18 @@
 import csv
+import hmac
+import io
 
-from django.http import HttpResponse
+from django.conf import settings
+
+from django.core.management import call_command, CommandError
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
 from .models import AuditLog
 
 
@@ -150,3 +158,40 @@ def audit_log_detail(request, pk):
         return redirect("home")
 
     return render(request, "audit/log_detail.html", {"log": log_entry})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def run_audit_prune(request):
+    """Trigger audit log pruning via CRON_SECRET_KEY-protected endpoint."""
+
+    provided_key = (request.GET.get("key") or "").strip() or request.headers.get("X-Cron-Key", "")
+    expected_key = getattr(settings, "CRON_SECRET_KEY", "")
+    if not expected_key:
+        return JsonResponse({"status": "error", "message": "CRON_SECRET_KEY not configured"}, status=500)
+    if not provided_key or not hmac.compare_digest(provided_key, expected_key):
+        return JsonResponse({"status": "error", "message": "Unauthorized"}, status=401)
+
+    if not getattr(settings, "AUDIT_PRUNE_ENABLED", False):
+        return JsonResponse(
+            {"status": "blocked", "message": "Enable AUDIT_PRUNE_ENABLED to allow pruning."},
+            status=400,
+        )
+
+    retention_days = getattr(settings, "AUDIT_RETENTION_DAYS", None)
+    if not retention_days:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "AUDIT_RETENTION_DAYS must be set to run prune job.",
+            },
+            status=400,
+        )
+
+    buffer = io.StringIO()
+    try:
+        call_command("prune_audit_logs", "--execute", stdout=buffer, stderr=buffer)
+    except CommandError as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=400)
+
+    return JsonResponse({"status": "ok", "output": buffer.getvalue().strip()})

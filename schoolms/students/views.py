@@ -4,7 +4,7 @@ import json
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Avg, Count, F, Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
 from django.contrib import messages
@@ -39,6 +39,7 @@ from operations.alumni_sync import sync_alumni_from_graduated_student
 from core.utils import log_activity
 from schools.models import School
 from core.pagination import paginate
+from collections import defaultdict
 
 
 def _user_can_manage_school(request):
@@ -111,39 +112,51 @@ def parent_dashboard(request):
         # Get results for all children
         results_by_child = {}
         results = (
-            Result.objects.filter(student_id__in=children_ids, student__school__in=[c.school for c in children])
-            .select_related("student", "subject", "exam_type", "term")
+            Result.objects.filter(
+                student_id__in=children_ids,
+                student__school__in=[c.school for c in children],
+                is_published=True,
+            ).select_related("student", "subject", "exam_type", "term")
         )
-        
+
         for result in results:
             child_id = result.student_id
-            if child_id not in results_by_child:
-                results_by_child[child_id] = []
-            results_by_child[child_id].append(result)
+            results_by_child.setdefault(child_id, []).append(result)
+
+        class_positions = {}
+        avg_scores = {}
+        if children_ids:
+            rank_rows = (
+                Result.objects.filter(student_id__in=children_ids, is_published=True)
+                .values("student_id", "student__class_name", "student__school_id")
+                .annotate(avg_score=Avg("score"))
+                .order_by("student__school_id", "student__class_name", "-avg_score")
+            )
+            current_key = None
+            rank = 0
+            for row in rank_rows:
+                key = (row["student__school_id"], row["student__class_name"] or "")
+                if key != current_key:
+                    current_key = key
+                    rank = 1
+                else:
+                    rank += 1
+                class_positions[row["student_id"]] = rank
+                avg_scores[row["student_id"]] = row["avg_score"] or 0
         
         stats_by_child = {}
         for child in children:
             child_results = results_by_child.get(child.id, [])
-            if child_results:
-                total = sum(r.score for r in child_results)
-                avg = total / len(child_results)
-                # Single aggregation query instead of per-student loop
-                from django.db.models import Avg
-                class_averages = (
-                    Result.objects.filter(
-                        student__school=child.school,
-                        student__class_name=child.class_name,
-                    )
-                    .values("student_id")
-                    .annotate(avg_score=Avg("score"))
-                    .order_by("-avg_score")
-                )
-                position = None
-                for i, row in enumerate(class_averages, 1):
-                    if row["student_id"] == child.id:
-                        position = i
-                        break
-                stats_by_child[child.id] = {"average": round(avg, 1), "position": position, "total_subjects": len(child_results)}
+            total_subjects = len(child_results)
+            if total_subjects:
+                avg_value = avg_scores.get(child.id)
+                if avg_value is None:
+                    avg_value = sum(r.score for r in child_results) / total_subjects
+                stats_by_child[child.id] = {
+                    "average": round(avg_value, 1),
+                    "position": class_positions.get(child.id),
+                    "total_subjects": total_subjects,
+                }
             else:
                 stats_by_child[child.id] = {"average": None, "position": None, "total_subjects": 0}
         
@@ -264,7 +277,7 @@ def portal(request):
             # Get results for this student
             from academics.models import Result, ExamType, Term
 
-            results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("-id")
+            results = Result.objects.filter(student=student, is_published=True).select_related("subject", "exam_type", "term").order_by("-id")
 
             stats = {}
             if results:
@@ -283,6 +296,7 @@ def portal(request):
                         Result.objects.filter(
                             student__school=student.school,
                             student__class_name=student.class_name,
+                            is_published=True,
                         )
                         .values("student_id")
                         .annotate(avg_score=Avg("score"))
@@ -322,7 +336,7 @@ def portal(request):
             # Term-over-term averages for progress chart
             from django.db.models import Avg
             term_averages = list(
-                Result.objects.filter(student=student)
+                Result.objects.filter(student=student, is_published=True)
                 .values("term__name", "term_id")
                 .annotate(avg=Avg("score"))
                 .order_by("term_id")
@@ -335,6 +349,7 @@ def portal(request):
                 Result.objects.filter(
                     student__school=student.school,
                     student__class_name=student.class_name,
+                    is_published=True,
                 )
                 .values("term__name", "term_id")
                 .annotate(avg=Avg("score"))
@@ -540,20 +555,22 @@ def results_list(request):
         if not student:
             messages.error(request, "No student record is linked to this account.")
             return redirect("home")
-        qs = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("-id")
+        qs = Result.objects.filter(student=student, is_published=True).select_related("subject", "exam_type", "term").order_by("-id")
         terms = Term.objects.filter(school=student.school).order_by("-is_current", "-id")
         exam_types = ExamType.objects.filter(school=student.school).order_by("name")
         if term_id:
             qs = qs.filter(term_id=term_id)
         if exam_type_id:
             qs = qs.filter(exam_type_id=exam_type_id)
+        results_page = paginate(request, qs, per_page=50, page_param="results_page")
         return render(
             request,
             "students/results_list.html",
             {
                 "mode": "student",
                 "student": student,
-                "results": qs[:400],
+                "results": results_page,
+                "page_obj": results_page,
                 "terms": terms,
                 "exam_types": exam_types,
                 "selected_term": term_id,
@@ -573,7 +590,7 @@ def results_list(request):
         if not active_child:
             active_child = children[0]
 
-        qs = Result.objects.filter(student=active_child).select_related("subject", "exam_type", "term").order_by("-id")
+        qs = Result.objects.filter(student=active_child, is_published=True).select_related("subject", "exam_type", "term").order_by("-id")
         terms = Term.objects.filter(school=active_child.school).order_by("-is_current", "-id")
         exam_types = ExamType.objects.filter(school=active_child.school).order_by("name")
         if term_id:
@@ -581,6 +598,7 @@ def results_list(request):
         if exam_type_id:
             qs = qs.filter(exam_type_id=exam_type_id)
 
+        results_page = paginate(request, qs, per_page=50, page_param="results_page")
         return render(
             request,
             "students/results_list.html",
@@ -588,7 +606,8 @@ def results_list(request):
                 "mode": "parent",
                 "children": children,
                 "active_child": active_child,
-                "results": qs[:400],
+                "results": results_page,
+                "page_obj": results_page,
                 "terms": terms,
                 "exam_types": exam_types,
                 "selected_term": term_id,
@@ -616,7 +635,7 @@ def parent_child_detail(request, pk):
     term_id = (request.GET.get("term") or "").strip()
     exam_type_id = (request.GET.get("exam_type") or "").strip()
 
-    results_qs = Result.objects.filter(student=child).select_related("subject", "exam_type", "term").order_by("-id")
+    results_qs = Result.objects.filter(student=child, is_published=True).select_related("subject", "exam_type", "term").order_by("-id")
     if term_id:
         results_qs = results_qs.filter(term_id=term_id)
     if exam_type_id:

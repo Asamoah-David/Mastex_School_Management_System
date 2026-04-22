@@ -5,16 +5,19 @@ from datetime import timedelta
 from decimal import Decimal
 from django.conf import settings
 from django.db import models, transaction
+from django.db.models import Prefetch
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.utils import timezone
+from django.core.cache import cache
 
 from urllib.parse import urlparse
 from django.contrib.auth.decorators import login_required
 from accounts.permissions import can_export_data, is_school_leadership, user_can_manage_school
+from .forms import FeeStructureForm
 
 
 def _safe_referer(request, fallback="/"):
@@ -669,8 +672,14 @@ def paystack_webhook(request):
     if event == "charge.success":
         data = payload.get("data", {})
         reference = data.get("reference")
-        
+
         if reference:
+            dedupe_key = f"paystack_webhook_lock:{reference}"
+            if cache.get(dedupe_key):
+                logger.info("paystack_webhook duplicate burst skipped reference=%s", reference)
+                return HttpResponse(status=200)
+            cache.set(dedupe_key, 1, 120)
+
             metadata = data.get("metadata", {})
             payment_type = metadata.get("payment_type")
             
@@ -843,7 +852,15 @@ def paystack_webhook(request):
                         with transaction.atomic():
                             fee = HostelFee.objects.select_for_update().get(id=payment_id)
                             if fee.payment_status != 'completed' and not fee.paid:
-                                mark_hostel_fee_completed(fee=fee, reference=reference)
+                                try:
+                                    paid_amount = Decimal(str(data.get("amount", 0))) / Decimal("100")
+                                except Exception:
+                                    paid_amount = None
+                                mark_hostel_fee_completed(
+                                    fee=fee,
+                                    reference=reference,
+                                    paid_amount=paid_amount,
+                                )
                                 logger.info(f"Hostel payment completed: fee_id={payment_id}")
                             else:
                                 logger.info(f"Hostel payment already completed: fee_id={payment_id}")
@@ -892,6 +909,8 @@ def fee_list(request):
             
             fee = qs.filter(id=fee_id).first()
             if fee:
+                from audit.services import write_audit
+
                 if action == "mark_paid":
                     # Mark entire fee as paid
                     try:
@@ -920,12 +939,30 @@ def fee_list(request):
                             )
                         except Exception:
                             pass
+                    try:
+                        write_audit(
+                            user=request.user,
+                            action="fee_manual_mark_paid",
+                            model_name="finance.Fee",
+                            object_id=fee.pk,
+                            school=fee.school,
+                            request=request,
+                            changes={"delta": str(delta or Decimal("0"))},
+                        )
+                    except Exception:
+                        logger.exception("fee_list: audit log failed for mark_paid fee=%s", fee.pk)
                     messages.success(request, "Fee marked as fully paid.")
                 elif action == "mark_partially_paid":
                     partial_amount = request.POST.get("partial_amount")
                     if partial_amount:
                         try:
-                            amount = Decimal(str(partial_amount))
+                            amount = Decimal(str(partial_amount)).quantize(Decimal("0.01"))
+                            if amount <= 0:
+                                raise ValueError
+                            remaining = fee.remaining_balance
+                            if amount > remaining:
+                                messages.error(request, "Amount exceeds remaining balance.")
+                                return redirect("finance:fee_list")
                             fee.amount_paid = (fee.amount_paid or Decimal("0")) + amount
                             fee.save()
                             if amount > Decimal("0"):
@@ -944,13 +981,38 @@ def fee_list(request):
                                     )
                                 except Exception:
                                     pass
+                            try:
+                                write_audit(
+                                    user=request.user,
+                                    action="fee_manual_partial",
+                                    model_name="finance.Fee",
+                                    object_id=fee.pk,
+                                    school=fee.school,
+                                    request=request,
+                                    changes={
+                                        "amount": str(amount),
+                                        "remaining_after": str(fee.remaining_balance),
+                                    },
+                                )
+                            except Exception:
+                                logger.exception("fee_list: audit log failed for partial fee=%s", fee.pk)
                             messages.success(request, f"Added GHS {amount} to payment.")
                         except (ValueError, TypeError):
                             messages.error(request, "Invalid amount.")
                 elif action == "record_offline":
                     offline_amount = request.POST.get("offline_amount", str(fee.remaining_balance))
+                    manual_reason = (request.POST.get("manual_reason") or "").strip()
+                    if not manual_reason:
+                        messages.error(request, "Provide a reason for the manual offline payment.")
+                        return redirect("finance:fee_list")
                     try:
-                        amount = Decimal(str(offline_amount))
+                        amount = Decimal(str(offline_amount)).quantize(Decimal("0.01"))
+                        if amount <= 0:
+                            raise ValueError
+                        remaining = fee.remaining_balance
+                        if amount > remaining:
+                            messages.error(request, "Amount exceeds remaining balance.")
+                            return redirect("finance:fee_list")
                         # Payment row first, then F() update so Fee post_save does not double-notify.
                         fp = FeePayment.objects.create(
                             fee=fee,
@@ -967,7 +1029,12 @@ def fee_list(request):
                                 status="completed",
                                 payment_type=PaymentTypes.SCHOOL_FEE_OFFLINE,
                                 object_id=str(fee.pk),
-                                metadata={"fee_id": fee.pk, "fee_payment_id": fp.pk},
+                                metadata={
+                                    "fee_id": fee.pk,
+                                    "fee_payment_id": fp.pk,
+                                    "action": "record_offline",
+                                    "reason": manual_reason,
+                                },
                             )
                         except Exception:
                             pass
@@ -976,6 +1043,22 @@ def fee_list(request):
                         )
                         fee.refresh_from_db()
                         fee.save()
+                        try:
+                            write_audit(
+                                user=request.user,
+                                action="fee_offline_payment",
+                                model_name="finance.FeePayment",
+                                object_id=fp.pk,
+                                school=fee.school,
+                                request=request,
+                                changes={
+                                    "fee_id": fee.pk,
+                                    "amount": str(amount),
+                                    "reason": manual_reason,
+                                },
+                            )
+                        except Exception:
+                            logger.exception("fee_list: audit log failed for offline fee=%s", fee.pk)
                         messages.success(request, f"Recorded offline payment of GHS {amount}.")
                     except (ValueError, TypeError):
                         messages.error(request, "Invalid amount.")
@@ -996,10 +1079,14 @@ def fee_list(request):
     elif filter_status == "paid":
         fees_qs = fees_qs.filter(amount_paid__gte=models.F('amount'))
     
+    fees_qs = fees_qs.prefetch_related(
+        Prefetch("payments", queryset=FeePayment.objects.order_by("-created_at"))
+    )
+
     fees = fees_qs.order_by("student__school__name", "student__class_name", "student__admission_number")
     page_obj = paginate(request, fees, per_page=30)
 
-    ctx = {"fees": page_obj, "school": school, "page_obj": page_obj}
+    ctx = {"fees": page_obj, "school": school, "page_obj": page_obj, "total_count": page_obj.paginator.count}
     if can_export_data(user):
         ed = timezone.localdate()
         ctx["acct_export_start"] = ed - timedelta(days=89)
@@ -1031,22 +1118,43 @@ def fee_structure_create(request):
         return redirect("accounts:dashboard")
     if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
+    form = FeeStructureForm(request.POST or None)
     if request.method == "POST":
-        name = request.POST.get("name", "").strip()
-        try:
-            amount = Decimal(str(request.POST.get("amount", 0)))
-            class_name = request.POST.get("class_name", "").strip()
-            term = request.POST.get("term", "").strip()
-            if name and amount >= 0:
-                FeeStructure.objects.create(
-                    school=school, name=name, amount=amount,
-                    class_name=class_name, term=term
+        if form.is_valid():
+            structure = form.save(commit=False)
+            structure.school = school
+            structure.save()
+            try:
+                write_audit(
+                    user=request.user,
+                    action="create",
+                    model_name="finance.FeeStructure",
+                    object_id=structure.pk,
+                    school=school,
+                    request=request,
+                    changes={
+                        "name": structure.name,
+                        "amount": str(structure.amount),
+                        "class_name": structure.class_name,
+                        "term": structure.term,
+                        "is_active": structure.is_active,
+                    },
                 )
-                messages.success(request, "Fee structure added.")
-                return redirect("finance:fee_structure_list")
-        except (ValueError, TypeError):
-            pass
-    return render(request, "finance/fee_structure_form.html", {"school": school})
+            except Exception:
+                logger.exception("fee_structure_create: audit failed for structure=%s", structure.pk)
+            messages.success(request, "Fee structure added.")
+            return redirect("finance:fee_structure_list")
+        messages.error(request, "Please fix the highlighted errors.")
+
+    return render(
+        request,
+        "finance/fee_structure_form.html",
+        {
+            "school": school,
+            "form": form,
+            "structure": form.instance if getattr(form.instance, "pk", None) else None,
+        },
+    )
 
 
 @login_required
@@ -1063,27 +1171,48 @@ def fee_structure_edit(request, pk):
     
     structure = get_object_or_404(FeeStructure, pk=pk, school=school)
     
+    form = FeeStructureForm(request.POST or None, instance=structure)
+
     if request.method == "POST":
-        name = request.POST.get("name", "").strip()
-        try:
-            amount = Decimal(str(request.POST.get("amount", 0)))
-            class_name = request.POST.get("class_name", "").strip()
-            term = request.POST.get("term", "").strip()
-            is_active = request.POST.get("is_active") == "on"
-            
-            if name and amount >= 0:
-                structure.name = name
-                structure.amount = amount
-                structure.class_name = class_name
-                structure.term = term
-                structure.is_active = is_active
-                structure.save()
-                messages.success(request, "Fee structure updated.")
-                return redirect("finance:fee_structure_list")
-        except (ValueError, TypeError):
-            messages.error(request, "Invalid amount.")
-    
-    return render(request, "finance/fee_structure_form.html", {"school": school, "structure": structure})
+        if form.is_valid():
+            before = {
+                "name": structure.name,
+                "amount": str(structure.amount),
+                "class_name": structure.class_name,
+                "term": structure.term,
+                "is_active": structure.is_active,
+            }
+            form.save()
+            try:
+                write_audit(
+                    user=request.user,
+                    action="update",
+                    model_name="finance.FeeStructure",
+                    object_id=structure.pk,
+                    school=school,
+                    request=request,
+                    changes={
+                        "before": before,
+                        "after": {
+                            "name": structure.name,
+                            "amount": str(structure.amount),
+                            "class_name": structure.class_name,
+                            "term": structure.term,
+                            "is_active": structure.is_active,
+                        },
+                    },
+                )
+            except Exception:
+                logger.exception("fee_structure_edit: audit failed for structure=%s", structure.pk)
+            messages.success(request, "Fee structure updated.")
+            return redirect("finance:fee_structure_list")
+        messages.error(request, "Please fix the highlighted errors.")
+
+    return render(
+        request,
+        "finance/fee_structure_form.html",
+        {"school": school, "structure": structure, "form": form},
+    )
 
 
 @login_required
@@ -1101,7 +1230,26 @@ def fee_structure_delete(request, pk):
     structure = get_object_or_404(FeeStructure, pk=pk, school=school)
     
     if request.method == "POST":
+        snapshot = {
+            "name": structure.name,
+            "amount": str(structure.amount),
+            "class_name": structure.class_name,
+            "term": structure.term,
+            "is_active": structure.is_active,
+        }
         structure.delete()
+        try:
+            write_audit(
+                user=request.user,
+                action="delete",
+                model_name="finance.FeeStructure",
+                object_id=structure.pk,
+                school=school,
+                request=request,
+                changes=snapshot,
+            )
+        except Exception:
+            logger.exception("fee_structure_delete: audit failed for structure=%s", structure.pk)
         messages.success(request, "Fee structure deleted.")
         return redirect("finance:fee_structure_list")
     
@@ -1134,25 +1282,47 @@ def generate_fees_from_structure(request, pk):
     else:
         students = Student.objects.filter(school=school, status="active")
     
-    created_count = 0
-    skipped_count = 0
-    
-    for student in students:
-        existing = Fee.objects.filter(
-            school=school, student=student, amount=structure.amount
-        ).exists()
-        
-        if not existing:
-            Fee.objects.create(
-                school=school,
-                student=student,
-                amount=structure.amount
-            )
-            created_count += 1
-        else:
-            skipped_count += 1
-    
-    messages.success(request, f"Generated fees for {created_count} students. {skipped_count} skipped (already have matching fees).")
+    existing_student_ids = set(
+        Fee.objects.filter(school=school, fee_structure=structure)
+        .values_list("student_id", flat=True)
+    )
+
+    new_fees = [
+        Fee(
+            school=school,
+            student=student,
+            fee_structure=structure,
+            amount=structure.amount,
+        )
+        for student in students
+        if student.id not in existing_student_ids
+    ]
+
+    if new_fees:
+        Fee.objects.bulk_create(new_fees, batch_size=500)
+
+    created_count = len(new_fees)
+    skipped_count = max(len(students) - created_count, 0)
+
+    messages.success(
+        request,
+        f"Generated fees for {created_count} students. {skipped_count} skipped (already present).",
+    )
+    try:
+        write_audit(
+            user=request.user,
+            action="generate",
+            model_name="finance.FeeStructure",
+            object_id=structure.pk,
+            school=school,
+            request=request,
+            changes={
+                "generated_count": created_count,
+                "skipped_count": skipped_count,
+            },
+        )
+    except Exception:
+        logger.exception("generate_fees_from_structure: audit failed structure=%s", structure.pk)
     return redirect("finance:fee_structure_list")
 
 
@@ -2696,16 +2866,38 @@ def payout_request_create(request):
 
     if request.method == "GET":
         from accounts.models import User
-        staff_qs = User.objects.filter(school=school, role__in=[
-            "teacher", "accountant", "librarian", "admin_assistant",
-            "school_nurse", "admission_officer", "hod", "deputy_head",
-            "school_admin", "staff",
-        ]).order_by("first_name", "last_name")
         from finance.services.school_funds import get_balance
+
+        query = (request.GET.get("q") or "").strip()
+        staff_qs = []
+        staff_total = 0
+        staff_page = None
+        if query:
+            base_qs = (
+                User.objects.filter(school=school, role__in=[
+                    "teacher", "accountant", "librarian", "admin_assistant",
+                    "school_nurse", "admission_officer", "hod", "deputy_head",
+                    "school_admin", "staff",
+                ])
+                .filter(
+                    models.Q(first_name__icontains=query)
+                    | models.Q(last_name__icontains=query)
+                    | models.Q(username__icontains=query)
+                    | models.Q(payroll_momo_number__icontains=query)
+                    | models.Q(payroll_bank_account_number__icontains=query)
+                )
+                .order_by("first_name", "last_name")
+            )
+            staff_page = paginate(request, base_qs, per_page=25)
+            staff_qs = list(staff_page.object_list)
+            staff_total = staff_page.paginator.count
         balance = get_balance(school.pk)
         return render(request, "finance/payout_request_create.html", {
             "staff_list": staff_qs,
             "balance": balance,
+            "query": query,
+            "staff_total": staff_total,
+            "staff_page": staff_page,
         })
 
     # POST
@@ -2722,16 +2914,19 @@ def payout_request_create(request):
         messages.error(request, "Select a staff member.")
         return redirect("finance:payout_request_create")
     try:
-        amount = Decimal(amount_raw)
+        amount = Decimal(amount_raw).quantize(Decimal("0.01"))
+        if amount <= 0:
+            raise InvalidOperation
     except (InvalidOperation, TypeError):
         messages.error(request, "Enter a valid amount.")
         return redirect("finance:payout_request_create")
 
     from accounts.models import User
-    staff = User.objects.filter(pk=staff_id).first()
-    snap = ""
-    if staff:
-        snap = recipient_snapshot_for_route(staff, route)
+    staff = User.objects.filter(pk=staff_id, school=school).first()
+    if not staff:
+        messages.error(request, "Staff member not found for this school.")
+        return redirect("finance:payout_request_create")
+    snap = recipient_snapshot_for_route(staff, route)
 
     try:
         req = create_payout_request(

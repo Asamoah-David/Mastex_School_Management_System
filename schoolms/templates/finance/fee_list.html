@@ -8,9 +8,9 @@
 {% block content %}
 {% include "includes/finance_subnav.html" %}
 {% include "operations/includes/services_quick_nav.html" %}
-<div class="content-card" style="margin-bottom: 1.5rem;">
-    <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-between;">
-        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+<div class="content-card erp-card-stack">
+    <div class="erp-flex-between">
+        <div class="erp-flex-row">
         <a href="{% url 'finance:fee_list' %}" class="btn {% if not request.GET.filter %}btn-primary{% else %}btn-secondary{% endif %}">
             All ({{ total_count|default:fees|length }})
         </a>
@@ -25,7 +25,7 @@
         </a>
         </div>
         {% if can_export_data %}
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <div class="erp-export-row">
             <a href="{% url 'operations:export_fees' %}?format=csv" class="btn btn-success">📥 Fees CSV</a>
             <a href="{% url 'operations:export_fees' %}?format=excel" class="btn btn-success">📊 Fees Excel</a>
             <a href="{% url 'operations:export_fee_payments_ledger' %}?days=90" class="btn btn-secondary" title="Completed payments by line — for accounting / bank rec">💳 Payment ledger</a>
@@ -37,24 +37,24 @@
 </div>
 
 {% if acct_export_start %}
-<div class="content-card" id="accounting-exports" style="margin-bottom: 1.5rem;">
-    <h3 style="margin:0 0 0.35rem; font-size:0.95rem;">Accounting exports (date range)</h3>
-    <p style="font-size:0.82rem;color:var(--text-secondary);margin:0 0 0.75rem;line-height:1.45;">
+<div class="content-card erp-card-stack" id="accounting-exports">
+    <h3 class="erp-chart-card-title">Accounting exports (date range)</h3>
+    <p class="erp-card-note">
         Defaults to the last 90 days. Range is inclusive, up to 730 days. Use <strong>Ledger</strong> for one row per payment, <strong>Journal</strong> for paired debit/credit lines.
     </p>
-    <form method="get" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;">
+    <form method="get" class="erp-flex-form">
         <div>
-            <label for="acct-export-start" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.2rem;">Start</label>
-            <input type="date" id="acct-export-start" name="start" value="{{ acct_export_start|date:'Y-m-d' }}" class="form-control" style="min-width:11rem;padding:0.35rem 0.5rem;">
+            <label for="acct-export-start" class="erp-label-xs">Start</label>
+            <input type="date" id="acct-export-start" name="start" value="{{ acct_export_start|date:'Y-m-d' }}" class="form-control erp-input-compact">
         </div>
         <div>
-            <label for="acct-export-end" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.2rem;">End</label>
-            <input type="date" id="acct-export-end" name="end" value="{{ acct_export_end|date:'Y-m-d' }}" class="form-control" style="min-width:11rem;padding:0.35rem 0.5rem;">
+            <label for="acct-export-end" class="erp-label-xs">End</label>
+            <input type="date" id="acct-export-end" name="end" value="{{ acct_export_end|date:'Y-m-d' }}" class="form-control erp-input-compact">
         </div>
         <button type="submit" formaction="{% url 'operations:export_fee_payments_ledger' %}" class="btn btn-secondary btn-sm">Ledger CSV</button>
         <button type="submit" formaction="{% url 'operations:export_fee_payments_journal' %}" class="btn btn-secondary btn-sm">Journal CSV</button>
     </form>
-    <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.65rem 0 0;">
+    <p class="erp-card-note">
         <a href="{% url 'operations:export_open_fee_balances' %}">Open balances snapshot</a> (current AR on open fee lines, not filtered by these dates).
     </p>
 </div>
@@ -91,14 +91,14 @@
                     <td>{{ fee.amount_paid|format_ghs }}</td>
                     <td>
                         {% if fee.remaining_balance > 0 %}
-                            <span style="color: red;">{{ fee.remaining_balance|format_ghs }}</span>
+                            <span class="erp-text-danger">{{ fee.remaining_balance|format_ghs }}</span>
                         {% else %}
                             <span>—</span>
                         {% endif %}
                     </td>
                     <td>
-                        <div style="width: 100px; height: 8px; background: #eee; border-radius: 4px; overflow: hidden;">
-                            <div style="width: {{ fee.payment_percentage }}%; height: 100%; background: {% if fee.is_fully_paid %}green{% else %}orange{% endif %};"></div>
+                        <div class="erp-progress">
+                            <div class="erp-progress__bar {% if not fee.is_fully_paid %}erp-progress__bar--warning{% endif %}" style="width: {{ fee.payment_percentage }}%;"></div>
                         </div>
                         <small>{{ fee.payment_percentage }}%</small>
                     </td>
@@ -113,17 +113,18 @@
                     </td>
                     <td>
                         {% if not fee.is_fully_paid %}
-                            <form method="post" style="display:inline; margin-right: 0.5rem;">
+                            <form method="post" class="erp-inline-form--spaced">
                                 {% csrf_token %}
                                 <input type="hidden" name="fee_id" value="{{ fee.id }}">
                                 <input type="hidden" name="action" value="record_offline">
-                                <input type="number" name="offline_amount" placeholder="Amount" style="width: 80px; padding: 0.25rem;" step="0.01" min="0">
+                                <input type="number" name="offline_amount" placeholder="Amount" class="erp-input-inline" step="0.01" min="0">
+                                <input type="text" name="manual_reason" placeholder="Reason (required)" class="erp-input-reason">
                                 <button type="submit" class="btn btn-primary btn-sm">Record</button>
                             </form>
                             {% if fee.payments.all %}
-                                <details style="display:inline;">
-                                    <summary style="cursor:pointer; font-size:0.8rem;">History</summary>
-                                    <ul style="font-size:0.75rem; margin:0.5rem 0; padding-left:1rem;">
+                                <details class="erp-details-inline">
+                                    <summary>History</summary>
+                                    <ul class="erp-detail-list">
                                         {% for payment in fee.payments.all %}
                                             <li>{{ payment.amount|format_ghs }} — {{ payment.created_at|date:"M d, Y" }} ({{ payment.payment_method }})</li>
                                         {% endfor %}
@@ -139,6 +140,9 @@
             </tbody>
         </table>
     </div>
+    <p class="erp-card-message">
+        Manual adjustments are audited. Provide a reason whenever you record an offline payment.
+    </p>
     {% endif %}
     {% include 'includes/pagination.html' %}
 </div>

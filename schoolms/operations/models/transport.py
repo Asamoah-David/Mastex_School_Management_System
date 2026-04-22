@@ -26,6 +26,10 @@ class BusPayment(models.Model):
     route = models.ForeignKey(BusRoute, on_delete=models.SET_NULL, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     term_period = models.CharField(max_length=50, blank=True)
+    daily_units = models.PositiveIntegerField(
+        default=0,
+        help_text="For daily routes: number of days covered by this payment.",
+    )
     paid = models.BooleanField(default=False)
     payment_date = models.DateField(null=True, blank=True)
     payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
@@ -35,6 +39,14 @@ class BusPayment(models.Model):
         ordering = ["-id"]
         indexes = [
             models.Index(fields=["school", "student"], name="idx_bus_school_stu"),
+            models.Index(
+                fields=["school", "payment_status", "-payment_date", "-id"],
+                name="idx_bus_school_status_date",
+            ),
+            models.Index(
+                fields=["student", "payment_status", "-id"],
+                name="idx_bus_student_status",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -91,6 +103,14 @@ class TextbookSale(models.Model):
         ordering = ["-sale_date"]
         indexes = [
             models.Index(fields=["school", "student"], name="idx_txtsale_school_stu"),
+            models.Index(
+                fields=["student", "payment_status", "-id"],
+                name="idx_tbook_stu_status",
+            ),
+            models.Index(
+                fields=["school", "payment_status", "-id"],
+                name="idx_tbook_school_status",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(

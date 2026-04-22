@@ -545,7 +545,6 @@ label.ds-label.required::after {
 .table-responsive {
     width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     border-radius: var(--radius-lg, 0.75rem);
     border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
 }
@@ -560,7 +559,6 @@ label.ds-label.required::after {
 .table-scroll {
     width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
 }
 
 /* ===== ERP Finance (payout pages) ===== */
@@ -625,7 +623,10 @@ label.ds-label.required::after {
 
 .erp-mb-lg { margin-bottom: 1.25rem; }
 .erp-mb-md { margin-bottom: 0.75rem; }
+.erp-mb-sm { margin-bottom: 0.5rem; }
 .erp-mt-lg { margin-top: 1.25rem; }
+.erp-mt-sm { margin-top: 0.5rem; }
+.erp-m-0 { margin: 0 !important; }
 .erp-max-600 { max-width: 600px; }
 .erp-title-tight { margin-top: 0; }
 .erp-copy-sm { font-size: 0.85rem; line-height: 1.5; }
@@ -779,6 +780,97 @@ label.ds-label.required::after {
     width: 90px;
     padding: 0.4rem 0.55rem;
     border-radius: var(--radius-md, 8px);
+}
+
+.erp-input-reason {
+  width: 140px;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-md, 8px);
+}
+
+.erp-input-full {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-md);
+}
+
+.erp-card-narrow {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.erp-student-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--border-subtle);
+}
+
+.erp-student-card__icon {
+  font-size: 2rem;
+}
+
+.erp-student-card__title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.erp-student-card__meta {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+.erp-form-actions-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.erp-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.erp-card-list__item {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.erp-card-list__title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.erp-card-list__meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.erp-select-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.erp-info-note {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.erp-chart-canvas-lg {
+  position: relative;
+  height: 240px;
 }
 
 @media (max-width: 899px) {
@@ -1106,8 +1198,8 @@ label.ds-label.required::after {
     right: 0;
     z-index: 900;
     background: rgba(2, 6, 23, 0.97);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border-top: 1px solid rgba(148, 163, 184, 0.25);
     padding: 0.35rem 0.25rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
 }

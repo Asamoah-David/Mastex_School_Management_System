@@ -42,6 +42,7 @@ def create_payout_request(
     """
     from finance.models import StaffPayoutRequest
     from accounts.models import User
+    from audit.services import write_audit
 
     if amount <= 0:
         raise PayoutError("Amount must be greater than zero.")
@@ -84,6 +85,23 @@ def create_payout_request(
         "payout_request: created ref=%s school=%s staff=%s amount=%s by=%s",
         req.reference, school_id, staff_user_id, amount, requested_by_id,
     )
+    try:
+        requester = staff if staff.pk == requested_by_id else User.objects.filter(pk=requested_by_id).first()
+        write_audit(
+            user=requester,
+            action="payout_request_created",
+            model_name="finance.StaffPayoutRequest",
+            object_id=req.pk,
+            school_id=school_id,
+            changes={
+                "staff_user_id": staff_user_id,
+                "amount": str(amount),
+                "period": period_label,
+                "route": route,
+            },
+        )
+    except Exception:
+        logger.exception("payout_request: audit log failed for ref=%s", req.reference)
     return req
 
 

@@ -12,6 +12,31 @@
 </div>
 
 <div class="content-card erp-max-600">
+    <form method="get" class="erp-mb-lg erp-flex-form">
+        <div class="erp-flex-form__field">
+            <label for="staff-search" class="erp-label">Search staff directory</label>
+            <input type="text" id="staff-search" name="q" value="{{ query|default:'' }}" placeholder="Name, username, phone, bank account" class="erp-input-full">
+        </div>
+        <button type="submit" class="btn btn-secondary">Search</button>
+        {% if query %}
+        <a href="{% url 'finance:payout_request_create' %}" class="btn btn-tertiary">Clear</a>
+        {% endif %}
+    </form>
+    <p class="erp-copy-xs erp-search-hint">
+        {% if not query %}
+            Start typing to load eligible staff. Only finance-approved roles are searchable.
+        {% else %}
+            Showing {% if staff_page %}{{ staff_page.start_index }}–{{ staff_page.end_index }}{% else %}0{% endif %} of {{ staff_total }} result{{ staff_total|pluralize }} for "{{ query }}".
+        {% endif %}
+    </p>
+    {% if query and not staff_list %}
+    <div class="alert erp-alert-soft-danger">
+        No staff matched "{{ query }}" within your school. Search again or update the staff profile first.
+    </div>
+    {% endif %}
+    {% if staff_page and staff_page.paginator.num_pages > 1 %}
+        {% include "includes/pagination.html" with page_obj=staff_page %}
+    {% endif %}
     <h3 class="erp-title-tight">Create Payout Request</h3>
     <p class="erp-status-muted erp-copy-sm erp-mb-lg">
         This request will need approval from a <strong>different</strong> school leader before funds are reserved.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.db import transaction
@@ -159,61 +159,56 @@ def mark_textbook_sale_failed(*, sale, reference: str | None) -> None:
         )
 
 
-def mark_hostel_fee_completed(*, fee, reference: str | None) -> None:
-    from operations.models import HostelFeePayment
+def mark_hostel_fee_completed(*, fee, reference: str | None, paid_amount: Decimal | None = None) -> Decimal:
+    """Apply a hostel payment atomically and mirror it to ledgers."""
+
+    def _normalize_amount(value) -> Decimal:
+        try:
+            return Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            return Decimal("0")
+
+    requested = paid_amount
+    if requested is None:
+        # Fall back to remaining balance (or total) when amount is not provided (e.g., webhook)
+        requested = getattr(fee, "balance", None)
+        if requested in (None, ""):
+            requested = fee.amount
+
+    amount_to_apply = _normalize_amount(requested)
+    if amount_to_apply <= Decimal("0"):
+        return Decimal("0")
+
+    amount_to_apply = amount_to_apply.quantize(Decimal("0.01"))
 
     with transaction.atomic():
-        fee.payment_status = "completed"
-        fee.paid = True
-        fee.payment_date = timezone.now().date()
-        fee.amount_paid = fee.amount
-        if reference and not fee.payment_reference:
-            fee.payment_reference = reference
-        if fee.payment_history is None:
-            fee.payment_history = []
-        if reference and not any((entry or {}).get("reference") == reference for entry in fee.payment_history):
-            fee.payment_history.append(
-                {
-                    "amount": str(fee.amount or Decimal("0")),
-                    "date": str(fee.payment_date),
-                    "reference": reference,
-                }
-            )
-        fee.save(update_fields=["payment_status", "paid", "payment_date", "amount_paid", "payment_reference", "payment_history"])
+        added = fee.add_payment(amount=amount_to_apply, payment_reference=reference)
+        if not added:
+            return Decimal("0")
 
         if reference:
-            HostelFeePayment.objects.get_or_create(
-                payment_reference=reference,
-                defaults={
-                    "hostel_fee": fee,
-                    "amount": fee.amount or Decimal("0"),
-                    "recorded_by": None,
-                },
-            )
-        else:
-            HostelFeePayment.objects.create(
-                hostel_fee=fee,
-                amount=fee.amount or Decimal("0"),
-                recorded_by=None,
-            )
+            metadata = {"hostel_fee_id": fee.pk}
+            if not fee.paid:
+                metadata["partial"] = True
 
-        if reference:
             record_payment_transaction(
                 reference=reference,
                 school_id=fee.school_id,
-                amount=fee.amount or Decimal("0"),
+                amount=amount_to_apply,
                 status="completed",
                 payment_type=PaymentTypes.HOSTEL,
                 object_id=str(fee.pk),
-                metadata={"hostel_fee_id": fee.pk},
+                metadata=metadata,
             )
             _record_to_school_ledger(
                 school_id=fee.school_id,
-                amount=fee.amount or Decimal("0"),
+                amount=amount_to_apply,
                 reference=reference,
                 description=f"Hostel fee #{fee.pk}",
-                metadata={"hostel_fee_id": fee.pk},
+                metadata=metadata,
             )
+
+    return amount_to_apply
 
 
 def mark_hostel_fee_failed(*, fee, reference: str | None) -> None:

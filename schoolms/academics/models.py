@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from students.models import Student
@@ -139,6 +141,14 @@ def clear_grade_cache(school=None):
         _cache.clear()
 
 
+@receiver(post_save, sender=GradeBoundary)
+@receiver(post_delete, sender=GradeBoundary)
+def _grade_boundary_cache_invalidator(sender, instance, **kwargs):
+    """Ensure cached grading scales refresh immediately after edits."""
+    if instance and instance.school_id:
+        clear_grade_cache(instance.school)
+
+
 def bulk_annotate_grades(results, school):
     """Pre-compute ``.grade_cached`` on a list/queryset of Result objects.
 
@@ -259,6 +269,19 @@ class Result(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_published = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Only published results are visible to students/parents.",
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    published_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="results_published",
+    )
 
     class Meta:
         ordering = ['-created_at']
@@ -351,7 +374,13 @@ class Timetable(models.Model):
         related_name="timetable_entries",
     )
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    teacher = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='timetable_subjects')
+    teacher = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timetable_subjects",
+    )
     day_of_week = models.CharField(max_length=10)  # Monday, Tuesday, etc.
     start_time = models.TimeField()
     end_time = models.TimeField()

@@ -21,16 +21,40 @@
 {% endif %}
 
 {% if routes %}
+<div class="content-card" style="margin-bottom: 1rem;">
+    <form class="bus-term-form" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end;">
+        <div style="flex: 1 1 220px;">
+            <label for="bus-term-input" style="display:block;font-size:0.85rem;color:#94a3b8;">Term / period</label>
+            <input id="bus-term-input" type="text" value="{{ current_term }}" style="width:100%;padding:0.5rem;border-radius:0.5rem;border:1px solid rgba(148,163,184,0.4);background:#0f172a;color:#fff;" placeholder="e.g. Term 2 2026">
+        </div>
+        <p style="margin:0;font-size:0.85rem;color:#94a3b8;">
+            Term label is attached to every payment so admins can reconcile correctly.
+        </p>
+    </form>
+</div>
 <div class="content-card">
     <h3 class="section-title">🚌 Available Bus Routes</h3>
     <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
         {% for route in routes %}
         <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.2); border-radius: 0.75rem; padding: 1rem;">
             <h4 style="margin: 0 0 0.5rem 0; color: #22c55e;">{{ route.name }}</h4>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0;">{{ route.fee_per_term|format_ghs }} <span style="font-size: 0.9rem; color: #9ca3af;">/ term</span></p>
+            {% if route.payment_frequency == 'daily' %}
+            <p style="font-size: 1.2rem; font-weight: 600; color: #eab308; margin: 0 0 0.5rem 0;">
+                {{ route.fee_per_term|format_ghs }} <span style="font-size:0.85rem; color:#fbbf24;">per day</span>
+            </p>
+            <div class="form-group" style="margin-bottom:0.75rem;">
+                <label for="daily-units-{{ route.id }}" style="display:block;font-size:0.85rem;color:#94a3b8;">Days to pay for</label>
+                <input type="number" id="daily-units-{{ route.id }}" min="1" value="1" style="width:100%;padding:0.4rem 0.5rem;border-radius:0.4rem;border:1px solid rgba(148,163,184,0.4);background:rgba(15,23,42,0.7);color:#fff;">
+                <small style="display:block;color:#94a3b8;margin-top:0.25rem;">Multiple payments per term are allowed for this route.</small>
+            </div>
+            {% else %}
+            <p style="font-size: 1.5rem; font-weight: bold; color: #e5e7eb; margin: 0;">
+                {{ route.fee_per_term|format_ghs }} <span style="font-size: 0.9rem; color: #9ca3af;">per term</span>
+            </p>
+            {% endif %}
             {% if request.user.role == 'student' or request.user.role == 'parent' %}
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem;">
-                <button type="button" class="btn btn-primary btn-sm" onclick="payBus('{{ route.id }}', '{{ route.fee_per_term }}')">Pay with Paystack</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="payBus(this, '{{ route.id }}', '{{ route.fee_per_term }}', '{{ route.payment_frequency }}')">Pay with Paystack</button>
             </div>
             {% endif %}
         </div>
@@ -78,51 +102,74 @@
 
 {% if my_payments %}
 <h3 class="section-title">📜 My Bus Payment History</h3>
-<div class="table-card">
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Route</th>
-                <th>Amount</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for payment in my_payments %}
-            <tr>
-                <td>{{ payment.payment_date|date:"M d, Y" }}</td>
-                <td>{{ payment.route.name }}</td>
-                <td>{{ payment.amount|format_ghs }}</td>
-                <td>
-                    {% if payment.payment_status == 'completed' %}
-                    <span class="tag tag-success">Paid</span>
-                    {% else %}
-                    <span class="tag tag-unpaid">Pending</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Route</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for payment in my_payments %}
+                <tr>
+                    <td>{{ payment.payment_date|date:"d M Y" }}</td>
+                    <td>{{ payment.route.name|default:"-" }}</td>
+                    <td>{{ payment.amount|floatformat:2 }}</td>
+                    <td>{{ payment.payment_status|capfirst }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if page_obj %}
+        {% include "includes/pagination.html" with page_obj=page_obj %}
+    {% endif %}
+{% else %}
+    <p>No payment history yet.</p>
 </div>
 {% endif %}
 
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script>
-function payBus(routeId, fee) {
-    // Disable button to prevent double-clicks
-    const btn = event.target;
+function payBus(buttonEl, routeId, fee, frequency) {
+    const btn = buttonEl;
     btn.disabled = true;
     btn.textContent = 'Processing...';
-    
+    const termInput = document.getElementById('bus-term-input');
+    const termValue = termInput ? termInput.value.trim() : '';
+    let dailyUnits = 0;
+    const rate = parseFloat(fee || '0');
+    if (frequency === 'daily') {
+        const daysInput = document.getElementById(`daily-units-${routeId}`);
+        dailyUnits = daysInput ? parseInt(daysInput.value, 10) : 0;
+        if (!dailyUnits || dailyUnits <= 0) {
+            alert('Enter how many days you would like to cover.');
+            btn.disabled = false;
+            btn.textContent = 'Pay with Paystack';
+            return;
+        }
+    }
+
+    const payload = new URLSearchParams({
+        route_id: routeId,
+        payment_method: 'card',
+        student_id: '{{ portal_student.id }}',
+        term: termValue || '{{ current_term }}',
+        daily_units: dailyUnits || 0,
+    });
+
+    const calculatedAmount = frequency === 'daily' ? rate * dailyUnits : rate;
+
     fetch('{% url "operations:bus_initiate_payment" %}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: 'route_id=' + routeId + '&payment_method=card&student_id={{ portal_student.id }}'
+        body: payload.toString()
     })
     .then(response => {
         if (!response.ok) {
@@ -141,7 +188,7 @@ function payBus(routeId, fee) {
                 const handler = PaystackPop.setup({
                     key: '{{ paystack_public_key }}',
                     email: data.email || '{{ request.user.email }}',
-                    amount: fee * 100,
+                    amount: Math.round(((calculatedAmount || parseFloat(data.charge_amount || '0') || 0)) * 100),
                     reference: data.reference,
                     currency: 'GHS',
                     callback: function(response) {

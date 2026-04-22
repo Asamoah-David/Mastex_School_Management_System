@@ -12,10 +12,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.conf import settings
 import uuid
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from accounts.decorators import login_required, parent_required, student_required
 from accounts.permissions import user_can_manage_school
+from core.pagination import paginate
 
 from students.models import Student
 from schools.models import School
@@ -173,16 +174,18 @@ def canteen_my(request):
     items = CanteenItem.objects.filter(school=school, is_available=True)
 
     # Get student's payment history (only completed payments)
-    my_payments = CanteenPayment.objects.filter(
+    my_payments_qs = CanteenPayment.objects.filter(
         student=student,
         payment_status='completed'
-    )[:20]
+    ).order_by('-payment_date', '-id')
+    my_payments = paginate(request, my_payments_qs, per_page=25, page_param="canteen_hist")
 
     # Get pending payments
-    pending_payments = CanteenPayment.objects.filter(
+    pending_qs = CanteenPayment.objects.filter(
         student=student,
         payment_status='pending'
-    )
+    ).order_by('-payment_date', '-id')
+    pending_payments = paginate(request, pending_qs, per_page=25, page_param="canteen_pending")
 
     from django.conf import settings
     portal_children = _portal_children(request.user)
@@ -190,6 +193,7 @@ def canteen_my(request):
         'items': items,
         'my_payments': my_payments,
         'pending_payments': pending_payments,
+        'page_obj': my_payments,
         'page_title': 'Canteen',
         'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
         'portal_children': portal_children,
@@ -313,6 +317,12 @@ def canteen_payment_verify(request):
     
     reference = request.GET.get('reference')
     result = paystack_service.verify_payment(reference) if reference else None
+    if not result and payment_id:
+        # Fall back to stored reference if query param missing
+        stored_ref = CanteenPayment.objects.filter(pk=payment_id).values_list('payment_reference', flat=True).first()
+        if stored_ref:
+            reference = stored_ref
+            result = paystack_service.verify_payment(reference)
     
     payment = None
     try:
@@ -353,34 +363,40 @@ def bus_my(request):
         return redirect("home")
 
     school = student.school
+    current_term = request.GET.get("term") or f"Term {timezone.now().year}"
 
     # Get all bus routes with fees
     routes = BusRoute.objects.filter(school=school)
 
     # Get student's payment records
-    my_payments = BusPayment.objects.filter(
+    my_payments_qs = BusPayment.objects.filter(
         student=student,
         payment_status='completed'
-    ).select_related('route')[:20]
+    ).select_related('route').order_by('-payment_date', '-id')
+
+    my_payments = paginate(request, my_payments_qs, per_page=25, page_param="hist_page")
 
     # Get pending payments
-    pending_payments = BusPayment.objects.filter(
+    pending_qs = BusPayment.objects.filter(
         student=student,
         payment_status='pending'
-    )
+    ).order_by('-payment_date', '-id')
+    pending_page = paginate(request, pending_qs, per_page=25, page_param="pending_page")
 
     from django.conf import settings
     portal_children = _portal_children(request.user)
     context = {
         'routes': routes,
         'my_payments': my_payments,
-        'pending_payments': pending_payments,
+        'pending_payments': pending_page,
+        'pending_page': pending_page,
         'page_title': 'Transport',
         'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
         'portal_children': portal_children,
         'portal_student': student,
         'mode': 'parent' if getattr(request.user, 'role', None) == 'parent' else 'student',
         'children': portal_children,
+        'current_term': current_term,
     }
     return render(request, 'operations/bus_my.html', context)
 
@@ -396,31 +412,36 @@ def bus_initiate_payment(request):
     route_id = request.POST.get('route_id')
     term = request.POST.get('term', f'Term {timezone.now().year}')
     payment_method = request.POST.get('payment_method', 'card')
+    try:
+        daily_units = int(request.POST.get('daily_units', "0"))
+    except (TypeError, ValueError):
+        daily_units = 0
     
     try:
         route = BusRoute.objects.get(id=route_id, school=student.school)
     except BusRoute.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Route not found'}, status=404)
     
-    # Check if already paid for this term
-    existing = BusPayment.objects.filter(
-        student=student,
-        route=route,
-        term_period=term,
-        payment_status='completed'
-    ).exists()
-    
-    if existing:
-        return JsonResponse({'success': False, 'error': 'Already paid for this term'}, status=400)
+    # Check if already paid for this term (term frequency only)
+    if route.payment_frequency == 'term':
+        existing = BusPayment.objects.filter(
+            student=student,
+            route=route,
+            term_period=term,
+            payment_status='completed'
+        ).exists()
+        if existing:
+            return JsonResponse({'success': False, 'error': 'Already paid for this term'}, status=400)
     
     # Calculate amount based on payment frequency
     base_amount = Decimal(str(route.fee_per_term or 0)).quantize(Decimal("0.01"))
     if route.payment_frequency == 'daily':
-        # For daily payments, use the daily rate (assuming fee_per_term is the daily rate when set to daily)
-        amount = base_amount
+        if daily_units <= 0:
+            return JsonResponse({'success': False, 'error': 'Enter how many days you are paying for.'}, status=400)
+        amount = (base_amount * daily_units).quantize(Decimal("0.01"))
     else:
-        # For term payments, use the full term fee
         amount = base_amount
+        daily_units = 0
 
     # Generate unique reference
     reference = f"BUS_{uuid.uuid4().hex[:12].upper()}"
@@ -433,6 +454,7 @@ def bus_initiate_payment(request):
             route=route,
             amount=amount,
             term_period=term,
+            daily_units=daily_units,
             payment_reference=reference,
             payment_status='pending'
         )
@@ -451,7 +473,8 @@ def bus_initiate_payment(request):
         'payment_id': str(payment.id),
         'route_name': route.name,
         'term': term,
-        'student_name': student.user.get_full_name()
+        'student_name': student.user.get_full_name(),
+        'daily_units': daily_units,
     }
     
     # Get school's subaccount if configured
@@ -487,6 +510,7 @@ def bus_initiate_payment(request):
             'reference': reference,
             'payment_id': payment.id,  # Return payment_id for reliable lookup
             'email': pe,
+            'charge_amount': str(amount),
         })
     else:
         with transaction.atomic():
@@ -561,23 +585,35 @@ def textbook_my(request):
     textbooks = Textbook.objects.filter(school=school, stock__gt=0)
 
     # Get student's purchase history
-    my_purchases = TextbookSale.objects.filter(
-        student=student,
-        payment_status='completed'
-    )[:20]
+    my_purchases_page = paginate(
+        request,
+        TextbookSale.objects.filter(
+            student=student,
+            payment_status='completed'
+        ).select_related('textbook').order_by('-id'),
+        per_page=25,
+        page_param="textbook_hist",
+    )
 
     # Get pending purchases
-    pending_purchases = TextbookSale.objects.filter(
-        student=student,
-        payment_status='pending'
+    pending_page = paginate(
+        request,
+        TextbookSale.objects.filter(
+            student=student,
+            payment_status='pending'
+        ).select_related('textbook').order_by('-id'),
+        per_page=25,
+        page_param="textbook_pending",
     )
 
     from django.conf import settings
     portal_children = _portal_children(request.user)
     context = {
         'textbooks': textbooks,
-        'my_purchases': my_purchases,
-        'pending_purchases': pending_purchases,
+        'my_purchases': my_purchases_page,
+        'pending_purchases': pending_page,
+        'pending_page': pending_page,
+        'page_obj': my_purchases_page,
         'page_title': 'Textbooks',
         'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
         'portal_children': portal_children,
@@ -760,8 +796,20 @@ def hostel_initiate_payment(request):
     if fee.payment_status == 'completed' or fee.paid:
         return JsonResponse({'success': False, 'error': 'Already paid'}, status=400)
 
-    amount = fee.balance if hasattr(fee, "balance") else fee.amount
-    amount = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+    try:
+        amount_raw = request.POST.get('amount')
+        if amount_raw:
+            amount = Decimal(str(amount_raw))
+        else:
+            amount = Decimal(str(fee.balance if hasattr(fee, "balance") else fee.amount))
+    except (TypeError, ValueError, InvalidOperation):
+        return JsonResponse({'success': False, 'error': 'Enter a valid amount.'}, status=400)
+    amount = amount.quantize(Decimal("0.01"))
+    balance = Decimal(str(fee.balance if hasattr(fee, "balance") else fee.amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return JsonResponse({'success': False, 'error': 'Amount must be greater than zero.'}, status=400)
+    if amount > balance:
+        return JsonResponse({'success': False, 'error': 'Amount exceeds remaining balance.'}, status=400)
 
     # Generate unique reference
     reference = f"HOSTEL_{uuid.uuid4().hex[:12].upper()}"
@@ -789,7 +837,8 @@ def hostel_initiate_payment(request):
         'payment_id': str(fee.id),
         'hostel_name': fee.hostel.name,
         'term': fee.term,
-        'student_name': student.user.get_full_name()
+        'student_name': student.user.get_full_name(),
+        'requested_amount': str(amount),
     }
 
     # Get school's subaccount if configured
@@ -817,7 +866,8 @@ def hostel_initiate_payment(request):
             'success': True,
             'authorization_url': result['data']['authorization_url'],
             'reference': reference,
-            'payment_id': fee.id  # Return payment_id for reliable lookup
+            'payment_id': fee.id,  # Return payment_id for reliable lookup
+            'charge_amount': str(amount),
         })
     else:
         with transaction.atomic():
@@ -856,6 +906,9 @@ def hostel_payment_verify(request):
                 fee = HostelFee.objects.select_for_update().filter(id=payment_id).first()
             if not fee and reference:
                 fee = HostelFee.objects.select_for_update().filter(payment_reference=reference).first()
+            if not reference and fee and fee.payment_reference:
+                reference = fee.payment_reference
+                result = paystack_service.verify_payment(reference)
 
             if fee:
                 if fee.payment_status == 'completed' or fee.paid:
@@ -863,8 +916,30 @@ def hostel_payment_verify(request):
                     return redirect('operations:hostel_my')
 
                 if result and result.get('status') and result['data']['status'] == 'success':
-                    mark_hostel_fee_completed(fee=fee, reference=reference)
-                    messages.success(request, "Payment successful! Your hostel fee is now cleared.")
+                    paid_amount = Decimal(str(result['data'].get('amount', 0))) / Decimal('100')
+                    applied_amount = mark_hostel_fee_completed(
+                        fee=fee,
+                        paid_amount=paid_amount,
+                        reference=reference,
+                    )
+                    fee.refresh_from_db(fields=[
+                        "amount",
+                        "amount_paid",
+                        "payment_status",
+                        "paid",
+                    ])
+                    if applied_amount == Decimal("0"):
+                        messages.info(request, "Payment already recorded for this reference.")
+                    elif fee.paid:
+                        messages.success(request, "Payment successful! Your hostel fee is now cleared.")
+                    else:
+                        remaining = (fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))
+                        if remaining < Decimal("0"):
+                            remaining = Decimal("0")
+                        messages.success(
+                            request,
+                            f"Payment received! Remaining balance: GHS {remaining.quantize(Decimal('0.01'))}",
+                        )
                 else:
                     mark_hostel_fee_failed(fee=fee, reference=reference)
                     messages.error(request, "Payment failed. Please try again.")
@@ -1051,11 +1126,22 @@ def payment_dashboard(request):
     bus_unpaid = bus_payments.filter(paid=False).count()
     textbook_count = textbook_filtered.count()
     
+    # Paginate bus and canteen payments
+    from django.core.paginator import Paginator
+    bus_payments_paginator = Paginator(bus_payments, 50)
+    canteen_payments_paginator = Paginator(canteen_payments, 50)
+    
+    bus_payments_page_number = request.GET.get('bus_payments_page')
+    canteen_payments_page_number = request.GET.get('canteen_payments_page')
+    
+    bus_payments_page_obj = bus_payments_paginator.get_page(bus_payments_page_number)
+    canteen_payments_page_obj = canteen_payments_paginator.get_page(canteen_payments_page_number)
+    
     context = {
         'fees': school_fees_filtered[:20],
         'school_fees': school_fees_filtered[:20],
-        'canteen_payments': canteen_filtered,
-        'bus_payments': bus_payments,
+        'canteen_payments': canteen_payments_page_obj,
+        'bus_payments': bus_payments_page_obj,
         'textbook_sales': textbook_filtered,
         'hostel_payments': hostel_filtered,
         'recent_payments': recent_payments,
@@ -1080,6 +1166,8 @@ def payment_dashboard(request):
         'end_date': end_date,
         'page_title': 'Payment Dashboard',
         'outstanding_students': [],
+        'bus_payments_page_obj': bus_payments_page_obj,
+        'canteen_payments_page_obj': canteen_payments_page_obj,
     }
     return render(request, 'operations/payment_dashboard.html', context)
 
@@ -1265,13 +1353,24 @@ def my_payments(request):
     # Get student name for template
     student_name = student.user.get_full_name() if student.user else "Student"
     
+    # Paginate bus and canteen payments
+    from django.core.paginator import Paginator
+    bus_payments_paginator = Paginator(bus, 50)
+    canteen_payments_paginator = Paginator(canteen, 50)
+    
+    bus_payments_page_number = request.GET.get('bus_payments_page')
+    canteen_payments_page_number = request.GET.get('canteen_payments_page')
+    
+    bus_payments_page_obj = bus_payments_paginator.get_page(bus_payments_page_number)
+    canteen_payments_page_obj = canteen_payments_paginator.get_page(canteen_payments_page_number)
+    
     context = {
         'school_fees': school_fees,
         'school_fees_total': school_fees_total,
         'school_fees_outstanding': school_fees_outstanding,
-        'canteen': canteen,
+        'canteen': canteen_payments_page_obj,
         'canteen_total': canteen_total,
-        'bus': bus,
+        'bus': bus_payments_page_obj,
         'bus_total': bus_total,
         'textbooks': textbooks,
         'textbook_total': textbook_total,
@@ -1282,6 +1381,8 @@ def my_payments(request):
         'portal_children': portal_children,
         'portal_student': student,
         'paystack_public_key': getattr(settings, 'PAYSTACK_PUBLIC_KEY', ''),
+        'bus_payments_page_obj': bus_payments_page_obj,
+        'canteen_payments_page_obj': canteen_payments_page_obj,
     }
     return render(request, 'operations/my_payments.html', context)
 

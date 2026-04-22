@@ -98,8 +98,12 @@
         </tbody>
     </table>
 </div>
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+    {% include "includes/pagination.html" with page_obj=page_obj %}
+{% endif %}
 {% else %}
 <div class="empty-state">No results found.</div>
+<p style="color:#94a3b8;font-size:0.85rem;">If you expected to see results, they may still be pending publication by your school.</p>
 {% endif %}
 
 {% endblock %}

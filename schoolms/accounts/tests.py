@@ -76,6 +76,7 @@ class TeachingScopeAndSmokeTests(TestCase):
             term=cls.term,
             score=80,
             total_score=100,
+            is_published=True,
         )
         Result.objects.create(
             student=cls.student_eng,
@@ -84,6 +85,7 @@ class TeachingScopeAndSmokeTests(TestCase):
             term=cls.term,
             score=70,
             total_score=100,
+            is_published=True,
         )
 
     def setUp(self):

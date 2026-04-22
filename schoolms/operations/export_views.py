@@ -288,7 +288,7 @@ def export_fees(request):
         ("Class", "student__class_name"),
         ("Amount", "amount"),
         ("Term", "term"),
-        ("Status", "payment_status"),
+        ("Status", "payment_status_display"),
     ]
     
     fmt = request.GET.get("format", "csv")

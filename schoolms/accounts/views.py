@@ -5,6 +5,8 @@ from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from decimal import Decimal
 
+from django.conf import settings
+from django.core.cache import cache
 from django.db.models import Sum, Q, Count
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
@@ -103,6 +105,101 @@ def _login_rate_limit_key(request):
     except Exception:
         ip = request.META.get("REMOTE_ADDR", "unknown")
     return f"login_ratelimit:{ip}"
+
+
+DASHBOARD_CACHE_SECONDS = getattr(settings, "DASHBOARD_CACHE_SECONDS", 300)
+
+
+def _dashboard_cache_key(section: str, school_id: int | None, extra: str = "") -> str:
+    identifier = school_id if school_id is not None else "platform"
+    if extra:
+        return f"dashboard:{section}:{identifier}:{extra}"
+    return f"dashboard:{section}:{identifier}"
+
+
+def _cached_dashboard_data(section: str, school, builder, extra: str = ""):
+    key = _dashboard_cache_key(section, getattr(school, "pk", None), extra)
+    data = cache.get(key)
+    if data is None:
+        data = builder()
+        cache.set(key, data, DASHBOARD_CACHE_SECONDS)
+    return data
+
+
+def _get_dashboard_metrics(school):
+    def builder():
+        if school:
+            staff_roles = (
+                "school_admin",
+                "teacher",
+                "staff",
+                "accountant",
+                "librarian",
+                "admin_assistant",
+                "admission_officer",
+                "school_nurse",
+                "hod",
+                "deputy_head",
+            )
+            total_students = Student.objects.filter(school=school).count()
+            total_staff = User.objects.filter(school=school, role__in=staff_roles).count()
+            total_parents = User.objects.filter(school=school, role="parent").count()
+            fee_agg = Fee.objects.filter(school=school).aggregate(
+                billed=Sum("amount"),
+                collected=Sum("amount_paid"),
+            )
+            gender_agg = Student.objects.filter(school=school).aggregate(
+                m=Count("id", filter=Q(user__gender="male")),
+                f=Count("id", filter=Q(user__gender="female")),
+            )
+            fee_billed = fee_agg["billed"] or Decimal("0")
+            fee_collected = fee_agg["collected"] or Decimal("0")
+            fee_outstanding = max(Decimal("0"), fee_billed - fee_collected)
+            return {
+                "total_schools": 1,
+                "total_students": total_students,
+                "total_staff": total_staff,
+                "total_parents": total_parents,
+                "fee_billed": fee_billed,
+                "fee_collected": fee_collected,
+                "fee_outstanding": fee_outstanding,
+                "unpaid_fee_records": Fee.objects.filter(school=school, paid=False).count(),
+                "chart_male_students": gender_agg["m"] or 0,
+                "chart_female_students": gender_agg["f"] or 0,
+                "schools_active_chart": 1 if school.is_active else 0,
+                "schools_inactive_chart": 0 if school.is_active else 1,
+                "trial_schools_count": 0,
+                "active_sub_schools_count": 0,
+                "expired_schools_count": 0,
+            }
+
+        total_schools = School.objects.filter(is_active=True).count()
+        total_students = Student.objects.count()
+        total_staff = User.objects.filter(role__in=("school_admin", "teacher", "staff")).count()
+        total_parents = User.objects.filter(role="parent").count()
+        fee_agg = Fee.objects.aggregate(billed=Sum("amount"), collected=Sum("amount_paid"))
+        fee_billed = fee_agg["billed"] or Decimal("0")
+        fee_collected = fee_agg["collected"] or Decimal("0")
+        fee_outstanding = max(Decimal("0"), fee_billed - fee_collected)
+        return {
+            "total_schools": total_schools,
+            "total_students": total_students,
+            "total_staff": total_staff,
+            "total_parents": total_parents,
+            "fee_billed": fee_billed,
+            "fee_collected": fee_collected,
+            "fee_outstanding": fee_outstanding,
+            "unpaid_fee_records": Fee.objects.filter(paid=False).count(),
+            "chart_male_students": 0,
+            "chart_female_students": 0,
+            "schools_active_chart": School.objects.filter(is_active=True).count(),
+            "schools_inactive_chart": School.objects.filter(is_active=False).count(),
+            "trial_schools_count": School.objects.filter(is_active=True, subscription_status="trial").count(),
+            "active_sub_schools_count": School.objects.filter(is_active=True, subscription_status="active").count(),
+            "expired_schools_count": School.objects.filter(subscription_status="expired").count(),
+        }
+
+    return _cached_dashboard_data("metrics", school, builder)
 
 
 def login_view(request):
@@ -340,45 +437,28 @@ def dashboard(request):
         # Check if superuser (platform admin)
         is_superuser = request.user.is_superuser
 
+        metrics = _get_dashboard_metrics(school)
+        total_schools = metrics["total_schools"]
+        total_students = metrics["total_students"]
+        total_staff = metrics["total_staff"]
+        total_parents = metrics["total_parents"]
+        fee_billed = metrics["fee_billed"]
+        fee_collected = metrics["fee_collected"]
+        fee_outstanding = metrics["fee_outstanding"]
+        unpaid_fee_records = metrics["unpaid_fee_records"]
+        chart_male_students = metrics["chart_male_students"]
+        chart_female_students = metrics["chart_female_students"]
+        schools_active_chart = metrics["schools_active_chart"]
+        schools_inactive_chart = metrics["schools_inactive_chart"]
+        trial_schools_count = metrics["trial_schools_count"]
+        active_sub_schools_count = metrics["active_sub_schools_count"]
+        expired_schools_count = metrics["expired_schools_count"]
+
         if school:
-            total_schools = 1
-            total_students = Student.objects.filter(school=school).count()
-            total_staff = User.objects.filter(school=school, role__in=("school_admin", "teacher", "staff")).count()
-            total_parents = User.objects.filter(school=school, role="parent").count()
-            fee_agg = Fee.objects.filter(school=school).aggregate(
-                billed=Sum("amount"),
-                collected=Sum("amount_paid"),
-            )
-            gender_agg = Student.objects.filter(school=school).aggregate(
-                m=Count("id", filter=Q(user__gender="male")),
-                f=Count("id", filter=Q(user__gender="female")),
-            )
-            chart_male_students = gender_agg["m"] or 0
-            chart_female_students = gender_agg["f"] or 0
-            schools_active_chart = 1 if school.is_active else 0
-            schools_inactive_chart = 0 if school.is_active else 1
-            trial_schools_count = 0
-            active_sub_schools_count = 0
-            expired_schools_count = 0
             expiring_soon_schools = []
         else:
-            total_schools = School.objects.filter(is_active=True).count()
-            total_students = Student.objects.count()
-            total_staff = User.objects.filter(role__in=("school_admin", "teacher", "staff")).count()
-            total_parents = User.objects.filter(role="parent").count()
-            fee_agg = Fee.objects.aggregate(
-                billed=Sum("amount"),
-                collected=Sum("amount_paid"),
-            )
-            chart_male_students = 0
-            chart_female_students = 0
-            schools_active_chart = School.objects.filter(is_active=True).count()
-            schools_inactive_chart = School.objects.filter(is_active=False).count()
-            trial_schools_count = School.objects.filter(is_active=True, subscription_status="trial").count()
-            active_sub_schools_count = School.objects.filter(is_active=True, subscription_status="active").count()
-            expired_schools_count = School.objects.filter(subscription_status="expired").count()
-            # Schools expiring within 14 days
             from datetime import timedelta
+
             _now = timezone.now().date()
             _cutoff = _now + timedelta(days=14)
             expiring_soon_schools = list(
@@ -390,16 +470,12 @@ def dashboard(request):
                 ).order_by("subscription_end_date")[:10]
             )
 
-        fee_billed = fee_agg["billed"] or Decimal("0")
-        fee_collected = fee_agg["collected"] or Decimal("0")
-        fee_outstanding = max(Decimal("0"), fee_billed - fee_collected)
-        unpaid_fee_records = (
-            Fee.objects.filter(school=school, paid=False).count()
-            if school
-            else Fee.objects.filter(paid=False).count()
+        fee_collection_trend_chart = _cached_dashboard_data(
+            "fee_trend", school, lambda: build_fee_collection_trend(school=school, days=30), extra="30"
         )
-        fee_collection_trend_chart = build_fee_collection_trend(school=school, days=30)
-        ar_aging_chart = build_ar_aging_chart(school=school)
+        ar_aging_chart = _cached_dashboard_data(
+            "ar_aging", school, lambda: build_ar_aging_chart(school=school)
+        )
 
         context = {
             "total_schools": total_schools,
@@ -617,13 +693,25 @@ def school_dashboard(request):
             .annotate(total=Sum("amount"))
         )
 
-    attendance_trend_chart = build_attendance_trend(school, days=14)
-    academic_insights = build_academic_insights(school)
+    attendance_trend_chart = _cached_dashboard_data(
+        "attendance_trend", school, lambda: build_attendance_trend(school, days=14), extra="14"
+    )
+    academic_insights = _cached_dashboard_data(
+        "academic_insights", school, lambda: build_academic_insights(school)
+    )
     finance_insights = build_finance_insights(school, float(total_fees), float(paid_fees))
-    fee_collection_trend_chart = build_fee_collection_trend(school=school, days=30)
-    enrollment_by_class_chart = build_enrollment_by_class_chart(school)
-    ar_aging_chart = build_ar_aging_chart(school=school)
-    term_collections_chart = build_term_collections_chart(school)
+    fee_collection_trend_chart = _cached_dashboard_data(
+        "fee_trend_school", school, lambda: build_fee_collection_trend(school=school, days=30), extra="30"
+    )
+    enrollment_by_class_chart = _cached_dashboard_data(
+        "enrollment_by_class", school, lambda: build_enrollment_by_class_chart(school)
+    )
+    ar_aging_chart = _cached_dashboard_data(
+        "ar_aging_school", school, lambda: build_ar_aging_chart(school=school)
+    )
+    term_collections_chart = _cached_dashboard_data(
+        "term_collections", school, lambda: build_term_collections_chart(school)
+    )
 
     onboarding_checklist = []
     show_onboarding_card = False

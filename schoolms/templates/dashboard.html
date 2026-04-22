@@ -94,7 +94,7 @@
 <!-- ══ End Platform Metrics ══ -->
 
 <div class="content-card erp-workspace-card">
-    <h3 class="section-title" style="margin-bottom:1rem;">Workspaces</h3>
+    <h3 class="section-title erp-section-title-tight">Workspaces</h3>
     <div class="erp-module-group">
         <p class="erp-module-group__label">Schools &amp; platform</p>
         <div class="quick-actions">
@@ -215,28 +215,28 @@
 </div>
 
 <!-- Charts Section for Super Admin -->
-<div class="charts-grid" style="margin-top: 1.2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem;">
+<div class="charts-grid erp-charts-grid">
     
     <!-- Schools Distribution - Doughnut Chart -->
     <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">{% if not school %}🏫 Schools (active vs inactive){% else %}🎓 Students by gender{% endif %}</h3>
-        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+        <h3 class="section-title erp-chart-card-title">{% if not school %}🏫 Schools (active vs inactive){% else %}🎓 Students by gender{% endif %}</h3>
+        <div class="erp-chart-canvas">
             <canvas id="schoolsChart"></canvas>
         </div>
     </div>
 
     <!-- User Distribution - Bar Chart -->
     <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">👥 User Distribution</h3>
-        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+        <h3 class="section-title erp-chart-card-title">👥 User Distribution</h3>
+        <div class="erp-chart-canvas">
             <canvas id="usersChart"></canvas>
         </div>
     </div>
 
     <!-- Fees Overview - Doughnut Chart -->
     <div class="content-card">
-        <h3 class="section-title" style="font-size: 0.95rem;">💰 Fees Overview</h3>
-        <div style="position: relative; height: 220px; display: flex; align-items: center; justify-content: center;">
+        <h3 class="section-title erp-chart-card-title">💰 Fees Overview</h3>
+        <div class="erp-chart-canvas">
             <canvas id="feesChart"></canvas>
         </div>
     </div>
@@ -244,33 +244,40 @@
 
 {{ fee_collection_trend_chart|json_script:"platform-fee-trend-json" }}
 {{ ar_aging_chart|json_script:"platform-ar-aging-json" }}
+{{ [total_students|default:0, total_staff|default:0, total_parents|default:0]|json_script:"users-chart-data" }}
+{{ [fee_collected_js|default:0, fee_outstanding_js|default:0]|json_script:"fees-chart-data" }}
+{% if not school %}
+    {{ {"labels": ["Active schools","Inactive schools"], "values": [schools_active_chart|default:0, schools_inactive_chart|default:0]}|json_script:"schools-chart-meta" }}
+{% else %}
+    {{ {"labels": ["Male students","Female students"], "values": [chart_male_students|default:0, chart_female_students|default:0]}|json_script:"schools-chart-meta" }}
+{% endif %}
 
-<div class="content-card" style="margin-top: 1.2rem;">
-    <h3 class="section-title" style="font-size: 0.95rem;">📈 Fee collections (30 days)</h3>
-    <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;line-height:1.45;">
+<div class="content-card erp-card-spaced">
+    <h3 class="section-title erp-chart-card-title">📈 Fee collections (30 days)</h3>
+    <p class="erp-card-note">
         Sum of completed school-fee payments posted per day{% if school %} for {{ school.name }}{% else %} across all schools{% endif %} — ERP cashflow signal.
     </p>
-    <div style="position: relative; height: 240px;">
+    <div class="erp-chart-canvas-lg">
         {% if fee_collection_trend_chart.has_data %}
         <canvas id="platformFeeTrendChart"></canvas>
         {% else %}
-        <div class="empty-state" style="padding:2rem;text-align:center;">
+        <div class="empty-state erp-empty-pad">
             <div class="empty-state-desc">No fee payment activity in this window yet.</div>
         </div>
         {% endif %}
     </div>
 </div>
 
-<div class="content-card" style="margin-top: 1.2rem;">
-    <h3 class="section-title" style="font-size: 0.95rem;">📊 AR aging (outstanding)</h3>
-    <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;line-height:1.45;">
+<div class="content-card erp-card-spaced">
+    <h3 class="section-title erp-chart-card-title">📊 AR aging (outstanding)</h3>
+    <p class="erp-card-note">
         Open fee lines with a remaining balance, bucketed by invoice age (fee created date){% if school %} for {{ school.name }}{% else %} across all schools{% endif %}.
     </p>
-    <div style="position: relative; height: 240px;">
+    <div class="erp-chart-canvas-lg">
         {% if ar_aging_chart.has_data %}
         <canvas id="platformArAgingChart"></canvas>
         {% else %}
-        <div class="empty-state" style="padding:2rem;text-align:center;">
+        <div class="empty-state erp-empty-pad">
             <div class="empty-state-desc">No outstanding balances in aging buckets.</div>
         </div>
         {% endif %}
@@ -278,13 +285,12 @@
 </div>
 
 <!-- Two Column Section: Activity & Info -->
-<div class="two-col-grid" style="margin-top: 1.2rem;">
+<div class="two-col-grid erp-two-col-grid">
     <!-- Recent Activity Widget -->
     <div class="content-card">
         <h3 class="section-title">📜 Recent Activity</h3>
         {% if recent_activities %}
-        <ul class="activity-list">
-            {% for activity in recent_activities|slice:":5" %}
+        <ul class="activity-list">{% for activity in recent_activities|slice:":5" %}
             <li class="activity-item">
                 <div class="activity-icon {{ activity.icon_class|default:'school' }}">
                     {{ activity.icon|default:"📋" }}
@@ -294,18 +300,17 @@
                     <div class="activity-time">{{ activity.timestamp|timesince }} ago</div>
                 </div>
             </li>
-            {% endfor %}
-        </ul>
-        <p style="margin-top:0.85rem;margin-bottom:0;font-size:0.82rem;">
-            <a href="{% url 'operations:activity_log_list' %}" style="color:var(--accent,#22c55e);font-weight:600;text-decoration:none;">View full activity log →</a>
+            {% endfor %}</ul>
+        <p class="erp-empty-note">
+            <a href="{% url 'operations:activity_log_list' %}" class="erp-link-cta">View full activity log →</a>
         </p>
         {% else %}
         <div class="empty-state">
             <div class="empty-state-icon">📋</div>
             <div class="empty-state-title">No Recent Activity</div>
             <div class="empty-state-desc">Activity will appear here as schools use the platform.</div>
-            <p style="margin-top:0.75rem;font-size:0.82rem;">
-                <a href="{% url 'operations:activity_log_list' %}" style="color:var(--accent,#22c55e);font-weight:600;text-decoration:none;">Open activity log</a>
+            <p class="erp-empty-note">
+                <a href="{% url 'operations:activity_log_list' %}" class="erp-link-cta">Open activity log</a>
             </p>
         </div>
         {% endif %}
@@ -314,16 +319,16 @@
     <!-- Platform Control Center -->
     <div class="content-card">
         <h3 class="section-title">🎛️ Platform Control Center</h3>
-        <p style="font-size:0.9rem; color:#9ca3af; margin-top:0;">
+        <p class="erp-copy-muted">
             As super admin you oversee every school, user, and transaction on Mastex SchoolOS.
             Use these shortcuts to quickly inspect activity and keep schools healthy.
         </p>
-        <ul style="font-size:0.9rem; color:#e5e7eb; padding-left:1.2rem; margin-top:0.6rem;">
+        <ul class="erp-list-muted">
             <li>Review <strong>recent activity logs</strong> to see what school admins and staff are doing.</li>
             <li>Drill into <strong>school records</strong> to adjust plans, deactivate schools, or update details.</li>
             <li>Inspect <strong>users and roles</strong> from Django admin when you need low-level control.</li>
         </ul>
-        <div class="button-row" style="margin-top: 1rem;">
+        <div class="button-row erp-button-row">
             <a href="{% url 'operations:activity_log_list' %}" class="btn btn-secondary btn-sm">View Activity Log</a>
             <a href="/admin/" class="btn btn-secondary btn-sm">Django Admin</a>
             <a href="{% url 'messaging:superuser_send_message' %}" class="btn btn-secondary btn-sm">Broadcast Message</a>
@@ -376,12 +381,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Schools Distribution - Doughnut Chart
     const schoolsCtx = document.getElementById('schoolsChart');
     if (schoolsCtx) {
+        const metaNode = document.getElementById('schools-chart-meta');
+        const meta = metaNode ? JSON.parse(metaNode.textContent || '{}') : {};
+        const metaLabels = Array.isArray(meta.labels) ? meta.labels : [];
+        const metaValues = Array.isArray(meta.values) ? meta.values : [];
         new Chart(schoolsCtx, {
             type: 'doughnut',
             data: {
-                labels: {% if not school %}['Active schools', 'Inactive schools']{% else %}['Male students', 'Female students']{% endif %},
+                labels: metaLabels,
                 datasets: [{
-                    data: {% if not school %}[{{ schools_active_chart|default:0 }}, {{ schools_inactive_chart|default:0 }}]{% else %}[{{ chart_male_students|default:0 }}, {{ chart_female_students|default:0 }}]{% endif %},
+                    data: metaValues,
                     backgroundColor: [
                         'rgba(34, 197, 94, 0.85)',
                         'rgba(59, 130, 246, 0.75)'
@@ -404,12 +413,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // User Distribution - Bar Chart
     const usersCtx = document.getElementById('usersChart');
     if (usersCtx) {
+        const userMeta = document.getElementById('users-chart-data');
+        const userCounts = userMeta ? JSON.parse(userMeta.textContent || '[]') : [];
         new Chart(usersCtx, {
             type: 'bar',
             data: {
                 labels: ['Students', 'Staff', 'Parents'],
                 datasets: [{
-                    data: [{{ total_students|default:0 }}, {{ total_staff|default:0 }}, {{ total_parents|default:0 }}],
+                    data: userCounts,
                     backgroundColor: [
                         'rgba(34, 197, 94, 0.85)',
                         'rgba(59, 130, 246, 0.85)',
@@ -433,9 +444,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fees Overview - Doughnut Chart
     const feesCtx = document.getElementById('feesChart');
     if (feesCtx) {
-        const feeCollected = {{ fee_collected_js|default:0 }};
-        const feeOutstanding = {{ fee_outstanding_js|default:0 }};
-        const totalFeesAmt = feeCollected + feeOutstanding;
+        const feeMeta = document.getElementById('fees-chart-data');
+        const feeData = feeMeta ? JSON.parse(feeMeta.textContent || '[]') : [];
+        const totalFeesAmt = feeData[0] + feeData[1];
         const collectedPercent = totalFeesAmt > 0 ? Math.round((feeCollected / totalFeesAmt) * 100) : 0;
         
         new Chart(feesCtx, {
@@ -443,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
             data: {
                 labels: ['Collected (GHS)', 'Outstanding (GHS)'],
                 datasets: [{
-                    data: [feeCollected, feeOutstanding],
+                    data: feeData,
                     backgroundColor: [
                         'rgba(34, 197, 94, 0.85)',
                         'rgba(239, 68, 68, 0.85)'

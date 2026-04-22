@@ -108,6 +108,15 @@ class Fee(models.Model):
             return 100
         return float(pct.quantize(Decimal("0.1")))
 
+    @property
+    def payment_status_display(self):
+        """Human-readable payment status used in exports and templates."""
+        if self.is_fully_paid:
+            return "Paid"
+        if (self.amount_paid or Decimal("0")) > 0:
+            return "Partial"
+        return "Unpaid"
+
     def save(self, *args, **kwargs):
         # Auto-update legacy paid field
         self.paid = self.is_fully_paid

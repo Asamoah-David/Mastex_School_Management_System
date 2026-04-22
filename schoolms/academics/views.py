@@ -3,6 +3,9 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Q, Avg
 from django.http import HttpResponse
+from django.urls import reverse
+from django.utils import timezone
+from urllib.parse import urlencode
 
 from students.models import Student
 from schools.models import School
@@ -728,11 +731,12 @@ def result_list(request):
     if not can_upload_results(request.user):
         return redirect("home")
     
-    # Get filter parameters
-    class_name = request.GET.get("class")
-    subject_id = request.GET.get("subject")
-    term_id = request.GET.get("term")
-    
+    # Get filter parameters (support POST actions retaining filters)
+    filter_source = request.POST if request.method == "POST" else request.GET
+    class_name = (filter_source.get("class") or "").strip()
+    subject_id = (filter_source.get("subject") or "").strip()
+    term_id = (filter_source.get("term") or "").strip()
+
     # Base query
     results = Result.objects.filter(student__school=school).select_related(
         "student", "student__user", "subject", "exam_type", "term"
@@ -745,7 +749,44 @@ def result_list(request):
         results = results.filter(subject_id=subject_id)
     if term_id:
         results = results.filter(term_id=term_id)
-    
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action in {"publish", "unpublish"}:
+            if action == "publish":
+                updated = results.exclude(is_published=True).update(
+                    is_published=True,
+                    published_at=timezone.now(),
+                    published_by=request.user,
+                )
+                if updated:
+                    messages.success(request, f"Published {updated} result(s).")
+                else:
+                    messages.info(request, "No unpublished results matched the current filters.")
+            else:
+                updated = results.filter(is_published=True).update(
+                    is_published=False,
+                    published_at=None,
+                    published_by=None,
+                )
+                if updated:
+                    messages.success(request, f"Unpublished {updated} result(s).")
+                else:
+                    messages.info(request, "No published results matched the current filters.")
+
+        params = {}
+        if class_name:
+            params["class"] = class_name
+        if subject_id:
+            params["subject"] = subject_id
+        if term_id:
+            params["term"] = term_id
+        query = urlencode(params)
+        url = reverse("academics:result_list")
+        if query:
+            url = f"{url}?{query}"
+        return redirect(url)
+
     results = results.order_by("student__admission_number", "term__name", "subject__name")
 
     classes = Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
@@ -1260,6 +1301,9 @@ def report_card_view(request, student_id):
         return redirect("home")
     term_id = request.GET.get("term")
     results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("term", "subject")
+    viewer_role = getattr(request.user, "role", None)
+    if viewer_role in {"parent", "student"}:
+        results = results.filter(is_published=True)
     if term_id:
         results = results.filter(term_id=term_id)
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
@@ -2785,7 +2829,10 @@ def enhanced_report_card(request, student_id):
         # Legacy fallback
         if not subject_rows:
             from academics.models import Result
-            for r in Result.objects.filter(student=student).select_related("subject").order_by("subject__name"):
+            fallback_qs = Result.objects.filter(student=student).select_related("subject").order_by("subject__name")
+            if not can_manage:
+                fallback_qs = fallback_qs.filter(is_published=True)
+            for r in fallback_qs:
                 try:
                     fn = float(r.percentage)
                 except Exception:

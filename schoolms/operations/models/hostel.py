@@ -83,6 +83,10 @@ class HostelFee(models.Model):
                 name="uniq_hostelfee_payment_reference_nonempty",
             ),
         ]
+        indexes = [
+            models.Index(fields=["school", "student", "-id"], name="idx_hostelfee_school_student"),
+            models.Index(fields=["school", "payment_status", "-id"], name="idx_hostelfee_school_status"),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.hostel.name} - {self.term}"

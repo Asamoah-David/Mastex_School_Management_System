@@ -36,6 +36,24 @@
     </div>
 </form>
 
+<form method="post" class="button-row" style="margin-bottom: 1rem; gap: 0.75rem; flex-wrap: wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="class" value="{{ selected_class }}">
+    <input type="hidden" name="subject" value="{{ selected_subject }}">
+    <input type="hidden" name="term" value="{{ selected_term }}">
+    <button type="submit" name="action" value="publish" class="btn btn-primary"
+        {% if not page_obj.paginator.count %}disabled{% endif %}>
+        Publish filtered results ({{ page_obj.paginator.count }})
+    </button>
+    <button type="submit" name="action" value="unpublish" class="btn btn-secondary"
+        {% if not page_obj.paginator.count %}disabled{% endif %}>
+        Unpublish filtered results
+    </button>
+    <span style="font-size:0.85rem;color:#94a3b8;">
+        Applies to every result matching the filters above.
+    </span>
+</form>
+
 {% if results %}
 <div class="table-card">
     <table>
@@ -48,6 +66,7 @@
                 <th>Exam</th>
                 <th>Term</th>
                 <th>Score</th>
+                <th>Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -61,6 +80,13 @@
                 <td>{{ r.exam_type.name|default:"—" }}</td>
                 <td>{{ r.term.name|default:"—" }}</td>
                 <td>{{ r.score }}</td>
+                <td>
+                    {% if r.is_published %}
+                    <span class="tag tag-success">Published</span>
+                    {% else %}
+                    <span class="tag tag-unpaid">Draft</span>
+                    {% endif %}
+                </td>
                 <td>
                     <a href="{% url 'academics:result_edit' r.pk %}" class="btn btn-secondary btn-sm">Edit</a>
                     <a href="{% url 'academics:result_delete' r.pk %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this result?');">Delete</a>
