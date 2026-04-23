@@ -85,6 +85,7 @@ class PTMeeting(models.Model):
     meeting_date = models.DateTimeField()
     location = models.CharField(max_length=200)
     max_slots = models.PositiveIntegerField(default=20)
+    meeting_link = models.URLField(blank=True, help_text="Optional video call link (Zoom, Meet, Jitsi, etc.)")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     

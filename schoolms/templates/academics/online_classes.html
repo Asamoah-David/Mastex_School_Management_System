@@ -27,10 +27,32 @@
         <div class="metric-value">{{ upcoming_meetings.count }}</div>
     </div>
     <div class="metric">
-        <div class="metric-label">Completed</div>
-        <div class="metric-value">{{ past_meetings.count }}</div>
+        <div class="metric-label">Live Now</div>
+        <div class="metric-value">{{ live_meetings.count }}</div>
     </div>
 </div>
+
+<!-- Live Meetings -->
+{% if live_meetings %}
+<div class="content-card" style="margin-top: 1rem; border: 1px solid rgba(239,68,68,0.4);">
+    <h2 class="page-subtitle">🔴 Live Now</h2>
+    <div class="table-card" style="margin-top: 0.75rem;">
+        <table>
+            <thead><tr><th>Title</th><th>Host</th><th>Subject</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for meeting in live_meetings %}
+            <tr>
+                <td><strong>{{ meeting.title }}</strong></td>
+                <td>{{ meeting.teacher.get_full_name }}</td>
+                <td>{{ meeting.subject|default:"General" }}</td>
+                <td><a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-success">🎥 Join Now</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <!-- Upcoming Meetings -->
 <div class="content-card" style="margin-top: 1rem;">
@@ -73,10 +95,9 @@
                             🎥 Join
                         </a>
                         {% endif %}
-                        {% if meeting.teacher == request.user %}
-                        <button class="btn btn-secondary" onclick="deleteMeeting({{ meeting.id }})" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
-                            ✕
-                        </button>
+                        {% if meeting.teacher == request.user or is_school_leadership %}
+                        <button class="btn btn-secondary" onclick="editMeeting({{ meeting.id }}, '{{ meeting.title|escapejs }}', '{{ meeting.subject|default:''|escapejs }}', '{{ meeting.class_name|default:''|escapejs }}', '{{ meeting.target_audience }}', {{ meeting.duration }}, '{{ meeting.scheduled_time|date:'Y-m-d' }}T{{ meeting.scheduled_time|time:'H:i' }}', '{{ meeting.recording_url|default:''|escapejs }}')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Edit">✏️</button>
+                        <button class="btn btn-secondary" data-delete-url="{% url 'academics:delete_meeting' meeting.id %}" onclick="deleteMeeting(this)" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Delete">✕</button>
                         {% endif %}
                     </td>
                 </tr>
@@ -101,6 +122,8 @@
                     <th>Subject</th>
                     <th>Date</th>
                     <th>Status</th>
+                    <th>Recording</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -115,17 +138,15 @@
                         </span>
                     </td>
                     <td>
-                        {% if meeting.teacher == request.user %}
-                        <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-info" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
-                            👁 View
-                        </a>
-                        <button class="btn btn-secondary" onclick="deleteMeeting({{ meeting.id }})" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
-                            ✕
-                        </button>
-                        {% else %}
-                        <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-info" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
-                            👁 View
-                        </a>
+                        {% if meeting.recording_url %}
+                        <a href="{{ meeting.recording_url }}" target="_blank" class="btn btn-info" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">▶ Watch</a>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-info" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">👁 View</a>
+                        {% if meeting.teacher == request.user or is_school_leadership %}
+                        <button class="btn btn-secondary" onclick="editMeeting({{ meeting.id }}, '{{ meeting.title|escapejs }}', '{{ meeting.subject|default:''|escapejs }}', '{{ meeting.class_name|default:''|escapejs }}', '{{ meeting.target_audience }}', {{ meeting.duration }}, '{{ meeting.scheduled_time|date:'Y-m-d' }}T{{ meeting.scheduled_time|time:'H:i' }}', '{{ meeting.recording_url|default:''|escapejs }}')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Edit">✏️</button>
+                        <button class="btn btn-secondary" data-delete-url="{% url 'academics:delete_meeting' meeting.id %}" onclick="deleteMeeting(this)" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Delete">✕</button>
                         {% endif %}
                     </td>
                 </tr>
@@ -177,24 +198,19 @@
                 <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Description</label>
                 <textarea name="description" rows="3" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);"></textarea>
             </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Audience</label>
+                <select name="target_audience" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="all">Everyone</option>
+                    <option value="students">Students Only</option>
+                    <option value="staff">Staff Only</option>
+                </select>
+            </div>
             <div style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 0.5rem; border: 1px solid rgba(59, 130, 246, 0.3);">
                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                     <input type="checkbox" name="send_sms" value="true" style="width: 18px; height: 18px; accent-color: #3b82f6;">
-                    <span style="font-size: 0.9rem;">
-                        {% if is_school_leadership %}
-                        📱 <strong>Send SMS notification</strong> to all staff
-                        {% else %}
-                        📱 <strong>Send SMS notification</strong> to students & parents
-                        {% endif %}
-                    </span>
+                    <span style="font-size: 0.9rem;">📱 <strong>Send SMS notification</strong></span>
                 </label>
-                <p style="font-size: 0.75rem; color: var(--text-soft); margin-top: 0.25rem; margin-left: 1.75rem;">
-                    {% if is_school_leadership %}
-                    Teachers, HODs, Accountants, Librarians, Nurses and other staff will receive meeting details via SMS
-                    {% else %}
-                    Students and their parents will receive an SMS with class details and meeting link
-                    {% endif %}
-                </p>
             </div>
             <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                 <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Cancel</button>
@@ -204,61 +220,120 @@
     </div>
 </div>
 
-<script>
-function showCreateModal() {
-    document.getElementById('createModal').style.display = 'flex';
-}
+<!-- Edit Meeting Modal -->
+<div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: #0b1120; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 1rem; padding: 1.5rem; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;">
+        <h3 style="margin-bottom: 1rem;">✏️ Edit Class</h3>
+        <form id="editMeetingForm">
+            <input type="hidden" id="editMeetingId">
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Title *</label>
+                <input type="text" id="editTitle" required style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Subject</label>
+                <input type="text" id="editSubject" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Audience</label>
+                <select id="editAudience" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    <option value="all">Everyone</option>
+                    <option value="students">Students Only</option>
+                    <option value="staff">Staff Only</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Date & Time</label>
+                <input type="datetime-local" id="editScheduledTime" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Duration (minutes)</label>
+                <input type="number" id="editDuration" min="15" max="240" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Recording URL (paste after session)</label>
+                <input type="url" id="editRecordingUrl" placeholder="https://..." style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-function hideCreateModal() {
-    document.getElementById('createModal').style.display = 'none';
+<script>
+var CSRF_TOKEN = '{{ csrf_token }}';
+
+function showCreateModal() { document.getElementById('createModal').style.display = 'flex'; }
+function hideCreateModal() { document.getElementById('createModal').style.display = 'none'; }
+function hideEditModal() { document.getElementById('editModal').style.display = 'none'; }
+
+function editMeeting(id, title, subject, cls, audience, duration, scheduledTime, recordingUrl) {
+    document.getElementById('editMeetingId').value = id;
+    document.getElementById('editTitle').value = title;
+    document.getElementById('editSubject').value = subject;
+    document.getElementById('editAudience').value = audience;
+    document.getElementById('editDuration').value = duration;
+    document.getElementById('editScheduledTime').value = scheduledTime;
+    document.getElementById('editRecordingUrl').value = recordingUrl;
+    document.getElementById('editModal').style.display = 'flex';
 }
 
 document.getElementById('createMeetingForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const formData = new FormData(this);
-    const data = Object.fromEntries(formData.entries());
-    
+    var formData = new FormData(this);
+    var data = Object.fromEntries(formData.entries());
     fetch('{% url "academics:create_meeting" %}', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
         body: JSON.stringify(data)
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Class scheduled successfully!');
-            hideCreateModal();
-            location.reload();
-        } else {
-            alert('Error: ' + data.error);
-        }
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { hideCreateModal(); location.reload(); }
+        else { alert('Error: ' + data.error); }
     })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to create class');
-    });
+    .catch(function() { alert('Failed to create class'); });
 });
 
-function deleteMeeting(meetingId) {
-    if (confirm('Are you sure you want to delete this class?')) {
-        fetch(`/academics/online-classes/delete/${meetingId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        });
-    }
+document.getElementById('editMeetingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var id = document.getElementById('editMeetingId').value;
+    var data = {
+        title: document.getElementById('editTitle').value,
+        subject: document.getElementById('editSubject').value,
+        target_audience: document.getElementById('editAudience').value,
+        duration: parseInt(document.getElementById('editDuration').value),
+        scheduled_time: document.getElementById('editScheduledTime').value,
+        recording_url: document.getElementById('editRecordingUrl').value
+    };
+    var editUrl = '{% url "academics:edit_meeting" 0 %}'.replace('/0/', '/' + id + '/');
+    fetch(editUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { hideEditModal(); location.reload(); }
+        else { alert('Error: ' + data.error); }
+    })
+    .catch(function() { alert('Failed to update class'); });
+});
+
+function deleteMeeting(btn) {
+    if (!confirm('Are you sure you want to delete this class?')) return;
+    var url = btn.getAttribute('data-delete-url');
+    fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { location.reload(); }
+        else { alert('Error: ' + data.error); }
+    });
 }
 </script>
 {% endblock %}

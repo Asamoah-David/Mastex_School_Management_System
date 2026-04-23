@@ -1,74 +1,185 @@
 {% extends "base.html" %}
-
-{% block title %}Add Question - Mastex SchoolOS{% endblock %}
-
+{% block title %}Add Question - {{ exam.title }}{% endblock %}
 {% block page_title %}Add Question to {{ exam.title }}{% endblock %}
 {% block page_subtitle %}Online Exam Management{% endblock %}
-
 {% block content %}
 <div class="content-card">
-    <h2 style="margin-top: 0; color: var(--accent);">📝 Add Question</h2>
-    
-    <form method="POST">
-        {% csrf_token %}
-        
-        <div style="margin-bottom: 1rem;">
-            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Question Text *</label>
-            <textarea name="question_text" rows="4" required style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);"></textarea>
+  <h2 style="margin-top:0;color:var(--accent);">📝 Add Question</h2>
+  <form method="POST" id="qForm">
+    {% csrf_token %}
+
+    <div style="margin-bottom:1rem;">
+      <label style="display:block;margin-bottom:.5rem;font-weight:600;">Question Text *</label>
+      <textarea name="question_text" rows="4" required style="width:100%;padding:.75rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);"></textarea>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div>
+        <label style="display:block;margin-bottom:.5rem;font-weight:600;">Question Type</label>
+        <select name="question_type" id="qType" onchange="updateFields()" style="width:100%;padding:.75rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);">
+          <option value="multiple_choice">Multiple Choice</option>
+          <option value="true_false">True / False</option>
+          <option value="short_answer">Short Answer</option>
+          <option value="essay">Essay</option>
+          <option value="multi_select">Multi-Select (Checkboxes)</option>
+          <option value="dropdown">Dropdown</option>
+          <option value="matching">Matching</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:.5rem;font-weight:600;">Marks *</label>
+        <input type="number" name="marks" value="1" min="1" required style="width:100%;padding:.75rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);">
+      </div>
+    </div>
+
+    <!-- OPTIONS SECTION (MCQ / multi_select / dropdown / true_false) -->
+    <div id="optionsSection">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+        <div><label style="display:block;margin-bottom:.4rem;font-weight:600;">Option A</label>
+          <input type="text" name="option_a" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);"></div>
+        <div><label style="display:block;margin-bottom:.4rem;font-weight:600;">Option B</label>
+          <input type="text" name="option_b" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+        <div><label style="display:block;margin-bottom:.4rem;font-weight:600;">Option C</label>
+          <input type="text" name="option_c" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);"></div>
+        <div><label style="display:block;margin-bottom:.4rem;font-weight:600;">Option D</label>
+          <input type="text" name="option_d" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;" id="optEFRow">
+        <div><label style="display:block;margin-bottom:.4rem;font-weight:600;">Option E <span style="font-weight:400;color:var(--text-soft)">(optional)</span></label>
+          <input type="text" name="option_e" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);"></div>
+        <div><label style="display:block;margin-bottom:.4rem;font-weight:600;">Option F <span style="font-weight:400;color:var(--text-soft)">(optional)</span></label>
+          <input type="text" name="option_f" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);"></div>
+      </div>
+    </div>
+
+    <!-- CORRECT ANSWER (single letter) for MCQ / T-F / dropdown -->
+    <div id="correctSingle" style="margin-bottom:1rem;">
+      <label style="display:block;margin-bottom:.5rem;font-weight:600;">Correct Answer *</label>
+      <select name="correct_answer" id="correctSelect" style="width:100%;padding:.75rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);">
+        <option value="">— select —</option>
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+        <option value="E">E</option>
+        <option value="F">F</option>
+      </select>
+    </div>
+
+    <!-- CORRECT ANSWER (comma-separated) for multi_select -->
+    <div id="correctMulti" style="display:none;margin-bottom:1rem;">
+      <label style="display:block;margin-bottom:.5rem;font-weight:600;">Correct Answers * <span style="font-weight:400;color:var(--text-soft)">(comma-separated letters, e.g. A,C)</span></label>
+      <input type="text" name="correct_answer_multi" placeholder="A,C" style="width:100%;padding:.75rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);">
+      <p style="margin:.35rem 0 0;font-size:.78rem;color:var(--text-soft);">Penalty per wrong selection:</p>
+      <input type="number" name="penalty" value="0" min="0" step="0.5" style="width:8rem;padding:.5rem .75rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);">
+    </div>
+
+    <!-- SHORT ANSWER / ESSAY correct key -->
+    <div id="correctText" style="display:none;margin-bottom:1rem;">
+      <label style="display:block;margin-bottom:.5rem;font-weight:600;" id="correctTextLabel">Model Answer (exact match)</label>
+      <input type="text" name="correct_answer_text" placeholder="Expected answer" style="width:100%;padding:.75rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);">
+    </div>
+
+    <!-- MATCHING section -->
+    <div id="matchingSection" style="display:none;margin-bottom:1rem;">
+      <p style="font-size:.85rem;color:var(--text-soft);margin-bottom:.5rem;">Enter one item per line. Rows are paired left → right.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div>
+          <label style="display:block;margin-bottom:.4rem;font-weight:600;">Left Side (prompts)</label>
+          <textarea name="match_left" rows="5" placeholder="Capital of France&#10;Largest planet&#10;Speed of light unit" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);font-size:.9rem;"></textarea>
         </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Question Type</label>
-                <select name="question_type" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-                    <option value="multiple_choice">Multiple Choice</option>
-                    <option value="true_false">True/False</option>
-                    <option value="short_answer">Short Answer</option>
-                </select>
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Marks *</label>
-                <input type="number" name="marks" value="1" min="1" required style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-            </div>
+        <div>
+          <label style="display:block;margin-bottom:.4rem;font-weight:600;">Right Side (answers, same order)</label>
+          <textarea name="match_right" rows="5" placeholder="Paris&#10;Jupiter&#10;m/s" style="width:100%;padding:.7rem;border-radius:.5rem;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.4);color:var(--text-main);font-size:.9rem;"></textarea>
         </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Option A</label>
-                <input type="text" name="option_a" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Option B</label>
-                <input type="text" name="option_b" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-            </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Option C</label>
-                <input type="text" name="option_c" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Option D</label>
-                <input type="text" name="option_d" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-            </div>
-        </div>
-        
-        <div style="margin-bottom: 1rem;">
-            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Correct Answer (A, B, C, or D) *</label>
-            <select name="correct_answer" required style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: var(--text-main);">
-                <option value="">Select Correct Answer</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
-            </select>
-        </div>
-        
-        <div class="button-row">
-            <button type="submit" class="btn btn-primary">Add Question</button>
-            <a href="{% url 'operations:online_exam_detail' exam.pk %}" class="btn btn-secondary">Cancel</a>
-        </div>
-    </form>
+      </div>
+      <p style="font-size:.78rem;color:var(--text-soft);margin:.4rem 0 0;">The system pairs rows automatically and stores them as JSON.</p>
+    </div>
+
+    <!-- hidden fields that carry the actual correct_answer value -->
+    <input type="hidden" name="correct_answer" id="correctAnswerFinal">
+    <input type="hidden" name="match_left" id="matchLeftFinal">
+    <input type="hidden" name="match_right" id="matchRightFinal">
+
+    <div class="button-row">
+      <button type="submit" class="btn btn-primary" onclick="return prepareSubmit()">Add Question</button>
+      <a href="{% url 'operations:online_exam_detail' exam.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
 </div>
+
+<script>
+function updateFields() {
+  var t = document.getElementById('qType').value;
+  var opts = document.getElementById('optionsSection');
+  var cs = document.getElementById('correctSingle');
+  var cm = document.getElementById('correctMulti');
+  var ct = document.getElementById('correctText');
+  var ms = document.getElementById('matchingSection');
+  var ef = document.getElementById('optEFRow');
+  var lbl = document.getElementById('correctTextLabel');
+
+  opts.style.display = 'none';
+  cs.style.display = 'none';
+  cm.style.display = 'none';
+  ct.style.display = 'none';
+  ms.style.display = 'none';
+
+  if (t === 'multiple_choice' || t === 'dropdown') {
+    opts.style.display = '';
+    ef.style.display = 'none';
+    cs.style.display = '';
+  } else if (t === 'true_false') {
+    opts.style.display = '';
+    ef.style.display = 'none';
+    cs.style.display = '';
+  } else if (t === 'multi_select') {
+    opts.style.display = '';
+    ef.style.display = '';
+    cm.style.display = '';
+  } else if (t === 'short_answer') {
+    ct.style.display = '';
+    lbl.textContent = 'Model Answer (exact match, case-insensitive)';
+  } else if (t === 'essay') {
+    ct.style.display = '';
+    lbl.textContent = 'Marking Rubric / Notes (optional, not shown to students)';
+  } else if (t === 'matching') {
+    ms.style.display = '';
+  }
+}
+
+function prepareSubmit() {
+  var t = document.getElementById('qType').value;
+  var finalField = document.getElementById('correctAnswerFinal');
+  var finalLeft = document.getElementById('matchLeftFinal');
+  var finalRight = document.getElementById('matchRightFinal');
+
+  // clear hidden duplicates first
+  finalField.removeAttribute('name');
+  finalLeft.removeAttribute('name');
+  finalRight.removeAttribute('name');
+
+  if (t === 'multiple_choice' || t === 'true_false' || t === 'dropdown') {
+    document.querySelector('[name="correct_answer"]').value = document.getElementById('correctSelect').value;
+  } else if (t === 'multi_select') {
+    var mv = document.querySelector('[name="correct_answer_multi"]').value;
+    document.querySelector('[name="correct_answer"]').value = mv;
+  } else if (t === 'short_answer' || t === 'essay') {
+    document.querySelector('[name="correct_answer"]').value = document.querySelector('[name="correct_answer_text"]').value;
+  } else if (t === 'matching') {
+    var leftLines = (document.querySelector('[name="match_left"]').value || '').trim().split('\n').map(s=>s.trim()).filter(Boolean);
+    var rightLines = (document.querySelector('[name="match_right"]').value || '').trim().split('\n').map(s=>s.trim()).filter(Boolean);
+    var pairs = {};
+    leftLines.forEach(function(l,i){ if(rightLines[i]) pairs[l] = rightLines[i]; });
+    document.querySelector('[name="correct_answer"]').value = JSON.stringify(pairs);
+    document.querySelector('[name="match_left"]').value = leftLines.join('|');
+    document.querySelector('[name="match_right"]').value = rightLines.join('|');
+  }
+  return true;
+}
+
+updateFields();
+</script>
 {% endblock %}

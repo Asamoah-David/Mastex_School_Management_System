@@ -101,6 +101,14 @@ def text_to_words(amount):
 
 
 @register.filter
+def split(value, sep="|"):
+    """Split a string by sep and return a list. Used for matching question items."""
+    if not value:
+        return []
+    return str(value).split(sep)
+
+
+@register.filter
 def format_ghs(value):
     """Format a numeric amount as Ghana Cedis (GHS), with thousands separators."""
     if value is None or value == "":

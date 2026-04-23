@@ -345,29 +345,33 @@ def force_password_change(request):
     if request.method == "POST":
         new_pw = request.POST.get("new_password", "")
         confirm = request.POST.get("confirm_password", "")
-        if len(new_pw) < 8:
-            messages.error(request, "Password must be at least 8 characters.")
-        elif new_pw != confirm:
+        if new_pw != confirm:
             messages.error(request, "Passwords do not match.")
         else:
-            user.set_password(new_pw)
-            user.must_change_password = False
-            user.save(update_fields=["password", "must_change_password"])
-            from django.contrib.auth import update_session_auth_hash
-            update_session_auth_hash(request, user)
             try:
-                from operations.activity import client_ip_from_request, log_school_activity
+                validate_password(new_pw, user=user)
+            except ValidationError as e:
+                for msg in e.messages:
+                    messages.error(request, msg)
+            else:
+                user.set_password(new_pw)
+                user.must_change_password = False
+                user.save(update_fields=["password", "must_change_password"])
+                from django.contrib.auth import update_session_auth_hash
+                update_session_auth_hash(request, user)
+                try:
+                    from operations.activity import client_ip_from_request, log_school_activity
 
-                log_school_activity(
-                    user=user,
-                    action="password_change",
-                    details="Password updated (required change after login).",
-                    ip=client_ip_from_request(request),
-                )
-            except Exception:
-                pass
-            messages.success(request, "Password changed successfully.")
-            return redirect("home")
+                    log_school_activity(
+                        user=user,
+                        action="password_change",
+                        details="Password updated (required change after login).",
+                        ip=client_ip_from_request(request),
+                    )
+                except Exception:
+                    pass
+                messages.success(request, "Password changed successfully.")
+                return redirect("home")
     return render(request, "accounts/force_password_change.html")
 
 
@@ -1241,7 +1245,7 @@ def staff_register(request):
                     )
                     messages.success(request, "Staff account created.")
                     return redirect("accounts:staff_list")
-        elif request.method == "POST":
+        else:
             messages.error(request, "Please fill all required fields or select a valid role.")
     return render(request, "accounts/staff_register.html", {"school": school})
 
@@ -1773,7 +1777,7 @@ def reset_user_password(request, pk):
         if next_url and next_url.startswith("/") and not next_url.startswith("//"):
             return redirect(next_url)
 
-        if target_user.role in ("school_admin", "teacher", "staff"):
+        if target_user.role in STAFF_ROLES:
             return redirect("accounts:staff_detail", pk=target_user.pk)
         if target_user.role == "parent":
             return redirect("accounts:parent_detail", pk=target_user.pk)
@@ -1831,7 +1835,7 @@ def superuser_edit_credentials(request, pk):
         if next_url and next_url.startswith("/") and not next_url.startswith("//"):
             return redirect(next_url)
 
-        if target_user.role in ("school_admin", "teacher", "staff"):
+        if target_user.role in STAFF_ROLES:
             return redirect("accounts:staff_detail", pk=target_user.pk)
         if target_user.role == "parent":
             return redirect("accounts:parent_detail", pk=target_user.pk)

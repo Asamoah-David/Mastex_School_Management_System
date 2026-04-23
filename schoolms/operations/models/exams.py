@@ -128,19 +128,41 @@ class ExamQuestion(models.Model):
         ('true_false', 'True/False'),
         ('short_answer', 'Short Answer'),
         ('essay', 'Essay'),
+        ('multi_select', 'Multi-Select (Checkboxes)'),
+        ('dropdown', 'Dropdown'),
+        ('matching', 'Matching'),
     )
     exam = models.ForeignKey(OnlineExam, on_delete=models.CASCADE, related_name='questions')
     question_text = models.TextField()
     question_type = models.CharField(max_length=20, choices=QUESTION_TYPES)
     marks = models.DecimalField(max_digits=5, decimal_places=2, default=1)
-    
-    # For multiple choice
+    penalty = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text="Marks deducted per wrong answer for multi_select questions (0 = no penalty).",
+    )
+
+    # For multiple_choice / true_false / dropdown / multi_select
     option_a = models.CharField(max_length=500, blank=True)
     option_b = models.CharField(max_length=500, blank=True)
     option_c = models.CharField(max_length=500, blank=True)
     option_d = models.CharField(max_length=500, blank=True)
-    correct_answer = models.CharField(max_length=200, blank=True)  # A–D / T&F / expected short text
-    
+    option_e = models.CharField(max_length=500, blank=True)
+    option_f = models.CharField(max_length=500, blank=True)
+    correct_answer = models.CharField(
+        max_length=500, blank=True,
+        help_text="A–D for MCQ/T-F/dropdown; comma-separated letters for multi_select (e.g. A,C); JSON pairs for matching.",
+    )
+
+    # For matching: store left-side labels and right-side labels as pipe-separated strings
+    match_left = models.TextField(
+        blank=True,
+        help_text="Pipe-separated left-side items for matching questions, e.g. 'Item 1|Item 2|Item 3'.",
+    )
+    match_right = models.TextField(
+        blank=True,
+        help_text="Pipe-separated right-side items for matching questions, e.g. 'Answer 1|Answer 2|Answer 3'.",
+    )
+
     order = models.PositiveIntegerField(default=0)
     
     class Meta:
@@ -157,7 +179,8 @@ class ExamAttempt(models.Model):
     attempt_number = models.PositiveIntegerField(default=1)
     started_at = models.DateTimeField(auto_now_add=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
-    score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    is_passed = models.BooleanField(default=False)
     is_completed = models.BooleanField(default=False)
     tab_blur_count = models.PositiveIntegerField(
         default=0,
@@ -196,13 +219,13 @@ class ExamAnswer(models.Model):
     """Individual answers from exam attempts"""
     attempt = models.ForeignKey(ExamAttempt, on_delete=models.CASCADE, related_name='answers')
     question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE)
-    answer_given = models.CharField(max_length=500, blank=True)
+    answer_given = models.TextField(blank=True)  # expanded for essays and matching JSON
     is_correct = models.BooleanField(default=False)
     marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     teacher_reviewed = models.BooleanField(
         default=True,
         help_text="False for essay answers until a teacher enters marks.",
     )
-    
+
     class Meta:
         unique_together = ("attempt", "question")

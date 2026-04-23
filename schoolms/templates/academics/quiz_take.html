@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Take Quiz · {{ quiz.title }}{% endblock %}
 {% block page_title %}{{ quiz.title }}{% endblock %}
 {% block page_subtitle %}{{ quiz.subject.name }} · {{ quiz.duration_minutes }} min{% endblock %}
@@ -24,7 +25,12 @@
             <p style="margin:0 0 1rem;color:var(--text-main);">{{ question.question_text }}</p>
 
             {% if question.question_type == 'short_answer' %}
-            <textarea name="q_{{ question.pk }}" rows="3" class="form-control" style="width:100%;padding:0.6rem;border-radius:0.5rem;border:1px solid var(--border-default);background:var(--surface-input);color:var(--text-main);" placeholder="Your answer"></textarea>
+            <textarea name="q_{{ question.pk }}" rows="3" style="width:100%;padding:0.6rem;border-radius:0.5rem;border:1px solid var(--border-default);background:var(--surface-input);color:var(--text-main);" placeholder="Your answer"></textarea>
+
+            {% elif question.question_type == 'essay' %}
+            <textarea name="q_{{ question.pk }}" rows="7" style="width:100%;padding:0.6rem;border-radius:0.5rem;border:1px solid var(--border-default);background:var(--surface-input);color:var(--text-main);" placeholder="Written response — marked manually by your teacher"></textarea>
+            <p style="font-size:0.78rem;color:var(--text-soft);margin:0.3rem 0 0;">Essay responses are graded by your teacher; score may show 0 until marked.</p>
+
             {% elif question.question_type == 'true_false' %}
             <div style="display:grid;gap:0.45rem;">
                 <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
@@ -36,32 +42,54 @@
                     <span><strong>B.</strong> {{ question.option_b|default:"False" }}</span>
                 </label>
             </div>
+
+            {% elif question.question_type == 'multi_select' %}
+            <p style="font-size:0.8rem;color:var(--text-soft);margin:0 0 0.5rem;">Select all that apply.{% if question.penalty %} Penalty: {{ question.penalty }} mark{{ question.penalty|pluralize }} per wrong selection.{% endif %}</p>
+            <div style="display:grid;gap:0.45rem;">
+                {% if question.option_a %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="checkbox" name="q_{{ question.pk }}" value="A"><span><strong>A.</strong> {{ question.option_a }}</span></label>{% endif %}
+                {% if question.option_b %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="checkbox" name="q_{{ question.pk }}" value="B"><span><strong>B.</strong> {{ question.option_b }}</span></label>{% endif %}
+                {% if question.option_c %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="checkbox" name="q_{{ question.pk }}" value="C"><span><strong>C.</strong> {{ question.option_c }}</span></label>{% endif %}
+                {% if question.option_d %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="checkbox" name="q_{{ question.pk }}" value="D"><span><strong>D.</strong> {{ question.option_d }}</span></label>{% endif %}
+                {% if question.option_e %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="checkbox" name="q_{{ question.pk }}" value="E"><span><strong>E.</strong> {{ question.option_e }}</span></label>{% endif %}
+                {% if question.option_f %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="checkbox" name="q_{{ question.pk }}" value="F"><span><strong>F.</strong> {{ question.option_f }}</span></label>{% endif %}
+            </div>
+
+            {% elif question.question_type == 'dropdown' %}
+            <select name="q_{{ question.pk }}" aria-label="Answer for question {{ forloop.counter }}" style="width:100%;padding:0.6rem;border-radius:0.5rem;border:1px solid var(--border-default);background:var(--surface-input);color:var(--text-main);">
+                <option value="">— Select an answer —</option>
+                {% if question.option_a %}<option value="A">{{ question.option_a }}</option>{% endif %}
+                {% if question.option_b %}<option value="B">{{ question.option_b }}</option>{% endif %}
+                {% if question.option_c %}<option value="C">{{ question.option_c }}</option>{% endif %}
+                {% if question.option_d %}<option value="D">{{ question.option_d }}</option>{% endif %}
+                {% if question.option_e %}<option value="E">{{ question.option_e }}</option>{% endif %}
+                {% if question.option_f %}<option value="F">{{ question.option_f }}</option>{% endif %}
+            </select>
+
+            {% elif question.question_type == 'matching' %}
+            {% with left_items=question.match_left|default:""|split:"|" right_items=question.match_right|default:""|split:"|" %}
+            <p style="font-size:0.8rem;color:var(--text-soft);margin:0 0 0.5rem;">Match each item on the left with the correct answer on the right.</p>
+            <div style="display:grid;gap:0.5rem;">
+                {% for left_item in left_items %}{% if left_item %}
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;align-items:center;padding:0.6rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;">
+                    <span style="font-weight:600;">{{ left_item }}</span>
+                    <select aria-label="Match for {{ left_item }}" data-match-key="{{ left_item }}" data-question-id="{{ question.pk }}" class="quiz-match-select" style="padding:0.5rem;border-radius:0.4rem;border:1px solid var(--border-default);background:var(--surface-input);color:var(--text-main);">
+                        <option value="">— select —</option>
+                        {% for right_item in right_items %}{% if right_item %}<option value="{{ right_item }}">{{ right_item }}</option>{% endif %}{% endfor %}
+                    </select>
+                </div>
+                {% endif %}{% endfor %}
+            </div>
+            <input type="hidden" name="q_{{ question.pk }}" id="quizMatchHidden_{{ question.pk }}">
+            {% endwith %}
+
             {% else %}
             <div style="display:grid;gap:0.45rem;">
-                {% if question.option_a %}
-                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
-                    <input type="radio" name="q_{{ question.pk }}" value="A">
-                    <span><strong>A.</strong> {{ question.option_a }}</span>
-                </label>
-                {% endif %}
-                {% if question.option_b %}
-                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
-                    <input type="radio" name="q_{{ question.pk }}" value="B">
-                    <span><strong>B.</strong> {{ question.option_b }}</span>
-                </label>
-                {% endif %}
-                {% if question.option_c %}
-                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
-                    <input type="radio" name="q_{{ question.pk }}" value="C">
-                    <span><strong>C.</strong> {{ question.option_c }}</span>
-                </label>
-                {% endif %}
-                {% if question.option_d %}
-                <label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;">
-                    <input type="radio" name="q_{{ question.pk }}" value="D">
-                    <span><strong>D.</strong> {{ question.option_d }}</span>
-                </label>
-                {% endif %}
+                {% if question.option_a %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="radio" name="q_{{ question.pk }}" value="A"><span><strong>A.</strong> {{ question.option_a }}</span></label>{% endif %}
+                {% if question.option_b %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="radio" name="q_{{ question.pk }}" value="B"><span><strong>B.</strong> {{ question.option_b }}</span></label>{% endif %}
+                {% if question.option_c %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="radio" name="q_{{ question.pk }}" value="C"><span><strong>C.</strong> {{ question.option_c }}</span></label>{% endif %}
+                {% if question.option_d %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="radio" name="q_{{ question.pk }}" value="D"><span><strong>D.</strong> {{ question.option_d }}</span></label>{% endif %}
+                {% if question.option_e %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="radio" name="q_{{ question.pk }}" value="E"><span><strong>E.</strong> {{ question.option_e }}</span></label>{% endif %}
+                {% if question.option_f %}<label style="display:flex;align-items:center;gap:0.5rem;padding:0.65rem;background:rgba(30,41,59,0.45);border-radius:0.5rem;cursor:pointer;"><input type="radio" name="q_{{ question.pk }}" value="F"><span><strong>F.</strong> {{ question.option_f }}</span></label>{% endif %}
             </div>
             {% endif %}
         </div>
@@ -101,7 +129,19 @@
         totalSeconds--;
     }
 
+    function serializeQuizMatching() {
+        document.querySelectorAll('[id^="quizMatchHidden_"]').forEach(function(hidden) {
+            var qid = hidden.id.replace('quizMatchHidden_', '');
+            var pairs = {};
+            document.querySelectorAll('.quiz-match-select[data-question-id="' + qid + '"]').forEach(function(sel) {
+                if (sel.value) pairs[sel.dataset.matchKey] = sel.value;
+            });
+            hidden.value = JSON.stringify(pairs);
+        });
+    }
+
     window.confirmQuizSubmit = function() {
+        serializeQuizMatching();
         var names = [];
         document.querySelectorAll('[name^="q_"]').forEach(function(el) {
             if (names.indexOf(el.name) === -1) names.push(el.name);
@@ -131,6 +171,24 @@
         setInterval(tick, 1000);
         tick();
     }
+
+    {% if quiz_tab_event_url %}
+    (function() {
+        var tabUrl = "{{ quiz_tab_event_url|escapejs }}";
+        var csrftoken = "{{ csrf_token }}";
+        var busy = false;
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState !== "hidden" || busy || done) return;
+            busy = true;
+            fetch(tabUrl, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {"X-CSRFToken": csrftoken, "Content-Type": "application/json"},
+                body: "{}"
+            }).catch(function() {}).finally(function() { busy = false; });
+        });
+    })();
+    {% endif %}
 })();
 </script>
 {% endblock %}

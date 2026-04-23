@@ -16,7 +16,7 @@ class ForcePasswordChangeMiddleware:
     # Prefixes that must remain reachable while a forced change is pending, so
     # the change page and auth flows render correctly (CSS/images, password
     # reset confirmation, favicon).
-    ALLOWED_PREFIXES = ("/static", "/media", "/favicon", "/accounts/password-reset")
+    ALLOWED_PREFIXES = ("/static", "/media", "/favicon", "/accounts/password-reset", "/api/")
 
     def __call__(self, request):
         if request.user.is_authenticated and getattr(request.user, "must_change_password", False):

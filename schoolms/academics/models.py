@@ -430,6 +430,14 @@ class Quiz(models.Model):
     )
     is_active = models.BooleanField(default=True)
     due_date = models.DateTimeField(null=True, blank=True)
+    start_time = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Optional open window start. If blank, quiz is open immediately when active.",
+    )
+    show_results_immediately = models.BooleanField(
+        default=True,
+        help_text="Show score and correct answers to students right after submission.",
+    )
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -442,18 +450,40 @@ class Quiz(models.Model):
 
 class QuizQuestion(models.Model):
     """Quiz questions."""
-    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
-    question_text = models.TextField()
-    question_type = models.CharField(max_length=20, choices=[
+    QUESTION_TYPES = [
         ('multiple_choice', 'Multiple Choice'),
         ('true_false', 'True/False'),
-        ('short_answer', 'Short Answer')
-    ], default='multiple_choice')
+        ('short_answer', 'Short Answer'),
+        ('essay', 'Essay'),
+        ('multi_select', 'Multi-Select (Checkboxes)'),
+        ('dropdown', 'Dropdown'),
+        ('matching', 'Matching'),
+    ]
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
+    question_text = models.TextField()
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, default='multiple_choice')
     option_a = models.CharField(max_length=500, blank=True)
     option_b = models.CharField(max_length=500, blank=True)
     option_c = models.CharField(max_length=500, blank=True)
     option_d = models.CharField(max_length=500, blank=True)
-    correct_answer = models.CharField(max_length=200)
+    option_e = models.CharField(max_length=500, blank=True)
+    option_f = models.CharField(max_length=500, blank=True)
+    correct_answer = models.CharField(
+        max_length=500, blank=True,
+        help_text="A–D for MCQ/T-F/dropdown; comma-separated for multi_select (e.g. A,C); JSON pairs for matching.",
+    )
+    match_left = models.TextField(
+        blank=True,
+        help_text="Pipe-separated left-side items for matching questions.",
+    )
+    match_right = models.TextField(
+        blank=True,
+        help_text="Pipe-separated right-side items for matching questions.",
+    )
+    penalty = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text="Marks deducted per wrong selected answer for multi_select (0 = no penalty).",
+    )
     marks = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField(default=0)
     
@@ -465,13 +495,20 @@ class QuizQuestion(models.Model):
 
 
 class QuizAnswer(models.Model):
-    """Quiz answer model (from migration)."""
+    """Quiz answer model."""
     attempt = models.ForeignKey('QuizAttempt', on_delete=models.CASCADE, related_name='answers')
     question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE)
-    answer = models.CharField(max_length=500)
+    answer = models.TextField(blank=True)  # expanded for essays and matching JSON
     is_correct = models.BooleanField(default=False)
     marks_obtained = models.FloatField(default=0)
-    
+    teacher_reviewed = models.BooleanField(
+        default=True,
+        help_text="False for essay answers until a teacher enters marks.",
+    )
+
+    class Meta:
+        unique_together = ("attempt", "question")
+
     def __str__(self):
         return f"Answer for {self.question}"
 
@@ -480,12 +517,17 @@ class QuizAttempt(models.Model):
     """Student quiz attempts."""
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='attempts')
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='quiz_attempts')
+    attempt_number = models.PositiveIntegerField(default=1)
     started_at = models.DateTimeField(auto_now_add=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     score = models.FloatField(null=True, blank=True)
     is_passed = models.BooleanField(default=False)
     is_completed = models.BooleanField(default=False)
-    
+    tab_blur_count = models.PositiveIntegerField(
+        default=0,
+        help_text="How often the quiz tab lost visibility during this attempt (honesty signal).",
+    )
+
     class Meta:
         ordering = ['-started_at']
         indexes = [

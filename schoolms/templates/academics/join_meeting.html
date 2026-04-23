@@ -60,7 +60,7 @@
             <h1 class="page-title">🎥 {{ meeting.title }}</h1>
             <p class="page-subtitle">{{ meeting.subject|default:"General" }} - {{ meeting.class_name|default:"All Classes" }}</p>
         </div>
-        {% if is_host %}
+        {% if can_end_meeting %}
         <button class="btn btn-danger" onclick="endMeeting()">⏹️ End Class</button>
         {% endif %}
     </div>

@@ -82,7 +82,7 @@
     </div>
     {% endif %}
 
-    {% if application.status not in admission_terminal_statuses %}
+    {% if application.status not in admission_terminal_statuses and application.status != 'withdrawn' %}
     <div class="content-card" style="margin-top: 1.25rem; max-width: 520px;">
         <h3 style="margin: 0 0 0.75rem; font-size: 1rem;">Pipeline</h3>
         <p style="margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-soft);">Move the application through your internal stages. Guardians with a portal account matching this application’s email receive an in-app update.</p>
@@ -105,8 +105,10 @@
 
     <div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
         {% if application.status not in admission_terminal_statuses and application.status != 'withdrawn' %}
-        <a href="{% url 'operations:admission_approve' application.pk %}" class="btn btn-success">Approve &amp; enrol</a>
-        <a href="{% url 'operations:admission_reject' application.pk %}" class="btn btn-danger">Reject</a>
+        <a href="{% url 'operations:admission_approve' application.pk %}" class="btn btn-success">✅ Approve &amp; enrol</a>
+        <a href="{% url 'operations:admission_reject' application.pk %}" class="btn btn-danger">❌ Reject</a>
+        {% elif application.status == 'withdrawn' %}
+        <span style="font-size:0.85rem;color:var(--text-soft);">Application withdrawn — no further action available.</span>
         {% endif %}
         <a href="{% url 'operations:admission_list' %}" class="btn btn-secondary">Back to list</a>
         <a href="{% url 'operations:admission_pipeline' %}" class="btn btn-secondary">Pipeline board</a>

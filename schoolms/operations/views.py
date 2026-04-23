@@ -2017,10 +2017,15 @@ def admission_apply(request):
 
     schools = School.objects.filter(is_active=True).order_by("name")
 
+    from students.models import SchoolClass
+    school_classes = list(
+        SchoolClass.objects.values_list("name", flat=True).distinct().order_by("name")
+    )
+
     if request.method == "POST":
         if request.POST.get("hp_company", "").strip():
             logger.info("Admission apply honeypot triggered")
-            return render(request, "operations/admission_apply.html", {"schools": schools})
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
 
         first_name = request.POST.get("first_name", "").strip()
         last_name = request.POST.get("last_name", "").strip()
@@ -2054,25 +2059,26 @@ def admission_apply(request):
             and parent_phone
             and address
         ):
-            return render(request, "operations/admission_apply.html", {"schools": schools})
+            _messages.error(request, "Please fill in all required fields.")
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
 
         if not school:
             _messages.error(request, "Please select a valid school.")
-            return render(request, "operations/admission_apply.html", {"schools": schools})
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
 
-        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get(
-            "REMOTE_ADDR", ""
-        )
+        from operations.activity import client_ip_from_request
+        ip = client_ip_from_request(request) or ""
         cache_key = f"admission_apply_{ip}"
         if cache.get(cache_key, 0) >= 5:
             _messages.error(request, "Too many submissions. Please try again later.")
-            return render(request, "operations/admission_apply.html", {"schools": schools})
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
+        cache.set(cache_key, cache.get(cache_key, 0) + 1, 3600)
 
         try:
             dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
         except ValueError:
             _messages.error(request, "Invalid date of birth.")
-            return render(request, "operations/admission_apply.html", {"schools": schools})
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
 
         application = AdmissionApplication(
             public_reference=AdmissionApplication.allocate_public_reference(),
@@ -2119,9 +2125,7 @@ def admission_apply(request):
                 request,
                 " ".join(parts) if parts else "Please check your form and uploaded file types.",
             )
-            return render(request, "operations/admission_apply.html", {"schools": schools})
-
-        cache.set(cache_key, cache.get(cache_key, 0) + 1, 3600)
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
 
         try:
             from messaging.utils import send_sms
@@ -2161,7 +2165,7 @@ def admission_apply(request):
             {"application": application, "schools": schools},
         )
 
-    return render(request, "operations/admission_apply.html", {"schools": schools})
+    return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
 
 
 @login_required
@@ -2309,12 +2313,12 @@ def admission_detail(request, pk):
 @login_required
 def admission_approve(request, pk):
     """Approve application and optionally create student account."""
-    from accounts.permissions import user_can_manage_school
+    from accounts.permissions import can_approve_admissions
     from django.contrib.auth.hashers import make_password
     
     school = _get_school(request)
     
-    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
+    if not can_approve_admissions(request.user):
         return redirect('home')
     
     if school:
@@ -2323,6 +2327,11 @@ def admission_approve(request, pk):
         application = get_object_or_404(AdmissionApplication, pk=pk)
     else:
         return redirect('home')
+
+    if application.status in ADMISSION_TERMINAL_STATUSES:
+        from django.contrib import messages
+        messages.error(request, "This application is already finalised.")
+        return redirect('operations:admission_detail', pk=application.pk)
 
     if request.method == 'POST':
         create_account = request.POST.get('create_account') == 'on'
@@ -2370,6 +2379,7 @@ def admission_approve(request, pk):
                         school=application.school,
                         password=make_password(student_pw),
                         must_change_password=True,
+                        gender=application.gender or '',
                     )
 
                     student = Student.objects.create(
@@ -2492,11 +2502,11 @@ def admission_approve(request, pk):
 @login_required
 def admission_reject(request, pk):
     """Reject an admission application."""
-    from accounts.permissions import user_can_manage_school
+    from accounts.permissions import can_approve_admissions
     
     school = _get_school(request)
     
-    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
+    if not can_approve_admissions(request.user):
         return redirect('home')
     
     if school:
@@ -2505,6 +2515,11 @@ def admission_reject(request, pk):
         application = get_object_or_404(AdmissionApplication, pk=pk)
     else:
         return redirect('home')
+
+    if application.status in ADMISSION_TERMINAL_STATUSES:
+        from django.contrib import messages
+        messages.error(request, "This application is already finalised.")
+        return redirect('operations:admission_detail', pk=application.pk)
 
     if request.method == 'POST':
         reason = request.POST.get('rejection_reason', '').strip()
@@ -2558,31 +2573,43 @@ def admission_track(request):
     """Public page: check status by application reference (preferred) or phone + name."""
     application = None
     searched = False
+    error = None
+
+    from operations.activity import client_ip_from_request
+    ip = client_ip_from_request(request) or ""
+    track_cache_key = f"admission_track_{ip}"
+    if cache.get(track_cache_key, 0) >= 20:
+        error = "Too many lookups. Please try again later."
+        return render(request, "operations/admission_track.html", {"application": None, "searched": True, "error": error})
+
     ref = (request.GET.get("ref") or "").strip()
+    phone = (request.GET.get("phone") or "").strip()
+    name = (request.GET.get("name") or "").strip()
+
     if ref:
         searched = True
+        cache.set(track_cache_key, cache.get(track_cache_key, 0) + 1, 3600)
         application = (
             AdmissionApplication.objects.select_related("school")
             .filter(public_reference__iexact=ref)
             .order_by("-applied_at")
             .first()
         )
-    elif request.GET.get("phone") or request.GET.get("name"):
+    elif phone and name:
         searched = True
-        phone = request.GET.get("phone", "").strip()
-        name = request.GET.get("name", "").strip()
+        cache.set(track_cache_key, cache.get(track_cache_key, 0) + 1, 3600)
         qs = AdmissionApplication.objects.select_related("school")
-        if phone:
-            qs = qs.filter(parent_phone__icontains=phone)
-        if name:
-            qs = qs.filter(
-                Q(first_name__icontains=name) | Q(last_name__icontains=name)
-            )
+        qs = qs.filter(parent_phone__icontains=phone)
+        qs = qs.filter(Q(first_name__icontains=name) | Q(last_name__icontains=name))
         application = qs.order_by("-applied_at").first()
+    elif phone or name:
+        searched = True
+        error = "Please provide both phone number and applicant name to search without a reference."
 
     return render(request, "operations/admission_track.html", {
         "application": application,
         "searched": searched,
+        "error": error,
     })
 
 
@@ -4399,8 +4426,8 @@ def online_exam_allow_retake(request, attempt_id):
             request,
             f'Attempt #{attempt.attempt_number} reopened for {attempt.student.user.get_full_name()}.',
         )
-        return redirect('operations:online_exam_results')
-    
+        return redirect(f"{reverse('operations:online_exam_results')}?exam={attempt.exam_id}")
+
     return render(request, 'operations/confirm_delete.html', {
         'object': attempt, 'type': 'reopen this exam attempt (same attempt #)'
     })
@@ -6687,6 +6714,7 @@ def pt_meeting_create(request):
         location = request.POST.get("location", "").strip()
         max_slots = request.POST.get("max_slots") or 20
 
+        meeting_link = request.POST.get("meeting_link", "").strip()
         if title and meeting_date and location:
             try:
                 ms = max(1, int(max_slots))
@@ -6699,6 +6727,7 @@ def pt_meeting_create(request):
                 meeting_date=meeting_date,
                 location=location,
                 max_slots=ms,
+                meeting_link=meeting_link,
                 created_by=request.user,
             )
             messages.success(request, "Meeting scheduled!")
@@ -6828,6 +6857,7 @@ def pt_meeting_edit(request, pk):
         location = request.POST.get("location", "").strip()
         max_slots = request.POST.get("max_slots") or 20
 
+        meeting_link = request.POST.get("meeting_link", "").strip()
         if title and meeting_date and location:
             try:
                 ms = max(1, int(max_slots))
@@ -6838,6 +6868,7 @@ def pt_meeting_edit(request, pk):
             meeting.meeting_date = meeting_date
             meeting.location = location
             meeting.max_slots = ms
+            meeting.meeting_link = meeting_link
             meeting.save()
 
             messages.success(request, "Meeting updated!")
@@ -7865,16 +7896,65 @@ def _online_exam_past_time_policy(exam, attempt, now, grace_sec=120):
 
 
 def _grade_online_exam_response(question, raw_value):
-    """Auto-marking for MCQ / T-F / exact short text; essays stored with 0 marks."""
+    """Auto-marking for all non-essay types; essays stored with 0 marks pending review."""
+    import json
     val = (raw_value or "").strip()
     ca = (question.correct_answer or "").strip()
     qtp = question.question_type
-    if qtp in ("multiple_choice", "true_false"):
+
+    _TF_MAP = {"TRUE": "A", "T": "A", "YES": "A", "1": "A",
+               "FALSE": "B", "F": "B", "NO": "B", "0": "B"}
+
+    if qtp == "true_false":
+        v = _TF_MAP.get(val.upper(), val.upper())
+        c = _TF_MAP.get(ca.upper(), ca.upper())
+        ok = bool(c) and v == c
+        return ok, question.marks if ok else 0
+
+    if qtp in ("multiple_choice", "dropdown"):
         ok = bool(ca) and val.upper() == ca.upper()
         return ok, question.marks if ok else 0
+
     if qtp == "short_answer":
         ok = bool(ca) and val.lower() == ca.lower()
         return ok, question.marks if ok else 0
+
+    if qtp == "multi_select":
+        if not ca:
+            return False, 0
+        correct_set = {x.strip().upper() for x in ca.split(",") if x.strip()}
+        given_set = {x.strip().upper() for x in val.split(",") if x.strip()}
+        correct_hits = len(given_set & correct_set)
+        wrong_hits = len(given_set - correct_set)
+        penalty = float(question.penalty or 0)
+        earned = float(question.marks) * (correct_hits / max(len(correct_set), 1))
+        earned -= penalty * wrong_hits
+        earned = max(0.0, min(float(question.marks), earned))
+        ok = given_set == correct_set
+        return ok, round(earned, 2)
+
+    if qtp == "matching":
+        if not ca:
+            return False, 0
+        try:
+            correct_pairs = json.loads(ca)
+        except (json.JSONDecodeError, TypeError):
+            return False, 0
+        try:
+            given_pairs = json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            return False, 0
+        if not isinstance(correct_pairs, dict) or not isinstance(given_pairs, dict):
+            return False, 0
+        n = len(correct_pairs)
+        if n == 0:
+            return False, 0
+        hits = sum(1 for k, v in correct_pairs.items() if str(given_pairs.get(k, "")).strip() == str(v).strip())
+        per_pair = float(question.marks) / n
+        earned = round(per_pair * hits, 2)
+        ok = hits == n
+        return ok, earned
+
     return False, 0
 
 
@@ -8086,25 +8166,38 @@ def online_exam_add_question(request, pk):
     if request.method == 'POST':
         question_text = request.POST.get('question_text', '').strip()
         q_type = request.POST.get('question_type', 'multiple_choice')
-        marks = request.POST.get('marks', 1)
+        try:
+            marks = max(1, int(request.POST.get('marks') or 1))
+        except (ValueError, TypeError):
+            marks = 1
         option_a = request.POST.get('option_a', '').strip()
         option_b = request.POST.get('option_b', '').strip()
         option_c = request.POST.get('option_c', '').strip()
         option_d = request.POST.get('option_d', '').strip()
+        option_e = request.POST.get('option_e', '').strip()
+        option_f = request.POST.get('option_f', '').strip()
         correct = request.POST.get('correct_answer', '').strip()
+        match_left = request.POST.get('match_left', '').strip()
+        match_right = request.POST.get('match_right', '').strip()
+        try:
+            penalty = float(request.POST.get('penalty', '0') or '0')
+        except ValueError:
+            penalty = 0.0
         order = exam.questions.count() + 1
-        
+
         if question_text:
-            ca = correct.strip()
-            if q_type in ("multiple_choice", "true_false"):
-                ca = ca.upper()[:200]
+            if q_type in ('multiple_choice', 'true_false', 'dropdown'):
+                ca = correct.upper()[:10]
+            elif q_type == 'multi_select':
+                ca = ','.join(x.strip().upper() for x in correct.split(',') if x.strip())
             else:
-                ca = ca[:200]
+                ca = correct[:500]
             ExamQuestion.objects.create(
                 exam=exam, question_text=question_text, question_type=q_type,
                 marks=marks, option_a=option_a, option_b=option_b,
-                option_c=option_c, option_d=option_d, correct_answer=ca,
-                order=order
+                option_c=option_c, option_d=option_d, option_e=option_e,
+                option_f=option_f, correct_answer=ca, match_left=match_left,
+                match_right=match_right, penalty=penalty, order=order,
             )
             from django.contrib import messages
             messages.success(request, 'Question added!')
@@ -8309,7 +8402,7 @@ def online_exam_take(request, pk):
     attempt = None
     completed_n = 0
     with transaction.atomic():
-        ExamAttempt.objects.select_for_update().filter(exam=exam, student=student).exists()
+        _locked = list(ExamAttempt.objects.select_for_update().filter(exam=exam, student=student))
         incomplete = (
             ExamAttempt.objects.filter(exam=exam, student=student, is_completed=False)
             .order_by("-started_at")
@@ -8374,24 +8467,34 @@ def online_exam_take(request, pk):
             if attempt_locked.is_completed:
                 return redirect('operations:online_exam_result', pk=attempt.pk)
 
-            for key, value in request.POST.items():
-                if key.startswith('answer_'):
-                    q_id = key.replace('answer_', '')
-                    question = ExamQuestion.objects.filter(id=q_id, exam=exam).first()
-                    if question:
-                        is_correct, marks = _grade_online_exam_response(question, value)
-                        text = (value or "")[:500]
-                        reviewed = question.question_type != "essay"
-                        ExamAnswer.objects.update_or_create(
-                            attempt=attempt_locked,
-                            question=question,
-                            defaults={
-                                'answer_given': text,
-                                'is_correct': is_correct,
-                                'marks_obtained': marks,
-                                'teacher_reviewed': reviewed,
-                            },
-                        )
+            processed_ids = set()
+            for key in request.POST:
+                if not key.startswith('answer_'):
+                    continue
+                q_id = key.replace('answer_', '')
+                if q_id in processed_ids:
+                    continue
+                processed_ids.add(q_id)
+                question = ExamQuestion.objects.filter(id=q_id, exam=exam).first()
+                if question:
+                    if question.question_type == 'multi_select':
+                        checked = request.POST.getlist(key)
+                        value = ','.join(sorted(x.strip().upper() for x in checked if x.strip()))
+                    else:
+                        value = request.POST.get(key, '')
+                    is_correct, marks = _grade_online_exam_response(question, value)
+                    text = (value or "")[:2000]
+                    reviewed = question.question_type != "essay"
+                    ExamAnswer.objects.update_or_create(
+                        attempt=attempt_locked,
+                        question=question,
+                        defaults={
+                            'answer_given': text,
+                            'is_correct': is_correct,
+                            'marks_obtained': marks,
+                            'teacher_reviewed': reviewed,
+                        },
+                    )
 
             total = (
                 ExamAnswer.objects.filter(attempt=attempt_locked).aggregate(
@@ -8401,6 +8504,7 @@ def online_exam_take(request, pk):
             )
             attempt_locked.score = total
             attempt_locked.is_completed = True
+            attempt_locked.is_passed = float(total) >= float(exam.passing_marks)
             attempt_locked.submitted_at = now_submit
             attempt_locked.save()
 

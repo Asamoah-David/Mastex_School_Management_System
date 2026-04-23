@@ -38,51 +38,128 @@
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">Add Question</div>
         <div class="card-body">
-            <form method="post" action="{% url 'academics:quiz_add_question' quiz.pk %}">
+            <form method="post" action="{% url 'academics:quiz_add_question' quiz.pk %}" id="qdForm">
                 {% csrf_token %}
                 <div class="mb-3">
-                    <label>Question</label>
+                    <label class="form-label">Question Text *</label>
                     <textarea name="question_text" class="form-control" rows="3" required></textarea>
                 </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label>Option A</label>
-                        <input type="text" name="option_a" class="form-control">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label>Option B</label>
-                        <input type="text" name="option_b" class="form-control">
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label>Option C</label>
-                        <input type="text" name="option_c" class="form-control">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label>Option D</label>
-                        <input type="text" name="option_d" class="form-control">
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label>Correct Answer (A/B/C/D)</label>
-                        <select name="correct_answer" class="form-control" required>
-                            <option value="A">A</option>
-                            <option value="B">B</option>
-                            <option value="C">C</option>
-                            <option value="D">D</option>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Question Type</label>
+                        <select name="question_type" id="qdType" class="form-control" onchange="qdUpdateFields()">
+                            <option value="multiple_choice">Multiple Choice</option>
+                            <option value="true_false">True / False</option>
+                            <option value="short_answer">Short Answer</option>
+                            <option value="essay">Essay</option>
+                            <option value="multi_select">Multi-Select (Checkboxes)</option>
+                            <option value="dropdown">Dropdown</option>
+                            <option value="matching">Matching</option>
                         </select>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label>Marks</label>
-                        <input type="number" name="marks" value="1" class="form-control">
+                    <div class="col-md-6">
+                        <label class="form-label">Marks *</label>
+                        <input type="number" name="marks" value="1" min="1" class="form-control" required>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary">Add Question</button>
+
+                <div id="qdOptionsSection">
+                    <div class="row mb-2">
+                        <div class="col-md-6"><label class="form-label">Option A</label><input type="text" name="option_a" class="form-control"></div>
+                        <div class="col-md-6"><label class="form-label">Option B</label><input type="text" name="option_b" class="form-control"></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-md-6"><label class="form-label">Option C</label><input type="text" name="option_c" class="form-control"></div>
+                        <div class="col-md-6"><label class="form-label">Option D</label><input type="text" name="option_d" class="form-control"></div>
+                    </div>
+                    <div class="row mb-2" id="qdOptEF">
+                        <div class="col-md-6"><label class="form-label">Option E <small class="text-muted">(optional)</small></label><input type="text" name="option_e" class="form-control"></div>
+                        <div class="col-md-6"><label class="form-label">Option F <small class="text-muted">(optional)</small></label><input type="text" name="option_f" class="form-control"></div>
+                    </div>
+                </div>
+
+                <div id="qdCorrectSingle" class="mb-3">
+                    <label class="form-label">Correct Answer *</label>
+                    <select name="correct_answer" id="qdCorrectSelect" class="form-control">
+                        <option value="">— select —</option>
+                        <option value="A">A</option><option value="B">B</option>
+                        <option value="C">C</option><option value="D">D</option>
+                        <option value="E">E</option><option value="F">F</option>
+                    </select>
+                </div>
+
+                <div id="qdCorrectMulti" style="display:none" class="mb-3">
+                    <label class="form-label">Correct Answers * <small class="text-muted">(comma-separated, e.g. A,C)</small></label>
+                    <input type="text" name="correct_answer_multi" class="form-control" placeholder="A,C">
+                    <label class="form-label mt-2">Penalty per wrong selection</label>
+                    <input type="number" name="penalty" value="0" min="0" step="0.5" class="form-control" style="max-width:8rem;">
+                </div>
+
+                <div id="qdCorrectText" style="display:none" class="mb-3">
+                    <label class="form-label" id="qdCorrectTextLabel">Model Answer</label>
+                    <input type="text" name="correct_answer_text" class="form-control" placeholder="Expected answer">
+                </div>
+
+                <div id="qdMatchingSection" style="display:none" class="mb-3">
+                    <p class="text-muted small mb-2">One item per line. Rows are paired left → right.</p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Left Side (prompts)</label>
+                            <textarea name="match_left" class="form-control" rows="4" placeholder="Capital of France&#10;Largest planet"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Right Side (answers, same order)</label>
+                            <textarea name="match_right" class="form-control" rows="4" placeholder="Paris&#10;Jupiter"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" onclick="return qdPrepareSubmit()">Add Question</button>
             </form>
         </div>
     </div>
+
+<script>
+function qdUpdateFields() {
+    var t = document.getElementById('qdType').value;
+    var show = function(id) { document.getElementById(id).style.display = ''; };
+    var hide = function(id) { document.getElementById(id).style.display = 'none'; };
+    hide('qdOptionsSection'); hide('qdCorrectSingle'); hide('qdCorrectMulti'); hide('qdCorrectText'); hide('qdMatchingSection');
+    if (t === 'multiple_choice' || t === 'dropdown') {
+        show('qdOptionsSection'); hide('qdOptEF'); show('qdCorrectSingle');
+    } else if (t === 'true_false') {
+        show('qdOptionsSection'); hide('qdOptEF'); show('qdCorrectSingle');
+    } else if (t === 'multi_select') {
+        show('qdOptionsSection'); show('qdOptEF'); show('qdCorrectMulti');
+    } else if (t === 'short_answer') {
+        show('qdCorrectText'); document.getElementById('qdCorrectTextLabel').textContent = 'Model Answer (exact match)';
+    } else if (t === 'essay') {
+        show('qdCorrectText'); document.getElementById('qdCorrectTextLabel').textContent = 'Rubric / Notes (not shown to students)';
+    } else if (t === 'matching') {
+        show('qdMatchingSection');
+    }
+}
+function qdPrepareSubmit() {
+    var t = document.getElementById('qdType').value;
+    var caField = document.querySelector('#qdForm [name="correct_answer"]');
+    if (t === 'multiple_choice' || t === 'true_false' || t === 'dropdown') {
+        caField.value = document.getElementById('qdCorrectSelect').value;
+    } else if (t === 'multi_select') {
+        caField.value = document.querySelector('#qdForm [name="correct_answer_multi"]').value;
+    } else if (t === 'short_answer' || t === 'essay') {
+        caField.value = document.querySelector('#qdForm [name="correct_answer_text"]').value;
+    } else if (t === 'matching') {
+        var ll = (document.querySelector('#qdForm [name="match_left"]').value||'').trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+        var rl = (document.querySelector('#qdForm [name="match_right"]').value||'').trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+        var pairs = {}; ll.forEach(function(l,i){ if(rl[i]) pairs[l]=rl[i]; });
+        caField.value = JSON.stringify(pairs);
+        document.querySelector('#qdForm [name="match_left"]').value = ll.join('|');
+        document.querySelector('#qdForm [name="match_right"]').value = rl.join('|');
+    }
+    return true;
+}
+qdUpdateFields();
+</script>
     {% endif %}
     
     <h4>Questions</h4>

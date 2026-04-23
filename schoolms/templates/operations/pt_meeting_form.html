@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Schedule PT Meeting · Mastex SchoolOS{% endblock %}
-{% block page_title %}Schedule Parent-Teacher Meeting{% endblock %}
-{% block page_subtitle %}Create a new meeting for parents and teachers{% endblock %}
+{% block page_title %}{% if meeting %}Edit Parent-Teacher Meeting{% else %}Schedule Parent-Teacher Meeting{% endif %}{% endblock %}
+{% block page_subtitle %}{% if meeting %}Update the meeting details{% else %}Create a new meeting for parents and teachers{% endif %}{% endblock %}
 {% block content %}
 
 {% if messages %}
@@ -16,8 +16,8 @@
     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
         <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #22c55e, #16a34a); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">👥</div>
         <div>
-            <h2 style="margin: 0; color: var(--text-main);">Schedule New Meeting</h2>
-            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">Fill in the details to create a parent-teacher meeting</p>
+            <h2 style="margin: 0; color: var(--text-main);">{% if meeting %}Edit Meeting{% else %}Schedule New Meeting{% endif %}</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">{% if meeting %}Update the meeting details below{% else %}Fill in the details to create a parent-teacher meeting{% endif %}</p>
         </div>
     </div>
     
@@ -28,6 +28,7 @@
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label class="required">📝 Meeting Title</label>
                 <input type="text" name="title" id="title" required 
+                       value="{{ meeting.title|default:'' }}"
                        placeholder="e.g. JHS 1 Parent-Teacher Meeting">
                 <small class="form-error" id="titleError"></small>
                 <small class="form-text">Enter a descriptive title for the meeting</small>
@@ -37,13 +38,14 @@
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label>📋 Description</label>
                 <textarea name="description" id="description" rows="3" 
-                          placeholder="Describe the meeting agenda and topics to be discussed..."></textarea>
+                          placeholder="Describe the meeting agenda and topics to be discussed...">{{ meeting.description|default:'' }}</textarea>
             </div>
             
             <!-- Date and Time -->
             <div class="form-group">
                 <label class="required">🗓️ Date & Time</label>
-                <input type="datetime-local" name="meeting_date" id="meeting_date" required>
+                <input type="datetime-local" name="meeting_date" id="meeting_date" required
+                       value="{{ meeting.meeting_date|date:'Y-m-d' }}T{{ meeting.meeting_date|time:'H:i' }}">
                 <small class="form-error" id="dateError"></small>
             </div>
             
@@ -51,21 +53,30 @@
             <div class="form-group">
                 <label class="required">📍 Location</label>
                 <input type="text" name="location" id="location" required 
+                       value="{{ meeting.location|default:'' }}"
                        placeholder="e.g. School Hall, Classroom 1">
                 <small class="form-error" id="locationError"></small>
             </div>
             
             <!-- Maximum Slots -->
-            <div class="form-group" style="grid-column: 1 / -1;">
+            <div class="form-group">
                 <label>👥 Maximum Booking Slots</label>
-                <input type="number" name="max_slots" id="max_slots" value="20" min="1" max="100">
+                <input type="number" name="max_slots" id="max_slots" value="{{ meeting.max_slots|default:20 }}" min="1" max="100">
                 <small class="form-text">Number of parent-teacher slots available (default: 20)</small>
+            </div>
+
+            <!-- Video Call Link -->
+            <div class="form-group">
+                <label>🔗 Video Call Link <small class="text-muted">(optional)</small></label>
+                <input type="url" name="meeting_link" id="meeting_link" value="{{ meeting.meeting_link|default:'' }}"
+                       placeholder="https://meet.jit.si/... or Zoom/Google Meet URL">
+                <small class="form-text">Paste a Jitsi, Zoom, or Google Meet link for remote parents</small>
             </div>
         </div>
         
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
-                💾 Schedule Meeting
+                💾 {% if meeting %}Save Changes{% else %}Schedule Meeting{% endif %}
             </button>
             <a href="{% url 'operations:pt_meeting_list' %}" class="btn btn-secondary">
                 ↩️ Cancel

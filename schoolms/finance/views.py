@@ -16,7 +16,7 @@ from django.core.cache import cache
 
 from urllib.parse import urlparse
 from django.contrib.auth.decorators import login_required
-from accounts.permissions import can_export_data, is_school_leadership, user_can_manage_school
+from accounts.permissions import can_export_data, is_school_leadership, user_can_manage_school, can_manage_finance
 from .forms import FeeStructureForm
 
 
@@ -899,6 +899,9 @@ def fee_list(request):
 
     # Handle actions
     if request.method == "POST":
+        if not (user.is_superuser or can_manage_finance(user)):
+            messages.error(request, "You do not have permission to perform this action.")
+            return redirect("finance:fee_list")
         fee_id = request.POST.get("fee_id")
         action = request.POST.get("action")
         
@@ -1299,7 +1302,13 @@ def generate_fees_from_structure(request, pk):
     ]
 
     if new_fees:
-        Fee.objects.bulk_create(new_fees, batch_size=500)
+        created_fees = Fee.objects.bulk_create(new_fees, batch_size=500)
+        for _fee in created_fees:
+            try:
+                from core.signals import notify_fee_assigned
+                notify_fee_assigned(sender=Fee, instance=_fee, created=True)
+            except Exception:
+                logger.warning("generate_fees_from_structure: parent notify failed fee=%s", _fee.pk, exc_info=True)
 
     created_count = len(new_fees)
     skipped_count = max(len(students) - created_count, 0)
@@ -1826,6 +1835,10 @@ def payment_history_delete(request, pk):
         messages.error(request, "You are not attached to any school.")
         return redirect("accounts:dashboard")
 
+    if not (user.is_superuser or can_manage_finance(user)):
+        messages.error(request, "You do not have permission to manage payment records.")
+        return redirect("accounts:dashboard")
+
     pay_qs = FeePayment.objects.select_related("fee", "fee__school").filter(pk=pk)
     if school and not user.is_superuser:
         pay_qs = pay_qs.filter(fee__school=school)
@@ -1862,6 +1875,10 @@ def payment_history_delete_multiple(request):
 
     if not school and not user.is_superuser:
         messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+
+    if not (user.is_superuser or can_manage_finance(user)):
+        messages.error(request, "You do not have permission to manage payment records.")
         return redirect("accounts:dashboard")
 
     if request.method == "POST":

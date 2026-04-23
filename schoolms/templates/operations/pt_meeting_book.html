@@ -17,7 +17,9 @@
     <p><strong>Date:</strong> {{ meeting.meeting_date|date:"M d, Y H:i" }}</p>
     <p><strong>Location:</strong> {{ meeting.location }}</p>
     <p><strong>Available Slots:</strong> {{ meeting.available_slots }} / {{ meeting.max_slots }}</p>
-    
+    {% if meeting.meeting_link %}
+    <p><strong>🔗 Virtual Meeting:</strong> <a href="{{ meeting.meeting_link }}" target="_blank" class="btn btn-primary" style="padding:0.25rem 0.75rem;font-size:0.85rem;">Join Video Call</a></p>
+    {% endif %}
     <hr style="border-color: rgba(148, 163, 184, 0.3); margin: 1.5rem 0;">
     
     <form method="POST">

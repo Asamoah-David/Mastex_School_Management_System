@@ -40,28 +40,79 @@ from core.pagination import paginate
 
 from core.utils import get_school as _get_school, can_manage as _user_can_manage_school
 
+def _quiz_grade_response(given, question):
+    """Return (is_correct, marks_obtained) for any question type."""
+    import json as _json
+    correct = question.correct_answer or ""
+    qtp = question.question_type
+    val = (given or "").strip()
+    ca = correct.strip()
+
+    _TF_MAP = {"TRUE": "A", "T": "A", "YES": "A", "1": "A",
+               "FALSE": "B", "F": "B", "NO": "B", "0": "B"}
+
+    if qtp == "essay":
+        return False, 0.0
+
+    if qtp == "short_answer":
+        ok = bool(ca) and val.lower() == ca.lower()
+        return ok, float(question.marks) if ok else 0.0
+
+    if qtp == "true_false":
+        v = _TF_MAP.get(val.upper(), val.upper())
+        c = _TF_MAP.get(ca.upper(), ca.upper())
+        ok = bool(c) and v == c
+        return ok, float(question.marks) if ok else 0.0
+
+    if qtp in ("multiple_choice", "dropdown"):
+        ok = bool(ca) and val.upper() == ca.upper()
+        return ok, float(question.marks) if ok else 0.0
+
+    if qtp == "multi_select":
+        if not ca:
+            return False, 0.0
+        correct_set = {x.strip().upper() for x in ca.split(",") if x.strip()}
+        given_set = {x.strip().upper() for x in val.split(",") if x.strip()}
+        correct_hits = len(given_set & correct_set)
+        wrong_hits = len(given_set - correct_set)
+        penalty = float(getattr(question, 'penalty', 0) or 0)
+        earned = float(question.marks) * (correct_hits / max(len(correct_set), 1))
+        earned -= penalty * wrong_hits
+        earned = max(0.0, min(float(question.marks), earned))
+        ok = given_set == correct_set
+        return ok, round(earned, 2)
+
+    if qtp == "matching":
+        if not ca:
+            return False, 0.0
+        try:
+            correct_pairs = _json.loads(ca)
+        except (ValueError, TypeError):
+            return False, 0.0
+        try:
+            given_pairs = _json.loads(val)
+        except (ValueError, TypeError):
+            return False, 0.0
+        if not isinstance(correct_pairs, dict) or not isinstance(given_pairs, dict):
+            return False, 0.0
+        n = len(correct_pairs)
+        if n == 0:
+            return False, 0.0
+        hits = sum(1 for k, v in correct_pairs.items() if str(given_pairs.get(k, "")).strip() == str(v).strip())
+        per_pair = float(question.marks) / n
+        earned = round(per_pair * hits, 2)
+        ok = hits == n
+        return ok, earned
+
+    return False, 0.0
+
+
 def _quiz_response_matches_correct(given, correct, question_type):
-    """Normalize student response vs stored correct key for quizzes."""
-    g = (given or "").strip().upper()
-    c = (correct or "").strip().upper()
-    if not c:
-        return False
-    if question_type == "short_answer":
-        return (given or "").strip().lower() == (correct or "").strip().lower()
-    if question_type == "true_false":
-        tf_map = {
-            "TRUE": "A",
-            "T": "A",
-            "YES": "A",
-            "1": "A",
-            "FALSE": "B",
-            "F": "B",
-            "NO": "B",
-            "0": "B",
-        }
-        g = tf_map.get(g, g)
-        c = tf_map.get(c, c)
-    return g == c
+    """Legacy helper kept for compatibility (returns bool only)."""
+    from types import SimpleNamespace
+    q = SimpleNamespace(correct_answer=correct, question_type=question_type, marks=1, penalty=0)
+    ok, _ = _quiz_grade_response(given, q)
+    return ok
 
 
 def _can_view_student_record(user, student):
@@ -1876,6 +1927,15 @@ def quiz_create(request):
                 from datetime import datetime
                 max_attempts = int(request.POST.get("max_attempts_per_student") or "1")
                 max_attempts = max(1, min(max_attempts, 50))
+                show_results = request.POST.get("show_results_immediately") != "off"
+                start_time_raw = (request.POST.get("start_time") or "").strip()
+                start_time = None
+                if start_time_raw:
+                    try:
+                        from django.utils.dateparse import parse_datetime
+                        start_time = parse_datetime(start_time_raw)
+                    except Exception:
+                        start_time = None
                 quiz = Quiz.objects.create(
                     school=school,
                     title=title,
@@ -1886,6 +1946,8 @@ def quiz_create(request):
                     duration_minutes=int(duration),
                     passing_score=int(passing),
                     max_attempts_per_student=max_attempts,
+                    show_results_immediately=show_results,
+                    start_time=start_time,
                     created_by=request.user
                 )
                 messages.success(request, "Quiz created! Add questions now.")
@@ -1911,7 +1973,7 @@ def quiz_detail(request, pk):
     
     quiz = get_object_or_404(Quiz, pk=pk, school=school)
     questions = quiz.questions.all().order_by('order')
-    can_edit = _user_can_manage_school(request.user)
+    can_edit = _user_can_manage_school(request)
     from django.db.models import Sum
 
     question_marks_sum = questions.aggregate(s=Sum("marks"))["s"] or 0
@@ -1943,11 +2005,27 @@ def quiz_add_question(request, pk):
         option_b = request.POST.get("option_b", "").strip()
         option_c = request.POST.get("option_c", "").strip()
         option_d = request.POST.get("option_d", "").strip()
+        option_e = request.POST.get("option_e", "").strip()
+        option_f = request.POST.get("option_f", "").strip()
         correct = request.POST.get("correct_answer", "").strip()
-        marks = request.POST.get("marks", "1")
+        match_left = request.POST.get("match_left", "").strip()
+        match_right = request.POST.get("match_right", "").strip()
+        try:
+            penalty = float(request.POST.get("penalty", "0") or "0")
+        except ValueError:
+            penalty = 0.0
+        try:
+            marks = max(1, int(request.POST.get("marks", "1") or "1"))
+        except ValueError:
+            marks = 1
         order = quiz.questions.count()
-        
-        if question_text and correct:
+
+        if question_type in ("multiple_choice", "true_false", "dropdown"):
+            correct = correct.upper()[:10]
+        elif question_type == "multi_select":
+            correct = ",".join(x.strip().upper() for x in correct.split(",") if x.strip())
+
+        if question_text:
             QuizQuestion.objects.create(
                 quiz=quiz,
                 question_text=question_text,
@@ -1956,14 +2034,19 @@ def quiz_add_question(request, pk):
                 option_b=option_b,
                 option_c=option_c,
                 option_d=option_d,
+                option_e=option_e,
+                option_f=option_f,
                 correct_answer=correct,
-                marks=int(marks),
-                order=order
+                match_left=match_left,
+                match_right=match_right,
+                penalty=penalty,
+                marks=marks,
+                order=order,
             )
             messages.success(request, "Question added!")
-        
+
         return redirect("academics:quiz_detail", pk=pk)
-    
+
     return redirect("academics:quiz_detail", pk=pk)
 
 
@@ -1990,7 +2073,12 @@ def quiz_take(request, pk):
         messages.error(request, "This quiz is not for your class.")
         return redirect("academics:quiz_list")
 
-    if quiz.due_date and dj_tz.now() > quiz.due_date:
+    now_check = dj_tz.now()
+    if quiz.start_time and now_check < quiz.start_time:
+        messages.info(request, f"This quiz opens at {quiz.start_time.strftime('%Y-%m-%d %H:%M')}.")
+        return redirect("academics:quiz_list")
+
+    if quiz.due_date and now_check > quiz.due_date:
         messages.error(request, "The deadline for this quiz has passed.")
         return redirect("academics:quiz_list")
 
@@ -2015,7 +2103,8 @@ def quiz_take(request, pk):
             return redirect("academics:quiz_result", pk=last.pk)
         return redirect("academics:quiz_list")
     else:
-        attempt = QuizAttempt.objects.create(quiz=quiz, student=student, is_completed=False)
+        next_num = (QuizAttempt.objects.filter(quiz=quiz, student=student).count() or 0) + 1
+        attempt = QuizAttempt.objects.create(quiz=quiz, student=student, is_completed=False, attempt_number=next_num)
     
     questions = list(quiz.questions.all().order_by("order"))
     max_marks = sum(q.marks for q in questions) or 1
@@ -2034,23 +2123,23 @@ def quiz_take(request, pk):
         QuizAnswer.objects.filter(attempt=attempt).delete()
         total_marks = 0
         for question in questions:
-            raw = request.POST.get(f"q_{question.pk}", "").strip()
-            if question.question_type == "short_answer":
-                is_correct = _quiz_response_matches_correct(
-                    raw, question.correct_answer, "short_answer"
-                )
+            if question.question_type == "multi_select":
+                checked = request.POST.getlist(f"q_{question.pk}")
+                raw = ",".join(sorted(x.strip().upper() for x in checked if x.strip()))
             else:
-                is_correct = _quiz_response_matches_correct(
-                    raw, question.correct_answer, question.question_type
-                )
-            marks_obtained = float(question.marks) if is_correct else 0.0
+                raw = request.POST.get(f"q_{question.pk}", "").strip()
+            is_essay = question.question_type == "essay"
+            is_correct, marks_obtained = _quiz_grade_response(raw, question)
             total_marks += marks_obtained
-            QuizAnswer.objects.create(
+            QuizAnswer.objects.update_or_create(
                 attempt=attempt,
                 question=question,
-                answer=raw[:500],
-                is_correct=is_correct,
-                marks_obtained=marks_obtained,
+                defaults={
+                    "answer": raw[:2000],
+                    "is_correct": is_correct,
+                    "marks_obtained": marks_obtained,
+                    "teacher_reviewed": not is_essay,
+                },
             )
 
         score = (total_marks / max_marks * 100) if max_marks > 0 else 0
@@ -2058,7 +2147,7 @@ def quiz_take(request, pk):
         attempt.is_passed = score >= quiz.passing_score
         attempt.is_completed = True
         attempt.submitted_at = now
-        attempt.save()
+        attempt.save(update_fields=["score", "is_passed", "is_completed", "submitted_at"])
 
         if over_time:
             messages.warning(
@@ -2076,6 +2165,9 @@ def quiz_take(request, pk):
     else:
         timer_seconds = max(0, by_duration)
 
+    from django.urls import reverse
+    tab_event_url = reverse("academics:quiz_tab_event", kwargs={"attempt_id": attempt.pk})
+
     return render(
         request,
         "academics/quiz_take.html",
@@ -2085,6 +2177,7 @@ def quiz_take(request, pk):
             "attempt": attempt,
             "school": school,
             "quiz_timer_seconds": timer_seconds,
+            "quiz_tab_event_url": tab_event_url,
         },
     )
 
@@ -2104,7 +2197,7 @@ def quiz_result(request, pk):
 
     if not (
         attempt.student.user_id == request.user.id
-        or _user_can_manage_school(request.user)
+        or _user_can_manage_school(request)
         or _can_view_student_record(request.user, attempt.student)
     ):
         return redirect("home")
@@ -2114,6 +2207,12 @@ def quiz_result(request, pk):
         .order_by("question__order", "question_id", "id")
     )
 
+    is_staff = _user_can_manage_school(request)
+    show_scores = attempt.quiz.show_results_immediately or is_staff
+    needs_essay_grading = attempt.answers.filter(
+        question__question_type="essay", teacher_reviewed=False
+    ).exists()
+
     return render(
         request,
         "academics/quiz_result.html",
@@ -2121,6 +2220,9 @@ def quiz_result(request, pk):
             "attempt": attempt,
             "answers": answers,
             "school": school,
+            "show_scores": show_scores,
+            "needs_essay_grading": needs_essay_grading,
+            "can_grade": is_staff,
         },
     )
 
@@ -2149,6 +2251,14 @@ def quiz_edit(request, pk):
         max_attempts = int(request.POST.get("max_attempts_per_student") or "1")
         max_attempts = max(1, min(max_attempts, 50))
         if title and subject_id and class_name:
+            start_time_raw = (request.POST.get("start_time") or "").strip()
+            start_time = None
+            if start_time_raw:
+                try:
+                    from django.utils.dateparse import parse_datetime
+                    start_time = parse_datetime(start_time_raw)
+                except Exception:
+                    start_time = None
             quiz.title = title
             quiz.description = description
             quiz.subject_id = subject_id
@@ -2158,6 +2268,8 @@ def quiz_edit(request, pk):
             quiz.passing_score = int(passing)
             quiz.max_attempts_per_student = max_attempts
             quiz.is_active = request.POST.get("is_active") == "on"
+            quiz.show_results_immediately = request.POST.get("show_results_immediately") != "off"
+            quiz.start_time = start_time
             quiz.save()
             from django.contrib import messages
             messages.success(request, "Quiz updated!")
@@ -2193,6 +2305,32 @@ def quiz_delete(request, pk):
         return redirect("academics:quiz_list")
 
     return render(request, "accounts/confirm_delete.html", {"object": quiz, "type": "quiz"})
+
+
+@login_required
+def quiz_tab_event(request, attempt_id):
+    """Record a tab/window visibility loss during a quiz attempt (honesty signal)."""
+    from django.http import JsonResponse
+    if request.method != "POST":
+        return JsonResponse({"ok": False}, status=405)
+    from accounts.permissions import is_student
+    if not is_student(request.user):
+        return JsonResponse({"ok": False}, status=403)
+    school = _get_school(request)
+    if not school:
+        return JsonResponse({"ok": False}, status=400)
+    attempt = get_object_or_404(
+        QuizAttempt,
+        pk=attempt_id,
+        quiz__school=school,
+        student__user=request.user,
+        is_completed=False,
+    )
+    from django.db import models as _dj_models
+    QuizAttempt.objects.filter(pk=attempt.pk).update(
+        tab_blur_count=_dj_models.F("tab_blur_count") + 1
+    )
+    return JsonResponse({"ok": True})
 
 
 # ==========================================

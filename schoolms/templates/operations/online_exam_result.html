@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Exam Result - {{ attempt.exam.title }}{% endblock %}
 {% block page_title %}Exam Result{% endblock %}
 {% block page_subtitle %}{{ attempt.exam.title }}{% endblock %}
@@ -84,13 +85,32 @@
                 </span>
             </div>
             <p style="color: var(--text-main); margin-bottom: 0.5rem;">{{ answer.question.question_text }}</p>
+            {% if answer.question.question_type == 'matching' %}
+            <p style="color:var(--text-soft);font-size:0.9rem;margin-bottom:0.25rem;"><strong>Your matching:</strong></p>
+            <div style="font-size:0.88rem;margin-bottom:0.25rem;">
+                {{ answer.answer_given|default:"—" }}
+            </div>
+            {% if not answer.is_correct %}
+            <p style="color:#22c55e;font-size:0.9rem;margin:0;"><strong>Expected (JSON):</strong> <code style="font-size:0.8rem;">{{ answer.question.correct_answer }}</code></p>
+            {% endif %}
+            {% elif answer.question.question_type == 'multi_select' %}
+            <p style="color:var(--text-soft);font-size:0.9rem;">
+                <strong>Your selections:</strong> {{ answer.answer_given|default:"—" }}
+            </p>
+            {% if not answer.is_correct %}
+            <p style="color:#22c55e;font-size:0.9rem;">
+                <strong>Correct selections:</strong> {{ answer.question.correct_answer }}
+            </p>
+            {% endif %}
+            {% else %}
             <p style="color: var(--text-soft); font-size: 0.9rem;">
-                <strong>Your answer:</strong> {{ answer.answer_given }}
+                <strong>Your answer:</strong> {{ answer.answer_given|default:"—" }}
             </p>
             {% if not answer.is_correct and answer.question.question_type != 'essay' %}
             <p style="color: #22c55e; font-size: 0.9rem;">
                 <strong>Correct answer:</strong> {{ answer.question.correct_answer }}
             </p>
+            {% endif %}
             {% endif %}
             <p style="color: var(--text-soft); font-size: 0.85rem; margin-top: 0.25rem;">
                 Marks: {{ answer.marks_obtained }} / {{ answer.question.marks }}

@@ -18,6 +18,9 @@
         <p><strong>Date:</strong> {{ meeting.meeting_date|date:"M d, Y H:i" }}</p>
         <p><strong>Location:</strong> {{ meeting.location }}</p>
         <p><strong>Description:</strong> {{ meeting.description|default:"—" }}</p>
+        {% if meeting.meeting_link %}
+        <p><strong>🔗 Video Call:</strong> <a href="{{ meeting.meeting_link }}" target="_blank" class="btn btn-primary" style="padding:0.25rem 0.75rem;font-size:0.85rem;">Join Virtual Meeting</a></p>
+        {% endif %}
         <p><strong>Booked Slots:</strong> {{ meeting.booked_slots }} / {{ meeting.max_slots }}</p>
         <p><strong>Available Slots:</strong> {{ meeting.available_slots }}</p>
         {% if meeting.available_slots == 0 %}

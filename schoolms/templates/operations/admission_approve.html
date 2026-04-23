@@ -1,56 +1,65 @@
 {% extends "base.html" %}
+{% block title %}Approve Application · {{ application.public_reference }}{% endblock %}
+{% block page_title %}Approve Application{% endblock %}
+{% block page_subtitle %}{{ application.first_name }} {{ application.last_name }} — {{ application.class_applied_for }}{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h4 class="mb-0"><i class="fas fa-check"></i> Approve Application</h4>
-                </div>
-                <div class="card-body">
-                    <h5>{{ application.first_name }} {{ application.last_name }}</h5>
-                    <p class="text-muted">Applying for: {{ application.class_applied_for }}</p>
-                    <p class="text-muted small">Reference: <code>{{ application.public_reference }}</code> — usernames will be derived from this where possible.</p>
-                    
-                    <form method="POST">
-                        {% csrf_token %}
-                        
-                        <div class="form-check mb-3">
-                            <input type="checkbox" name="create_account" id="create_account" class="form-check-input" checked>
-                            <label for="create_account" class="form-check-label">
-                                <strong>Create student and parent accounts automatically</strong>
-                            </label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input type="checkbox" name="create_initial_fees" id="create_initial_fees" class="form-check-input" checked>
-                            <label for="create_initial_fees" class="form-check-label">
-                                Create fee invoices from active fee structures for this class (when accounts are created)
-                            </label>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label>Admission Number (leave blank for auto-generate)</label>
-                            <input type="text" name="admission_number" class="form-control" placeholder="e.g., MAS-2025-0001">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label>Initial Password (leave blank for default: Welcome123)</label>
-                            <input type="text" name="initial_password" class="form-control" placeholder="Leave blank for default">
-                        </div>
-                        
-                        <p class="text-muted">SMS will be sent to {{ application.parent_phone }} with login credentials.</p>
-                        
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-success btn-lg">
-                                <i class="fas fa-check"></i> Approve & Create Account
-                            </button>
-                            <a href="{% url 'operations:admission_detail' application.pk %}" class="btn btn-secondary">Cancel</a>
-                        </div>
-                    </form>
-                </div>
-            </div>
+<div class="content-card" style="max-width: 640px; margin: 0 auto;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+        <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #22c55e, #16a34a); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">✅</div>
+        <div>
+            <h2 style="margin: 0; color: var(--text-main);">Approve &amp; Enrol</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--text-soft); font-size: 0.85rem;">
+                Reference: <code style="font-family: ui-monospace, monospace; color: #60a5fa;">{{ application.public_reference }}</code>
+            </p>
         </div>
     </div>
+
+    <div style="padding: 0.85rem 1rem; border-radius: 0.5rem; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.2); margin-bottom: 1.25rem;">
+        <p style="margin: 0 0 0.25rem; font-weight: 600; color: var(--text-main);">{{ application.first_name }} {{ application.last_name }}</p>
+        <p style="margin: 0; font-size: 0.85rem; color: var(--text-soft);">Class: {{ application.class_applied_for }} · Parent phone: {{ application.parent_phone }}</p>
+    </div>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <div class="form-group" style="margin-bottom: 1rem; padding: 0.85rem 1rem; border-radius: 0.5rem; background: rgba(59, 130, 246, 0.07); border: 1px solid rgba(59, 130, 246, 0.2);">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600;">
+                <input type="checkbox" name="create_account" id="create_account" checked style="width: 16px; height: 16px; accent-color: #22c55e;">
+                Create student and parent accounts automatically
+            </label>
+            <p style="margin: 0.35rem 0 0 1.5rem; font-size: 0.8rem; color: var(--text-soft);">Generates login credentials for both the student and parent/guardian.</p>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem; padding: 0.85rem 1rem; border-radius: 0.5rem; background: rgba(59, 130, 246, 0.07); border: 1px solid rgba(59, 130, 246, 0.2);">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600;">
+                <input type="checkbox" name="create_initial_fees" id="create_initial_fees" checked style="width: 16px; height: 16px; accent-color: #22c55e;">
+                Create fee invoices from active fee structures for this class
+            </label>
+            <p style="margin: 0.35rem 0 0 1.5rem; font-size: 0.8rem; color: var(--text-soft);">Requires accounts to be created above and an active fee structure matching this class.</p>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem;">Admission Number <small style="color: var(--text-soft);">(leave blank to auto-generate)</small></label>
+            <input type="text" name="admission_number" placeholder="e.g. SCH-2025-0001"
+                   style="width: 100%; padding: 0.6rem 0.85rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem;">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem;">Initial Password <small style="color: var(--text-soft);">(leave blank for a secure random password)</small></label>
+            <input type="text" name="initial_password" placeholder="Leave blank for auto-generated secure password"
+                   style="width: 100%; padding: 0.6rem 0.85rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main); font-size: 0.9rem;">
+            <small style="display: block; margin-top: 0.35rem; color: var(--text-soft); font-size: 0.78rem;">⚠️ Passwords are not sent via SMS for security. Communicate initial access to the parent directly.</small>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="submit" class="btn btn-success" style="flex: 1; padding: 0.75rem 1rem; font-size: 0.95rem;">
+                ✅ Approve &amp; Create Account
+            </button>
+            <a href="{% url 'operations:admission_detail' application.pk %}" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
+                Cancel
+            </a>
+        </div>
+    </form>
 </div>
 {% endblock %}

@@ -25,7 +25,9 @@
 
     {% if searched %}
     <div style="margin-top:1.5rem;">
-        {% if application %}
+        {% if error %}
+        <div style="padding:.75rem 1rem;border-radius:.5rem;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#f87171;font-size:.9rem;">{{ error }}</div>
+        {% elif application %}
         <div style="border:1px solid rgba(148,163,184,.25);border-radius:.65rem;padding:1.1rem;background:rgba(15,23,42,.35);">
             <p style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-soft);margin:0 0 .25rem;">Reference</p>
             <p style="margin:0 0 .75rem;font-family:ui-monospace,monospace;font-weight:700;color:#60a5fa;">{{ application.public_reference }}</p>

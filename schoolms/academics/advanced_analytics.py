@@ -377,6 +377,7 @@ def get_trend_data(request):
 
 # ==================== ONLINE CLASSES ====================
 
+
 def _online_classes_school(request):
     """School context for online class views (supports superuser current_school_id)."""
     school = getattr(request.user, "school", None)
@@ -443,11 +444,14 @@ def online_meetings_visible_to_user(user, school):
         "admin_assistant",
         "staff",
         "admission_officer",
+        "board",
+        "school_board",
     ):
         return meetings.filter(
             Q(target_audience="staff") | Q(target_audience="all")
         )
-    return meetings
+    # Fallback: only 'all' audience
+    return meetings.filter(target_audience="all")
 
 
 @login_required
@@ -461,8 +465,10 @@ def online_classes_page(request):
     
     meetings = online_meetings_visible_to_user(request.user, school)
     
-    upcoming_meetings = meetings.filter(status='scheduled', scheduled_time__gte=timezone.now()).order_by('scheduled_time')
-    past_meetings = meetings.filter(Q(status='completed') | Q(scheduled_time__lt=timezone.now())).order_by('-scheduled_time')[:10]
+    now = timezone.now()
+    live_meetings = meetings.filter(status='in_progress').order_by('scheduled_time')
+    upcoming_meetings = meetings.filter(status='scheduled', scheduled_time__gte=now).order_by('scheduled_time')
+    past_meetings = meetings.filter(Q(status='completed') | Q(status='cancelled') | (Q(status='scheduled') & Q(scheduled_time__lt=now))).order_by('-scheduled_time')[:10]
     
     # Get classes for dropdown (from students)
     classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
@@ -471,13 +477,16 @@ def online_classes_page(request):
     # Get subjects for dropdown
     subjects = Subject.objects.filter(school=school).order_by('name')
     
+    from accounts.permissions import is_school_leadership
     context = {
         'school': school,
+        'live_meetings': live_meetings,
         'upcoming_meetings': upcoming_meetings,
         'past_meetings': past_meetings,
         'total_meetings': meetings.count(),
         'classes': classes,
         'subjects': subjects,
+        'is_school_leadership': is_school_leadership(request.user),
     }
     return render(request, 'academics/online_classes.html', context)
 
@@ -485,6 +494,11 @@ def online_classes_page(request):
 @login_required
 def create_meeting(request):
     """Create an online meeting (Zoom/Meet)."""
+    from accounts.permissions import is_school_leadership
+    user_role = getattr(request.user, 'role', '')
+    if user_role not in ('teacher',) and not is_school_leadership(request.user) and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+
     school = _online_classes_school(request)
     
     if request.method == 'POST':
@@ -500,27 +514,36 @@ def create_meeting(request):
             # Parse the scheduled_time - it comes as a string from JSON
             scheduled_time_str = data.get('scheduled_time')
             if isinstance(scheduled_time_str, str):
-                # Convert string to datetime object
-                # Format: YYYY-MM-DDTHH:MM or YYYY-MM-DD HH:MM
-                scheduled_time_str = scheduled_time_str.replace('T', ' ')
-                scheduled_time = dt.strptime(scheduled_time_str, '%Y-%m-%d %H:%M')
+                scheduled_time_str = scheduled_time_str.replace('T', ' ')[:16]
+                naive_dt = dt.strptime(scheduled_time_str, '%Y-%m-%d %H:%M')
+                scheduled_time = timezone.make_aware(naive_dt)
             else:
                 scheduled_time = scheduled_time_str
             
-            # Get target audience - default to 'all' for backward compatibility
+            title = (data.get('title') or '').strip()
+            if not title:
+                return JsonResponse({'success': False, 'error': 'Title is required.'}, status=400)
+
             target_audience = data.get('target_audience', 'all')
-            
+            if target_audience not in ('students', 'staff', 'all'):
+                target_audience = 'all'
+
+            try:
+                duration = max(15, int(data.get('duration', 60)))
+            except (TypeError, ValueError):
+                duration = 60
+
             # Create meeting in database
             meeting = OnlineMeeting.objects.create(
                 school=school,
                 teacher=request.user,
-                title=data.get('title'),
+                title=title,
                 description=data.get('description', ''),
                 subject=data.get('subject', ''),
                 class_name=data.get('class_name', ''),
                 target_audience=target_audience,
                 scheduled_time=scheduled_time,
-                duration=int(data.get('duration', 60)),
+                duration=duration,
                 status='scheduled'
             )
             
@@ -566,18 +589,8 @@ def create_meeting(request):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
-    # GET request - show create form
-    from academics.models import Subject
-    subjects = Subject.objects.filter(school=school) if school else []
-    from students.models import SchoolClass
-    classes = SchoolClass.objects.filter(school=school) if school else []
-    
-    context = {
-        'school': school,
-        'subjects': subjects,
-        'classes': classes,
-    }
-    return render(request, 'academics/online_classes.html', context)
+    # GET request - redirect to the main page (creation is modal/AJAX only)
+    return redirect('academics:online_classes')
 
 
 @login_required
@@ -602,11 +615,14 @@ def join_meeting(request, meeting_id):
         meeting.status = 'in_progress'
         meeting.save()
     
+    from accounts.permissions import is_school_leadership
+    is_host = meeting.teacher == request.user
     context = {
         'school': school,
         'meeting': meeting,
         'join_url': meeting.meeting_link,
-        'is_host': meeting.teacher == request.user,
+        'is_host': is_host,
+        'can_end_meeting': is_host or request.user.is_superuser or is_school_leadership(request.user),
         'now': timezone.now(),
     }
     return render(request, 'academics/join_meeting.html', context)
@@ -623,8 +639,9 @@ def end_meeting(request, meeting_id):
         return JsonResponse({'error': 'No school associated with your account.'}, status=400)
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
     
-    if meeting.teacher != request.user:
-        return JsonResponse({'error': 'Only host can end meeting'}, status=403)
+    from accounts.permissions import is_school_leadership
+    if meeting.teacher != request.user and not request.user.is_superuser and not is_school_leadership(request.user):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
     
     meeting.status = 'completed'
     meeting.save()
@@ -643,12 +660,52 @@ def delete_meeting(request, meeting_id):
         return JsonResponse({'error': 'No school associated with your account.'}, status=400)
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
     
-    if meeting.teacher != request.user and not request.user.is_superuser:
+    from accounts.permissions import is_school_leadership
+    if meeting.teacher != request.user and not request.user.is_superuser and not is_school_leadership(request.user):
         return JsonResponse({'error': 'Permission denied'}, status=403)
     
     meeting.delete()
     
     return JsonResponse({'success': True, 'message': 'Meeting deleted'})
+
+
+@login_required
+def edit_meeting(request, meeting_id):
+    """Edit an existing online meeting (host or school leadership only)."""
+    import json
+    school = _online_classes_school(request)
+    if not school:
+        return JsonResponse({'error': 'No school associated with your account.'}, status=400)
+    meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
+    from accounts.permissions import is_school_leadership
+    if meeting.teacher != request.user and not request.user.is_superuser and not is_school_leadership(request.user):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid method'}, status=400)
+    try:
+        data = json.loads(request.body)
+        if 'title' in data and data['title'].strip():
+            meeting.title = data['title'].strip()
+        if 'description' in data:
+            meeting.description = data.get('description', '')
+        if 'subject' in data:
+            meeting.subject = data.get('subject', '')
+        if 'class_name' in data:
+            meeting.class_name = data.get('class_name', '')
+        if 'target_audience' in data and data['target_audience'] in ('students', 'staff', 'all'):
+            meeting.target_audience = data['target_audience']
+        if 'duration' in data:
+            meeting.duration = max(15, int(data.get('duration', 60)))
+        if 'recording_url' in data:
+            meeting.recording_url = data.get('recording_url', '')
+        if 'scheduled_time' in data:
+            st_str = data['scheduled_time'].replace('T', ' ')[:16]
+            naive_dt = dt.strptime(st_str, '%Y-%m-%d %H:%M')
+            meeting.scheduled_time = timezone.make_aware(naive_dt)
+        meeting.save()
+        return JsonResponse({'success': True, 'message': 'Meeting updated.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 # ==================== AI STUDENT COMMENTS ====================
@@ -862,10 +919,9 @@ def create_meeting_notifications(meeting):
     if meeting.class_name:
         students = Student.objects.filter(
             school=meeting.school,
-            current_class=meeting.class_name
+            class_name=meeting.class_name
         ).select_related('user')
     else:
-        # If no class specified, notify all students in school
         students = Student.objects.filter(
             school=meeting.school
         ).select_related('user')
@@ -958,7 +1014,7 @@ def send_online_class_sms(meeting, user):
         if meeting.class_name:
             students = Student.objects.filter(
                 school=meeting.school,
-                current_class=meeting.class_name
+                class_name=meeting.class_name
             ).select_related('user')
         else:
             # If no class specified, notify all students in school

@@ -50,6 +50,7 @@ urlpatterns = [
     path("quizzes/<int:pk>/add-question/", views.quiz_add_question, name="quiz_add_question"),
     path("quizzes/<int:pk>/take/", views.quiz_take, name="quiz_take"),
     path("quizzes/<int:pk>/result/", views.quiz_result, name="quiz_result"),
+    path("quizzes/attempt/<int:attempt_id>/tab-event/", views.quiz_tab_event, name="quiz_tab_event"),
     
     # Analytics
     path("analytics/", views.performance_analytics, name="performance_analytics"),
@@ -87,6 +88,7 @@ urlpatterns = [
     path("online-classes/join/<int:meeting_id>/", advanced_analytics.join_meeting, name="join_meeting"),
     path("online-classes/end/<int:meeting_id>/", advanced_analytics.end_meeting, name="end_meeting"),
     path("online-classes/delete/<int:meeting_id>/", advanced_analytics.delete_meeting, name="delete_meeting"),
+    path("online-classes/edit/<int:meeting_id>/", advanced_analytics.edit_meeting, name="edit_meeting"),
     
     # AI Student Comments
     path("ai-comment/", advanced_analytics.ai_comment_page, name="ai_comment_page"),
