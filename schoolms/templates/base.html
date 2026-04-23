@@ -762,7 +762,7 @@ background: rgba(2, 6, 23, 0.98);
                                 {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
                                 {% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
                                 <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Online Classes</span></div></a></li>
+                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -905,7 +905,7 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
 {% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
 <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Online Classes</span></div></a></li>
+                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>
                                 {% if feature_quiz %}<li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">❓</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>{% endif %}
                                 {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
                             </ul>
@@ -986,7 +986,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:student_life' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Student Life</span><span class="nav-item-sub">Events, sports, clubs</span></div></a></li>
                                 {% if feature_sports or feature_clubs %}<li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">My clubs & sports</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Online Classes</span></div></a></li>
+                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>
                             </ul>
                         </div>
                     </div>

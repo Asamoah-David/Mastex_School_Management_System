@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Online Classes - {{ school.name }}{% endblock %}
+{% block title %}Virtual Meetings - {{ school.name }}{% endblock %}
 
 {% block content %}
 <div class="content-card">
     <div class="page-heading">
         <div>
-            <h1 class="page-title">📹 Online Classes</h1>
-            <p class="page-subtitle">Host and join virtual classroom sessions</p>
+            <h1 class="page-title">📹 Virtual Meetings</h1>
+            <p class="page-subtitle">Host and join virtual meeting sessions</p>
         </div>
         {% if request.user.role == 'teacher' or is_school_leadership %}
-        <button class="btn btn-primary" onclick="showCreateModal()">➕ Schedule Class</button>
+        <button class="btn btn-primary" onclick="showCreateModal()">➕ Schedule Meeting</button>
         {% endif %}
     </div>
 </div>
@@ -19,7 +19,7 @@
 <!-- Stats Cards -->
 <div class="content-grid" style="margin-top: 1rem;">
     <div class="metric">
-        <div class="metric-label">Total Classes</div>
+        <div class="metric-label">Total Meetings</div>
         <div class="metric-value">{{ total_meetings }}</div>
     </div>
     <div class="metric">
@@ -56,7 +56,7 @@
 
 <!-- Upcoming Meetings -->
 <div class="content-card" style="margin-top: 1rem;">
-    <h2 class="page-subtitle">📅 Upcoming Classes</h2>
+    <h2 class="page-subtitle">📅 Upcoming Meetings</h2>
     {% if upcoming_meetings %}
     <div class="table-card" style="margin-top: 0.75rem;">
         <table>
@@ -106,13 +106,13 @@
         </table>
     </div>
     {% else %}
-    <div class="empty-state">No upcoming classes scheduled.</div>
+    <div class="empty-state">No upcoming meetings scheduled.</div>
     {% endif %}
 </div>
 
 <!-- Past Meetings -->
 <div class="content-card" style="margin-top: 1rem;">
-    <h2 class="page-subtitle">✅ Past Classes</h2>
+    <h2 class="page-subtitle">✅ Past Meetings</h2>
     {% if past_meetings %}
     <div class="table-card" style="margin-top: 0.75rem;">
         <table>
@@ -155,14 +155,14 @@
         </table>
     </div>
     {% else %}
-    <div class="empty-state">No past classes found.</div>
+    <div class="empty-state">No past meetings found.</div>
     {% endif %}
 </div>
 
 <!-- Create Meeting Modal -->
 <div id="createModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
     <div style="background: #0b1120; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 1rem; padding: 1.5rem; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;">
-        <h3 style="margin-bottom: 1rem;">📹 Schedule Online Class</h3>
+        <h3 style="margin-bottom: 1rem;">📹 Schedule Virtual Meeting</h3>
         <form id="createMeetingForm">
             <div style="margin-bottom: 1rem;">
                 <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">Title *</label>
@@ -214,7 +214,7 @@
             </div>
             <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                 <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Class</button>
+                <button type="submit" class="btn btn-primary">Create Meeting</button>
             </div>
         </form>
     </div>
@@ -223,7 +223,7 @@
 <!-- Edit Meeting Modal -->
 <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
     <div style="background: #0b1120; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 1rem; padding: 1.5rem; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;">
-        <h3 style="margin-bottom: 1rem;">✏️ Edit Class</h3>
+        <h3 style="margin-bottom: 1rem;">✏️ Edit Meeting</h3>
         <form id="editMeetingForm">
             <input type="hidden" id="editMeetingId">
             <div style="margin-bottom: 1rem;">
@@ -294,7 +294,7 @@ document.getElementById('createMeetingForm').addEventListener('submit', function
         if (data.success) { hideCreateModal(); location.reload(); }
         else { alert('Error: ' + data.error); }
     })
-    .catch(function() { alert('Failed to create class'); });
+    .catch(function() { alert('Failed to create meeting'); });
 });
 
 document.getElementById('editMeetingForm').addEventListener('submit', function(e) {
@@ -319,11 +319,11 @@ document.getElementById('editMeetingForm').addEventListener('submit', function(e
         if (data.success) { hideEditModal(); location.reload(); }
         else { alert('Error: ' + data.error); }
     })
-    .catch(function() { alert('Failed to update class'); });
+    .catch(function() { alert('Failed to update meeting'); });
 });
 
 function deleteMeeting(btn) {
-    if (!confirm('Are you sure you want to delete this class?')) return;
+    if (!confirm('Are you sure you want to delete this meeting?')) return;
     var url = btn.getAttribute('data-delete-url');
     fetch(url, {
         method: 'POST',

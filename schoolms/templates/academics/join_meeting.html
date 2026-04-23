@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Join Class - {{ meeting.title }}{% endblock %}
+{% block title %}Join Meeting - {{ meeting.title }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -61,7 +61,7 @@
             <p class="page-subtitle">{{ meeting.subject|default:"General" }} - {{ meeting.class_name|default:"All Classes" }}</p>
         </div>
         {% if can_end_meeting %}
-        <button class="btn btn-danger" onclick="endMeeting()">⏹️ End Class</button>
+        <button class="btn btn-danger" onclick="endMeeting()">⏹️ End Meeting</button>
         {% endif %}
     </div>
 </div>
@@ -93,10 +93,10 @@
         <div class="waiting-room">
             <div style="font-size: 4rem; margin-bottom: 1rem;">⏳</div>
             <h2>Meeting has not started yet</h2>
-            <p class="page-subtitle">The class will begin at {{ meeting.scheduled_time|time:"H:i" }}</p>
+            <p class="page-subtitle">The meeting will begin at {{ meeting.scheduled_time|time:"H:i" }}</p>
             <div class="countdown" id="countdown"></div>
             <div style="margin-top: 1rem;">
-                <a href="{% url 'academics:online_classes' %}" class="btn btn-secondary">← Back to Classes</a>
+                <a href="{% url 'academics:online_classes' %}" class="btn btn-secondary">← Back to Virtual Meetings</a>
             </div>
         </div>
         
@@ -164,7 +164,7 @@
 {% endif %}
 
 <div class="button-row" style="margin-top: 1rem;">
-    <a href="{% url 'academics:online_classes' %}" class="btn btn-secondary">← Back to Classes</a>
+    <a href="{% url 'academics:online_classes' %}" class="btn btn-secondary">← Back to Virtual Meetings</a>
     {% if is_host %}
     <a href="{{ meeting.host_url }}" target="_blank" class="btn btn-primary">🔗 Open in New Tab</a>
     {% else %}
@@ -174,7 +174,7 @@
 
 <script>
 function endMeeting() {
-    if (confirm('Are you sure you want to end this class? This will close the meeting for all participants.')) {
+    if (confirm('Are you sure you want to end this meeting? This will close the meeting for all participants.')) {
         fetch('{% url "academics:end_meeting" meeting.id %}', {
             method: 'POST',
             headers: {
@@ -184,7 +184,7 @@ function endMeeting() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('Class ended successfully!');
+                alert('Meeting ended successfully!');
                 window.location.href = '{% url "academics:online_classes" %}';
             } else {
                 alert('Error: ' + data.error);

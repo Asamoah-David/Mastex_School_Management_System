@@ -65,12 +65,23 @@
                 <small class="form-text">Number of parent-teacher slots available (default: 20)</small>
             </div>
 
-            <!-- Video Call Link -->
-            <div class="form-group">
-                <label>🔗 Video Call Link <small class="text-muted">(optional)</small></label>
+            <!-- Meeting Type Toggle -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; user-select: none;">
+                    <input type="checkbox" name="is_online" id="is_online" value="1"
+                           {% if meeting.meeting_link %}checked{% endif %}
+                           style="width: 1.1rem; height: 1.1rem; accent-color: #22c55e; cursor: pointer;">
+                    <span>🎥 Include Online Meeting (Jitsi video call)</span>
+                </label>
+                <small class="form-text">Check this only if parents can join remotely via video. Leave unchecked for in-person meetings.</small>
+            </div>
+
+            <!-- Video Call Link (shown only when online is checked) -->
+            <div class="form-group" id="meeting_link_section" style="grid-column: 1 / -1;"{% if not meeting.meeting_link %} hidden{% endif %}>
+                <label>🔗 Video Call Link <small class="text-muted">(auto-generated if left blank)</small></label>
                 <input type="url" name="meeting_link" id="meeting_link" value="{{ meeting.meeting_link|default:'' }}"
-                       placeholder="https://meet.jit.si/... or Zoom/Google Meet URL">
-                <small class="form-text">Paste a Jitsi, Zoom, or Google Meet link for remote parents</small>
+                       placeholder="Leave blank to auto-generate a Jitsi room, or paste a custom URL">
+                <small class="form-text">A Jitsi Meet room is created automatically. You may override with any Zoom or Google Meet URL.</small>
             </div>
         </div>
         
@@ -86,36 +97,57 @@
 </div>
 
 <script>
+(function () {
+    const toggle = document.getElementById('is_online');
+    const section = document.getElementById('meeting_link_section');
+    const linkInput = document.getElementById('meeting_link');
+
+    // On page load: only show/hide — do NOT touch the field value
+    if (toggle.checked) {
+        section.removeAttribute('hidden');
+    } else {
+        section.setAttribute('hidden', '');
+    }
+
+    // On user change: show/hide and clear value only when unchecking
+    toggle.addEventListener('change', function () {
+        if (toggle.checked) {
+            section.removeAttribute('hidden');
+        } else {
+            section.setAttribute('hidden', '');
+            linkInput.value = '';
+        }
+    });
+})();
+
 function validateForm() {
     let isValid = true;
-    
-    // Clear previous errors
+
     document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
     document.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
-    
+
     const title = document.getElementById('title').value.trim();
     const meetingDate = document.getElementById('meeting_date').value;
     const location = document.getElementById('location').value.trim();
-    
+
     if (!title) {
         document.getElementById('title').classList.add('error');
         document.getElementById('titleError').textContent = 'Please enter a meeting title';
         isValid = false;
     }
-    
+
     if (!meetingDate) {
         document.getElementById('meeting_date').classList.add('error');
         document.getElementById('dateError').textContent = 'Please select a meeting date and time';
         isValid = false;
     }
-    
+
     if (!location) {
         document.getElementById('location').classList.add('error');
         document.getElementById('locationError').textContent = 'Please enter a location';
         isValid = false;
     }
-    
-    // Check if date is in the future
+
     if (meetingDate) {
         const selectedDate = new Date(meetingDate);
         const now = new Date();
@@ -125,7 +157,7 @@ function validateForm() {
             isValid = false;
         }
     }
-    
+
     return isValid;
 }
 </script>

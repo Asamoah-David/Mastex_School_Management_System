@@ -6714,12 +6714,17 @@ def pt_meeting_create(request):
         location = request.POST.get("location", "").strip()
         max_slots = request.POST.get("max_slots") or 20
 
-        meeting_link = request.POST.get("meeting_link", "").strip()
+        is_online = request.POST.get("is_online") == "1"
+        meeting_link = request.POST.get("meeting_link", "").strip() if is_online else ""
         if title and meeting_date and location:
             try:
                 ms = max(1, int(max_slots))
             except (TypeError, ValueError):
                 ms = 20
+            if is_online and not meeting_link:
+                import uuid
+                room_id = str(uuid.uuid4())[:8].upper()
+                meeting_link = f"https://meet.jit.si/mastex-{school.id}-pt-{room_id}"
             PTMeeting.objects.create(
                 school=school,
                 title=title,
@@ -6857,12 +6862,20 @@ def pt_meeting_edit(request, pk):
         location = request.POST.get("location", "").strip()
         max_slots = request.POST.get("max_slots") or 20
 
-        meeting_link = request.POST.get("meeting_link", "").strip()
+        is_online = request.POST.get("is_online") == "1"
+        meeting_link = request.POST.get("meeting_link", "").strip() if is_online else ""
         if title and meeting_date and location:
             try:
                 ms = max(1, int(max_slots))
             except (TypeError, ValueError):
                 ms = 20
+            if is_online and not meeting_link:
+                if meeting.meeting_link:
+                    meeting_link = meeting.meeting_link
+                else:
+                    import uuid
+                    room_id = str(uuid.uuid4())[:8].upper()
+                    meeting_link = f"https://meet.jit.si/mastex-{school.id}-pt-{room_id}"
             meeting.title = title
             meeting.description = description
             meeting.meeting_date = meeting_date
