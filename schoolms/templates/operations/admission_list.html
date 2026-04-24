@@ -35,9 +35,20 @@
     </div>
     
     {% if applications %}
+    {% if can_approve %}
+    <form method="post" id="bulk-form">
+        {% csrf_token %}
+        <div class="d-flex gap-2 align-center mb-2" style="flex-wrap:wrap;">
+            <label style="font-size:0.85rem;color:var(--text-soft);">Bulk action:</label>
+            <button type="submit" name="bulk_action" value="approve" class="btn btn-sm btn-success" onclick="return confirm('Approve all selected?')">✅ Approve selected</button>
+            <button type="submit" name="bulk_action" value="reject" class="btn btn-sm btn-danger" onclick="return confirm('Reject all selected?')">❌ Reject selected</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAll()">☑ Toggle all</button>
+        </div>
+    {% endif %}
     <table class="data-table">
         <thead>
             <tr>
+                {% if can_approve %}<th style="width:2rem;"></th>{% endif %}
                 <th>Ref</th>
                 <th>Student</th>
                 <th>Class</th>
@@ -51,6 +62,13 @@
         <tbody>
         {% for app in applications %}
         <tr>
+            {% if can_approve %}
+            <td>
+                {% if app.status != 'approved' and app.status != 'rejected' and app.status != 'withdrawn' %}
+                <input type="checkbox" name="selected_ids" value="{{ app.pk }}" class="bulk-checkbox">
+                {% endif %}
+            </td>
+            {% endif %}
             <td style="font-family:ui-monospace,monospace;font-size:0.8rem;">{{ app.public_reference }}</td>
             <td>{{ app.first_name }} {{ app.last_name }}</td>
             <td>{{ app.class_applied_for }}</td>
@@ -71,6 +89,7 @@
         {% endfor %}
         </tbody>
     </table>
+    {% if can_approve %}</form>{% endif %}
     {% else %}
     <p class="empty-state">📭 No admission applications yet.</p>
     {% endif %}
@@ -80,6 +99,11 @@
 function copyLink() {
     navigator.clipboard.writeText(window.location.origin + "{% url 'operations:admission_apply' %}");
     alert('Link copied!');
+}
+function toggleAll() {
+    const boxes = document.querySelectorAll('.bulk-checkbox');
+    const anyUnchecked = Array.from(boxes).some(b => !b.checked);
+    boxes.forEach(b => { b.checked = anyUnchecked; });
 }
 </script>
 {% include 'includes/pagination.html' %}

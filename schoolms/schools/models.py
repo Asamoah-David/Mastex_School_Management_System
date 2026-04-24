@@ -47,8 +47,27 @@ class School(models.Model):
     paystack_subaccount_last_error = models.TextField(blank=True, default="")
     paystack_subaccount_last_synced_at = models.DateTimeField(null=True, blank=True)
 
+    PLAN_CHOICES = [
+        ("basic", "Basic"),
+        ("standard", "Standard"),
+        ("premium", "Premium"),
+    ]
+    subscription_plan = models.CharField(
+        max_length=20, choices=PLAN_CHOICES, default="basic",
+        help_text="Feature tier for this school's subscription.",
+    )
+
     logo_url = models.URLField(max_length=500, blank=True)
+    logo = models.ImageField(
+        upload_to="school_logos/%Y/", blank=True, null=True,
+        help_text="Upload school logo (PNG/JPG). Takes precedence over logo_url if set.",
+    )
     academic_year = models.CharField(max_length=50, blank=True)  # e.g. "2024/2025"
+    timezone = models.CharField(
+        max_length=50,
+        default="Africa/Accra",
+        help_text="IANA timezone (e.g. Africa/Accra, Africa/Lagos, Africa/Nairobi).",
+    )
     subscription_grace_days = models.PositiveSmallIntegerField(
         default=7,
         help_text="Days after subscription_end_date before access is fully blocked (read-only / renew flows still allowed).",
@@ -77,6 +96,16 @@ class School(models.Model):
         super().save(*args, **kwargs)
 
     @property
+    def logo_display(self):
+        """Canonical logo URL: uploaded file takes precedence over logo_url."""
+        if self.logo:
+            try:
+                return self.logo.url
+            except Exception:
+                pass
+        return self.logo_url or ""
+
+    @property
     def is_subscription_active(self):
         """Check if subscription is currently active."""
         if self.subscription_status == 'active':
@@ -97,6 +126,43 @@ class School(models.Model):
             delta = self.subscription_end_date - timezone.now()
             return max(0, delta.days)
         return None
+
+
+class SchoolEmailBranding(models.Model):
+    """
+    Per-school outbound email customisation.
+    Applied by email templates via school.email_branding (OneToOne reverse accessor).
+    """
+    school = models.OneToOneField(
+        School, on_delete=models.CASCADE, related_name="email_branding"
+    )
+    header_color = models.CharField(
+        max_length=20, default="#1a73e8",
+        help_text="Hex colour for email header background (e.g. #1a73e8).",
+    )
+    logo_override_url = models.URLField(
+        max_length=500, blank=True,
+        help_text="If set, overrides the school logo in emails.",
+    )
+    footer_text = models.TextField(
+        blank=True,
+        help_text="Custom footer for all outbound emails (HTML allowed).",
+    )
+    reply_to_email = models.EmailField(
+        blank=True,
+        help_text="Reply-to address for all outbound emails. Defaults to school.email.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "School Email Branding"
+        verbose_name_plural = "School Email Branding"
+
+    def __str__(self):
+        return f"Email branding – {self.school.name}"
+
+    def get_reply_to(self):
+        return self.reply_to_email or self.school.email or ""
 
 
 class SchoolFeature(models.Model):

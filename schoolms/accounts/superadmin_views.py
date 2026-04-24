@@ -37,7 +37,7 @@ def superadmin_metrics(request):
     for s in schools_qs.order_by("name"):
         s.student_count = Student.objects.filter(school=s, status="active").count()
         s.subscription_active = bool(
-            s.subscription_expiry and s.subscription_expiry >= today
+            s.subscription_end_date and s.subscription_end_date.date() >= today
         )
 
         # Gather revenue from FeePayment model
@@ -45,7 +45,7 @@ def superadmin_metrics(request):
         try:
             from finance.models import FeePayment
             total_rev = float(
-                FeePayment.objects.filter(school=s, status="paid")
+                FeePayment.objects.filter(fee__school=s, status="completed")
                 .aggregate(t=__import__("django.db.models", fromlist=["Sum"]).Sum("amount"))["t"] or 0
             )
         except Exception:
@@ -71,7 +71,7 @@ def superadmin_metrics(request):
                 s.name, s.subscription_plan or "basic",
                 "Yes" if s.subscription_active else "No",
                 s.student_count,
-                s.subscription_expiry or "",
+                s.subscription_end_date or "",
                 s.total_revenue,
             ])
         return response
@@ -95,7 +95,7 @@ def superadmin_metrics(request):
             from django.db.models import Sum
             rev = float(
                 FeePayment.objects.filter(
-                    status="paid",
+                    status="completed",
                     paid_at__year=mo.year, paid_at__month=mo.month,
                 ).aggregate(t=Sum("amount"))["t"] or 0
             )

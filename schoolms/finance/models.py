@@ -23,6 +23,14 @@ class FeeStructure(models.Model):
         related_name="fee_structures",
     )
     term = models.CharField(max_length=50, blank=True)  # e.g. "Term 1 2025" or empty for any
+    term_fk = models.ForeignKey(
+        "academics.Term",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="fee_structures",
+        help_text="Structured term FK. Prefer this over the legacy term CharField.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -147,6 +155,14 @@ class FeePayment(models.Model):
     receipt_no = models.CharField(max_length=64, blank=True, default="", db_index=True)
     payment_method = models.CharField(max_length=50, blank=True)
     status = models.CharField(max_length=20, default="pending", db_index=True)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True,
+        help_text="Denormalised for fast cross-school queries; kept in sync on save.",
+    )
+    paid_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Set when status transitions to completed.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     payer_notified_at = models.DateTimeField(
         null=True,
@@ -165,6 +181,17 @@ class FeePayment(models.Model):
                 name="uniq_feepayment_paystack_reference_nonnull",
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        if not self.school_id and self.fee_id:
+            try:
+                self.school_id = Fee.objects.filter(pk=self.fee_id).values_list("school_id", flat=True).first()
+            except Exception:
+                pass
+        from django.utils import timezone as _tz
+        if self.status == "completed" and self.paid_at is None:
+            self.paid_at = _tz.now()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Payment of GHS {self.amount} for {self.fee.student}"

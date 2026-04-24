@@ -66,15 +66,54 @@ def ask_ai(prompt: str) -> str:
     return ask_ai_with_context(prompt)
 
 
+def build_school_context(school=None, user=None) -> str:
+    """Build a brief live-data snippet to inject into the AI system prompt."""
+    lines = []
+    try:
+        if school:
+            lines.append(f"School: {school.name}")
+            if school.academic_year:
+                lines.append(f"Academic year: {school.academic_year}")
+        if user and getattr(user, "role", None) in ("parent", "student"):
+            from students.models import Student
+            from finance.models import Fee
+            from django.db.models import Sum
+            students = Student.objects.filter(
+                school=school, status="active"
+            ).filter(
+                parent=user
+            ) if getattr(user, "role", None) == "parent" else Student.objects.filter(user=user, school=school)
+            if students.exists():
+                unpaid = Fee.objects.filter(
+                    student__in=students, paid=False
+                ).aggregate(total=Sum("amount"))["total"] or 0
+                paid = Fee.objects.filter(
+                    student__in=students, paid=True
+                ).aggregate(total=Sum("amount_paid"))["total"] or 0
+                lines.append(f"Unpaid fees: GHS {unpaid:.2f}")
+                lines.append(f"Total paid this year: GHS {paid:.2f}")
+        from academics.models import Term
+        if school:
+            current = Term.objects.filter(school=school, is_current=True).first()
+            if current:
+                lines.append(f"Current term: {current.name}")
+    except Exception:
+        pass
+    return "\n".join(lines)
+
+
 def ask_ai_with_context(
     prompt: str,
     school_name: str = "your school",
     user_name: str = "",
     user_role: str = "user",
+    school=None,
+    user=None,
 ) -> str:
     """Context-aware AI response. Always returns a string, never raises."""
 
     client = _get_groq_client()
+    live_ctx = build_school_context(school=school, user=user)
 
     # ── 1. Try Groq LLM ──────────────────────────────────────────────────────
     if client is not None:
@@ -89,6 +128,8 @@ def ask_ai_with_context(
             )
             if user_name:
                 system_prompt += f" The user's name is {user_name} and their role is {user_role}."
+            if live_ctx:
+                system_prompt += f"\n\nLive school data:\n{live_ctx}"
 
             completion = client.chat.completions.create(
                 model="llama-3.1-8b-instant",

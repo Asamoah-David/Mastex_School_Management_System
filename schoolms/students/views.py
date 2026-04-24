@@ -858,6 +858,14 @@ def student_register(request):
                 messages.error(request, "That email is already in use.")
             else:
                 chosen_class = class_name or class_selected
+                school_class_obj = SchoolClass.objects.filter(school=school, name=chosen_class).first() if chosen_class else None
+                if school_class_obj and school_class_obj.capacity:
+                    current_count = Student.objects.filter(school_class=school_class_obj, status="active").count()
+                    if current_count >= school_class_obj.capacity:
+                        messages.error(request, f"Class '{chosen_class}' is full ({current_count}/{school_class_obj.capacity} students). Please choose another class or increase the capacity.")
+                        parents = User.objects.filter(school=school, role="parent").order_by("username")
+                        classes = SchoolClass.objects.filter(school=school).order_by("name")
+                        return render(request, "students/student_register.html", {"school": school, "parents": parents, "classes": classes})
                 date_enrolled = None
                 if date_enrolled_str:
                     try:

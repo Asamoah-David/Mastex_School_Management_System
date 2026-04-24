@@ -69,6 +69,10 @@ class Subject(models.Model):
 class GradeBoundary(models.Model):
     """Configurable grade boundaries per school (e.g. A=80-100, B=70-79)."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
+    term = models.ForeignKey(
+        "Term", on_delete=models.CASCADE, null=True, blank=True,
+        help_text="Leave blank for the school-wide default scale; set to override for a specific term.",
+    )
     grade = models.CharField(max_length=5)  # A, B, C, D, F
     min_score = models.FloatField()
     max_score = models.FloatField()
@@ -76,7 +80,7 @@ class GradeBoundary(models.Model):
 
     class Meta:
         ordering = ["-min_score"]
-        unique_together = ("school", "grade")
+        unique_together = ("school", "term", "grade")
 
     def clean(self):
         super().clean()
@@ -98,22 +102,30 @@ class GradeBoundary(models.Model):
         return f"{self.grade} ({self.min_score}-{self.max_score})"
 
 
-def get_grade_for_score(school, score, _boundaries=None):
+def get_grade_for_score(school, score, _boundaries=None, term=None):
     """Return grade from school's boundaries, or default if none configured.
 
     Uses Django's cache framework so the lookup is safe across multiple
     Gunicorn/ASGI workers (unlike a module-level dict).
     Accepts an optional pre-fetched list of boundaries to avoid repeated
     queries when grading many students in a loop.
+    When *term* is provided, term-specific boundaries take precedence over
+    the school-wide default scale.
     """
     if _boundaries is None:
         from django.core.cache import cache as _cache
-        cache_key = f"grade_boundaries_{getattr(school, 'pk', school)}"
+        term_pk = getattr(term, "pk", term) if term else None
+        cache_key = f"grade_boundaries_{getattr(school, 'pk', school)}_{term_pk or 'default'}"
         boundaries = _cache.get(cache_key)
         if boundaries is None:
-            boundaries = list(
-                GradeBoundary.objects.filter(school=school).order_by("-min_score")
-            )
+            qs = GradeBoundary.objects.filter(school=school)
+            if term_pk:
+                term_boundaries = list(qs.filter(term_id=term_pk).order_by("-min_score"))
+                boundaries = term_boundaries if term_boundaries else list(qs.filter(term__isnull=True).order_by("-min_score"))
+            else:
+                boundaries = list(qs.filter(term__isnull=True).order_by("-min_score"))
+                if not boundaries:
+                    boundaries = list(qs.order_by("-min_score"))
             _cache.set(cache_key, boundaries, 300)
     else:
         boundaries = _boundaries
@@ -192,7 +204,11 @@ class AssessmentType(models.Model):
 
 
 class StudentClass(models.Model):
-    """DEPRECATED: Use students.SchoolClass instead. Kept for migration compatibility."""
+    """
+    DEPRECATED — do not use in new code.
+    Use students.SchoolClass instead. Retained only so existing migrations do not break.
+    Will be removed in a future release once all references are purged.
+    """
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     level = models.PositiveIntegerField()
@@ -237,7 +253,11 @@ class Homework(models.Model):
 
 
 class HomeworkSubmission(models.Model):
-    """DEPRECATED: Use operations.AssignmentSubmission instead. Kept for migration compat."""
+    """
+    DEPRECATED — do not use in new code.
+    Use operations.AssignmentSubmission instead. Retained only for migration compat.
+    Will be removed in a future release once all references are purged.
+    """
     homework = models.ForeignKey(Homework, on_delete=models.CASCADE, related_name='academic_submissions')
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='homework_submissions')
     submission_text = models.TextField(blank=True)
@@ -259,6 +279,10 @@ class HomeworkSubmission(models.Model):
 
 class Result(models.Model):
     """Student exam/test results."""
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True,
+        help_text="Denormalised from student.school for efficient school-scoped queries.",
+    )
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='results')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     exam_type = models.ForeignKey(ExamType, on_delete=models.SET_NULL, null=True)
@@ -290,11 +314,20 @@ class Result(models.Model):
         indexes = [
             models.Index(fields=["student", "term"], name="idx_result_student_term"),
             models.Index(fields=["student", "subject", "term"], name="idx_result_stu_subj_term"),
+            models.Index(fields=["school", "term"], name="idx_result_school_term"),
         ]
         constraints = [
             models.UniqueConstraint(
                 fields=["student", "subject", "exam_type", "term"],
                 name="uniq_result_stu_sub_exam_term",
+            ),
+            models.CheckConstraint(
+                check=models.Q(score__gte=0),
+                name="chk_result_score_nonneg",
+            ),
+            models.CheckConstraint(
+                check=models.Q(total_score__gt=0),
+                name="chk_result_total_score_pos",
             ),
         ]
 
@@ -308,7 +341,11 @@ class Result(models.Model):
             raise ValidationError({"score": "Score cannot exceed total_score."})
 
     def save(self, *args, **kwargs):
-        # Normalize precision to reduce float drift around grade boundaries.
+        if not self.school_id and self.student_id:
+            try:
+                self.school_id = self.student.school_id
+            except Exception:
+                pass
         self.score = round(float(self.score), 2)
         self.total_score = round(float(self.total_score), 2)
         super().save(*args, **kwargs)
@@ -670,6 +707,10 @@ class AssessmentScore(models.Model):
         indexes = [
             models.Index(fields=["student", "subject", "term"], name="idx_ascore_stu_sub_term"),
         ]
+        constraints = [
+            models.CheckConstraint(check=models.Q(score__gte=0), name="chk_ascore_score_nonneg"),
+            models.CheckConstraint(check=models.Q(max_score__gt=0), name="chk_ascore_max_pos"),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.max_score}"
@@ -698,6 +739,10 @@ class ExamScore(models.Model):
         verbose_name = 'Exam Score'
         verbose_name_plural = 'Exam Scores'
         unique_together = [('student', 'subject', 'term')]
+        constraints = [
+            models.CheckConstraint(check=models.Q(score__gte=0), name="chk_exscore_score_nonneg"),
+            models.CheckConstraint(check=models.Q(max_score__gt=0), name="chk_exscore_max_pos"),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.max_score}"

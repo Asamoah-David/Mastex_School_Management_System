@@ -349,3 +349,37 @@ def notify_audience_new_announcement(sender, instance, created, **kwargs):
             notification_type="info",
             link=staff_link,
         )
+
+
+@receiver(post_save, sender="operations.PTMeetingBooking")
+def notify_pt_meeting_booking(sender, instance, created, **kwargs):
+    """Notify parent and the meeting organiser when a PT meeting slot is booked."""
+    if not created:
+        return
+    try:
+        from django.urls import reverse
+        meeting = instance.meeting
+        parent = instance.parent
+        student_name = instance.student.user.get_full_name() if instance.student and instance.student.user else "student"
+        meeting_date = meeting.meeting_date.strftime("%d %b %Y %H:%M") if meeting.meeting_date else "TBD"
+        link = reverse("operations:pt_meeting_detail", args=[meeting.pk])
+
+        _notify(
+            parent,
+            "PT Meeting Booked",
+            f"Your slot for {student_name} has been confirmed for {meeting_date}.",
+            notification_type="info",
+            link=link,
+        )
+
+        organiser = getattr(meeting, "created_by", None)
+        if organiser and organiser != parent:
+            _notify(
+                organiser,
+                "New PT Meeting Booking",
+                f"{parent.get_full_name() or parent.username} booked a slot for {student_name} ({meeting_date}).",
+                notification_type="info",
+                link=link,
+            )
+    except Exception:
+        pass

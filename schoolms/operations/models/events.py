@@ -120,3 +120,33 @@ class PTMeetingBooking(models.Model):
     
     def __str__(self):
         return f"{self.parent.get_full_name()} - {self.student}"
+
+
+class AcademicCalendar(models.Model):
+    """
+    School calendar events: term dates, exam windows, holidays.
+    Moved from operations.models.attendance to this file (events.py) as it is
+    unrelated to attendance records and belongs alongside other calendar models.
+    """
+    EVENT_TYPES = (
+        ('term_start', 'Term Start'),
+        ('term_end', 'Term End'),
+        ('exam_start', 'Exams Start'),
+        ('exam_end', 'Exams End'),
+        ('holiday', 'Holiday'),
+        ('event', 'School Event'),
+    )
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    event_type = models.CharField(max_length=20, choices=EVENT_TYPES)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["start_date"]
+        app_label = "operations"
+
+    def __str__(self):
+        return f"{self.title} - {self.school.name}"

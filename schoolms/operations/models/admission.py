@@ -55,11 +55,6 @@ class AdmissionApplication(models.Model):
     medical_conditions = models.TextField(blank=True)
     how_did_you_hear = models.CharField(max_length=200, blank=True)
     
-    # Documents (legacy text paths — prefer FileFields below)
-    birth_certificate_path = models.CharField(max_length=255, blank=True)
-    previous_report_path = models.CharField(max_length=255, blank=True)
-    passport_photo_path = models.CharField(max_length=255, blank=True)
-
     birth_certificate = models.FileField(
         upload_to="admission_docs/%Y/%m/",
         blank=True,
@@ -130,9 +125,6 @@ class Certificate(models.Model):
     academic_year = models.CharField(max_length=20)  # e.g., "2024/2025"
     term = models.CharField(max_length=50, blank=True)  # e.g., "Term 1"
     
-    # PDF stored as bytes (for generated certificates)
-    pdf_file = models.BinaryField(null=True, blank=True)
-
     pdf = models.FileField(upload_to="certificates/%Y/%m/%d/", null=True, blank=True)
     
     # Metadata

@@ -52,6 +52,13 @@ class HostelAssignment(models.Model):
         indexes = [
             models.Index(fields=["school", "student", "is_active"], name="idx_hostelasn_sch_stu"),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student"],
+                condition=models.Q(is_active=True),
+                name="uniq_hostelasn_one_active_per_student",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.hostel.name}"
@@ -62,6 +69,14 @@ class HostelFee(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE)
+    term_fk = models.ForeignKey(
+        "academics.Term",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="hostel_fees",
+        help_text="Structured term FK. Prefer this over the legacy term CharField.",
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # Track partial payments
     term = models.CharField(max_length=50)  # e.g., "Term 1 2025"

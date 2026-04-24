@@ -81,6 +81,8 @@ def chatbot_respond(request):
             school_name=school_name,
             user_name=user_name,
             user_role=user_role,
+            school=school,
+            user=request.user,
         )
     except Exception as exc:
         logger.warning("chatbot_respond: ask_ai_with_context raised %s", exc)
@@ -113,6 +115,8 @@ def ai_chat(request):
                 school_name=school_name,
                 user_name=request.user.get_full_name() or request.user.username,
                 user_role=getattr(request.user, "role", "user"),
+                school=school,
+                user=request.user,
             )
         except Exception as exc:
             logger.warning("ai_chat: %s", exc)

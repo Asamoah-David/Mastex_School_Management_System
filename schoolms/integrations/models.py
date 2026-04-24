@@ -23,6 +23,10 @@ class SchoolWebhookEndpoint(models.Model):
     is_active = models.BooleanField(default=True)
     notify_staff_leave = models.BooleanField(default=True, help_text="Leave submitted / reviewed")
     notify_expense = models.BooleanField(default=True, help_text="Expense created or updated")
+    notify_fee_payment = models.BooleanField(default=False, help_text="Fee payment completed")
+    notify_admission_status = models.BooleanField(default=False, help_text="Admission status changed (approved/rejected)")
+    notify_attendance = models.BooleanField(default=False, help_text="Attendance marked for a class")
+    notify_result_published = models.BooleanField(default=False, help_text="Exam result published")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

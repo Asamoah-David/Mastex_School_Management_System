@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 class BusRoute(models.Model):
     PAYMENT_FREQUENCY_CHOICES = [
         ('term', 'Per Term'),
+        ('weekly', 'Weekly'),
         ('daily', 'Daily'),
     ]
     

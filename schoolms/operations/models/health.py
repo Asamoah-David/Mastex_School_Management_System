@@ -5,7 +5,12 @@ from schools.models import School
 
 
 class StudentHealth(models.Model):
-    """Student health information and medical records"""
+    """
+    Canonical health record for a student.
+    NOTE: Student model also has inline health fields (blood_group, allergies, etc.)
+    which are legacy. StudentHealth is the canonical source for health data.
+    New health reads/writes should use this model via student.health_record.
+    """
     student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name="health_record")
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     blood_type = models.CharField(max_length=5, blank=True)  # A+, A-, B+, B-, O+, O-, AB+, AB-
@@ -23,7 +28,7 @@ class StudentHealth(models.Model):
 
 
 class HealthVisit(models.Model):
-    """Track student health clinic visits"""
+    """Track student health clinic visits."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     visit_date = models.DateTimeField(auto_now_add=True)

@@ -1,0 +1,32 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#2563eb"/>
+      <stop offset="40%"  stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="innerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#1d4ed8" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#0e7490" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background: dark navy rounded square -->
+  <rect width="200" height="200" rx="40" fill="#080e1a"/>
+
+  <!-- Gradient border glow -->
+  <rect width="200" height="200" rx="40" fill="none"
+        stroke="url(#borderGrad)" stroke-width="3" opacity="0.75"/>
+
+  <!-- M shape — outer M outline filled with gradient -->
+  <path d="M 26,168 L 26,28 L 100,64 L 174,28 L 174,168 L 138,168 L 100,118 L 62,168 Z"
+        fill="url(#mGrad)"/>
+
+  <!-- Inner V diamond overlay — creates the 3-D depth / facet effect -->
+  <path d="M 62,168 L 100,64 L 138,168 L 100,118 Z"
+        fill="url(#innerGrad)"/>
+</svg>

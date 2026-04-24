@@ -61,6 +61,13 @@ class User(AbstractUser):
         indexes = [
             models.Index(fields=["school", "role"], name="idx_user_school_role"),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["phone"],
+                condition=models.Q(phone__isnull=False) & ~models.Q(phone=""),
+                name="uniq_user_phone_nonempty",
+            ),
+        ]
     # Teachers can be assigned to specific subjects
     assigned_subjects = models.ManyToManyField('academics.Subject', blank=True, related_name='assigned_teachers')
     # Secondary roles - allows users to have multiple roles (e.g., teacher + librarian)

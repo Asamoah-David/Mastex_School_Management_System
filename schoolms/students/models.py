@@ -25,7 +25,7 @@ class SchoolClass(models.Model):
         return f"{self.name} ({self.school.name})"
 
     def student_count(self):
-        return Student.objects.filter(school=self.school, class_name=self.name).count()
+        return self.students.count()
 
 
 class Student(models.Model):

@@ -648,19 +648,21 @@ def textbook_initiate_payment(request):
     
     textbook_id = request.POST.get('textbook_id')
     quantity = int(request.POST.get('quantity', 1))
-    
-    try:
-        textbook = Textbook.objects.get(id=textbook_id, school=student.school, stock__gte=quantity)
-    except Textbook.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Textbook not found or insufficient stock'}, status=404)
-    
-    total_amount = (Decimal(str(textbook.price)) * Decimal(quantity)).quantize(Decimal("0.01"))
 
-    # Generate unique reference
+    # Generate unique reference before the atomic block
     reference = f"TEXTBOOK_{uuid.uuid4().hex[:12].upper()}"
 
-    # Create pending sale record (atomic so reference can't be lost under concurrency)
+    # Lock the textbook row to prevent concurrent overselling
     with transaction.atomic():
+        try:
+            textbook = Textbook.objects.select_for_update().get(
+                id=textbook_id, school=student.school, stock__gte=quantity
+            )
+        except Textbook.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Textbook not found or insufficient stock'}, status=404)
+
+        total_amount = (Decimal(str(textbook.price)) * Decimal(quantity)).quantize(Decimal("0.01"))
+
         sale = TextbookSale.objects.create(
             school=student.school,
             student=student,

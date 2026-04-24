@@ -2171,21 +2171,38 @@ def admission_apply(request):
 @login_required
 def admission_list(request):
     """Admin view: list all admission applications."""
-    from accounts.permissions import user_can_manage_school
+    from accounts.permissions import user_can_manage_school, can_approve_admissions
     school = _get_school(request)
-    
+
     if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
         return redirect('home')
-    
+
+    if request.method == 'POST' and can_approve_admissions(request.user):
+        from django.contrib import messages
+        action = request.POST.get('bulk_action')
+        pks = request.POST.getlist('selected_ids')
+        if action in ('approve', 'reject') and pks:
+            qs_bulk = AdmissionApplication.objects.filter(pk__in=pks)
+            if school:
+                qs_bulk = qs_bulk.filter(school=school)
+            qs_bulk = qs_bulk.exclude(status__in=ADMISSION_TERMINAL_STATUSES)
+            updated = qs_bulk.update(
+                status='approved' if action == 'approve' else 'rejected',
+                reviewed_by=request.user,
+                reviewed_at=timezone.now(),
+            )
+            messages.success(request, f"{updated} application(s) {action}d.")
+        return redirect('operations:admission_list')
+
     status_filter = request.GET.get('status', '')
     qs = AdmissionApplication.objects.all()
-    
+
     if school:
         qs = qs.filter(school=school)
-    
+
     if status_filter:
         qs = qs.filter(status=status_filter)
-    
+
     qs = qs.select_related('school', 'reviewed_by').order_by('-applied_at')
     page_obj = paginate(request, qs, per_page=30)
 
@@ -2195,6 +2212,7 @@ def admission_list(request):
         'status_filter': status_filter,
         'page_obj': page_obj,
         'admission_status_choices': AdmissionApplication.STATUS_CHOICES,
+        'can_approve': can_approve_admissions(request.user),
     })
 
 

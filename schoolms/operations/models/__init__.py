@@ -8,7 +8,6 @@ from operations.models for Django compatibility.
 
 from operations.models.attendance import (
     TeacherAttendance,
-    AcademicCalendar,
     StudentAttendance,
 )
 from operations.models.canteen import (
@@ -51,6 +50,7 @@ from operations.models.events import (
     EventRSVP,
     PTMeeting,
     PTMeetingBooking,
+    AcademicCalendar,
 )
 from operations.models.admission import (
     AdmissionApplication,
@@ -99,7 +99,7 @@ from operations.models.timetable import (
 
 __all__ = [
     # attendance
-    "TeacherAttendance", "AcademicCalendar", "StudentAttendance",
+    "TeacherAttendance", "StudentAttendance",
     # canteen
     "CanteenItem", "CanteenPayment",
     # transport
@@ -115,7 +115,7 @@ __all__ = [
     # inventory
     "InventoryCategory", "InventoryItem", "InventoryTransaction",
     # events
-    "SchoolEvent", "EventRSVP", "PTMeeting", "PTMeetingBooking",
+    "SchoolEvent", "EventRSVP", "PTMeeting", "PTMeetingBooking", "AcademicCalendar",
     # admission
     "AdmissionApplication", "Certificate", "StudentIDCard", "StaffIDCard",
     # sports

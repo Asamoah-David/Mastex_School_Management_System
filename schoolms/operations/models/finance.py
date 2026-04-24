@@ -11,6 +11,12 @@ class ExpenseCategory(models.Model):
     
     class Meta:
         verbose_name_plural = "Expense Categories"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "name"],
+                name="uniq_expensecategory_school_name",
+            ),
+        ]
     
     def __str__(self):
         return f"{self.name} - {self.school.name}"
@@ -77,6 +83,11 @@ class Expense(models.Model):
     void_reason = models.CharField(max_length=500, blank=True, default="")
     paid_at = models.DateTimeField(null=True, blank=True)
 
+    budget = models.ForeignKey(
+        'Budget', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='expenses',
+        help_text="Budget this expense is charged against. Budget.spent_amount auto-updates.",
+    )
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_expenses')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -105,10 +116,31 @@ class Budget(models.Model):
     term = models.CharField(max_length=20, blank=True)  # e.g., "Term 1"
     allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
     spent_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(allocated_amount__gte=0),
+                name="chk_budget_allocated_nonneg",
+            ),
+        ]
+
     @property
     def remaining(self):
         return self.allocated_amount - self.spent_amount
+
+    def refresh_spent_amount(self):
+        """Recalculate spent_amount from approved/paid Expense rows linked to this budget."""
+        from django.db.models import Sum
+        total = (
+            Expense.objects.filter(
+                budget=self,
+                status__in=["approved", "paid"],
+            ).aggregate(t=Sum("amount"))["t"]
+            or 0
+        )
+        type(self).objects.filter(pk=self.pk).update(spent_amount=total)
+        self.spent_amount = total
     
     def __str__(self):
         cat = self.category.name if self.category else "Uncategorized"

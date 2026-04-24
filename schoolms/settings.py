@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
+    "django_celery_beat",
     # Project apps
     "core",
     "accounts",
@@ -691,3 +692,18 @@ ADMINS = [
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
+
+# ---------------------------------------------------------------------------
+# Celery (async task queue)
+# ---------------------------------------------------------------------------
+# Broker: use Redis when available; fall back to in-memory (dev only).
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", _redis_url or "memory://")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", _redis_url or "cache+memory://")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = env("TIME_ZONE", "Africa/Accra")
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 300  # 5 minutes hard limit per task
+CELERY_TASK_SOFT_TIME_LIMIT = 240
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"

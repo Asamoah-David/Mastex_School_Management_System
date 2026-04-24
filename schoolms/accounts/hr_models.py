@@ -42,6 +42,11 @@ class StaffContract(models.Model):
     job_title = models.CharField(max_length=120, blank=True, help_text="e.g. Senior Mathematics Teacher")
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True, help_text="Leave empty for open-ended.")
+    base_salary = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Agreed gross salary per payment period (e.g. monthly).",
+    )
+    salary_currency = models.CharField(max_length=8, default="GHS")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -118,6 +123,14 @@ class StaffTeachingAssignment(models.Model):
     )
     subject = models.ForeignKey("academics.Subject", on_delete=models.CASCADE, related_name="staff_assignments")
     class_name = models.CharField(max_length=100, help_text="Must match a class name in your school (e.g. Form 1A).")
+    school_class = models.ForeignKey(
+        "students.SchoolClass",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="staff_teaching_assignments",
+        help_text="Structured class FK (takes precedence over class_name for filtering).",
+    )
     academic_year = models.CharField(max_length=32, blank=True, help_text="e.g. 2025/2026")
     effective_from = models.DateField(null=True, blank=True)
     effective_until = models.DateField(null=True, blank=True, help_text="Empty means current / ongoing.")

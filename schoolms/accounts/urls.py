@@ -5,6 +5,8 @@ from django.contrib.auth import views as auth_views
 from .views import (
     login_view,
     logout_view,
+    sms_otp_reset_request,
+    sms_otp_reset_confirm,
     profile,
     edit_profile,
     dismiss_setup_checklist,
@@ -124,4 +126,6 @@ urlpatterns = [
         name="superuser_edit_credentials",
     ),
     path('super/metrics/', superadmin_metrics, name='superadmin_metrics'),
+    path('password-reset/sms/', sms_otp_reset_request, name='sms_otp_reset_request'),
+    path('password-reset/sms/confirm/', sms_otp_reset_confirm, name='sms_otp_reset_confirm'),
 ]

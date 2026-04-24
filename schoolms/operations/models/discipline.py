@@ -5,7 +5,11 @@ from schools.models import School
 
 
 class DisciplineIncident(models.Model):
-    """Track student disciplinary incidents"""
+    """
+    DEPRECATED: Use students.StudentDiscipline for new code.
+    This model is retained for historical data only.
+    New discipline records should be created via students.StudentDiscipline.
+    """
     SEVERITY_CHOICES = (
         ('minor', 'Minor'),
         ('moderate', 'Moderate'),
@@ -31,7 +35,7 @@ class DisciplineIncident(models.Model):
 
 
 class BehaviorPoint(models.Model):
-    """Track positive behavior points/rewards"""
+    """Track positive/negative behavior points per student."""
     POINT_TYPES = (
         ('positive', 'Positive'),
         ('negative', 'Negative'),
@@ -49,3 +53,12 @@ class BehaviorPoint(models.Model):
     
     def __str__(self):
         return f"{self.student} - {self.points} points ({self.reason})"
+
+    @classmethod
+    def net_points_for_student(cls, student):
+        """Return the net (positive minus negative) behavior score for a student."""
+        from django.db.models import Sum
+        total = cls.objects.filter(student=student).aggregate(
+            t=Sum("points")
+        )["t"]
+        return total or 0

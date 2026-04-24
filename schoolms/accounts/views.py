@@ -223,6 +223,67 @@ def _get_dashboard_metrics(school):
     return _cached_dashboard_data("metrics", school, builder)
 
 
+def sms_otp_reset_request(request):
+    """Step 1: user enters phone number; system sends a 6-digit OTP via SMS."""
+    if request.method == "POST":
+        phone = request.POST.get("phone", "").strip()
+        cooldown_key = f"sms_otp_cooldown_{phone}"
+        if cache.get(cooldown_key):
+            messages.warning(request, "Please wait 60 seconds before requesting another OTP.")
+            return render(request, "registration/sms_otp_reset_request.html")
+        cache.set(cooldown_key, 1, timeout=60)
+        user = User.objects.filter(phone=phone, is_active=True).first()
+        if user:
+            otp = get_random_string(length=6, allowed_chars="0123456789")
+            cache.set(f"sms_otp_{phone}", otp, timeout=300)
+            try:
+                from services.sms_service import send_sms
+                send_sms(phone, f"Your Mastex password reset code is: {otp}. It expires in 5 minutes.")
+            except Exception:
+                pass
+        messages.success(request, "If that phone number is registered, you will receive an OTP shortly.")
+        return redirect("accounts:sms_otp_reset_confirm")
+    return render(request, "registration/sms_otp_reset_request.html")
+
+
+def sms_otp_reset_confirm(request):
+    """Step 2: user enters OTP and new password."""
+    if request.method == "POST":
+        phone = request.POST.get("phone", "").strip()
+        otp = request.POST.get("otp", "").strip()
+        password1 = request.POST.get("password1", "")
+        password2 = request.POST.get("password2", "")
+
+        stored_otp = cache.get(f"sms_otp_{phone}")
+        if not stored_otp or stored_otp != otp:
+            messages.error(request, "Invalid or expired OTP.")
+            return render(request, "registration/sms_otp_reset_confirm.html")
+
+        if password1 != password2:
+            messages.error(request, "Passwords do not match.")
+            return render(request, "registration/sms_otp_reset_confirm.html")
+
+        user = User.objects.filter(phone=phone, is_active=True).first()
+        if not user:
+            messages.error(request, "Account not found.")
+            return render(request, "registration/sms_otp_reset_confirm.html")
+
+        try:
+            validate_password(password1, user)
+        except ValidationError as e:
+            for err in e.messages:
+                messages.error(request, err)
+            return render(request, "registration/sms_otp_reset_confirm.html")
+
+        user.set_password(password1)
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
+        cache.delete(f"sms_otp_{phone}")
+        messages.success(request, "Password reset successful. Please log in.")
+        return redirect("accounts:login")
+    return render(request, "registration/sms_otp_reset_confirm.html")
+
+
 def login_view(request):
     # If already logged in, send to the right place once (no loop)
     if request.user.is_authenticated:
