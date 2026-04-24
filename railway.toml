@@ -5,7 +5,9 @@ dockerfilePath = "Dockerfile"
 [deploy]
 # Run migrations in pre-deploy so the web process can bind HTTP immediately for healthchecks.
 # The entrypoint runs with `web-only` to skip the inline migration step.
-preDeployCommand = "python manage.py migrate --noinput"
+# TEMPORARILY DISABLED: Production database has pending trigger events on finance_feepayment table.
+# Manually run migrations after resolving the database lock issue.
+# preDeployCommand = "python manage.py migrate --noinput"
 startCommand = "./docker-entrypoint.sh web-only"
 healthcheckPath = "/health/"
 healthcheckTimeout = 30
