@@ -8,7 +8,7 @@ dockerfilePath = "Dockerfile"
 # TEMPORARILY DISABLED: Production database has pending trigger events on finance_feepayment table.
 # Manually run migrations after resolving the database lock issue.
 # preDeployCommand = "python manage.py migrate --noinput"
-startCommand = "./docker-entrypoint.sh web-only"
+startCommand = "./docker-entrypoint.sh"
 healthcheckPath = "/health/"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
