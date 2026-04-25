@@ -18,9 +18,9 @@ name = "web"
 [[services]]
 # Celery worker — comment out if Redis is not provisioned
 name = "worker"
-startCommand = "celery -A schoolms worker -l info --concurrency 2"
+startCommand = "celery -A schoolms.celery_app worker -l info --concurrency 2"
 
 [[services]]
 # Celery beat — comment out if Redis is not provisioned
 name = "beat"
-startCommand = "celery -A schoolms beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+startCommand = "celery -A schoolms.celery_app beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
