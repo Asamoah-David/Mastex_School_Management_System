@@ -67,6 +67,9 @@ ALLOWED_HOSTS = sorted(_required_hosts | _env_hosts)
 # Examples: ".onrender.com", ".railway.app".
 TENANT_DOMAIN_SUFFIXES = tuple(h for h in ALLOWED_HOSTS if isinstance(h, str) and h.startswith("."))
 
+# Canonical domain for SEO and consistency (non-www redirects to www)
+CANONICAL_DOMAIN = env("CANONICAL_DOMAIN", "mastexedu.online")
+
 # ---------------------------------------------------------------------------
 # Apps & Middleware
 # ---------------------------------------------------------------------------
@@ -107,6 +110,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "core.middleware.CanonicalDomainMiddleware",
     "core.middleware.RequestIdMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -451,6 +455,9 @@ _tls_terminating_proxy = bool(
 )
 # Exposed for management commands (e.g. preflight) — TLS terminated at load balancer / PaaS edge.
 BEHIND_TLS_TERMINATING_PROXY = _tls_terminating_proxy
+
+# Trust X-Forwarded-Host header from Railway proxy for custom domain handling
+USE_X_FORWARDED_HOST = True
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool(
