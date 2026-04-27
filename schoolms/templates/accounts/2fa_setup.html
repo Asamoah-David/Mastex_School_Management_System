@@ -1,0 +1,43 @@
+{% extends "base_login.html" %}
+{% load static %}
+
+{% block title %}Set Up Two-Factor Authentication · MastexEDU{% endblock %}
+
+{% block content %}
+<div class="auth-card-header">
+  <h2 class="auth-card-title">Set Up Two-Factor Authentication</h2>
+  <p class="auth-card-subtitle">Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code to confirm setup.</p>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if qr_svg %}
+  <div class="totp-qr-wrap" style="text-align:center;margin:1.5rem 0;">
+    {{ qr_svg|safe }}
+  </div>
+{% endif %}
+
+<div class="totp-secret-wrap" style="margin-bottom:1.25rem;">
+  <label style="font-size:.8rem;color:var(--muted);">Manual entry key (if QR does not scan)</label>
+  <code class="totp-secret-code" style="display:block;word-break:break-all;font-size:.9rem;background:var(--surface-raised,#f4f6fa);padding:.5rem .75rem;border-radius:6px;letter-spacing:.1em;">{{ secret }}</code>
+</div>
+
+<form method="post" class="form-stack">
+  {% csrf_token %}
+  <div class="form-group">
+    <label for="id_token">Verification Code</label>
+    <input id="id_token" name="token" type="text" inputmode="numeric" pattern="[0-9]{6}"
+           maxlength="6" autocomplete="one-time-code" required placeholder="6-digit code" autofocus />
+    <small class="form-hint">Enter the code shown in your authenticator app</small>
+  </div>
+  <button type="submit" class="btn btn-primary btn-block">Enable Two-Factor Authentication</button>
+</form>
+
+<div class="auth-link-row" style="margin-top:1rem;">
+  <a href="{% url 'accounts:profile' %}">Cancel</a>
+</div>
+{% endblock %}

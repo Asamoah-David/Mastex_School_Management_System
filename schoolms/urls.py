@@ -133,6 +133,8 @@ urlpatterns += [
     path("ai/", include("ai_assistant.urls")),
     path("notifications/", include("notifications.urls")),
     path("audit/", include("audit.urls")),
+    # SSE real-time dashboard (Fix #32)
+    path("core/sse/dashboard/", __import__("core.sse_views", fromlist=["sse_dashboard"]).sse_dashboard, name="sse_dashboard"),
 ]
 
 if settings.DEBUG:

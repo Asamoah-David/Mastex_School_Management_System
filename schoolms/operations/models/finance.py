@@ -1,9 +1,12 @@
 from django.db import models
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from accounts.models import User
 from schools.models import School
+from core.tenancy import SchoolScopedModel
 
 
-class ExpenseCategory(models.Model):
+class ExpenseCategory(SchoolScopedModel):
     """Categories for school expenses"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -22,7 +25,7 @@ class ExpenseCategory(models.Model):
         return f"{self.name} - {self.school.name}"
 
 
-class Expense(models.Model):
+class Expense(SchoolScopedModel):
     """School expenses tracking with an explicit approval state machine.
 
     States:
@@ -56,7 +59,16 @@ class Expense(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     category = models.ForeignKey(ExpenseCategory, on_delete=models.SET_NULL, null=True)
     description = models.CharField(max_length=200)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Gross amount including tax.")
+    tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text="VAT/tax rate as percentage (e.g. 15.00 = 15%).",
+    )
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Computed VAT amount.")
+    net_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Amount before tax (amount - tax_amount).",
+    )
     expense_date = models.DateField()
     vendor = models.CharField(max_length=200, blank=True)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
@@ -112,8 +124,24 @@ class Budget(models.Model):
     """School budget planning"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     category = models.ForeignKey(ExpenseCategory, on_delete=models.SET_NULL, null=True)
-    academic_year = models.CharField(max_length=20)  # e.g., "2024/2025"
-    term = models.CharField(max_length=20, blank=True)  # e.g., "Term 1"
+    academic_year = models.CharField(max_length=20)  # legacy label, e.g., "2024/2025"
+    academic_year_fk = models.ForeignKey(
+        "academics.AcademicYear",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="budgets",
+        help_text="Structured academic year (prefer over the legacy CharField).",
+    )
+    term = models.CharField(max_length=20, blank=True)  # legacy label
+    term_fk = models.ForeignKey(
+        "academics.Term",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="budgets",
+        help_text="Structured term (prefer over the legacy CharField).",
+    )
     allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
     spent_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
@@ -122,6 +150,10 @@ class Budget(models.Model):
             models.CheckConstraint(
                 check=models.Q(allocated_amount__gte=0),
                 name="chk_budget_allocated_nonneg",
+            ),
+            models.CheckConstraint(
+                check=models.Q(spent_amount__gte=0),
+                name="chk_budget_spent_nonneg",
             ),
         ]
 
@@ -145,3 +177,30 @@ class Budget(models.Model):
     def __str__(self):
         cat = self.category.name if self.category else "Uncategorized"
         return f"{cat} - {self.academic_year}"
+
+
+# ---------------------------------------------------------------------------
+# Signals: keep Budget.spent_amount in sync automatically
+# ---------------------------------------------------------------------------
+
+_COUNTABLE_STATUSES = frozenset(["approved", "paid"])
+
+
+@receiver(post_save, sender=Expense)
+def _sync_budget_on_expense_save(sender, instance, **kwargs):
+    """Re-aggregate budget spent_amount when an expense is saved."""
+    if instance.budget_id:
+        try:
+            instance.budget.refresh_spent_amount()
+        except Budget.DoesNotExist:
+            pass
+
+
+@receiver(post_delete, sender=Expense)
+def _sync_budget_on_expense_delete(sender, instance, **kwargs):
+    """Re-aggregate budget spent_amount when an expense is deleted."""
+    if instance.budget_id:
+        try:
+            instance.budget.refresh_spent_amount()
+        except Budget.DoesNotExist:
+            pass

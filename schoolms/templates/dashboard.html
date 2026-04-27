@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static custom_filters %}
 
-{% block title %}Super Admin Dashboard · Mastex SchoolOS{% endblock %}
+{% block title %}Super Admin Dashboard · MastexEDU{% endblock %}
 {% block page_title %}Super Admin Dashboard{% endblock %}
 {% block page_subtitle %}Manage all schools on the platform.{% endblock %}
 
@@ -197,7 +197,7 @@
         <div class="metric-label">Active schools</div>
         <div class="metric-value" data-count="{{ total_schools|default:'0' }}">{{ total_schools|default:"0" }}</div>
         <div class="metric-caption">
-            Institutions currently running on Mastex SchoolOS.
+            Institutions currently running on MastexEDU.
         </div>
     </section>
 
@@ -351,7 +351,7 @@
     <div class="content-card">
         <h3 class="section-title">🎛️ Platform Control Center</h3>
         <p class="erp-copy-muted">
-            As super admin you oversee every school, user, and transaction on Mastex SchoolOS.
+            As super admin you oversee every school, user, and transaction on MastexEDU.
             Use these shortcuts to quickly inspect activity and keep schools healthy.
         </p>
         <ul class="erp-list-muted">

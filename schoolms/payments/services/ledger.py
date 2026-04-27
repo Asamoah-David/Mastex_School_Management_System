@@ -16,6 +16,29 @@ class PaymentTypes:
     HOSTEL = "hostel"
 
 
+_PAYMENT_TYPE_CT_MAP = {
+    PaymentTypes.SCHOOL_FEE:         ("finance",     "fee"),
+    PaymentTypes.SCHOOL_FEE_MANUAL:  ("finance",     "fee"),
+    PaymentTypes.SCHOOL_FEE_OFFLINE: ("finance",     "fee"),
+    PaymentTypes.CANTEEN:            ("operations",  "canteenpayment"),
+    PaymentTypes.BUS:                ("operations",  "buspayment"),
+    PaymentTypes.TEXTBOOK:           ("operations",  "textbooksale"),
+    PaymentTypes.HOSTEL:             ("operations",  "hostelfee"),
+}
+
+
+def _resolve_content_type(payment_type: str):
+    """Return ContentType instance for a payment_type string, or None."""
+    entry = _PAYMENT_TYPE_CT_MAP.get(payment_type)
+    if not entry:
+        return None
+    try:
+        from django.contrib.contenttypes.models import ContentType
+        return ContentType.objects.get(app_label=entry[0], model=entry[1])
+    except Exception:
+        return None
+
+
 def record_payment_transaction(
     *,
     provider: str = "paystack",
@@ -54,6 +77,8 @@ def record_payment_transaction(
         except Exception:
             return
 
+    ct = _resolve_content_type(payment_type)
+
     try:
         PaymentTransaction.objects.update_or_create(
             reference=reference,
@@ -65,6 +90,7 @@ def record_payment_transaction(
                 "status": status,
                 "payment_type": payment_type,
                 "object_id": object_id or "",
+                "content_type": ct,
                 "metadata": metadata or {},
             },
         )

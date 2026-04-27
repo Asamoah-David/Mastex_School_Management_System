@@ -68,7 +68,15 @@ class BroadcastNotification(models.Model):
     message_type = models.CharField(max_length=20, choices=MESSAGE_TYPE_CHOICES, default='announcement')
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='broadcasts_sent')
     recipients = models.ManyToManyField(User, related_name='broadcasts_received', blank=True)
-    target_class = models.CharField(max_length=50, blank=True, help_text="Target class for class-wide broadcasts")
+    target_class = models.CharField(max_length=50, blank=True, help_text="Legacy: Target class for class-wide broadcasts. Prefer target_class_fk.")
+    target_class_fk = models.ForeignKey(
+        "students.SchoolClass",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="broadcast_notifications",
+        help_text="Structured class target (takes precedence over target_class CharField).",
+    )
     target_role = models.CharField(max_length=50, blank=True, help_text="Target role for role-based broadcasts")
     is_sent = models.BooleanField(default=False)
     sent_at = models.DateTimeField(null=True, blank=True)

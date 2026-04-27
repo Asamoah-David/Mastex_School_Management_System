@@ -1,17 +1,41 @@
 from django.contrib import admin
 from .models import (
-    Subject, Result, Timetable, ExamType, Term, GradeBoundary,
+    AcademicYear, Subject, Result, Timetable, ExamType, Term, GradeBoundary,
     Homework, HomeworkSubmission, ExamSchedule, Quiz, QuizAttempt,
     AssessmentType, AssessmentScore, ExamScore, GradingPolicy,
-    OnlineMeeting, AIStudentComment,
+    OnlineMeeting, AIStudentComment, StudentTranscript,
 )
+
+
+class TermInline(admin.TabularInline):
+    model = Term
+    extra = 0
+    fields = ("name", "is_current", "start_date", "end_date")
+    show_change_link = True
+
+
+@admin.register(AcademicYear)
+class AcademicYearAdmin(admin.ModelAdmin):
+    list_display = ("name", "school", "start_date", "end_date", "is_current")
+    list_select_related = ("school",)
+    list_filter = ("school", "is_current")
+    search_fields = ("name",)
+    inlines = [TermInline]
+    actions = ["mark_current"]
+
+    @admin.action(description="Mark selected as current year (auto-unsets others)")
+    def mark_current(self, request, queryset):
+        for ay in queryset:
+            ay.is_current = True
+            ay.save()
+        self.message_user(request, f"{queryset.count()} academic year(s) set as current.")
 
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "school")
+    list_display = ("name", "school", "is_core", "credit_weight")
     list_select_related = ("school",)
-    list_filter = ("school",)
+    list_filter = ("school", "is_core")
     search_fields = ("name",)
 
 
@@ -158,3 +182,25 @@ class AIStudentCommentAdmin(admin.ModelAdmin):
     list_select_related = ("student", "student__user")
     list_filter = ("comment_type", "tone")
     raw_id_fields = ("student", "created_by")
+
+
+@admin.register(StudentTranscript)
+class StudentTranscriptAdmin(admin.ModelAdmin):
+    list_display = ("student", "school", "academic_year", "term", "average_score", "gpa", "class_rank", "is_published")
+    list_filter = ("school", "is_published", "academic_year")
+    search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
+    list_select_related = ("student", "student__user", "school", "academic_year", "term")
+    readonly_fields = ("generated_at",)
+    raw_id_fields = ("student", "school", "academic_year", "term")
+    date_hierarchy = "generated_at"
+    actions = ["publish_transcripts", "unpublish_transcripts"]
+
+    @admin.action(description="Publish selected transcripts")
+    def publish_transcripts(self, request, queryset):
+        updated = queryset.update(is_published=True)
+        self.message_user(request, f"{updated} transcript(s) published.")
+
+    @admin.action(description="Unpublish selected transcripts")
+    def unpublish_transcripts(self, request, queryset):
+        updated = queryset.update(is_published=False)
+        self.message_user(request, f"{updated} transcript(s) unpublished.")

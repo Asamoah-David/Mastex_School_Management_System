@@ -6,11 +6,63 @@ from django.core.validators import FileExtensionValidator
 from students.models import Student
 from schools.models import School
 from accounts.models import User
+from core.tenancy import SchoolScopedModel
 
 _DOCUMENT_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "jpg", "jpeg", "png", "gif"]
 
 
-class ExamType(models.Model):
+class AcademicYear(SchoolScopedModel):
+    """Structured academic year with defined start/end dates and rollover support.
+
+    Replaces the raw ``academic_year`` CharField scattered across models.
+    Use ``is_current=True`` for the active year (enforced unique per school).
+    """
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='academic_years')
+    name = models.CharField(
+        max_length=20,
+        help_text="Human-readable label, e.g. '2025/2026'.",
+    )
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_current = models.BooleanField(
+        default=False,
+        help_text="Only one year per school should be current. Saving with True auto-unsets others.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-start_date']
+        verbose_name = "Academic Year"
+        verbose_name_plural = "Academic Years"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['school', 'name'],
+                name='uniq_academicyear_school_name',
+            ),
+            models.UniqueConstraint(
+                fields=['school'],
+                condition=models.Q(is_current=True),
+                name='uniq_academicyear_current_per_school',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.school_id})"
+
+    def clean(self):
+        super().clean()
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError("Academic year start_date must be before end_date.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        if self.is_current:
+            AcademicYear.objects.filter(school=self.school, is_current=True).exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)
+
+
+class ExamType(SchoolScopedModel):
     """Exam types like Class Test, Term Exam, Mid-Term, etc."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -24,9 +76,17 @@ class ExamType(models.Model):
         return self.name
 
 
-class Term(models.Model):
+class Term(SchoolScopedModel):
     """Academic terms like Term 1, Term 2, Term 3."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='terms',
+        help_text="Structured academic year this term belongs to.",
+    )
     name = models.CharField(max_length=100)
     is_current = models.BooleanField(default=False)
     start_date = models.DateField(null=True, blank=True)
@@ -50,12 +110,63 @@ class Term(models.Model):
     def save(self, *args, **kwargs):
         if self.is_current:
             Term.objects.filter(school=self.school, is_current=True).exclude(pk=self.pk).update(is_current=False)
+        # Auto-activate this term if today falls within its date range and no other
+        # term is already marked current for this school.
+        elif (
+            self.start_date
+            and self.end_date
+            and not Term.objects.filter(school=self.school, is_current=True).exclude(pk=self.pk or 0).exists()
+        ):
+            from django.utils import timezone as _tz
+            today = _tz.localdate()
+            if self.start_date <= today <= self.end_date:
+                self.is_current = True
         super().save(*args, **kwargs)
 
+    @classmethod
+    def get_current_term(cls, school):
+        """Return the current term for a school.
 
-class Subject(models.Model):
+        Resolution order:
+        1. is_current=True (manually set by admin).
+        2. Today falls within [start_date, end_date] (auto-detected).
+        3. The most recently created term (fallback).
+        """
+        from django.utils import timezone as _tz
+        from django.core.cache import cache
+        school_pk = getattr(school, 'pk', school)
+        cache_key = f'current_term:{school_pk}'
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+        # 1 — admin-flagged
+        term = cls.objects.filter(school_id=school_pk, is_current=True).first()
+        if not term:
+            # 2 — date range
+            today = _tz.localdate()
+            term = cls.objects.filter(
+                school_id=school_pk,
+                start_date__lte=today,
+                end_date__gte=today,
+            ).order_by('-start_date').first()
+        if not term:
+            # 3 — latest fallback
+            term = cls.objects.filter(school_id=school_pk).order_by('-id').first()
+        cache.set(cache_key, term, 300)
+        return term
+
+
+class Subject(SchoolScopedModel):
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+    is_core = models.BooleanField(
+        default=True,
+        help_text="Core subjects are compulsory. Electives are optional. Affects GPA computation.",
+    )
+    credit_weight = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Credit unit weight for GPA calculation (e.g. 1=normal, 2=double-credit).",
+    )
 
     class Meta:
         verbose_name = "Subject"
@@ -66,7 +177,7 @@ class Subject(models.Model):
         return self.name
 
 
-class GradeBoundary(models.Model):
+class GradeBoundary(SchoolScopedModel):
     """Configurable grade boundaries per school (e.g. A=80-100, B=70-79)."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     term = models.ForeignKey(
@@ -144,13 +255,31 @@ def get_grade_for_score(school, score, _boundaries=None, term=None):
     return "F"
 
 
-def clear_grade_cache(school=None):
-    """Clear the grade boundary cache (call after grade config changes)."""
+def clear_grade_cache(school=None, term=None):
+    """Clear the grade boundary cache (call after grade config changes).
+
+    Scoped deletion — never calls cache.clear() on the whole cache instance.
+    Removes the school-wide default key plus every per-term variant that may
+    exist for the school by scanning all known Term PKs.
+    """
     from django.core.cache import cache as _cache
-    if school:
-        _cache.delete(f"grade_boundaries_{getattr(school, 'pk', school)}")
+    if school is None:
+        return
+    school_pk = getattr(school, "pk", school)
+    keys_to_delete = [
+        f"grade_boundaries_{school_pk}_default",
+        f"grade_boundaries_{school_pk}",
+    ]
+    if term is not None:
+        term_pk = getattr(term, "pk", term)
+        keys_to_delete.append(f"grade_boundaries_{school_pk}_{term_pk}")
     else:
-        _cache.clear()
+        term_pks = list(
+            Term.objects.filter(school_id=school_pk).values_list("pk", flat=True)
+        )
+        for tp in term_pks:
+            keys_to_delete.append(f"grade_boundaries_{school_pk}_{tp}")
+    _cache.delete_many(keys_to_delete)
 
 
 @receiver(post_save, sender=GradeBoundary)
@@ -158,7 +287,7 @@ def clear_grade_cache(school=None):
 def _grade_boundary_cache_invalidator(sender, instance, **kwargs):
     """Ensure cached grading scales refresh immediately after edits."""
     if instance and instance.school_id:
-        clear_grade_cache(instance.school)
+        clear_grade_cache(instance.school, term=instance.term_id)
 
 
 def bulk_annotate_grades(results, school):
@@ -216,7 +345,7 @@ class StudentClass(models.Model):
     class Meta:
         ordering = ["level"]
         unique_together = ("school", "name")
-        managed = True
+        managed = False
     
     def __str__(self):
         return self.name
@@ -272,6 +401,7 @@ class HomeworkSubmission(models.Model):
     class Meta:
         unique_together = ("homework", "student")
         ordering = ['-submitted_at']
+        managed = False
     
     def __str__(self):
         return f"{self.student} - {self.homework.title}"
@@ -280,8 +410,9 @@ class HomeworkSubmission(models.Model):
 class Result(models.Model):
     """Student exam/test results."""
     school = models.ForeignKey(
-        School, on_delete=models.CASCADE, null=True, blank=True,
-        help_text="Denormalised from student.school for efficient school-scoped queries.",
+        School, on_delete=models.CASCADE,
+        related_name="results",
+        help_text="School this result belongs to.",
     )
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='results')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
@@ -305,6 +436,10 @@ class Result(models.Model):
         null=True,
         blank=True,
         related_name="results_published",
+    )
+    deleted_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Soft-delete: result is hidden from students/parents but not erased.",
     )
 
     class Meta:
@@ -352,7 +487,23 @@ class Result(models.Model):
     
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.total_score}"
-    
+
+    def delete(self, using=None, keep_parents=False):
+        from django.utils import timezone
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at"])
+
+    def hard_delete(self):
+        super().delete()
+
+    def restore(self):
+        self.deleted_at = None
+        self.save(update_fields=["deleted_at"])
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
+
     @property
     def percentage(self):
         if self.total_score > 0:
@@ -689,6 +840,11 @@ def get_grade_point_value(school, score, scale='5.0'):
 
 class AssessmentScore(models.Model):
     """Individual assessment scores (CA components)."""
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='assessment_scores',
+        help_text="Denormalised from student.school for direct tenant-scoped queries.",
+    )
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='assessment_scores')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     assessment_type = models.ForeignKey(AssessmentType, on_delete=models.CASCADE)
@@ -706,6 +862,7 @@ class AssessmentScore(models.Model):
         verbose_name_plural = 'Assessment Scores'
         indexes = [
             models.Index(fields=["student", "subject", "term"], name="idx_ascore_stu_sub_term"),
+            models.Index(fields=["school", "term"], name="idx_ascore_school_term"),
         ]
         constraints = [
             models.CheckConstraint(check=models.Q(score__gte=0), name="chk_ascore_score_nonneg"),
@@ -725,6 +882,11 @@ class AssessmentScore(models.Model):
 
 class ExamScore(models.Model):
     """End of term exam scores."""
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='exam_scores',
+        help_text="Denormalised from student.school for direct tenant-scoped queries.",
+    )
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='exam_scores')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     score = models.FloatField()
@@ -757,6 +919,11 @@ class ExamScore(models.Model):
 
 class StudentResultSummary(models.Model):
     """Computed result summary per student/subject/term."""
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='result_summaries',
+        help_text="Denormalised from student.school for direct tenant-scoped queries.",
+    )
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='result_summaries')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     term = models.ForeignKey(Term, on_delete=models.CASCADE)
@@ -873,3 +1040,115 @@ class AIStudentComment(models.Model):
 
     def __str__(self):
         return f"Comment for {self.student} - {self.term}"
+
+
+# ---------------------------------------------------------------------------
+# StudentTranscript — cumulative academic standing (Fix #26)
+# ---------------------------------------------------------------------------
+
+class StudentTranscript(models.Model):
+    """Aggregated academic record per student per academic year.
+
+    Updated automatically when Result rows are published (signal) or manually
+    via ``StudentTranscript.rebuild_for(student, academic_year)``.
+    Provides a single fast lookup for report cards, transcripts, and ranking.
+    """
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="transcripts")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="transcripts")
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.CASCADE,
+        related_name="transcripts",
+    )
+    term = models.ForeignKey(
+        Term,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transcripts",
+        help_text="Null = full-year aggregate; set for per-term transcript.",
+    )
+    total_subjects = models.PositiveSmallIntegerField(default=0)
+    subjects_passed = models.PositiveSmallIntegerField(default=0)
+    average_score = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    gpa = models.DecimalField(
+        max_digits=4, decimal_places=2, default=0,
+        help_text="Weighted GPA using subject credit_weight.",
+    )
+    class_rank = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Rank within the student's class for this period.",
+    )
+    year_rank = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Rank within the school year cohort.",
+    )
+    remarks = models.TextField(blank=True, help_text="Class/form teacher's overall remarks.")
+    is_published = models.BooleanField(default=False)
+    generated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Student Transcript"
+        verbose_name_plural = "Student Transcripts"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "academic_year", "term"],
+                name="uniq_transcript_student_year_term",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["school", "academic_year"], name="idx_transcript_school_year"),
+            models.Index(fields=["school", "is_published"], name="idx_transcript_school_pub"),
+        ]
+
+    def __str__(self):
+        period = str(self.term) if self.term_id else str(self.academic_year)
+        return f"Transcript: {self.student} | {period}"
+
+    @classmethod
+    def rebuild_for(cls, student, academic_year, term=None):
+        """Recompute and upsert the transcript for a student/year(/term)."""
+        from decimal import Decimal as D
+        qs = Result.objects.filter(
+            student=student,
+            term__academic_year=academic_year,
+            is_published=True,
+        )
+        if term is not None:
+            qs = qs.filter(term=term)
+        qs = qs.select_related("subject")
+        if not qs.exists():
+            return None
+
+        total_weight = D(0)
+        weighted_score = D(0)
+        subjects_passed = 0
+        total_subjects = 0
+        passing_score = D(50)
+
+        for r in qs:
+            weight = D(getattr(r.subject, "credit_weight", 1) or 1)
+            pct = D(str(r.percentage)) if hasattr(r, "percentage") else D(str(r.score)) / D(str(r.total_score or 100)) * 100
+            weighted_score += pct * weight
+            total_weight += weight
+            total_subjects += 1
+            if pct >= passing_score:
+                subjects_passed += 1
+
+        avg = (weighted_score / total_weight).quantize(D("0.01")) if total_weight else D("0")
+        gpa = (avg / D("25")).quantize(D("0.01"))
+
+        obj, _ = cls.objects.update_or_create(
+            student=student,
+            academic_year=academic_year,
+            term=term,
+            defaults={
+                "school_id": student.school_id,
+                "total_subjects": total_subjects,
+                "subjects_passed": subjects_passed,
+                "average_score": avg,
+                "gpa": min(gpa, D("4.00")),
+            },
+        )
+        return obj

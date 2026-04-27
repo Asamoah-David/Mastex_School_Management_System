@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ staff.get_full_name|default:staff.username }} · Mastex SchoolOS{% endblock %}
+{% block title %}{{ staff.get_full_name|default:staff.username }} · MastexEDU{% endblock %}
 {% block page_title %}{{ staff.get_full_name|default:staff.username }}{% endblock %}
 {% block page_subtitle %}Staff profile · Status: {% if staff.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
 {% block content %}

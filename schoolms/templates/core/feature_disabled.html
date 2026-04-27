@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Feature Not Available{% endblock %}
+
+{% block content %}
+<div class="container py-5 text-center">
+  <div class="mb-4">
+    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="text-warning">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+    </svg>
+  </div>
+  <h2 class="fw-bold mb-2">Feature Not Available</h2>
+  <p class="text-muted mb-4">
+    {% if disabled_features|length == 1 %}
+      The <strong>{{ disabled_features.0 }}</strong> feature is not enabled for your school.
+    {% else %}
+      The following features are not enabled for your school:
+      <strong>{{ disabled_features|join:", " }}</strong>.
+    {% endif %}
+  </p>
+  <p class="text-muted mb-4">
+    Please contact your school administrator or the Mastex support team to enable this feature.
+  </p>
+  <a href="javascript:history.back()" class="btn btn-outline-secondary me-2">Go Back</a>
+  <a href="{% url 'dashboard' %}" class="btn btn-primary">Dashboard</a>
+</div>
+{% endblock %}

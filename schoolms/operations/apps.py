@@ -9,3 +9,5 @@ class OperationsConfig(AppConfig):
     def ready(self):
         # Register auth → ActivityLog signal handlers
         from operations import signals  # noqa: F401
+        # Register Budget.spent_amount auto-sync signals
+        from operations.models import finance  # noqa: F401

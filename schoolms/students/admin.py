@@ -1,14 +1,26 @@
 from django.contrib import admin
-from .models import Student, SchoolClass, StudentAchievement, StudentActivity, StudentDiscipline, AbsenceRequest
+from django.db.models import Count
+from .models import (
+    Student, SchoolClass, StudentAchievement, StudentActivity,
+    StudentDiscipline, AbsenceRequest, StudentGuardian, StudentClearance,
+)
 
 
 @admin.register(SchoolClass)
 class SchoolClassAdmin(admin.ModelAdmin):
-    list_display = ("name", "school", "class_teacher", "capacity")
+    list_display = ("name", "school", "class_teacher", "capacity", "student_count")
     list_select_related = ("school", "class_teacher")
     list_filter = ("school",)
     search_fields = ("name",)
     raw_id_fields = ("class_teacher",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_student_count=Count("students", distinct=True))
+
+    def student_count(self, obj):
+        return obj._student_count
+    student_count.short_description = "Students"
+    student_count.admin_order_field = "_student_count"
 
 
 @admin.register(Student)
@@ -52,3 +64,39 @@ class AbsenceRequestAdmin(admin.ModelAdmin):
     list_select_related = ("student", "student__user")
     list_filter = ("school", "status")
     raw_id_fields = ("student", "submitted_by", "decided_by")
+
+
+class StudentGuardianInline(admin.TabularInline):
+    model = StudentGuardian
+    extra = 0
+    fields = ("guardian", "relationship", "is_primary", "can_pickup", "emergency_contact")
+    raw_id_fields = ("guardian",)
+
+
+@admin.register(StudentGuardian)
+class StudentGuardianAdmin(admin.ModelAdmin):
+    list_display = ("student", "guardian", "relationship", "is_primary", "can_pickup", "emergency_contact")
+    list_select_related = ("student", "student__user", "guardian")
+    list_filter = ("relationship", "is_primary", "can_pickup", "emergency_contact")
+    search_fields = (
+        "student__admission_number",
+        "student__user__first_name",
+        "student__user__last_name",
+        "guardian__first_name",
+        "guardian__last_name",
+    )
+    raw_id_fields = ("student", "guardian")
+
+
+@admin.register(StudentClearance)
+class StudentClearanceAdmin(admin.ModelAdmin):
+    list_display = ("student", "fees_cleared", "library_cleared", "id_card_returned", "is_complete_display", "updated_at")
+
+    def is_complete_display(self, obj):
+        return obj.is_complete
+    is_complete_display.boolean = True
+    is_complete_display.short_description = "Complete"
+    list_select_related = ("student", "student__user")
+    list_filter = ("fees_cleared", "library_cleared")
+    search_fields = ("student__admission_number", "student__user__first_name", "student__user__last_name")
+    raw_id_fields = ("student", "updated_by")

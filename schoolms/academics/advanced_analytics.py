@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.db.models import Avg as DB_Avg, Count, Q
 from datetime import timedelta, datetime
 from datetime import datetime as dt
+import functools
 import logging
 import random
 import uuid
@@ -38,18 +39,16 @@ from accounts.decorators import admin_required, teacher_required
 
 def analytics_role_required(view_func):
     """Decorator to restrict analytics views to school_admin, teacher, hod, deputy_head"""
+    @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        # Allow superusers
+        if not request.user.is_authenticated:
+            return redirect('accounts:login')
         if request.user.is_superuser:
             return view_func(request, *args, **kwargs)
-        
-        # Check if user has required role
         if can_create_academic_content(request.user):
             return view_func(request, *args, **kwargs)
-        
         messages.error(request, 'You do not have permission to access analytics features.')
         return redirect('home')
-    
     return wrapper
 
 
@@ -91,44 +90,67 @@ def predictive_analytics(request):
         messages.error(request, 'Performance Analytics is disabled for your school.')
         return redirect('home')
     
-    # Get students at risk
-    students = Student.objects.filter(school=school).select_related('user')
-    
+    from django.db.models import FloatField, ExpressionWrapper, Case, When, Value
+
+    # Single aggregate query: attendance stats + avg score per student
+    students_qs = (
+        Student.objects.filter(school=school, status='active')
+        .select_related('user')
+        .annotate(
+            total_att=Count('attendances', distinct=True),
+            present_att=Count(
+                'attendances',
+                filter=Q(attendances__status='present'),
+                distinct=True,
+            ),
+            avg_score=DB_Avg('result__score'),
+        )
+    )
+
     risk_students = []
-    for student in students:
-        # Calculate risk score based on attendance and grades
-        attendance_records = StudentAttendance.objects.filter(student=student)
-        total_days = attendance_records.count()
-        present_days = attendance_records.filter(status='present').count()
-        attendance_rate = (present_days / total_days * 100) if total_days > 0 else 100
-        
-        # Get average score
-        results = Result.objects.filter(student=student)
-        avg_score = results.aggregate(avg=DB_Avg('score'))['avg'] or 0
-        
-        # Calculate risk (lower attendance + lower grades = higher risk)
-        risk_score = 0
+    for student in students_qs:
+        total_days = student.total_att or 0
+        present_days = student.present_att or 0
+        attendance_rate = (present_days / total_days * 100) if total_days > 0 else 100.0
+        avg_score = float(student.avg_score or 0)
+
+        # Multi-feature weighted risk score
+        risk_score = 0.0
         if attendance_rate < 80:
-            risk_score += 50 - attendance_rate
+            risk_score += (80 - attendance_rate) * 0.6   # attendance weight 60%
         if avg_score < 50:
-            risk_score += 50 - avg_score
-        
-        if risk_score > 20:
+            risk_score += (50 - avg_score) * 0.4          # grade weight 40%
+
+        if risk_score > 15:
             risk_students.append({
                 'student': student,
-                'risk_score': risk_score,
-                'attendance_rate': attendance_rate,
-                'avg_score': avg_score,
-                'risk_level': 'High' if risk_score > 40 else 'Medium'
+                'risk_score': round(risk_score, 1),
+                'attendance_rate': round(attendance_rate, 1),
+                'avg_score': round(avg_score, 1),
+                'risk_level': 'High' if risk_score > 35 else 'Medium',
             })
-    
-    # Sort by risk
+
     risk_students.sort(key=lambda x: x['risk_score'], reverse=True)
-    
+
+    # School-wide avg for benchmarking
+    school_avg = Result.objects.filter(school=school).aggregate(avg=DB_Avg('score'))['avg'] or 0
+
+    # Class benchmarking: avg per class vs school avg
+    from students.models import SchoolClass
+    class_bench = list(
+        Result.objects.filter(school=school)
+        .values('student__school_class__name')
+        .annotate(class_avg=DB_Avg('score'), total=Count('id'))
+        .filter(student__school_class__isnull=False)
+        .order_by('-class_avg')
+    )
+
     context = {
         'school': school,
         'risk_students': risk_students[:20],
         'total_at_risk': len(risk_students),
+        'school_avg': round(float(school_avg), 1),
+        'class_benchmarks': class_bench[:15],
     }
     return render(request, 'academics/predictive_analytics.html', context)
 
@@ -146,39 +168,57 @@ def predict_student_performance(request, student_id):
         return JsonResponse({'error': 'No school found'}, status=400)
     
     student = get_object_or_404(Student, id=student_id, school=school)
-    
-    # Get historical data
-    results = Result.objects.filter(student=student).order_by('-term__start_date')
-    
+
+    results = (
+        Result.objects.filter(student=student, deleted_at__isnull=True)
+        .select_related("term")
+        .order_by("term__start_date")
+    )
+
     if not results.exists():
+        return JsonResponse({"prediction": "Not enough data", "confidence": 0})
+
+    scores = [r.score for r in results]
+    n = len(scores)
+
+    if n < 2:
         return JsonResponse({
-            'prediction': 'Not enough data',
-            'confidence': 0
+            "student": student.user.get_full_name() or student.user.username,
+            "current_avg": round(scores[0], 1),
+            "predicted_score": round(scores[0], 1),
+            "trend": "Stable",
+            "confidence": 10,
+            "r_squared": None,
+            "recommendation": get_recommendation(scores[0]),
         })
-    
-    # Simple prediction based on trend
-    recent_scores = [r.score for r in results[:5]]
-    avg_score = sum(recent_scores) / len(recent_scores)
-    
-    # Calculate trend
-    if len(recent_scores) >= 2:
-        trend = recent_scores[0] - recent_scores[-1]  # Comparing first vs last
-    else:
-        trend = 0
-    
-    # Predict next term
-    predicted_score = avg_score + (trend * 0.3)  # Weighted trend
-    
-    # Confidence based on data available
-    confidence = min(len(recent_scores) * 20, 100)
-    
+
+    # Ordinary least-squares linear regression (no external deps)
+    xs = list(range(n))
+    x_mean = sum(xs) / n
+    y_mean = sum(scores) / n
+    ss_xy = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, scores))
+    ss_xx = sum((x - x_mean) ** 2 for x in xs)
+    slope = ss_xy / ss_xx if ss_xx else 0
+    intercept = y_mean - slope * x_mean
+    predicted_score = max(0.0, min(100.0, slope * n + intercept))  # next term
+
+    # R² as confidence measure (0–100 scale)
+    ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(xs, scores))
+    ss_tot = sum((y - y_mean) ** 2 for y in scores)
+    r_squared = 1 - ss_res / ss_tot if ss_tot else 0.0
+    confidence = round(max(0.0, min(1.0, r_squared)) * 100, 1)
+
+    trend_dir = "Improving" if slope > 0.5 else "Declining" if slope < -0.5 else "Stable"
+
     return JsonResponse({
-        'student': student.user.get_full_name() or student.user.username,
-        'current_avg': round(avg_score, 1),
-        'predicted_score': round(predicted_score, 1),
-        'trend': 'Improving' if trend > 0 else 'Declining' if trend < 0 else 'Stable',
-        'confidence': confidence,
-        'recommendation': get_recommendation(predicted_score)
+        "student": student.user.get_full_name() or student.user.username,
+        "current_avg": round(y_mean, 1),
+        "predicted_score": round(predicted_score, 1),
+        "trend": trend_dir,
+        "confidence": confidence,
+        "r_squared": round(r_squared, 3),
+        "data_points": n,
+        "recommendation": get_recommendation(predicted_score),
     })
 
 
@@ -221,31 +261,45 @@ def trend_analysis(request):
     # Get terms
     terms = Term.objects.filter(school=school).order_by('-start_date')[:6]
     
-    # Calculate average scores per term
+    # Single batch query: average scores per term using annotate (eliminates N+1)
+    from django.db.models import FloatField
+    term_ids = list(terms.values_list('id', flat=True))
+    term_agg = {
+        row['term']: row
+        for row in Result.objects.filter(school=school, term_id__in=term_ids)
+        .values('term')
+        .annotate(
+            avg=DB_Avg('score'),
+            total=Count('id'),
+            pass_count=Count('id', filter=Q(score__gte=50)),
+        )
+    }
     term_scores = []
     for term in terms:
-        results = Result.objects.filter(student__school=school, term=term)
-        avg = results.aggregate(avg=DB_Avg('score'))['avg'] or 0
-        total = results.count()
-        pass_count = results.filter(score__gte=50).count()
-        pass_rate = round((pass_count / total * 100), 1) if total > 0 else 0
+        agg = term_agg.get(term.pk, {})
+        total = agg.get('total', 0) or 0
+        avg = float(agg.get('avg') or 0)
+        pass_count = agg.get('pass_count', 0) or 0
         term_scores.append({
             'term': term.name,
             'avg_score': round(avg, 1),
             'total_results': total,
-            'pass_rate': pass_rate,
-            'start_date': term.start_date
+            'pass_rate': round(pass_count / total * 100, 1) if total > 0 else 0,
+            'start_date': term.start_date,
         })
-    
-    # Subject trends
-    subjects = Subject.objects.filter(school=school)
-    subject_trends = []
-    for subject in subjects:
-        avg = Result.objects.filter(student__school=school, subject=subject).aggregate(avg=DB_Avg('score'))['avg'] or 0
-        subject_trends.append({
-            'subject': subject.name,
-            'avg_score': round(avg, 1)
-        })
+
+    # Subject trends — single aggregate query
+    subject_trends = list(
+        Result.objects.filter(school=school)
+        .values('subject__name')
+        .annotate(avg_score=DB_Avg('score'), total=Count('id'))
+        .filter(subject__isnull=False)
+        .order_by('-avg_score')
+    )
+    subject_trends = [
+        {'subject': r['subject__name'], 'avg_score': round(float(r['avg_score'] or 0), 1)}
+        for r in subject_trends
+    ]
     
     # Monthly trends (last 6 months)
     monthly_data = get_monthly_trends(school)
@@ -1051,20 +1105,290 @@ def send_online_class_sms(meeting, user):
         message += f"\nJoin: {meeting.meeting_link}\n"
         message += f"- Mastex SchoolOS"
     
-    # Send SMS to all collected numbers
-    sent_count = 0
-    failed_count = 0
-    
-    for phone in phone_numbers:
-        try:
-            SMSService.send_sms(phone, message, meeting.school.name)
-            sent_count += 1
-        except Exception:
-            logger.warning("Failed to send online class SMS to a recipient", exc_info=True)
-            failed_count += 1
-    
-    return {
-        'sent_count': sent_count,
-        'failed_count': failed_count,
-        'total_recipients': len(phone_numbers)
+
+# ====================================================================================
+# DS-3 — Cohort Analysis: track performance by admission year across terms
+# ====================================================================================
+
+@login_required
+@analytics_role_required
+def cohort_analysis(request):
+    """Track how each admission-year cohort performs across successive academic terms.
+
+    Returns a JSON payload (or HTML if ?format=html):
+    {
+      "cohorts": [
+        {"year": 2022, "terms": [{"term": "Term 1 2022", "avg_score": 72.3, "count": 45}, ...]},
+        ...
+      ]
     }
+    """
+    school = getattr(request.user, "school", None)
+    if request.user.is_superuser:
+        school_id = request.session.get("current_school_id")
+        if school_id:
+            school = get_object_or_404(School, id=school_id)
+
+    if not school:
+        return JsonResponse({"error": "No school found"}, status=400)
+
+    # Group students by admission year (from their created_at date)
+    from django.db.models.functions import ExtractYear
+    from django.db.models import F
+
+    term_avgs = (
+        Result.objects.filter(school=school, deleted_at__isnull=True, term__isnull=False)
+        .annotate(
+            admission_year=ExtractYear("student__user__date_joined"),
+            term_label=F("term__name"),
+            term_start=F("term__start_date"),
+        )
+        .values("admission_year", "term_label", "term_start")
+        .annotate(avg_score=DB_Avg("score"), student_count=Count("student", distinct=True))
+        .order_by("admission_year", "term_start")
+    )
+
+    cohorts: dict = {}
+    for row in term_avgs:
+        yr = row["admission_year"]
+        if yr not in cohorts:
+            cohorts[yr] = {"year": yr, "terms": []}
+        cohorts[yr]["terms"].append({
+            "term": row["term_label"],
+            "avg_score": round(float(row["avg_score"] or 0), 1),
+            "count": row["student_count"],
+        })
+
+    sorted_cohorts = sorted(cohorts.values(), key=lambda c: c["year"], reverse=True)
+
+    if request.GET.get("format") == "html":
+        return render(request, "academics/cohort_analysis.html", {
+            "cohorts": sorted_cohorts,
+            "school": school,
+        })
+
+    return JsonResponse({"cohorts": sorted_cohorts})
+
+
+# ====================================================================================
+# DS-4 — Subject Performance Heatmap: avg score per subject × term grid
+# ====================================================================================
+
+@login_required
+@analytics_role_required
+def subject_performance_heatmap(request):
+    """Return subject × term average score matrix for heatmap visualisation.
+
+    Response (JSON or HTML with ?format=html):
+    {
+      "subjects": ["Mathematics", "English", ...],
+      "terms": ["Term 1 2024", "Term 2 2024", ...],
+      "matrix": {
+        "Mathematics": {"Term 1 2024": 72.3, "Term 2 2024": 68.1},
+        ...
+      },
+      "school_avg": 70.5
+    }
+    """
+    from django.db.models import F
+
+    school = getattr(request.user, "school", None)
+    if request.user.is_superuser:
+        school_id = request.session.get("current_school_id")
+        if school_id:
+            school = get_object_or_404(School, id=school_id)
+
+    if not school:
+        return JsonResponse({"error": "No school found"}, status=400)
+
+    # Single batch query: avg score per (subject, term)
+    rows = (
+        Result.objects.filter(school=school, deleted_at__isnull=True, term__isnull=False)
+        .values(
+            subject_name=F("subject__name"),
+            term_label=F("term__name"),
+            term_start=F("term__start_date"),
+        )
+        .annotate(avg_score=DB_Avg("score"))
+        .order_by("term_start", "subject_name")
+    )
+
+    subjects_set: list = []
+    terms_set: list = []
+    matrix: dict = {}
+
+    for row in rows:
+        subj = row["subject_name"] or "Unknown"
+        term = row["term_label"] or "Unknown"
+        avg = round(float(row["avg_score"] or 0), 1)
+
+        if subj not in subjects_set:
+            subjects_set.append(subj)
+        if term not in terms_set:
+            terms_set.append(term)
+
+        if subj not in matrix:
+            matrix[subj] = {}
+        matrix[subj][term] = avg
+
+    school_avg = Result.objects.filter(school=school, deleted_at__isnull=True).aggregate(
+        avg=DB_Avg("score")
+    )["avg"] or 0
+
+    payload = {
+        "subjects": subjects_set,
+        "terms": terms_set,
+        "matrix": matrix,
+        "school_avg": round(float(school_avg), 1),
+    }
+
+    if request.GET.get("format") == "html":
+        return render(request, "academics/subject_heatmap.html", {**payload, "school": school})
+
+    return JsonResponse(payload)
+
+
+# ====================================================================================
+# DS-1 — Attendance-to-Performance Correlation
+# ====================================================================================
+
+@login_required
+@analytics_role_required
+def attendance_performance_correlation(request):
+    """Correlate attendance rate with average academic score per student per term.
+
+    Returns: list of {student, attendance_rate, avg_score} sorted by attendance_rate.
+    Pearson r and slope (no external deps) included for dashboard display.
+    """
+    school = getattr(request.user, "school", None)
+    if request.user.is_superuser:
+        school_id = request.session.get("current_school_id")
+        if school_id:
+            school = get_object_or_404(School, id=school_id)
+    if not school:
+        return JsonResponse({"error": "No school found"}, status=400)
+
+    term_id = request.GET.get("term_id")
+    term_qs = Term.objects.filter(school=school)
+    if term_id:
+        term_qs = term_qs.filter(pk=term_id)
+    else:
+        term_qs = term_qs.filter(is_current=True)
+    term = term_qs.first()
+    if not term:
+        return JsonResponse({"error": "No term found"}, status=404)
+
+    att_rows = (
+        StudentAttendance.objects.filter(school=school, date__gte=term.start_date, date__lte=term.end_date)
+        .values("student_id")
+        .annotate(
+            total=Count("id"),
+            present=Count("id", filter=Q(status="present")),
+        )
+    )
+    att_map = {r["student_id"]: round(r["present"] / r["total"] * 100, 1) if r["total"] else 0 for r in att_rows}
+
+    result_rows = (
+        Result.objects.filter(school=school, term=term, deleted_at__isnull=True)
+        .values("student_id")
+        .annotate(avg=DB_Avg("score"))
+    )
+    result_map = {r["student_id"]: round(float(r["avg"] or 0), 1) for r in result_rows}
+
+    common_ids = set(att_map) & set(result_map)
+    if len(common_ids) < 2:
+        return JsonResponse({"error": "Insufficient overlapping data", "points": []})
+
+    points = [
+        {"student_id": sid, "attendance_rate": att_map[sid], "avg_score": result_map[sid]}
+        for sid in common_ids
+    ]
+    points.sort(key=lambda p: p["attendance_rate"])
+
+    xs = [p["attendance_rate"] for p in points]
+    ys = [p["avg_score"] for p in points]
+    n = len(xs)
+    x_mean = sum(xs) / n
+    y_mean = sum(ys) / n
+    ss_xy = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys))
+    ss_xx = sum((x - x_mean) ** 2 for x in xs)
+    ss_yy = sum((y - y_mean) ** 2 for y in ys)
+    slope = ss_xy / ss_xx if ss_xx else 0
+    pearson_r = ss_xy / ((ss_xx * ss_yy) ** 0.5) if ss_xx and ss_yy else 0
+
+    return JsonResponse({
+        "term": term.name,
+        "points": points,
+        "pearson_r": round(pearson_r, 3),
+        "slope": round(slope, 3),
+        "data_points": n,
+    })
+
+
+# ====================================================================================
+# DS-2 — Z-Score Outlier Detection on Class Results
+# ====================================================================================
+
+@login_required
+@analytics_role_required
+def class_result_outliers(request):
+    """Flag students whose score deviates >2σ from the class mean for a given term/subject.
+
+    Query params: term_id (optional), subject_id (optional), threshold (default 2.0).
+    Returns: {mean, std_dev, threshold, outliers: [{student_id, name, score, z_score}]}.
+    """
+    school = getattr(request.user, "school", None)
+    if request.user.is_superuser:
+        school_id = request.session.get("current_school_id")
+        if school_id:
+            school = get_object_or_404(School, id=school_id)
+    if not school:
+        return JsonResponse({"error": "No school found"}, status=400)
+
+    term_id = request.GET.get("term_id")
+    subject_id = request.GET.get("subject_id")
+    threshold = float(request.GET.get("threshold", 2.0))
+
+    qs = Result.objects.filter(school=school, deleted_at__isnull=True).select_related("student__user", "subject")
+    if term_id:
+        qs = qs.filter(term_id=term_id)
+    else:
+        current_term = Term.objects.filter(school=school, is_current=True).first()
+        if current_term:
+            qs = qs.filter(term=current_term)
+    if subject_id:
+        qs = qs.filter(subject_id=subject_id)
+
+    records = list(qs.values("student_id", "score", "student__user__first_name", "student__user__last_name"))
+    if len(records) < 3:
+        return JsonResponse({"error": "Not enough data for outlier detection", "outliers": []})
+
+    scores = [float(r["score"]) for r in records]
+    n = len(scores)
+    mean = sum(scores) / n
+    variance = sum((s - mean) ** 2 for s in scores) / n
+    std_dev = variance ** 0.5 if variance > 0 else 0
+
+    outliers = []
+    if std_dev > 0:
+        for r in records:
+            z = (float(r["score"]) - mean) / std_dev
+            if abs(z) >= threshold:
+                name = f"{r['student__user__first_name']} {r['student__user__last_name']}".strip()
+                outliers.append({
+                    "student_id": r["student_id"],
+                    "name": name or f"Student #{r['student_id']}",
+                    "score": float(r["score"]),
+                    "z_score": round(z, 2),
+                    "direction": "above" if z > 0 else "below",
+                })
+    outliers.sort(key=lambda o: abs(o["z_score"]), reverse=True)
+
+    return JsonResponse({
+        "mean": round(mean, 2),
+        "std_dev": round(std_dev, 2),
+        "threshold": threshold,
+        "total_students": n,
+        "outlier_count": len(outliers),
+        "outliers": outliers,
+    })

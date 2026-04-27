@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Approval Inbox — MastexEDU{% endblock %}
+{% block page_title %}Approval Inbox{% endblock %}
+{% block page_subtitle %}Pending workflow items requiring your action{% endblock %}
+
+{% block content %}
+<div class="content-card">
+  {% if instances %}
+  <div class="list-group list-group-flush">
+    {% for inst in instances %}
+    {% with step=inst.workflow.steps %}
+    <div class="list-group-item p-3">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <h6 class="mb-1">
+            <span class="badge bg-primary me-1">{{ inst.workflow.get_workflow_type_display }}</span>
+            {{ inst.workflow.name }}
+          </h6>
+          <p class="mb-1 text-muted small">
+            Object: <code>{{ inst.content_type }} #{{ inst.object_id }}</code> &bull;
+            Step {{ inst.current_step }} of {{ step|length }} &bull;
+            Started {{ inst.created_at|date:"d M Y" }}
+          </p>
+          {% if inst.history %}
+          <details class="mt-1">
+            <summary class="small text-muted">History ({{ inst.history|length }} entries)</summary>
+            <ul class="small mt-1 mb-0">
+              {% for h in inst.history %}
+              <li><strong>Step {{ h.step }}</strong>: {{ h.action }} by actor #{{ h.actor }} — {{ h.note|default:"no note" }} <span class="text-muted">{{ h.ts }}</span></li>
+              {% endfor %}
+            </ul>
+          </details>
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'finance:approval_advance' inst.pk %}" class="d-flex gap-2 align-items-end flex-wrap">
+          {% csrf_token %}
+          <input type="text" name="note" class="form-control form-control-sm" placeholder="Note (optional)" style="width:180px;">
+          <button type="submit" name="action" value="approved" class="btn btn-sm btn-success">Approve</button>
+          <button type="submit" name="action" value="rejected" class="btn btn-sm btn-danger">Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-check-circle fs-1"></i>
+    <p class="mt-2">No pending approvals for your role.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% load static %}
     {% load custom_filters %}
-    <link rel="icon" type="image/svg+xml" href="{% static 'mastex-logo.svg' %}">
+    <link rel="icon" type="image/jpeg" href="{% static 'mastexedu_logo.jpeg' %}">
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon_32.png' %}">
     <link rel="icon" type="image/png" sizes="64x64" href="{% static 'favicon_64.png' %}">
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon_180.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'mastexedu_logo.jpeg' %}">
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="theme-color" content="#22c55e">
-    <meta name="description" content="{% block meta_description %}Mastex SchoolOS — academics, finance, canteen, transport, hostel, library, and parent portals in one school ERP. More at mastexedu.online.{% endblock %}">
+    <meta name="description" content="{% block meta_description %}MastexEDU — academics, finance, canteen, transport, hostel, library, and parent portals in one school ERP. More at mastexedu.online.{% endblock %}">
     {% load feature_flags %}
     <title>{% block title %}School Management System{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -598,16 +598,14 @@ background: rgba(2, 6, 23, 0.98);
             width: 64px;
             height: 64px;
             border-radius: 1.1rem;
-            background: radial-gradient(circle at 20% 0, #4ade80 0, #22c55e 35%, #16a34a 55%, #0f766e 85%);
+            overflow: hidden;
             box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3), 0 16px 38px rgba(34, 197, 94, 0.45);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            color: #022c22;
-            font-size: 1.3rem;
             margin-bottom: 1.25rem;
-        ">MS</div>
+        "><img src="{% static 'mastexedu_logo.jpeg' %}" alt="MastexEDU" style="width:64px;height:64px;object-fit:contain;"></div>
+        <div style="font-size:1.1rem;font-weight:700;color:#f1f5f9;letter-spacing:0.04em;margin-bottom:0.35rem;">MastexEDU</div>
         <div id="splash-message" style="
             font-size: 0.95rem;
             font-weight: 500;
@@ -641,10 +639,10 @@ background: rgba(2, 6, 23, 0.98);
         <header>
             <div class="nav">
                 <a href="{% url 'home' %}" class="brand">
-                    <img src="{% static 'mastex-logo.svg' %}" alt="Mastex" class="brand-mark" width="34" height="34">
+                    <img src="{% static 'mastexedu_logo.jpeg' %}" alt="Mastex" class="brand-mark" width="34" height="34" style="border-radius:6px;object-fit:contain;">
                     <div class="brand-text">
-                        <div class="brand-title">Mastex SchoolOS</div>
-                        <div class="brand-subtitle">Unified school administration suite</div>
+                        <div class="brand-title">MastexEDU</div>
+                        <div class="brand-subtitle">Smart school management platform</div>
                     </div>
                 </a>
                 {% if user.is_authenticated %}
@@ -1260,7 +1258,7 @@ background: rgba(2, 6, 23, 0.98);
                         <a href="{% url 'school_register' %}" class="nav-section-header" style="text-decoration:none;"><span>🏫 Register School</span></a>
                     </div>
                     {% endif %}
-                    <div class="nav-footer">Mastex SchoolOS - Smart school management</div>
+                    <div class="nav-footer">MastexEDU - Smart school management</div>
                 </div>
             </aside>
 
@@ -1291,7 +1289,7 @@ background: rgba(2, 6, 23, 0.98);
 
         <footer>
             <div class="footer-inner">
-                <div>Mastex SchoolOS &mdash; modern school management platform.</div>
+                <div>MastexEDU &mdash; modern school management platform.</div>
                 <div class="footer-links"><span class="badge-pill">Secure · Paystack · MNotify</span></div>
                 <div class="footer-contact">
                     <a href="https://mastexedu.online" target="_blank" rel="noopener noreferrer">mastexedu.online</a>

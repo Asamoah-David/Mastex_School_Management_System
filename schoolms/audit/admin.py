@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.http import HttpResponse
 
-from .models import AuditLog
+from .models import AuditLog, GDPRExportRequest
 
 
 @admin.register(AuditLog)
@@ -54,3 +54,16 @@ class AuditLogAdmin(admin.ModelAdmin):
         if getattr(settings, "AUDIT_APPEND_ONLY", False):
             return False
         return request.user.is_superuser
+
+
+@admin.register(GDPRExportRequest)
+class GDPRExportRequestAdmin(admin.ModelAdmin):
+    list_display = ("subject_user", "school", "status", "requested_at", "completed_at", "expires_at")
+    list_filter = ("status", "school")
+    search_fields = ("subject_user__username", "subject_user__email", "school__name")
+    readonly_fields = ("requested_at", "completed_at", "export_url", "error_message")
+    raw_id_fields = ("subject_user", "requested_by", "school")
+    date_hierarchy = "requested_at"
+
+    def has_add_permission(self, request):
+        return False

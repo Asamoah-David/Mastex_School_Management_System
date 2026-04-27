@@ -347,6 +347,15 @@ def login_view(request):
             if hasattr(user, 'reset_failed_logins'):
                 user.reset_failed_logins()
 
+            # 2FA check — if enabled, pause login and redirect to TOTP challenge
+            if getattr(user, "totp_enabled", False):
+                import time as _time
+                from accounts.totp_views import SESSION_KEY_2FA_USER, SESSION_KEY_2FA_TS
+                request.session[SESSION_KEY_2FA_USER] = user.pk
+                request.session[SESSION_KEY_2FA_TS] = _time.time()
+                next_url = request.GET.get("next", "/")
+                return redirect(f"/accounts/2fa/challenge/?next={next_url}")
+
             login(request, user)
             if getattr(user, "must_change_password", False):
                 return redirect("accounts:force_password_change")
@@ -1656,11 +1665,15 @@ def staff_manage_secondary_roles(request, pk):
         # Filter to only valid roles and exclude primary role
         filtered_roles = [r for r in selected_roles if r in valid_roles and r != staff.role]
         
-        from_secondary = staff.secondary_roles or ""
-        # Store as comma-separated string
-        staff.secondary_roles = ','.join(filtered_roles)
-        staff.save(update_fields=['secondary_roles'])
-        to_secondary = staff.secondary_roles or ""
+        from accounts.models import UserSecondaryRole
+        from_secondary = ','.join(sorted(staff.get_secondary_roles_list))
+        UserSecondaryRole.objects.filter(user=staff).delete()
+        if filtered_roles:
+            UserSecondaryRole.objects.bulk_create(
+                [UserSecondaryRole(user=staff, role=r) for r in dict.fromkeys(filtered_roles)],
+                ignore_conflicts=True,
+            )
+        to_secondary = ','.join(sorted(filtered_roles))
         if from_secondary != to_secondary:
             StaffRoleChangeLog.objects.create(
                 school=school,

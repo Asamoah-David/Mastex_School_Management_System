@@ -67,36 +67,71 @@ def ask_ai(prompt: str) -> str:
 
 
 def build_school_context(school=None, user=None) -> str:
-    """Build a brief live-data snippet to inject into the AI system prompt."""
+    """Build a rich live-data snippet injected into the AI system prompt.
+
+    Always returns a string; exceptions are silently swallowed so the chatbot
+    never fails because of a missing relation or DB error.
+    """
     lines = []
     try:
         if school:
             lines.append(f"School: {school.name}")
-            if school.academic_year:
+            currency = getattr(school, "currency", "GHS") or "GHS"
+            plan = getattr(school, "subscription_plan", "")
+            if plan:
+                lines.append(f"Subscription plan: {plan}")
+            if getattr(school, "academic_year", None):
                 lines.append(f"Academic year: {school.academic_year}")
-        if user and getattr(user, "role", None) in ("parent", "student"):
-            from students.models import Student
-            from finance.models import Fee
-            from django.db.models import Sum
-            students = Student.objects.filter(
-                school=school, status="active"
-            ).filter(
-                parent=user
-            ) if getattr(user, "role", None) == "parent" else Student.objects.filter(user=user, school=school)
-            if students.exists():
-                unpaid = Fee.objects.filter(
-                    student__in=students, paid=False
-                ).aggregate(total=Sum("amount"))["total"] or 0
-                paid = Fee.objects.filter(
-                    student__in=students, paid=True
-                ).aggregate(total=Sum("amount_paid"))["total"] or 0
-                lines.append(f"Unpaid fees: GHS {unpaid:.2f}")
-                lines.append(f"Total paid this year: GHS {paid:.2f}")
+
         from academics.models import Term
         if school:
             current = Term.objects.filter(school=school, is_current=True).first()
             if current:
-                lines.append(f"Current term: {current.name}")
+                lines.append(f"Current term: {current.name} ({current.start_date} → {current.end_date})")
+
+        if user and getattr(user, "role", None) in ("parent", "student"):
+            from students.models import Student
+            from finance.models import Fee, FeeInstallmentPlan
+            from django.db.models import Sum, Count
+            from django.utils import timezone as _tz
+
+            if getattr(user, "role", None) == "parent":
+                students = Student.objects.filter(school=school, parent=user)
+            else:
+                students = Student.objects.filter(user=user, school=school)
+
+            if students.exists():
+                unpaid = Fee.objects.filter(
+                    student__in=students, paid=False, deleted_at__isnull=True
+                ).aggregate(t=Sum("amount"))["t"] or 0
+                paid = Fee.objects.filter(
+                    student__in=students, paid=True
+                ).aggregate(t=Sum("amount_paid"))["t"] or 0
+                lines.append(f"Unpaid fees: {currency} {unpaid:.2f}")
+                lines.append(f"Total paid this term: {currency} {paid:.2f}")
+
+                overdue = FeeInstallmentPlan.objects.filter(
+                    fee__student__in=students,
+                    status="overdue",
+                ).count()
+                if overdue:
+                    lines.append(f"Overdue installments: {overdue}")
+
+        if user and getattr(user, "role", None) in ("school_admin", "bursar"):
+            from finance.models import PurchaseOrder
+            from django.db.models import Count
+            pending_po = PurchaseOrder.objects.filter(
+                school=school, status__in=["submitted", "approved"]
+            ).count()
+            if pending_po:
+                lines.append(f"Pending purchase orders awaiting action: {pending_po}")
+
+        if school:
+            total_tokens = getattr(school, "ai_total_tokens_used", None)
+            cap = getattr(school, "ai_monthly_token_cap", None)
+            if total_tokens is not None and cap:
+                lines.append(f"AI token usage this month: {total_tokens:,} / {cap:,}")
+
     except Exception:
         pass
     return "\n".join(lines)

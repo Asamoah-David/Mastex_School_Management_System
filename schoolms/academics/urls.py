@@ -107,5 +107,16 @@ urlpatterns = [
     
     # Auto Timetable
     path("auto-timetable/", timetable_generator.auto_timetable_generator, name="auto_timetable"),
-    
+
+    # DS-3: Cohort Analysis
+    path("analytics/cohort/", advanced_analytics.cohort_analysis, name="cohort_analysis"),
+
+    # DS-4: Subject Performance Heatmap
+    path("analytics/subjects/", advanced_analytics.subject_performance_heatmap, name="subject_heatmap"),
+
+    # DS-1: Attendance ↔ Performance Correlation
+    path("analytics/attendance-correlation/", advanced_analytics.attendance_performance_correlation, name="attendance_correlation"),
+
+    # DS-2: Z-Score Outlier Detection
+    path("analytics/outliers/", advanced_analytics.class_result_outliers, name="result_outliers"),
 ]

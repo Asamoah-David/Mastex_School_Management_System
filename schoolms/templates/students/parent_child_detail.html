@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load custom_filters %}
-{% block title %}{{ child.user.get_full_name|default:child.user.username }} · Mastex SchoolOS{% endblock %}
+{% block title %}{{ child.user.get_full_name|default:child.user.username }} · MastexEDU{% endblock %}
 {% block page_title %}{{ child.user.get_full_name|default:child.user.username }}{% endblock %}
 {% block page_subtitle %}Admission: {{ child.admission_number }} · Class: {{ child.class_name|default:"—" }}{% endblock %}
 {% block content %}

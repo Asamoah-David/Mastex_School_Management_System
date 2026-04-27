@@ -70,9 +70,7 @@ class User(AbstractUser):
         ]
     # Teachers can be assigned to specific subjects
     assigned_subjects = models.ManyToManyField('academics.Subject', blank=True, related_name='assigned_teachers')
-    # Secondary roles - allows users to have multiple roles (e.g., teacher + librarian)
-    # Stores role strings as comma-separated values for simplicity
-    secondary_roles = models.TextField(blank=True, default='', help_text="Comma-separated list of secondary role values")
+    # Secondary roles managed via UserSecondaryRole through-model (ARCH-5).
     # Profile photo
     profile_photo = models.URLField(max_length=500, null=True, blank=True)
     # Gender
@@ -81,6 +79,10 @@ class User(AbstractUser):
     must_change_password = models.BooleanField(default=False)
     # In-app setup checklist (staff); dismiss hides the banner until next product bump if desired
     setup_checklist_dismissed = models.BooleanField(default=False)
+    # Two-factor authentication (TOTP via pyotp)
+    totp_secret = models.CharField(max_length=64, blank=True, default="", help_text="Base32 TOTP secret. Empty = 2FA not set up.")
+    totp_enabled = models.BooleanField(default=False, help_text="True when 2FA has been verified and activated by the user.")
+    totp_backup_codes = models.TextField(blank=True, default="", help_text="Newline-separated one-time backup codes (hashed).")
 
     PAYROLL_MOMO_NETWORK_CHOICES = (
         ("", "—"),
@@ -230,80 +232,172 @@ class User(AbstractUser):
         token = default_token_generator.make_token(self)
         return {'uid': uid, 'token': token}
     
-    # Secondary roles helper methods
-    def _valid_role_values(self):
-        return {choice[0] for choice in ROLE_CHOICES}
-
-    def _normalized_secondary_roles(self, roles_list, *, strict=True):
-        valid = self._valid_role_values()
-        out = []
-        seen = set()
-        for role in roles_list or []:
-            r = (role or "").strip()
-            if not r:
-                continue
-            if r not in valid:
-                if strict:
-                    raise ValidationError({"secondary_roles": f"Invalid secondary role: {r}"})
-                continue
-            if r == self.role:
-                continue
-            if r in seen:
-                continue
-            seen.add(r)
-            out.append(r)
-        return out
+    # ── Secondary roles helpers (backed by UserSecondaryRole through-model) ──
 
     @property
     def get_secondary_roles_list(self):
-        """Get secondary roles as a list of role strings"""
-        if not self.secondary_roles:
+        """Return secondary roles as a list of role strings (DB-backed)."""
+        if not self.pk:
             return []
-        raw = [r.strip() for r in self.secondary_roles.split(',') if r.strip()]
-        return self._normalized_secondary_roles(raw, strict=False)
-    
+        try:
+            return list(self.secondary_role_entries.values_list('role', flat=True))
+        except Exception:
+            return []
+
     @property
     def secondary_roles_display(self):
-        """Get human-readable list of secondary roles"""
-        if not self.secondary_roles:
-            return []
-        roles = []
-        for r in self.get_secondary_roles_list:
-            for choice in ROLE_CHOICES:
-                if choice[0] == r:
-                    roles.append(choice[1])
-                    break
-        return roles
-    
+        """Return human-readable labels for all secondary roles."""
+        role_map = {k: v for k, v in ROLE_CHOICES}
+        return [role_map.get(r, r) for r in self.get_secondary_roles_list]
+
     def has_role(self, role_value):
-        """Check if user has a specific role (primary or secondary)"""
+        """True if role_value matches primary role OR any secondary role."""
         if self.role == role_value:
             return True
-        return role_value in self.get_secondary_roles_list
-    
+        if not self.pk:
+            return False
+        try:
+            return self.secondary_role_entries.filter(role=role_value).exists()
+        except Exception:
+            return False
+
     def set_secondary_roles(self, roles_list):
-        """Set secondary roles from a list of role values"""
-        self.secondary_roles = ','.join(self._normalized_secondary_roles(roles_list))
-    
+        """Replace all secondary roles with roles_list. Requires saved User (pk)."""
+        if not self.pk:
+            return
+        valid = {choice[0] for choice in ROLE_CHOICES}
+        clean = [r for r in (roles_list or []) if r and r in valid and r != self.role]
+        self.secondary_role_entries.all().delete()
+        if clean:
+            UserSecondaryRole.objects.bulk_create(
+                [UserSecondaryRole(user=self, role=r) for r in dict.fromkeys(clean)],
+                ignore_conflicts=True,
+            )
+
     def add_secondary_role(self, role_value):
-        """Add a secondary role"""
-        roles = self.get_secondary_roles_list
-        if role_value not in roles and role_value != self.role:
-            roles.append(role_value)
-            self.secondary_roles = ','.join(self._normalized_secondary_roles(roles))
-    
+        """Add a single secondary role. No-op if already present or equals primary."""
+        if not self.pk or role_value == self.role:
+            return
+        UserSecondaryRole.objects.get_or_create(user=self, role=role_value)
+
     def remove_secondary_role(self, role_value):
-        """Remove a secondary role"""
-        roles = self.get_secondary_roles_list
-        if role_value in roles:
-            roles.remove(role_value)
-            self.secondary_roles = ','.join(roles)
+        """Remove a single secondary role."""
+        if not self.pk:
+            return
+        self.secondary_role_entries.filter(role=role_value).delete()
 
     def clean(self):
         super().clean()
-        # Validate and normalize secondary_roles CSV in all save paths.
-        roles = [r.strip() for r in (self.secondary_roles or "").split(',') if r.strip()]
-        self.secondary_roles = ','.join(self._normalized_secondary_roles(roles))
+
+    @property
+    def profile_completeness(self) -> int:
+        """UX-5: Return profile completeness as a percentage (0–100).
+
+        Checks presence of: first_name, last_name, email, phone,
+        profile_photo, school, role (non-default).
+        """
+        checks = [
+            bool(self.first_name and self.first_name.strip()),
+            bool(self.last_name and self.last_name.strip()),
+            bool(self.email and "@" in self.email),
+            bool(self.phone),
+            bool(self.profile_photo),
+            bool(self.school_id),
+            self.role != "parent",
+        ]
+        done = sum(1 for c in checks if c)
+        return round(done / len(checks) * 100)
+
+
+class PasswordResetRequest(models.Model):
+    """Track password reset token requests for rate limiting and audit.
+
+    Prevents password-reset spray attacks by recording every request and
+    exposing a ``recent_count_for_email()`` helper that views can use to
+    enforce a per-email cap (e.g. max 5 requests per hour).
+    """
+
+    user = models.ForeignKey(
+        'accounts.User',
+        db_constraint=False,
+        on_delete=models.DO_NOTHING,
+        null=True,
+        blank=True,
+        related_name='password_reset_requests',
+    )
+    email = models.EmailField(
+        help_text="Email address the reset was requested for (snapshot at request time).",
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(help_text="When the token expires (typically 1 hour).")
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the reset link was consumed. Null = not yet used.",
+    )
+
+    class Meta:
+        ordering = ["-requested_at"]
+        indexes = [
+            models.Index(fields=["email", "requested_at"], name="idx_pwreset_email_requested"),
+            models.Index(fields=["ip_address", "requested_at"], name="idx_pwreset_ip_requested"),
+        ]
+        verbose_name = "Password Reset Request"
+        verbose_name_plural = "Password Reset Requests"
+
+    def __str__(self):
+        return f"PasswordReset for {self.email} @ {self.requested_at}"
+
+    @classmethod
+    def recent_count_for_email(cls, email: str, window_minutes: int = 60) -> int:
+        """How many reset requests have been made for this email in the last N minutes."""
+        from django.utils import timezone
+        from datetime import timedelta
+        since = timezone.now() - timedelta(minutes=window_minutes)
+        return cls.objects.filter(email__iexact=email, requested_at__gte=since).count()
+
+    @classmethod
+    def recent_count_for_ip(cls, ip: str, window_minutes: int = 60) -> int:
+        """How many reset requests have been made from this IP in the last N minutes."""
+        from django.utils import timezone
+        from datetime import timedelta
+        since = timezone.now() - timedelta(minutes=window_minutes)
+        return cls.objects.filter(ip_address=ip, requested_at__gte=since).count()
+
+
+class UserSecondaryRole(models.Model):
+    """DB-backed secondary roles for staff users (ARCH-5).
+
+    Replaces the deprecated secondary_roles TextField with a proper through-table
+    so secondary roles are queryable at the DB level without fragile icontains hacks.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="secondary_role_entries",
+    )
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES, db_index=True)
+
+    class Meta:
+        unique_together = [("user", "role")]
+        verbose_name = "User Secondary Role"
+        verbose_name_plural = "User Secondary Roles"
+        indexes = [
+            models.Index(fields=["user", "role"], name="idx_user_secondary_role"),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} — {self.role}"
+
+    def clean(self):
+        valid = {choice[0] for choice in ROLE_CHOICES}
+        if self.role not in valid:
+            raise ValidationError({"role": f"Invalid role: {self.role}"})
+        user_role = getattr(self.user, "role", None)
+        if user_role and self.role == user_role:
+            raise ValidationError({"role": "Secondary role cannot duplicate the user's primary role."})
 
 
 # Staff HR (contracts, role audit, teaching allocation, payroll) — see hr_models.py

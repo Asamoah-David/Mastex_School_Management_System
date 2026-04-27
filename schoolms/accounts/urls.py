@@ -33,7 +33,7 @@ from .views import (
     teacher_dashboard,
 )
 from .forms import SecurePasswordResetForm, PasswordResetConfirmForm
-from . import hr_views
+from . import hr_views, totp_views
 
 app_name = "accounts"
 
@@ -128,4 +128,9 @@ urlpatterns = [
     path('super/metrics/', superadmin_metrics, name='superadmin_metrics'),
     path('password-reset/sms/', sms_otp_reset_request, name='sms_otp_reset_request'),
     path('password-reset/sms/confirm/', sms_otp_reset_confirm, name='sms_otp_reset_confirm'),
+    # Two-Factor Authentication (TOTP)
+    path("2fa/setup/", totp_views.setup_2fa, name="2fa_setup"),
+    path("2fa/disable/", totp_views.disable_2fa_view, name="2fa_disable"),
+    path("2fa/challenge/", totp_views.login_challenge, name="2fa_challenge"),
+    path("2fa/backup/", totp_views.use_backup_code, name="2fa_backup"),
 ]

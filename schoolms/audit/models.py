@@ -11,9 +11,16 @@ class AuditLog(models.Model):
         ('delete', 'Deleted'),
         ('login', 'Login'),
         ('logout', 'Logout'),
+        ('login_failed', 'Login Failed'),
+        ('2fa_verified', '2FA Verified'),
+        ('2fa_failed', '2FA Failed'),
+        ('password_change', 'Password Changed'),
         ('view', 'Viewed'),
         ('export', 'Exported'),
+        ('gdpr_export', 'GDPR Export'),
         ('import', 'Imported'),
+        ('approve', 'Approved'),
+        ('reject', 'Rejected'),
     ]
     
     user = models.ForeignKey(
@@ -54,11 +61,11 @@ class AuditLog(models.Model):
     
     def __str__(self):
         return f"{self.user} {self.action} {self.model_name} at {self.timestamp}"
-    
+
     @classmethod
-    def log_action(cls, user, action, model_name, object_id=None, object_repr=None, 
+    def log_action(cls, user, action, model_name, object_id=None, object_repr=None,
                    changes=None, request=None, school=None):
-        """Helper method to create an audit log entry."""
+        """Create an audit log entry. Safe to call from signals and views."""
         kwargs = {
             'user': user,
             'action': action,
@@ -67,25 +74,117 @@ class AuditLog(models.Model):
             'object_repr': object_repr,
             'changes': changes or {},
         }
-        
         if request:
             kwargs['ip_address'] = cls._get_client_ip(request)
             kwargs['user_agent'] = request.META.get('HTTP_USER_AGENT', '')[:500]
-            kwargs['request_id'] = (getattr(request, 'request_id', None) or request.META.get('HTTP_X_REQUEST_ID', '') or '')[:64]
-        
+            kwargs['request_id'] = (
+                getattr(request, 'request_id', None)
+                or request.META.get('HTTP_X_REQUEST_ID', '')
+                or ''
+            )[:64]
         if school:
             kwargs['school'] = school
-        elif hasattr(user, 'school'):
+        elif user and hasattr(user, 'school'):
             kwargs['school'] = user.school
-        
         return cls.objects.create(**kwargs)
-    
+
     @staticmethod
     def _get_client_ip(request):
-        """Extract client IP from request, handling proxies."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0].strip()
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
+        """Extract client IP, handling proxies safely."""
+        from django.conf import settings as _s
+        num_proxies = getattr(_s, 'NUM_PROXIES', 1)
+        xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+        if xff:
+            ips = [ip.strip() for ip in xff.split(',') if ip.strip()]
+            if len(ips) >= num_proxies:
+                return ips[-num_proxies]
+            return ips[0]
+        return request.META.get('REMOTE_ADDR', '')
+
+    def delete(self, *args, **kwargs):
+        """Block hard-delete: AuditLog rows are append-only (AUDIT_APPEND_ONLY=True)."""
+        from django.conf import settings as _s
+        if getattr(_s, 'AUDIT_APPEND_ONLY', True):
+            raise PermissionError('AuditLog records are append-only and cannot be deleted.')
+        super().delete(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# GDPR data export requests (Fix #34)
+# ---------------------------------------------------------------------------
+
+class GDPRExportRequest(models.Model):
+    """Tracks requests to export all personal data for a user (data portability / right of access)."""
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("processing", "Processing"),
+        ("ready", "Ready for download"),
+        ("downloaded", "Downloaded"),
+        ("expired", "Expired"),
+        ("failed", "Failed"),
+    ]
+
+    school = models.ForeignKey(
+        "schools.School",
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="gdpr_export_requests",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="gdpr_export_requests",
+    )
+    subject_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="gdpr_exports",
+        help_text="The user whose data is being exported.",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    export_url = models.URLField(max_length=500, blank=True, help_text="Signed URL to the exported JSON file.")
+    export_payload = models.JSONField(
+        null=True, blank=True,
+        help_text="Serialised personal-data dict; served as a FileResponse download.",
+    )
+    error_message = models.TextField(blank=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True, help_text="Download link expiry.")
+
+    class Meta:
+        ordering = ["-requested_at"]
+        verbose_name = "GDPR Export Request"
+        verbose_name_plural = "GDPR Export Requests"
+        indexes = [
+            models.Index(fields=["school", "status"]),
+        ]
+
+    def __str__(self):
+        return f"GDPR export for {self.subject_user} [{self.status}]"
+
+    def mark_ready(self, export_url: str = "", export_payload: dict = None, expires_at=None):
+        from django.utils import timezone as _tz
+        self.status = "ready"
+        if export_url:
+            self.export_url = export_url
+        if export_payload is not None:
+            self.export_payload = export_payload
+        self.completed_at = _tz.now()
+        if expires_at:
+            self.expires_at = expires_at
+        self.save(update_fields=["status", "export_url", "export_payload", "completed_at", "expires_at"])
+    
+    def _log_state_change(self, new_status: str, actor=None):
+        """Helper: log a GDPR export status transition to AuditLog."""
+        AuditLog.log_action(
+            user=actor or self.requested_by,
+            action='gdpr_export',
+            model_name='audit.gdprexportrequest',
+            object_id=self.pk,
+            object_repr=str(self),
+            changes={'status': {'old': self.status, 'new': new_status}},
+            school=self.school,
+        )

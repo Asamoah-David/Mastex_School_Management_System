@@ -66,12 +66,69 @@ class StaffLeave(models.Model):
             models.Index(fields=["school", "staff"], name="idx_leave_school_staff"),
         ]
 
+    @property
+    def days_requested(self):
+        """Number of calendar days (inclusive) for this leave request."""
+        if self.start_date and self.end_date:
+            return max(1, (self.end_date - self.start_date).days + 1)
+        return 0
+
+    def _get_leave_balance(self):
+        """Return the LeaveBalance for this staff member if one exists."""
+        try:
+            from accounts.hr_models import LeaveBalance
+            from academics.models import AcademicYear
+            year = AcademicYear.objects.filter(school=self.school, is_current=True).first()
+            if not year:
+                return None
+            label = f"{year.start_date.year}/{year.end_date.year}"
+            leave_type = self.leave_type if self.leave_type in dict(
+                [("annual","Annual / Vacation"),("sick","Sick Leave"),("maternity","Maternity Leave"),
+                 ("paternity","Paternity Leave"),("study","Study / Exam Leave")]
+            ) else "annual"
+            return LeaveBalance.objects.filter(
+                school=self.school, user=self.staff, leave_type=leave_type, academic_year=label
+            ).first()
+        except Exception:
+            return None
+
+    def save(self, *args, **kwargs):
+        old_status = None
+        if self.pk:
+            try:
+                old_status = StaffLeave.objects.filter(pk=self.pk).values_list("status", flat=True).first()
+            except Exception:
+                pass
+
+        super().save(*args, **kwargs)
+
+        # Deduct balance when approved; restore when cancelled/rejected after approval
+        # ValueError (insufficient balance) is re-raised so callers know approval was blocked.
+        try:
+            if old_status != "approved" and self.status == "approved":
+                balance = self._get_leave_balance()
+                if balance:
+                    balance.deduct(self.days_requested)
+            elif old_status == "approved" and self.status in ("rejected", "pending"):
+                balance = self._get_leave_balance()
+                if balance:
+                    balance.restore(self.days_requested)
+        except ValueError:
+            raise
+        except Exception:
+            pass
+
     def __str__(self):
         return f"{self.staff.get_full_name()} - {self.start_date} to {self.end_date} ({self.status})"
 
 
 class ActivityLog(models.Model):
-    """Audit trail for important actions."""
+    """DEPRECATED — use audit.AuditLog directly for all new code.
+
+    This model is retained for backward-compatibility only. New rows written
+    here are automatically mirrored to AuditLog so both systems stay in sync
+    during the transition period.
+    """
     school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="activity_logs")
     action = models.CharField(max_length=100)
@@ -81,6 +138,24 @@ class ActivityLog(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        verbose_name = "Activity Log (Deprecated)"
+        verbose_name_plural = "Activity Logs (Deprecated — use Audit Logs)"
 
     def __str__(self):
         return f"{self.action} - {self.user} at {self.created_at}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        try:
+            from audit.models import AuditLog
+            AuditLog.log_action(
+                user=self.user,
+                action='update' if not self._state.adding else 'create',
+                model_name='operations.activitylog',
+                object_id=self.pk,
+                object_repr=str(self)[:255],
+                changes={'action': self.action, 'details': self.details[:500]},
+                school=self.school,
+            )
+        except Exception:
+            pass

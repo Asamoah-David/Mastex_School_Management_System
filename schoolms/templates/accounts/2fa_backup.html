@@ -1,0 +1,33 @@
+{% extends "base_login.html" %}
+{% load static %}
+
+{% block title %}Backup Code Sign In · MastexEDU{% endblock %}
+
+{% block content %}
+<div class="auth-card-header">
+  <h2 class="auth-card-title">Use a Backup Code</h2>
+  <p class="auth-card-subtitle">Enter one of your saved 10-character backup codes. Each backup code can only be used once.</p>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<form method="post" class="form-stack">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}" />
+  <div class="form-group">
+    <label for="id_code">Backup Code</label>
+    <input id="id_code" name="code" type="text" maxlength="10" autocomplete="off"
+           required placeholder="10-character backup code" autofocus />
+    <small class="form-hint">Backup codes are case-sensitive and 10 characters long</small>
+  </div>
+  <button type="submit" class="btn btn-primary btn-block">Sign In with Backup Code</button>
+</form>
+
+<div class="auth-link-row" style="margin-top:1.25rem;">
+  <a href="{% url 'accounts:2fa_challenge' %}?next={{ next|urlencode }}">Back to authenticator code</a>
+</div>
+{% endblock %}

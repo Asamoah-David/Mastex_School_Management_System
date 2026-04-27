@@ -45,6 +45,22 @@ _platform_detected = bool(
 )
 DEBUG = env_bool("DEBUG", default=not _platform_detected)
 
+# ---------------------------------------------------------------------------
+# HTTPS / HSTS — only active in production (when DEBUG=False)
+# W004, W008, W012, W016, W018 are suppressed in dev automatically because
+# all of these require DEBUG=False to matter.
+# ---------------------------------------------------------------------------
+if not DEBUG:
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=True)
+    SECURE_HSTS_SECONDS = int(env("SECURE_HSTS_SECONDS", default="31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", default=False)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+
 SECRET_KEY = env("SECRET_KEY", default="unsafe-local-secret" if DEBUG else None)
 if not DEBUG and SECRET_KEY == "unsafe-local-secret":
     raise RuntimeError(
@@ -106,6 +122,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -116,6 +133,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.CspMiddleware",
     "schools.middleware.SchoolMiddleware",
     "accounts.middleware.ForcePasswordChangeMiddleware",
     "audit.middleware.AuditUserMiddleware",
@@ -277,6 +295,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/minute",
         "user": "300/minute",
+        "school_api": "200/minute",
     },
     "DEFAULT_RENDERER_CLASSES": (
         ["rest_framework.renderers.JSONRenderer"]
@@ -287,12 +306,17 @@ REST_FRAMEWORK = {
         ]
     ),
     "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
+    "DEFAULT_VERSION": "v1",
+    "ALLOWED_VERSIONS": ["v1"],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Mastex SchoolOS API",
-    "DESCRIPTION": "School Management System API",
-    "VERSION": "1.0.0",
+    "TITLE": "MastexEDU API",
+    "DESCRIPTION": "MastexEDU School Management Platform — REST API",
+    "VERSION": "2.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
     # Who can hit /api/schema/, /api/docs/, /api/redoc/ (see API_DOCS_* below)
@@ -334,7 +358,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+    _cors_debug_origins = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+    ]
+    CORS_ALLOWED_ORIGINS = list(set(CORS_ALLOWED_ORIGINS + _cors_debug_origins))
 
 # ---------------------------------------------------------------------------
 # Third-party service keys
@@ -456,6 +485,10 @@ _tls_terminating_proxy = bool(
 # Exposed for management commands (e.g. preflight) — TLS terminated at load balancer / PaaS edge.
 BEHIND_TLS_TERMINATING_PROXY = _tls_terminating_proxy
 
+# Number of trusted reverse proxies in front of the app (used for IP extraction).
+# Railway/Render add 1 hop; set to 2 if behind Cloudflare + platform proxy.
+NUM_PROXIES = int(env("NUM_PROXIES", "1"))
+
 # Trust X-Forwarded-Host header from Railway proxy for custom domain handling
 USE_X_FORWARDED_HOST = True
 
@@ -509,7 +542,7 @@ CSRF_COOKIE_SAMESITE = "Lax"
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 500
 
 # ---------------------------------------------------------------------------
 # Password Validation
@@ -703,8 +736,16 @@ LOGOUT_REDIRECT_URL = "/"
 # ---------------------------------------------------------------------------
 # Celery (async task queue)
 # ---------------------------------------------------------------------------
-# Broker: use Redis when available; fall back to in-memory (dev only).
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", _redis_url or "memory://")
+# Broker: use Redis when available; fall back to in-memory (dev only — tasks are LOST on restart).
+_celery_broker = env("CELERY_BROKER_URL", _redis_url or "memory://")
+if _celery_broker == "memory://" and not DEBUG:
+    import logging as _logging
+    _logging.getLogger("django").critical(
+        "CELERY_BROKER_URL is 'memory://' in a non-DEBUG environment. "
+        "Tasks (fee reminders, webhooks, PDF generation) will be lost on worker restart. "
+        "Set CELERY_BROKER_URL=redis://... in your environment."
+    )
+CELERY_BROKER_URL = _celery_broker
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", _redis_url or "cache+memory://")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -714,3 +755,56 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300  # 5 minutes hard limit per task
 CELERY_TASK_SOFT_TIME_LIMIT = 240
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+# Static periodic tasks — picked up by Celery Beat on startup.
+# Can be overridden per-school via the Django admin (django-celery-beat).
+CELERY_BEAT_SCHEDULE = {
+    "inventory-low-stock-alerts-daily": {
+        "task": "core.tasks.send_inventory_low_stock_alerts",
+        "schedule": 86400,  # every 24 hours
+    },
+    "fee-payment-reminders-daily": {
+        "task": "core.tasks.send_fee_payment_reminders",
+        "schedule": 86400,
+        "kwargs": {"days_before_due": 3},
+    },
+    "paystack-settlement-reconciliation-daily": {
+        "task": "core.tasks.reconcile_paystack_settlements",
+        "schedule": 86400,
+    },
+    "leave-balance-rollover-yearly": {
+        "task": "core.tasks.rollover_leave_balances",
+        "schedule": 86400 * 30,  # monthly check; actual rollover is idempotent
+        # from_year/to_year default to None; the task derives current/next year automatically
+    },
+    "subscription-auto-expiry-daily": {
+        "task": "core.tasks.auto_expire_subscriptions",
+        "schedule": 86400,
+    },
+    "mark-overdue-installments-daily": {
+        "task": "core.tasks.mark_overdue_installments",
+        "schedule": 86400,
+    },
+    "auto-expire-staff-contracts-daily": {
+        "task": "core.tasks.auto_expire_staff_contracts",
+        "schedule": 86400,
+    },
+    "retry-failed-webhooks-every-15min": {
+        "task": "core.tasks.retry_failed_webhook_deliveries",
+        "schedule": 900,
+    },
+    "fixed-asset-depreciation-yearly": {
+        "task": "core.tasks.apply_fixed_asset_depreciation_annual",
+        "schedule": 86400 * 365,
+    },
+    # DB-6: purge expired in-app notifications weekly
+    "purge-expired-notifications-weekly": {
+        "task": "core.tasks.purge_expired_notifications",
+        "schedule": 86400 * 7,
+    },
+    # ENH-4: flag students with 3+ consecutive absences daily
+    "attendance-early-warning-daily": {
+        "task": "core.tasks.flag_attendance_early_warnings",
+        "schedule": 86400,
+    },
+}

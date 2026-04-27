@@ -61,4 +61,15 @@ urlpatterns = [
     path("payouts/<int:pk>/reserve/", views.payout_request_reserve, name="payout_request_reserve"),
     path("payouts/<int:pk>/reject/", views.payout_request_reject, name="payout_request_reject"),
     path("payouts/<int:pk>/cancel/", views.payout_request_cancel, name="payout_request_cancel"),
+
+    # Fixed Asset Register (UX-1)
+    path("assets/", views.fixed_asset_list, name="fixed_asset_list"),
+    path("assets/create/", views.fixed_asset_create, name="fixed_asset_create"),
+    path("assets/<int:pk>/", views.fixed_asset_detail, name="fixed_asset_detail"),
+    path("assets/<int:pk>/edit/", views.fixed_asset_edit, name="fixed_asset_edit"),
+    path("assets/<int:pk>/dispose/", views.fixed_asset_dispose, name="fixed_asset_dispose"),
+
+    # Approval Workflow Inbox (UX-2)
+    path("approvals/", views.approval_inbox, name="approval_inbox"),
+    path("approvals/<int:pk>/advance/", views.approval_advance, name="approval_advance"),
 ]

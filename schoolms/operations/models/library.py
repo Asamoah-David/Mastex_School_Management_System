@@ -1,8 +1,11 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from accounts.models import User
 from students.models import Student
 from schools.models import School
+from core.tenancy import SchoolScopedModel
 
 
 class LibraryBook(models.Model):
@@ -74,3 +77,83 @@ class LibraryIssue(models.Model):
             s_school = getattr(self.student, "school_id", None)
             if s_school is not None and s_school != self.school_id:
                 raise ValidationError({"student": "Student must belong to the same school as the issue."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class LibraryFine(SchoolScopedModel):
+    """Track overdue book fines per borrowing record.
+
+    Fine accrues per day overdue (school-configurable fine_per_day rate).
+    Supports full and partial payment and manual waiver by librarian.
+    """
+
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("partial", "Partially Paid"),
+        ("paid", "Paid"),
+        ("waived", "Waived"),
+    )
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="library_fines")
+    issue = models.OneToOneField(
+        LibraryIssue,
+        on_delete=models.CASCADE,
+        related_name="fine",
+        help_text="Borrowing record this fine is attached to.",
+    )
+    fine_amount = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        help_text="Total fine charged (days_overdue × fine_per_day).",
+    )
+    amount_paid = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0"))
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="pending")
+    waived_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="waived_library_fines",
+    )
+    waiver_reason = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["school", "status"], name="idx_libfine_school_status"),
+        ]
+        constraints = [
+            models.CheckConstraint(check=models.Q(fine_amount__gte=0), name="chk_libfine_amount_nonneg"),
+            models.CheckConstraint(check=models.Q(amount_paid__gte=0), name="chk_libfine_paid_nonneg"),
+        ]
+
+    def __str__(self):
+        return f"Fine #{self.pk} – {self.issue.student} – GHS {self.fine_amount} ({self.status})"
+
+    @property
+    def balance(self):
+        return max(self.fine_amount - self.amount_paid, Decimal("0"))
+
+    def mark_paid(self, amount, recorded_by=None):
+        """Credit a payment toward this fine and update status."""
+        from django.utils import timezone
+        amt = Decimal(str(amount or 0))
+        if amt <= 0:
+            return
+        self.amount_paid = min(self.amount_paid + amt, self.fine_amount)
+        if self.amount_paid >= self.fine_amount:
+            self.status = "paid"
+        else:
+            self.status = "partial"
+        self.save(update_fields=["amount_paid", "status", "updated_at"])
+
+    def waive(self, user, reason=""):
+        self.status = "waived"
+        self.waived_by = user
+        self.waiver_reason = reason[:300]
+        self.save(update_fields=["status", "waived_by", "waiver_reason", "updated_at"])

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Subject Performance Heatmap — MastexEDU{% endblock %}
+{% block page_title %}Subject Performance Heatmap{% endblock %}
+{% block page_subtitle %}Average score per subject × term colour-coded grid{% endblock %}
+
+{% block content %}
+<div class="content-card">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">{{ school.name }} — Subject × Term Heatmap</h5>
+    <span class="badge bg-secondary">School avg: {{ school_avg }}%</span>
+  </div>
+
+  {% if subjects and terms %}
+  <div class="table-responsive">
+    <table class="table table-bordered table-sm align-middle text-center" id="heatmap-table">
+      <thead class="table-dark">
+        <tr>
+          <th class="text-start">Subject</th>
+          {% for term in terms %}<th>{{ term }}</th>{% endfor %}
+          <th>Row Avg</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for subject in subjects %}
+        {% with row=matrix|default_if_none:"" %}
+        <tr>
+          <td class="text-start fw-semibold">{{ subject }}</td>
+          {% for term in terms %}
+            {% with score=matrix|default_if_none:"" %}
+            <td class="heatmap-cell" data-score="{{ matrix|default_if_none:'' }}" id="cell-{{ forloop.parentloop.counter }}-{{ forloop.counter }}">
+              —
+            </td>
+            {% endwith %}
+          {% endfor %}
+          <td class="row-avg fw-bold" id="row-avg-{{ forloop.counter }}">—</td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex align-items-center gap-3 mt-3 flex-wrap">
+    <small class="text-muted">Colour scale:</small>
+    <span class="px-2 py-1 rounded" style="background:#dc3545;color:#fff;">0–49 Weak</span>
+    <span class="px-2 py-1 rounded" style="background:#fd7e14;color:#fff;">50–64 Below Avg</span>
+    <span class="px-2 py-1 rounded" style="background:#ffc107;color:#212529;">65–74 Average</span>
+    <span class="px-2 py-1 rounded" style="background:#20c997;color:#fff;">75–84 Good</span>
+    <span class="px-2 py-1 rounded" style="background:#198754;color:#fff;">85+ Excellent</span>
+  </div>
+  {% else %}
+  <p class="text-muted">No result data found for this school.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const matrix = {{ matrix|safe }};
+  const subjects = {{ subjects|safe }};
+  const terms = {{ terms|safe }};
+
+  function scoreColor(score) {
+    if (score === null || score === undefined) return "#f8f9fa";
+    if (score >= 85) return "#198754";
+    if (score >= 75) return "#20c997";
+    if (score >= 65) return "#ffc107";
+    if (score >= 50) return "#fd7e14";
+    return "#dc3545";
+  }
+  function textColor(score) {
+    if (score >= 65 && score < 75) return "#212529";
+    return "#ffffff";
+  }
+
+  subjects.forEach((subject, si) => {
+    let rowTotal = 0, rowCount = 0;
+    terms.forEach((term, ti) => {
+      const cell = document.getElementById(`cell-${si + 1}-${ti + 1}`);
+      if (!cell) return;
+      const score = (matrix[subject] || {})[term];
+      if (score !== undefined && score !== null) {
+        cell.textContent = score.toFixed(1) + "%";
+        cell.style.background = scoreColor(score);
+        cell.style.color = textColor(score);
+        cell.setAttribute("data-score", score);
+        rowTotal += score;
+        rowCount++;
+      } else {
+        cell.textContent = "—";
+        cell.style.background = "#f8f9fa";
+      }
+    });
+    const avgCell = document.getElementById(`row-avg-${si + 1}`);
+    if (avgCell && rowCount > 0) {
+      const avg = rowTotal / rowCount;
+      avgCell.textContent = avg.toFixed(1) + "%";
+      avgCell.style.background = scoreColor(avg);
+      avgCell.style.color = textColor(avg);
+    }
+  });
+})();
+</script>
+{% endblock %}

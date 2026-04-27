@@ -1573,8 +1573,43 @@ def parent_fee_list(request):
 
 
 def payment_success(request):
-    """Show payment success page after successful payment."""
-    return render(request, "finance/payment_success.html")
+    """Show payment success page after Paystack redirect.
+
+    Paystack appends ?reference=... to the callback URL.
+    If the reference matches a completed PaymentTransaction,
+    we enrich the page with payment details and receipt link.
+    """
+    reference = request.GET.get("reference") or request.GET.get("trxref")
+    payment = None
+    fee_payment = None
+
+    if reference:
+        try:
+            from finance.models import PaymentTransaction, FeePayment
+            tx = (
+                PaymentTransaction.objects.filter(reference=reference)
+                .select_related("school")
+                .first()
+            )
+            if tx:
+                fee_payment = (
+                    FeePayment.objects.filter(paystack_reference=reference)
+                    .select_related(
+                        "fee", "fee__student", "fee__student__user",
+                        "fee__student__school", "fee__school",
+                    )
+                    .first()
+                )
+                payment = tx
+        except Exception:
+            pass
+
+    ctx = {
+        "reference": reference,
+        "payment": payment,
+        "fee_payment": fee_payment,
+    }
+    return render(request, "finance/payment_success.html", ctx)
 
 
 @login_required
@@ -3081,3 +3116,191 @@ def payout_request_cancel(request, pk):
         messages.error(request, str(e))
 
     return redirect("finance:payout_request_list")
+
+
+# ============================================================
+# UX-1 — Fixed Asset Register
+# ============================================================
+
+@login_required
+def fixed_asset_list(request):
+    school = getattr(request.user, "school", None)
+    if not school and not request.user.is_superuser:
+        return redirect("accounts:dashboard")
+    if not can_manage_finance(request.user):
+        messages.error(request, "Finance access required.")
+        return redirect("accounts:dashboard")
+    from finance.models import FixedAsset
+    assets = FixedAsset.objects.filter(school=school).order_by("category", "name")
+    category_filter = request.GET.get("category", "")
+    active_filter = request.GET.get("active", "1")
+    if category_filter:
+        assets = assets.filter(category=category_filter)
+    if active_filter == "1":
+        assets = assets.filter(is_active=True)
+    elif active_filter == "0":
+        assets = assets.filter(is_active=False)
+    categories = FixedAsset.ASSET_CATEGORIES
+    return render(request, "finance/fixed_asset_list.html", {
+        "assets": assets,
+        "school": school,
+        "categories": categories,
+        "category_filter": category_filter,
+        "active_filter": active_filter,
+    })
+
+
+@login_required
+def fixed_asset_create(request):
+    school = getattr(request.user, "school", None)
+    if not school or not can_manage_finance(request.user):
+        return redirect("accounts:dashboard")
+    from finance.models import FixedAsset, PurchaseOrder
+    error = None
+    if request.method == "POST":
+        try:
+            po_id = request.POST.get("linked_purchase_order") or None
+            po = PurchaseOrder.objects.filter(pk=po_id, school=school).first() if po_id else None
+            asset = FixedAsset(
+                school=school,
+                name=request.POST["name"],
+                category=request.POST.get("category", "other"),
+                description=request.POST.get("description", ""),
+                purchase_date=request.POST["purchase_date"],
+                purchase_cost=Decimal(request.POST["purchase_cost"]),
+                useful_life_years=int(request.POST.get("useful_life_years", 5)),
+                salvage_value=Decimal(request.POST.get("salvage_value", "0")),
+                condition=request.POST.get("condition", "good"),
+                location=request.POST.get("location", ""),
+                serial_number=request.POST.get("serial_number", ""),
+                supplier=request.POST.get("supplier", ""),
+                currency=request.POST.get("currency", school.currency if hasattr(school, "currency") else "GHS"),
+                linked_purchase_order=po,
+            )
+            asset.full_clean()
+            asset.save()
+            messages.success(request, f"Asset '{asset.name}' [{asset.asset_tag}] created.")
+            return redirect("finance:fixed_asset_list")
+        except Exception as e:
+            error = str(e)
+    return render(request, "finance/fixed_asset_form.html", {
+        "school": school,
+        "action": "Create",
+        "error": error,
+        "categories": FixedAsset.ASSET_CATEGORIES,
+        "conditions": FixedAsset.CONDITION_CHOICES,
+    })
+
+
+@login_required
+def fixed_asset_detail(request, pk):
+    school = getattr(request.user, "school", None)
+    if not school or not can_manage_finance(request.user):
+        return redirect("accounts:dashboard")
+    from finance.models import FixedAsset
+    asset = get_object_or_404(FixedAsset, pk=pk, school=school)
+    return render(request, "finance/fixed_asset_detail.html", {"asset": asset, "school": school})
+
+
+@login_required
+def fixed_asset_edit(request, pk):
+    school = getattr(request.user, "school", None)
+    if not school or not can_manage_finance(request.user):
+        return redirect("accounts:dashboard")
+    from finance.models import FixedAsset
+    asset = get_object_or_404(FixedAsset, pk=pk, school=school)
+    error = None
+    if request.method == "POST":
+        try:
+            asset.name = request.POST.get("name", asset.name)
+            asset.category = request.POST.get("category", asset.category)
+            asset.description = request.POST.get("description", asset.description)
+            asset.location = request.POST.get("location", asset.location)
+            asset.serial_number = request.POST.get("serial_number", asset.serial_number)
+            asset.supplier = request.POST.get("supplier", asset.supplier)
+            asset.condition = request.POST.get("condition", asset.condition)
+            asset.currency = request.POST.get("currency", asset.currency)
+            asset.full_clean()
+            asset.save()
+            messages.success(request, f"Asset '{asset.name}' updated.")
+            return redirect("finance:fixed_asset_detail", pk=asset.pk)
+        except Exception as e:
+            error = str(e)
+    return render(request, "finance/fixed_asset_form.html", {
+        "school": school,
+        "asset": asset,
+        "action": "Edit",
+        "error": error,
+        "categories": FixedAsset.ASSET_CATEGORIES,
+        "conditions": FixedAsset.CONDITION_CHOICES,
+    })
+
+
+@login_required
+def fixed_asset_dispose(request, pk):
+    school = getattr(request.user, "school", None)
+    if not school or not can_manage_finance(request.user):
+        return redirect("accounts:dashboard")
+    from finance.models import FixedAsset
+    asset = get_object_or_404(FixedAsset, pk=pk, school=school)
+    if request.method == "POST":
+        asset.is_active = False
+        asset.disposal_date = timezone.now().date()
+        asset.disposal_notes = request.POST.get("notes", "")
+        asset.condition = "written_off"
+        asset.save(update_fields=["is_active", "disposal_date", "disposal_notes", "condition", "updated_at"])
+        messages.success(request, f"Asset '{asset.name}' disposed.")
+        return redirect("finance:fixed_asset_list")
+    return render(request, "finance/fixed_asset_dispose.html", {"asset": asset, "school": school})
+
+
+# ============================================================
+# UX-2 — Approval Workflow Inbox
+# ============================================================
+
+@login_required
+def approval_inbox(request):
+    """Show pending WorkflowInstance rows where current step role matches the user's role."""
+    school = getattr(request.user, "school", None)
+    if not school and not request.user.is_superuser:
+        return redirect("accounts:dashboard")
+    from finance.models import WorkflowInstance
+    user_role = getattr(request.user, "role", None)
+    qs = WorkflowInstance.objects.filter(school=school, status__in=["pending", "in_progress"]).select_related("workflow")
+    pending_for_me = []
+    for inst in qs:
+        steps = inst.workflow.steps or []
+        step_def = next((s for s in steps if s.get("step") == inst.current_step), None)
+        if step_def and (step_def.get("role") == user_role or request.user.is_superuser):
+            pending_for_me.append(inst)
+    return render(request, "finance/approval_inbox.html", {
+        "instances": pending_for_me,
+        "school": school,
+    })
+
+
+@login_required
+def approval_advance(request, pk):
+    """Approve or reject a WorkflowInstance step."""
+    school = getattr(request.user, "school", None)
+    if not school and not request.user.is_superuser:
+        return redirect("accounts:dashboard")
+    from finance.models import WorkflowInstance
+    inst = get_object_or_404(WorkflowInstance, pk=pk, school=school)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        note = request.POST.get("note", "").strip()
+        if action not in ("approved", "rejected"):
+            messages.error(request, "Invalid action.")
+            return redirect("finance:approval_inbox")
+        try:
+            approved = inst.advance(actor=request.user, action=action, note=note)
+            if approved:
+                messages.success(request, f"Workflow #{inst.pk} fully approved.")
+            elif action == "rejected":
+                messages.warning(request, f"Workflow #{inst.pk} rejected at step {inst.current_step}.")
+            else:
+                messages.info(request, f"Step advanced. Workflow #{inst.pk} now at step {inst.current_step}.")
+        except PermissionError as e:
+            messages.error(request, str(e))
+    return redirect("finance:approval_inbox")

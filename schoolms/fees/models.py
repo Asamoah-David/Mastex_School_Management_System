@@ -5,7 +5,10 @@ User = get_user_model()
 
 
 class SubscriptionPlan(models.Model):
-    """Subscription plans for schools."""
+    """DEPRECATED — School.subscription_plan (Basic/Standard/Premium) drives feature gating.
+    This table is kept alive only to avoid breaking existing FK references.
+    Do NOT create new SubscriptionPlan or SchoolSubscription rows.
+    """
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)

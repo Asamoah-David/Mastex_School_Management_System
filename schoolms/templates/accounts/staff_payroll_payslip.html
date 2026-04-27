@@ -32,21 +32,77 @@
     <p style="margin:0;color:var(--text-secondary);font-size:0.85rem;">Payment advice / payslip</p>
     <dl class="payslip-grid">
         <dt>Employee</dt><dd>{{ payment.user.get_full_name|default:payment.user.username }}</dd>
+        <dt>Role</dt><dd>{{ payment.user.get_role_display|default:payment.user.role }}</dd>
         <dt>Period</dt><dd>{{ payment.period_label }}</dd>
         <dt>Paid on</dt><dd>{{ payment.paid_on }}</dd>
-        <dt>Amount</dt><dd>{{ payment.amount }} {{ payment.currency }}</dd>
-        <dt>Method</dt><dd>{{ payment.get_method_display }}</dd>
+        <dt>Payment method</dt><dd>{{ payment.get_method_display }}</dd>
         <dt>Reference</dt><dd>{{ payment.reference|default:"—" }}</dd>
-        {% if payment.paystack_status %}
-        <dt>Paystack</dt><dd>{{ payment.get_paystack_status_display }}{% if payment.paystack_transfer_code %} · {{ payment.paystack_transfer_code }}{% endif %}</dd>
-        {% endif %}
         {% if payment.recorded_by %}
-        <dt>Recorded by</dt><dd>{{ payment.recorded_by.get_full_name|default:payment.recorded_by.username }}</dd>
+        <dt>Prepared by</dt><dd>{{ payment.recorded_by.get_full_name|default:payment.recorded_by.username }}</dd>
+        {% endif %}
+        {% if payment.paystack_status %}
+        <dt>Transfer status</dt><dd>{{ payment.get_paystack_status_display }}{% if payment.paystack_transfer_code %} · {{ payment.paystack_transfer_code }}{% endif %}</dd>
         {% endif %}
     </dl>
+
+    <!-- Earnings & Deductions Table -->
+    <table style="width:100%;border-collapse:collapse;margin-top:1.25rem;font-size:0.875rem;">
+        <thead>
+            <tr style="background:var(--bg-subtle,#f1f5f9);">
+                <th style="text-align:left;padding:0.4rem 0.5rem;">Description</th>
+                <th style="text-align:right;padding:0.4rem 0.5rem;">{{ payment.currency }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Gross -->
+            {% if payment.gross_amount %}
+            <tr>
+                <td style="padding:0.35rem 0.5rem;">Gross Salary</td>
+                <td style="padding:0.35rem 0.5rem;text-align:right;">{{ payment.gross_amount }}</td>
+            </tr>
+            {% endif %}
+
+            <!-- Deductions from breakdown JSON -->
+            {% if payment.deductions_breakdown %}
+                {% with bd=payment.deductions_breakdown %}
+                {% if bd.ssnit_employee %}
+                <tr style="color:#dc2626;">
+                    <td style="padding:0.35rem 0.5rem;">SSNIT (Employee 5.5%)</td>
+                    <td style="padding:0.35rem 0.5rem;text-align:right;">({{ bd.ssnit_employee }})</td>
+                </tr>
+                {% endif %}
+                {% if bd.ssnit_employer %}
+                <tr style="color:#7c3aed;">
+                    <td style="padding:0.35rem 0.5rem;">SSNIT (Employer 13%)</td>
+                    <td style="padding:0.35rem 0.5rem;text-align:right;">{{ bd.ssnit_employer }}</td>
+                </tr>
+                {% endif %}
+                {% if bd.paye %}
+                <tr style="color:#dc2626;">
+                    <td style="padding:0.35rem 0.5rem;">PAYE Tax</td>
+                    <td style="padding:0.35rem 0.5rem;text-align:right;">({{ bd.paye }})</td>
+                </tr>
+                {% endif %}
+                {% if bd.total_deductions %}
+                <tr style="border-top:1px solid #e2e8f0;font-weight:600;color:#dc2626;">
+                    <td style="padding:0.4rem 0.5rem;">Total Deductions</td>
+                    <td style="padding:0.4rem 0.5rem;text-align:right;">({{ bd.total_deductions }})</td>
+                </tr>
+                {% endif %}
+                {% endwith %}
+            {% endif %}
+
+            <!-- Net pay -->
+            <tr style="border-top:2px solid #0f172a;background:var(--bg-subtle,#f1f5f9);font-weight:700;font-size:1rem;">
+                <td style="padding:0.5rem;">Net Pay</td>
+                <td style="padding:0.5rem;text-align:right;">{{ payment.net_amount|default:payment.amount }}</td>
+            </tr>
+        </tbody>
+    </table>
+
     {% if payment.notes %}
     <p style="margin-top:1rem;font-size:0.85rem;color:var(--text-secondary);"><strong>Notes:</strong> {{ payment.notes }}</p>
     {% endif %}
-    <p style="margin-top:1.5rem;font-size:0.75rem;color:var(--text-secondary);">Generated from Mastex SchoolOS. For queries, contact your school administration.</p>
+    <p style="margin-top:1.5rem;font-size:0.75rem;color:var(--text-secondary);">Generated from MastexEDU &bull; Confidential &bull; For queries contact your school administration.</p>
 </div>
 {% endblock %}

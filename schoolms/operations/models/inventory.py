@@ -2,9 +2,10 @@ from django.db import models
 from accounts.models import User
 from schools.models import School
 from django.core.exceptions import ValidationError
+from core.tenancy import SchoolScopedModel
 
 
-class InventoryCategory(models.Model):
+class InventoryCategory(SchoolScopedModel):
     """Categories for inventory items"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -25,7 +26,7 @@ class InventoryCategory(models.Model):
         return self.name
 
 
-class InventoryItem(models.Model):
+class InventoryItem(SchoolScopedModel):
     """School inventory items"""
     CONDITION_CHOICES = (
         ('new', 'New'),
@@ -66,7 +67,7 @@ class InventoryItem(models.Model):
         return self.quantity <= self.min_quantity
 
 
-class InventoryTransaction(models.Model):
+class InventoryTransaction(SchoolScopedModel):
     """Track inventory movements (additions, removals)"""
     TRANSACTION_TYPES = (
         ('purchase', 'Purchase'),

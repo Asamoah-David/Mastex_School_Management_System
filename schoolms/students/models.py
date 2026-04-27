@@ -1,9 +1,10 @@
 from django.db import models
 from accounts.models import ACADEMIC_ROLES, User
 from schools.models import School
+from core.tenancy import SchoolScopedModel, SoftDeleteManager, UnscopedManager
 
 
-class SchoolClass(models.Model):
+class SchoolClass(SchoolScopedModel):
     """Structured class/section with capacity and class teacher."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)  # e.g. "Form 1A", "Primary 3B"
@@ -29,6 +30,9 @@ class SchoolClass(models.Model):
 
 
 class Student(models.Model):
+    objects = SoftDeleteManager()
+    all_with_deleted = UnscopedManager()
+
     STATUS_CHOICES = (
         ("active", "Active"),
         ("graduated", "Graduated / Alumni"),
@@ -77,6 +81,11 @@ class Student(models.Model):
         help_text="Additional notes about the exit",
     )
 
+    deleted_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Set when soft-deleted. Use restore() to undo. Hard delete via hard_delete().",
+    )
+
     # Health Information
     blood_group = models.CharField(max_length=10, blank=True, null=True)  # e.g., "A+", "O-"
     allergies = models.TextField(blank=True, null=True)
@@ -106,12 +115,92 @@ class Student(models.Model):
     def __str__(self):
         return f"{self.user.get_full_name()} ({self.admission_number})"
 
+    def delete(self, using=None, keep_parents=False):
+        """Soft-delete: set deleted_at instead of removing the DB row."""
+        from django.utils import timezone
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at"])
+
+    def hard_delete(self):
+        """Permanently remove the row. Use only after confirming no historical dependencies."""
+        super().delete()
+
+    def restore(self):
+        self.deleted_at = None
+        self.save(update_fields=["deleted_at"])
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
+
     @property
     def is_active_student(self) -> bool:
         """
         Convenience flag combining the student record and linked user.
         """
         return self.status == "active" and bool(getattr(self.user, "is_active", True))
+
+
+class StudentGuardian(SchoolScopedModel):
+    """Multiple guardians / parents per student.
+
+    Replaces (and extends) the legacy single ``Student.parent`` FK.
+    The legacy FK is kept for backward compatibility but new code should
+    use this model for all parent-student relationships.
+    """
+
+    RELATIONSHIP_CHOICES = (
+        ("father", "Father"),
+        ("mother", "Mother"),
+        ("guardian", "Guardian"),
+        ("step_parent", "Step Parent"),
+        ("grandparent", "Grandparent"),
+        ("sibling", "Sibling"),
+        ("other", "Other"),
+    )
+
+    school = models.ForeignKey(
+        School,
+        on_delete=models.CASCADE,
+        related_name="student_guardians",
+        help_text="Denormalised from student.school for efficient tenant-scoped queries.",
+        null=True,
+        blank=True,
+    )
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="guardians")
+    guardian = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="ward_relationships",
+        limit_choices_to={"role": "parent"},
+    )
+    relationship = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES, default="guardian")
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Primary guardian receives all notifications and fee alerts.",
+    )
+    can_pickup = models.BooleanField(default=True, help_text="Authorised to collect student from school.")
+    emergency_contact = models.BooleanField(default=False, help_text="Listed as emergency contact.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Student Guardian"
+        verbose_name_plural = "Student Guardians"
+        unique_together = ("student", "guardian")
+        indexes = [
+            models.Index(fields=["guardian"], name="idx_stuguardian_guardian"),
+            models.Index(fields=["student", "is_primary"], name="idx_stuguardian_primary"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student"],
+                condition=models.Q(is_primary=True),
+                name="uniq_stuguardian_one_primary_per_student",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.guardian.get_full_name()} → {self.student} ({self.get_relationship_display()})"
 
 
 class StudentClearance(models.Model):

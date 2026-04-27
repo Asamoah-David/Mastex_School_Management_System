@@ -319,7 +319,14 @@ def build_fee_collection_trend(school=None, days: int = 30) -> dict[str, Any]:
         amounts.append(round(by_date.get(d.isoformat(), 0.0), 2))
         d += timedelta(days=1)
     has_data = any(a > 0 for a in amounts)
-    return {"labels": labels, "amounts": amounts, "has_data": has_data, "days": days}
+
+    window = 7
+    forecast: list[float] = []
+    for i in range(len(amounts)):
+        window_vals = [amounts[j] for j in range(max(0, i - window + 1), i + 1) if amounts[j] > 0]
+        forecast.append(round(sum(window_vals) / len(window_vals), 2) if window_vals else 0.0)
+
+    return {"labels": labels, "amounts": amounts, "forecast": forecast, "has_data": has_data, "days": days}
 
 
 def build_ar_aging_chart(school=None) -> dict[str, Any]:

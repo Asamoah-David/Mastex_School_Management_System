@@ -4,6 +4,45 @@ import uuid
 from django.conf import settings
 from django.http import HttpResponsePermanentRedirect
 
+# ---------------------------------------------------------------------------
+# SEC-6 — Content Security Policy
+# ---------------------------------------------------------------------------
+
+_CSP_DEFAULT = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+    "img-src 'self' data: blob: https:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self';"
+)
+
+
+class CspMiddleware:
+    """Inject Content-Security-Policy and related security headers on every response.
+
+    Override the policy via ``CSP_POLICY`` in settings. Set ``CSP_ENABLED=False``
+    to disable in DEBUG/testing without removing the middleware from MIDDLEWARE.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.policy = getattr(settings, "CSP_POLICY", _CSP_DEFAULT)
+        self.enabled = getattr(settings, "CSP_ENABLED", not settings.DEBUG)
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if self.enabled:
+            content_type = response.get("Content-Type", "")
+            if "text/html" in content_type:
+                response.setdefault("Content-Security-Policy", self.policy)
+                response.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+                response.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
 
 class CanonicalDomainMiddleware:
     """

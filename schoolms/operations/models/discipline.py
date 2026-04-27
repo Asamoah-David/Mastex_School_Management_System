@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from accounts.models import User
 from students.models import Student
 from schools.models import School
@@ -50,6 +51,12 @@ class BehaviorPoint(models.Model):
     
     class Meta:
         ordering = ["-awarded_at"]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(points__gte=-100) & Q(points__lte=100),
+                name='points_within_range'
+            ),
+        ]
     
     def __str__(self):
         return f"{self.student} - {self.points} points ({self.reason})"

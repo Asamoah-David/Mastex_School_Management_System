@@ -1,18 +1,17 @@
 import uuid
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.db import models
 from students.models import Student
 from schools.models import School
 from accounts.models import User
 from decimal import Decimal
-from core.tenancy import SchoolScopedManager
+from core.tenancy import SchoolScopedManager, SchoolScopedModel
 
 
-class FeeStructure(models.Model):
+class FeeStructure(SchoolScopedModel):
     """Defines fee types and amounts per class or school-wide."""
-    objects = models.Manager()
-    scoped = SchoolScopedManager()
 
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -42,10 +41,8 @@ class FeeStructure(models.Model):
         return f"{self.name}{scope} - {self.amount} GHS"
 
 
-class Fee(models.Model):
+class Fee(SchoolScopedModel):
     """Individual student fee with partial payment support."""
-    objects = models.Manager()
-    scoped = SchoolScopedManager()
 
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
@@ -60,8 +57,25 @@ class Fee(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     paid = models.BooleanField(default=False)
+    due_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date by which payment is expected. Used for reminders and overdue tracking.",
+        db_index=True,
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive fees are archived and excluded from reminders.",
+    )
+    description = models.CharField(
+        max_length=255, blank=True,
+        help_text="Optional human-readable label (e.g. 'Term 1 School Fees 2025').",
+    )
     paystack_payment_id = models.CharField(max_length=255, blank=True, null=True)
     paystack_reference = models.CharField(max_length=255, blank=True, null=True)
+    deleted_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Soft-delete timestamp. Non-null = archived fee.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -83,6 +97,7 @@ class Fee(models.Model):
             models.Index(fields=["school", "student"], name="idx_fee_school_student"),
             models.Index(fields=["school", "paid"], name="idx_fee_school_paid"),
             models.Index(fields=["student", "paid"], name="idx_fee_student_paid"),
+            models.Index(fields=["school", "due_date", "is_active"], name="idx_fee_school_due_active"),
         ]
 
     @property
@@ -129,6 +144,25 @@ class Fee(models.Model):
         # Auto-update legacy paid field
         self.paid = self.is_fully_paid
         super().save(*args, **kwargs)
+
+    def delete(self, using=None, keep_parents=False):
+        """Soft-delete: archive instead of removing so payment history is preserved."""
+        from django.utils import timezone
+        self.deleted_at = timezone.now()
+        self.is_active = False
+        self.save(update_fields=["deleted_at", "is_active"])
+
+    def hard_delete(self):
+        super().delete()
+
+    def restore(self):
+        self.deleted_at = None
+        self.is_active = True
+        self.save(update_fields=["deleted_at", "is_active"])
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
     def __str__(self):
         status = "PAID" if self.is_fully_paid else f"GHS {self.remaining_balance} remaining"
@@ -225,6 +259,13 @@ class PaymentTransaction(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
     payment_type = models.CharField(max_length=50, blank=True, default="")
     object_id = models.CharField(max_length=64, blank=True, default="")
+    content_type = models.ForeignKey(
+        "contenttypes.ContentType",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        help_text="ContentType of the payment subject (Fee, CanteenPayment, BusPayment, etc.). Used with object_id to form a GenericForeignKey.",
+    )
+    content_object = GenericForeignKey("content_type", "object_id")
     metadata = models.JSONField(default=dict, blank=True)
     review_status = models.CharField(
         max_length=20,
@@ -250,6 +291,7 @@ class PaymentTransaction(models.Model):
             models.Index(fields=["provider", "status"], name="idx_paytx_provider_status"),
             models.Index(fields=["school", "status", "created_at"], name="idx_paytx_s_st_cr"),
             models.Index(fields=["school", "payment_type", "created_at"], name="idx_paytx_school_type_created"),
+            models.Index(fields=["content_type", "object_id"], name="idx_paytx_ct_obj"),
         ]
 
     def __str__(self):
@@ -585,3 +627,584 @@ class StaffPayoutRequest(models.Model):
 
     def __str__(self):
         return f"Payout {self.reference} {self.status} {self.amount} {self.currency}"
+
+
+# ---------------------------------------------------------------------------
+# Bank / Paystack reconciliation (Fix #35)
+# ---------------------------------------------------------------------------
+
+class PaystackSettlement(models.Model):
+    """Records Paystack settlement payouts (batch disbursements from Paystack to school bank).
+
+    Populated from the Paystack Settlements API or settlement webhook.
+    Reconciled against FeePayment rows to detect discrepancies.
+    """
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("processing", "Processing"),
+        ("settled", "Settled"),
+        ("failed", "Failed"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="paystack_settlements")
+    settlement_id = models.CharField(max_length=100, unique=True, help_text="Paystack settlement ID.")
+    batch_reference = models.CharField(max_length=100, blank=True)
+    amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Gross settlement amount in subunit / 100.")
+    effective_amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Net after Paystack deductions.")
+    settlement_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    transactions_count = models.PositiveIntegerField(default=0)
+    raw_payload = models.JSONField(default=dict, blank=True, help_text="Raw Paystack settlement JSON for audit.")
+    reconciled = models.BooleanField(default=False, db_index=True)
+    reconciliation_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Paystack Settlement"
+        verbose_name_plural = "Paystack Settlements"
+        ordering = ["-settlement_date", "-id"]
+        indexes = [
+            models.Index(fields=["school", "settlement_date"], name="idx_pssettl_school_date"),
+            models.Index(fields=["school", "reconciled"], name="idx_pssettl_school_rec"),
+        ]
+
+    def __str__(self):
+        return f"Settlement {self.settlement_id} | {self.effective_amount} GHS | {self.settlement_date}"
+
+    def reconcile(self):
+        """Match this settlement's transactions against FeePayment records.
+
+        Sets reconciled=True and appends a summary note.
+        """
+        from django.db.models import Sum
+        matched = FeePayment.objects.filter(
+            school=self.school,
+            paystack_reference__isnull=False,
+            status="completed",
+            paid_at__date=self.settlement_date,
+        ).aggregate(total=Sum("amount_paid"))["total"] or 0
+        discrepancy = self.effective_amount - matched
+        self.reconciled = True
+        self.reconciliation_notes = (
+            f"Matched GHS {matched:.2f} against settlement GHS {self.effective_amount:.2f}. "
+            f"Discrepancy: GHS {discrepancy:.2f}."
+        )
+        self.save(update_fields=["reconciled", "reconciliation_notes"])
+
+
+# ---------------------------------------------------------------------------
+# M8 — Bank Account per school
+# ---------------------------------------------------------------------------
+
+class BankAccount(SchoolScopedModel):
+    """School bank accounts for multi-account ledger tracking."""
+
+    ACCOUNT_TYPES = [
+        ("fees", "Fees Collection"),
+        ("salary", "Salary Disbursement"),
+        ("petty_cash", "Petty Cash"),
+        ("investment", "Investment"),
+        ("other", "Other"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="bank_accounts")
+    account_name = models.CharField(max_length=200)
+    bank_name = models.CharField(max_length=200)
+    account_number = models.CharField(max_length=50)
+    branch = models.CharField(max_length=200, blank=True)
+    account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES, default="fees")
+    currency = models.CharField(max_length=3, default="GHS")
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Bank Account"
+        verbose_name_plural = "Bank Accounts"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "account_number", "bank_name"],
+                name="uniq_bankaccount_school_number_bank",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["school", "account_type"], name="idx_bankacct_school_type"),
+        ]
+
+    def __str__(self):
+        return f"{self.bank_name} — {self.account_number} ({self.get_account_type_display()})"
+
+
+# ---------------------------------------------------------------------------
+# M5/E7 — Fee Installment Plans and Discounts
+# ---------------------------------------------------------------------------
+
+class FeeInstallmentPlan(SchoolScopedModel):
+    """Breaks a fee into scheduled installment payments.
+
+    Links to a Fee record and defines due-date/amount per installment.
+    """
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="installment_plans")
+    fee = models.ForeignKey(
+        "finance.Fee",
+        on_delete=models.CASCADE,
+        related_name="installment_plans",
+    )
+    installment_number = models.PositiveSmallIntegerField()
+    due_date = models.DateField()
+    amount_due = models.DecimalField(max_digits=12, decimal_places=2)
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("pending", "Pending"),
+            ("partial", "Partially Paid"),
+            ("paid", "Paid"),
+            ("overdue", "Overdue"),
+        ],
+        default="pending",
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Fee Installment"
+        verbose_name_plural = "Fee Installments"
+        ordering = ["installment_number"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fee", "installment_number"],
+                name="uniq_installment_fee_num",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["school", "status", "due_date"], name="idx_install_school_status_due"),
+        ]
+
+    def __str__(self):
+        return f"Installment {self.installment_number} for {self.fee} — due {self.due_date}"
+
+    @property
+    def balance(self):
+        return self.amount_due - self.amount_paid
+
+
+class FeeDiscount(SchoolScopedModel):
+    """Scholarship, hardship, sibling or merit discounts applied to a Fee."""
+
+    DISCOUNT_TYPES = [
+        ("scholarship", "Scholarship"),
+        ("sibling", "Sibling Discount"),
+        ("merit", "Merit Award"),
+        ("hardship", "Hardship Waiver"),
+        ("staff_child", "Staff Child Benefit"),
+        ("other", "Other"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="fee_discounts")
+    fee = models.ForeignKey(
+        "finance.Fee",
+        on_delete=models.CASCADE,
+        related_name="discounts",
+    )
+    discount_type = models.CharField(max_length=30, choices=DISCOUNT_TYPES)
+    percentage = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Percentage off the fee amount (0–100).",
+    )
+    fixed_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Fixed GHS amount to discount (used if percentage is blank).",
+    )
+    reason = models.TextField(blank=True)
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="approved_discounts",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Fee Discount"
+        verbose_name_plural = "Fee Discounts"
+        indexes = [
+            models.Index(fields=["school", "discount_type"], name="idx_feediscount_school_type"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_discount_type_display()} on {self.fee}"
+
+    @property
+    def discount_amount(self):
+        if self.percentage:
+            return (self.fee.amount * self.percentage / 100).quantize(Decimal("0.01"))
+        return self.fixed_amount or Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# M4/E12 — Purchase Order module
+# ---------------------------------------------------------------------------
+
+class PurchaseOrder(SchoolScopedModel):
+    """Formal procurement request from draft through supplier receipt.
+
+    Workflow: draft → submitted → approved → ordered → received → paid | cancelled
+    """
+
+    STATUS_CHOICES = [
+        ("draft", "Draft"),
+        ("submitted", "Submitted for Approval"),
+        ("approved", "Approved"),
+        ("ordered", "Ordered from Supplier"),
+        ("received", "Goods Received"),
+        ("paid", "Paid"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="purchase_orders")
+    po_number = models.CharField(max_length=50, blank=True, help_text="Auto-generated reference")
+    supplier_name = models.CharField(max_length=200)
+    supplier_contact = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft", db_index=True)
+    order_date = models.DateField(null=True, blank=True)
+    expected_delivery_date = models.DateField(null=True, blank=True)
+    actual_delivery_date = models.DateField(null=True, blank=True)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"))
+    tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("0"),
+        help_text="VAT/tax rate as percentage (e.g. 15.00 for 15%).",
+    )
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    grand_total = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal("0"),
+        help_text="total_amount + tax_amount",
+    )
+    currency = models.CharField(max_length=3, default="GHS")
+    notes = models.TextField(blank=True)
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True,
+        related_name="purchase_orders_requested",
+    )
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="purchase_orders_approved",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    linked_expense = models.OneToOneField(
+        "operations.Expense", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="purchase_order",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Purchase Order"
+        verbose_name_plural = "Purchase Orders"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["school", "status"], name="idx_po_school_status"),
+        ]
+
+    def __str__(self):
+        return f"PO-{self.po_number or self.pk} | {self.supplier_name} | {self.status}"
+
+    def save(self, *args, **kwargs):
+        if not self.po_number:
+            self.po_number = self._generate_po_number()
+        super().save(*args, **kwargs)
+
+    def _generate_po_number(self) -> str:
+        """Generate sequential, collision-safe PO number: PO-{school_pk}-{year}-{seq}."""
+        from django.utils import timezone as _tz
+        year = _tz.now().year
+        prefix = f"PO-{self.school_id}-{year}-"
+        last = (
+            PurchaseOrder.objects.filter(
+                school_id=self.school_id,
+                po_number__startswith=prefix,
+            )
+            .order_by("-po_number")
+            .values_list("po_number", flat=True)
+            .first()
+        )
+        seq = 1
+        if last:
+            try:
+                seq = int(last.split("-")[-1]) + 1
+            except (ValueError, IndexError):
+                seq = PurchaseOrder.objects.filter(school_id=self.school_id).count() + 1
+        return f"{prefix}{seq:04d}"
+
+    def recalculate_total(self):
+        from django.db.models import Sum
+        total = self.items.aggregate(t=Sum("total_price"))["t"] or Decimal("0")
+        self.total_amount = total
+        self.tax_amount = (total * self.tax_rate / Decimal("100")).quantize(Decimal("0.01"))
+        self.grand_total = self.total_amount + self.tax_amount
+        self.save(update_fields=["total_amount", "tax_amount", "grand_total"])
+
+
+class PurchaseOrderItem(SchoolScopedModel):
+    """Line item within a PurchaseOrder."""
+
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="items")
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="purchase_order_items")
+    description = models.CharField(max_length=300)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    total_price = models.DecimalField(max_digits=14, decimal_places=2)
+    inventory_item = models.ForeignKey(
+        "operations.InventoryItem",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="purchase_order_items",
+    )
+    received_quantity = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Purchase Order Item"
+        verbose_name_plural = "Purchase Order Items"
+
+    def __str__(self):
+        return f"{self.description} × {self.quantity} @ GHS {self.unit_price}"
+
+    def save(self, *args, **kwargs):
+        self.total_price = Decimal(str(self.unit_price)) * self.quantity
+        super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# E-4 — Central approval workflow engine
+# ---------------------------------------------------------------------------
+
+class ApprovalWorkflow(SchoolScopedModel):
+    """Defines an approval pipeline for a given content type (e.g., Expense, PurchaseOrder).
+
+    Steps are stored as an ordered JSON list: [{"step": 1, "role": "bursar", "label": "Finance Review"}, ...]
+    """
+    WORKFLOW_TYPES = [
+        ("expense", "Expense Approval"),
+        ("purchase_order", "Purchase Order Approval"),
+        ("leave", "Leave Request Approval"),
+        ("payroll", "Payroll Approval"),
+        ("custom", "Custom"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="approval_workflows")
+    name = models.CharField(max_length=150)
+    workflow_type = models.CharField(max_length=30, choices=WORKFLOW_TYPES, default="custom", db_index=True)
+    steps = models.JSONField(
+        default=list,
+        help_text=(
+            "Ordered list of approval steps: "
+            '[{"step": 1, "role": "bursar", "label": "Finance check"}]. '
+            "Supported role values match User.role choices."
+        ),
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Approval Workflow"
+        verbose_name_plural = "Approval Workflows"
+        unique_together = [("school", "workflow_type")]
+        ordering = ["school", "workflow_type"]
+
+    def __str__(self):
+        return f"{self.name} [{self.get_workflow_type_display()}]"
+
+
+class WorkflowInstance(SchoolScopedModel):
+    """Tracks a single object through an ApprovalWorkflow.
+
+    ``content_type`` (FK → ContentType) + ``object_id`` form a real
+    Django GenericForeignKey to the subject (Expense, PurchaseOrder, etc.).
+    """
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("in_progress", "In Progress"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="workflow_instances")
+    workflow = models.ForeignKey(ApprovalWorkflow, on_delete=models.PROTECT, related_name="instances")
+    content_type = models.ForeignKey(
+        "contenttypes.ContentType",
+        on_delete=models.CASCADE,
+        null=True,
+        help_text="ContentType of the subject model.",
+    )
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+    current_step = models.PositiveSmallIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    steps_snapshot = models.JSONField(
+        default=list,
+        help_text="Frozen copy of workflow.steps at the time this instance was created. "
+                  "advance() uses this so edits to the parent workflow never corrupt in-flight approvals.",
+    )
+    initiated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="workflow_instances_initiated",
+    )
+    history = models.JSONField(
+        default=list,
+        help_text=(
+            "Append-only list of step outcomes: "
+            '[{"step": 1, "actor": 5, "action": "approved", "note": "", "ts": "..."}]'
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Workflow Instance"
+        verbose_name_plural = "Workflow Instances"
+        indexes = [
+            models.Index(fields=["school", "status"], name="idx_wfinst_school_status"),
+            models.Index(fields=["content_type", "object_id"], name="idx_wfinst_ct_obj"),
+        ]
+
+    def __str__(self):
+        ct = self.content_type.model if self.content_type_id else "?"
+        return f"WF#{self.pk} {ct}#{self.object_id} [{self.status}]"
+
+    def save(self, *args, **kwargs):
+        if not self.pk and not self.steps_snapshot:
+            self.steps_snapshot = list(self.workflow.steps or [])
+        super().save(*args, **kwargs)
+
+    def advance(self, actor, action: str, note: str = "") -> bool:
+        """Record a step outcome (approved/rejected) and advance or finalise the workflow.
+
+        Uses steps_snapshot (frozen at creation) so edits to the parent workflow
+        never corrupt in-flight approvals. Raises PermissionError on role mismatch.
+        """
+        from django.utils import timezone as _tz
+        steps = self.steps_snapshot or self.workflow.steps or []
+        if not getattr(actor, "is_superuser", False):
+            step_def = next((s for s in steps if s.get("step") == self.current_step), None)
+            if step_def:
+                expected_role = step_def.get("role")
+                if expected_role and getattr(actor, "role", None) != expected_role:
+                    raise PermissionError(
+                        f"Workflow step {self.current_step} requires role '{expected_role}'; "
+                        f"actor has role '{getattr(actor, 'role', 'unknown')}'."
+                    )
+        step_record = {
+            "step": self.current_step,
+            "actor": actor.pk if actor else None,
+            "action": action,
+            "note": note,
+            "ts": _tz.now().isoformat(),
+        }
+        self.history = list(self.history) + [step_record]
+        if action == "rejected":
+            self.status = "rejected"
+        else:
+            total_steps = len(steps)
+            if self.current_step >= total_steps:
+                self.status = "approved"
+            else:
+                self.current_step += 1
+                self.status = "in_progress"
+        self.save(update_fields=["current_step", "status", "history", "updated_at"])
+        return self.status == "approved"
+
+
+# ---------------------------------------------------------------------------
+# E-6 — Fixed Asset register with straight-line depreciation
+# ---------------------------------------------------------------------------
+
+class FixedAsset(SchoolScopedModel):
+    """School fixed assets with annual straight-line depreciation tracking."""
+
+    ASSET_CATEGORIES = [
+        ("land", "Land & Buildings"),
+        ("furniture", "Furniture & Fittings"),
+        ("it_equipment", "IT Equipment"),
+        ("vehicles", "Vehicles"),
+        ("lab_equipment", "Lab Equipment"),
+        ("sports_equipment", "Sports Equipment"),
+        ("other", "Other"),
+    ]
+    CONDITION_CHOICES = [
+        ("excellent", "Excellent"),
+        ("good", "Good"),
+        ("fair", "Fair"),
+        ("poor", "Poor"),
+        ("written_off", "Written Off"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="fixed_assets")
+    asset_tag = models.CharField(max_length=50, unique=True, help_text="Unique asset identifier (e.g. FA-2025-001)")
+    name = models.CharField(max_length=200)
+    category = models.CharField(max_length=30, choices=ASSET_CATEGORIES, default="other", db_index=True)
+    description = models.TextField(blank=True)
+    purchase_date = models.DateField()
+    purchase_cost = models.DecimalField(max_digits=14, decimal_places=2)
+    useful_life_years = models.PositiveSmallIntegerField(default=5, help_text="Estimated lifespan for straight-line depreciation.")
+    salvage_value = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    current_book_value = models.DecimalField(max_digits=14, decimal_places=2, help_text="Updated annually by the depreciation task.")
+    condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, default="good", db_index=True)
+    location = models.CharField(max_length=200, blank=True)
+    serial_number = models.CharField(max_length=100, blank=True)
+    supplier = models.CharField(max_length=200, blank=True)
+    currency = models.CharField(
+        max_length=8, default="GHS",
+        help_text="Purchase / valuation currency (ISO-4217). Inherited from school.currency by default.",
+    )
+    linked_purchase_order = models.ForeignKey(
+        PurchaseOrder, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="assets", help_text="Procurement PO that brought this asset into service.",
+    )
+    is_active = models.BooleanField(default=True, help_text="False = disposed/written off.")
+    disposal_date = models.DateField(null=True, blank=True)
+    disposal_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Fixed Asset"
+        verbose_name_plural = "Fixed Assets"
+        ordering = ["school", "category", "name"]
+        indexes = [
+            models.Index(fields=["school", "category"], name="idx_fasset_school_cat"),
+            models.Index(fields=["school", "is_active"], name="idx_fasset_school_active"),
+        ]
+
+    def __str__(self):
+        return f"[{self.asset_tag}] {self.name} ({self.school})"
+
+    def save(self, *args, **kwargs):
+        if not self.asset_tag:
+            import uuid
+            from django.utils import timezone as _tz
+            year = _tz.now().year
+            short_id = uuid.uuid4().hex[:8].upper()
+            self.asset_tag = f"FA-{self.school_id}-{year}-{short_id}"
+        if not self.pk:
+            self.current_book_value = self.purchase_cost
+        super().save(*args, **kwargs)
+
+    @property
+    def annual_depreciation(self) -> Decimal:
+        """Straight-line depreciation per year."""
+        if self.useful_life_years <= 0:
+            return Decimal("0")
+        return ((self.purchase_cost - self.salvage_value) / self.useful_life_years).quantize(Decimal("0.01"))
+
+    def apply_annual_depreciation(self):
+        """Reduce book value by one year's depreciation (call once per year)."""
+        new_val = max(self.current_book_value - self.annual_depreciation, self.salvage_value)
+        self.current_book_value = new_val
+        if new_val <= self.salvage_value:
+            self.condition = "written_off"
+        self.save(update_fields=["current_book_value", "condition", "updated_at"])

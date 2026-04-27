@@ -1,9 +1,9 @@
 from django.contrib import admin
 from .models import (
     StudentAttendance, TeacherAttendance, AcademicCalendar,
-    CanteenItem, CanteenPayment, BusRoute, BusPayment,
+    CanteenItem, CanteenPayment, BusRoute, BusPayment, BusPaymentLedger,
     Textbook, TextbookSale, Announcement, StaffLeave, ActivityLog,
-    LibraryBook, LibraryIssue, Hostel, HostelRoom, HostelAssignment,
+    LibraryBook, LibraryIssue, LibraryFine, Hostel, HostelRoom, HostelAssignment,
     AdmissionApplication, Certificate, StudentIDCard, StaffIDCard,
     ExpenseCategory, Expense, Budget,
     DisciplineIncident, BehaviorPoint, InventoryCategory, InventoryItem,
@@ -266,3 +266,53 @@ class ActivityLogAdmin(admin.ModelAdmin):
     list_filter = ("school", "action")
     search_fields = ("action", "user__username")
     raw_id_fields = ("user",)
+
+
+class BusPaymentLedgerInline(admin.TabularInline):
+    model = BusPaymentLedger
+    extra = 0
+    readonly_fields = ("amount", "payment_reference", "payment_date", "recorded_by")
+    can_delete = False
+
+
+@admin.register(BusPaymentLedger)
+class BusPaymentLedgerAdmin(admin.ModelAdmin):
+    list_display = ("bus_payment", "amount", "payment_reference", "payment_date", "recorded_by")
+    list_select_related = ("bus_payment", "recorded_by")
+    search_fields = ("payment_reference",)
+    readonly_fields = ("payment_date",)
+    raw_id_fields = ("bus_payment", "recorded_by")
+
+
+class LibraryFineInline(admin.StackedInline):
+    model = LibraryFine
+    extra = 0
+    readonly_fields = ("created_at", "updated_at")
+    can_delete = False
+
+
+@admin.register(LibraryFine)
+class LibraryFineAdmin(admin.ModelAdmin):
+    list_display = ("issue", "school", "fine_amount", "amount_paid", "balance_display", "status")
+    list_select_related = ("issue", "issue__student", "issue__student__user", "school", "waived_by")
+    list_filter = ("school", "status")
+    search_fields = (
+        "issue__student__admission_number",
+        "issue__student__user__first_name",
+        "issue__student__user__last_name",
+    )
+    raw_id_fields = ("issue", "school", "waived_by")
+    readonly_fields = ("created_at", "updated_at")
+    actions = ["waive_selected_fines"]
+
+    def balance_display(self, obj):
+        return obj.balance
+    balance_display.short_description = "Balance"
+
+    @admin.action(description="Waive selected library fines")
+    def waive_selected_fines(self, request, queryset):
+        count = 0
+        for fine in queryset.exclude(status__in=["paid", "waived"]):
+            fine.waive(user=request.user, reason="Bulk waiver via admin")
+            count += 1
+        self.message_user(request, f"{count} fine(s) waived.")

@@ -1,9 +1,10 @@
 from django.db import models
 from students.models import Student
 from schools.models import School
+from core.tenancy import SchoolScopedModel
 
 
-class Alumni(models.Model):
+class Alumni(SchoolScopedModel):
     """Track past students (alumni)"""
     student = models.ForeignKey(Student, on_delete=models.SET_NULL, null=True, related_name='alumni_record')
     school = models.ForeignKey(School, on_delete=models.CASCADE)
@@ -36,7 +37,7 @@ class Alumni(models.Model):
         return f"{self.first_name} {self.last_name} ({self.graduation_year})"
 
 
-class AlumniEvent(models.Model):
+class AlumniEvent(SchoolScopedModel):
     """Alumni association events"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)

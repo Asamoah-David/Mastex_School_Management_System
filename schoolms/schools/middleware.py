@@ -12,11 +12,44 @@ from core.subscription_access import (
 
 from .models import School
 
+_SUBSCRIPTION_CACHE_TTL = 60  # seconds
+
+
+def _refresh_school_subscription_cached(school):
+    """Update the in-memory school object's subscription fields using a
+    short-lived per-school cache to avoid a DB round-trip on every request.
+
+    Calls maybe_update_subscription_status_from_dates() at most once per
+    ``_SUBSCRIPTION_CACHE_TTL`` seconds per school, then refreshes only the
+    subscription-related fields from DB.
+    """
+    school_pk = school.pk
+    staleness_key = f"sub_checked:{school_pk}"
+    if cache.get(staleness_key):
+        return
+    maybe_update_subscription_status_from_dates(school)
+    try:
+        fresh = School.objects.only(
+            "subscription_status",
+            "subscription_end_date",
+            "subscription_start_date",
+            "subscription_grace_days",
+            "is_active",
+        ).get(pk=school_pk)
+        school.subscription_status = fresh.subscription_status
+        school.subscription_end_date = fresh.subscription_end_date
+        school.subscription_start_date = fresh.subscription_start_date
+        school.subscription_grace_days = fresh.subscription_grace_days
+        school.is_active = fresh.is_active
+    except School.DoesNotExist:
+        pass
+    cache.set(staleness_key, True, _SUBSCRIPTION_CACHE_TTL)
+
 
 class SchoolMiddleware:
     _skip_paths = frozenset([
-        "/", "/health/", "/accounts/login/", "/accounts/logout/", "/accounts/dashboard/",
-        "/accounts/school-dashboard/", "/login/", "/logout/", "/register/",
+        "/", "/health/", "/ready/", "/accounts/login/", "/accounts/logout/",
+        "/login/", "/logout/", "/register/",
         "/admin/login/", "/portal/",
     ])
     _skip_prefixes = ("/static/", "/media/", "/admin/jsi18n/", "/portal")
@@ -106,16 +139,16 @@ class SchoolMiddleware:
             logout(request)
             return redirect(f"{reverse('accounts:login')}?inactive=1")
 
-        maybe_update_subscription_status_from_dates(user_school)
-        user_school.refresh_from_db()
+        _refresh_school_subscription_cached(user_school)
 
         if subscription_hard_block_applies(user_school):
             if not any(request.path.startswith(p) for p in self._subscription_paths):
-                # For AJAX/JSON requests, return JSON error instead of HTML
                 is_ajax = (
                     request.headers.get("X-Requested-With") == "XMLHttpRequest"
                     or "application/json" in request.headers.get("Accept", "")
                     or "application/json" in request.headers.get("Content-Type", "")
+                    or request.headers.get("HX-Request") == "true"
+                    or request.path.startswith("/api/")
                 )
                 if is_ajax:
                     from django.http import JsonResponse

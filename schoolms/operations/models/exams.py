@@ -3,9 +3,10 @@ from accounts.models import User
 from students.models import Student
 from schools.models import School
 from django.core.exceptions import ValidationError
+from core.tenancy import SchoolScopedModel
 
 
-class ExamHall(models.Model):
+class ExamHall(SchoolScopedModel):
     """Examination halls"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -21,7 +22,7 @@ class ExamHall(models.Model):
         return f"{self.name} ({self.total_seats} seats)"
 
 
-class SeatingPlan(models.Model):
+class SeatingPlan(SchoolScopedModel):
     """Exam seating arrangements"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     exam_schedule = models.ForeignKey('academics.ExamSchedule', on_delete=models.CASCADE, related_name='seating_plans')
@@ -47,7 +48,7 @@ class SeatingPlan(models.Model):
         super().save(*args, **kwargs)
 
 
-class SeatAssignment(models.Model):
+class SeatAssignment(SchoolScopedModel):
     """Individual seat assignments"""
     seating_plan = models.ForeignKey(SeatingPlan, on_delete=models.CASCADE, related_name='seat_assignments')
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='seat_assignments')

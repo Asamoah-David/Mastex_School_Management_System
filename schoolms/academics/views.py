@@ -37,6 +37,7 @@ from .models import (
     bulk_annotate_grades,
 )
 from core.pagination import paginate
+from .pdf_report import _build_report_card_pdf_bytes
 
 from core.utils import get_school as _get_school, can_manage as _user_can_manage_school
 
@@ -1419,24 +1420,21 @@ def report_card_pdf(request, student_id):
         return redirect("home")
 
     term_id = request.GET.get("term")
-    results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("term", "subject")
-    term_label = ""
+    term = None
     if term_id:
-        results = results.filter(term_id=term_id)
         term = Term.objects.filter(id=term_id, school=school).first()
-        term_label = term.name if term else ""
+    if not term:
+        term = Term.objects.filter(school=school, is_current=True).first()
 
-    total = sum(r.score for r in results) if results else 0
-    avg = (total / len(results)) if results else 0
-    pdf_bytes = _build_report_card_pdf_bytes(
-        school=school,
-        student=student,
-        results=list(results),
-        average=round(avg, 1),
-        term_label=term_label,
-    )
+    try:
+        pdf_bytes = _build_report_card_pdf_bytes(student, term, school)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("PDF generation failed for student %s", student_id)
+        return HttpResponse(f"PDF generation failed: {exc}", status=500, content_type="text/plain")
 
-    filename = f"report_card_{student.admission_number}_{term_label or 'all'}.pdf".replace(" ", "_")
+    term_label = term.name if term else "all"
+    filename = f"report_card_{student.admission_number or student_id}_{term_label}.pdf".replace(" ", "_").replace("/", "-")
     resp = HttpResponse(pdf_bytes, content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
@@ -1459,11 +1457,6 @@ def report_cards_export_zip(request):
         messages.error(request, "Please select a class to export.")
         return redirect("academics:report_card_generator")
 
-    term_label = ""
-    if term_id:
-        term = Term.objects.filter(id=term_id, school=school).first()
-        term_label = term.name if term else ""
-
     students = (
         Student.objects.filter(school=school, class_name=class_name)
         .select_related("user")
@@ -1472,27 +1465,29 @@ def report_cards_export_zip(request):
 
     from io import BytesIO
     import zipfile
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    term = None
+    if term_id:
+        term = Term.objects.filter(id=term_id, school=school).first()
+    if not term:
+        term = Term.objects.filter(school=school, is_current=True).first()
+    term_label = term.name if term else "all"
 
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for s in students:
-            results = Result.objects.filter(student=s).select_related("subject", "exam_type", "term").order_by("term", "subject")
-            if term_id:
-                results = results.filter(term_id=term_id)
-            total = sum(r.score for r in results) if results else 0
-            avg = (total / len(results)) if results else 0
-            pdf_bytes = _build_report_card_pdf_bytes(
-                school=school,
-                student=s,
-                results=list(results),
-                average=round(avg, 1),
-                term_label=term_label,
-            )
-            safe_name = (s.user.get_full_name() or s.user.username or s.admission_number).strip().replace(" ", "_")
-            entry = f"{class_name.replace(' ', '_')}/{safe_name}_{s.admission_number}.pdf"
+            try:
+                pdf_bytes = _build_report_card_pdf_bytes(s, term, school)
+            except Exception as exc:
+                _logger.warning("Skipping PDF for student %s: %s", s.pk, exc)
+                continue
+            safe_name = (s.user.get_full_name() or s.user.username or str(s.admission_number)).strip().replace(" ", "_")
+            entry = f"{class_name.replace(' ', '_')}/{safe_name}_{s.admission_number or s.pk}.pdf"
             zf.writestr(entry, pdf_bytes)
 
-    zip_filename = f"report_cards_{class_name}_{term_label or 'all'}.zip".replace(" ", "_")
+    zip_filename = f"report_cards_{class_name}_{term_label}.zip".replace(" ", "_").replace("/", "-")
     resp = HttpResponse(zip_buf.getvalue(), content_type="application/zip")
     resp["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
     return resp

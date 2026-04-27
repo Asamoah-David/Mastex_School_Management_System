@@ -1,9 +1,10 @@
-from django.db import models
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
 from students.models import Student
 from schools.models import School
 from accounts.models import User
-from django.db import transaction
-from decimal import Decimal
 
 
 class Hostel(models.Model):
@@ -63,6 +64,24 @@ class HostelAssignment(models.Model):
     def __str__(self):
         return f"{self.student} - {self.hostel.name}"
 
+    def clean(self):
+        super().clean()
+        if self.school_id and self.student_id:
+            s_school = getattr(self.student, "school_id", None)
+            if s_school is not None and s_school != self.school_id:
+                raise ValidationError({"student": "Student must belong to the same school as the hostel assignment."})
+        if self.school_id and self.hostel_id:
+            h_school = getattr(self.hostel, "school_id", None)
+            if h_school is not None and h_school != self.school_id:
+                raise ValidationError({"hostel": "Hostel must belong to the same school as the assignment."})
+        if self.hostel_id and self.room_id:
+            if self.room.hostel_id != self.hostel_id:
+                raise ValidationError({"room": "Room must belong to the selected hostel."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 class HostelFee(models.Model):
     """Hostel fee tracking with partial payment support"""
@@ -105,7 +124,22 @@ class HostelFee(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.hostel.name} - {self.term}"
-    
+
+    def clean(self):
+        super().clean()
+        if self.school_id and self.student_id:
+            s_school = getattr(self.student, "school_id", None)
+            if s_school is not None and s_school != self.school_id:
+                raise ValidationError({"student": "Student must belong to the same school as the hostel fee."})
+        if self.school_id and self.hostel_id:
+            h_school = getattr(self.hostel, "school_id", None)
+            if h_school is not None and h_school != self.school_id:
+                raise ValidationError({"hostel": "Hostel must belong to the same school as the fee."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     @property
     def balance(self):
         """Calculate remaining balance"""

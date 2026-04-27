@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User
-from .hr_models import StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment
+from .models import User, PasswordResetRequest
+from .hr_models import (
+    StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment,
+    LeavePolicy, LeaveBalance, PayrollRun, StaffPerformanceReview,
+)
 
 
 @admin.register(User)
@@ -181,3 +184,46 @@ class StaffRoleChangeLogAdmin(admin.ModelAdmin):
     list_filter = ("change_kind", "school")
     search_fields = ("user__username", "from_value", "to_value", "notes")
     raw_id_fields = ("user", "school", "changed_by")
+
+
+@admin.register(PasswordResetRequest)
+class PasswordResetRequestAdmin(admin.ModelAdmin):
+    list_display = ("email", "ip_address", "requested_at", "expires_at", "used_at", "user")
+    list_filter = ("used_at",)
+    search_fields = ("email", "ip_address")
+    readonly_fields = ("requested_at",)
+    raw_id_fields = ("user",)
+    date_hierarchy = "requested_at"
+
+
+@admin.register(LeavePolicy)
+class LeavePolicyAdmin(admin.ModelAdmin):
+    list_display = ("school", "leave_type", "days_per_year", "carry_over_max_days", "is_active")
+    list_filter = ("leave_type", "is_active", "school")
+    search_fields = ("school__name",)
+
+
+@admin.register(LeaveBalance)
+class LeaveBalanceAdmin(admin.ModelAdmin):
+    list_display = ("user", "school", "leave_type", "academic_year", "allocated_days", "used_days", "carried_over")
+    list_filter = ("leave_type", "academic_year", "school")
+    search_fields = ("user__username", "user__first_name", "user__last_name", "school__name")
+    raw_id_fields = ("user", "school")
+
+
+@admin.register(PayrollRun)
+class PayrollRunAdmin(admin.ModelAdmin):
+    list_display = ("school", "period_label", "pay_date", "status", "staff_count", "total_gross", "total_net")
+    list_filter = ("status", "school")
+    search_fields = ("period_label", "school__name")
+    readonly_fields = ("total_gross", "total_net", "total_paye", "total_ssnit", "staff_count", "completed_at", "created_at")
+    date_hierarchy = "pay_date"
+
+
+@admin.register(StaffPerformanceReview)
+class StaffPerformanceReviewAdmin(admin.ModelAdmin):
+    list_display = ("staff", "school", "review_period", "academic_year", "overall_rating", "is_finalised", "created_at")
+    list_filter = ("review_period", "academic_year", "is_finalised", "school")
+    search_fields = ("staff__username", "staff__first_name", "staff__last_name", "school__name")
+    raw_id_fields = ("staff", "reviewer")
+    readonly_fields = ("created_at", "updated_at", "finalised_at")

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dispose Asset — MastexEDU{% endblock %}
+{% block page_title %}Dispose Asset{% endblock %}
+{% block page_subtitle %}Mark asset as disposed / written off{% endblock %}
+
+{% block content %}
+<div class="content-card" style="max-width:500px;">
+  <div class="alert alert-warning">
+    <strong>Confirm disposal of:</strong> {{ asset.name }} [{{ asset.asset_tag }}]<br>
+    Book Value: {{ asset.currency }} {{ asset.current_book_value|floatformat:2 }}
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">Disposal Notes</label>
+      <textarea name="notes" class="form-control" rows="3" placeholder="Reason for disposal, buyer, etc."></textarea>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-danger">Confirm Disposal</button>
+      <a href="{% url 'finance:fixed_asset_detail' asset.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

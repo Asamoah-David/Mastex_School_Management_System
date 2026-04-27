@@ -12,51 +12,92 @@ from django.dispatch import receiver
 logger = logging.getLogger(__name__)
 
 
-def _notify(user, title, message, notification_type="info", link=None):
-    """Safe wrapper around the notification helper."""
+def _get_guardians(student):
+    """Return all users who should receive parent-facing notifications for a student.
+
+    Priority:
+    1. All ``is_primary=True`` guardians in the StudentGuardian through-table.
+    2. Fall back to the legacy ``student.parent`` single FK when no guardian rows exist.
+    """
+    try:
+        from students.models import StudentGuardian
+        primaries = list(
+            StudentGuardian.objects.filter(student=student, is_primary=True)
+            .select_related("guardian")
+            .values_list("guardian", flat=True)
+        )
+        if primaries:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            return list(User.objects.filter(pk__in=primaries))
+    except Exception:
+        pass
+    parent = getattr(student, "parent", None)
+    return [parent] if parent else []
+
+
+def _notify(user, title, message, notification_type="info", link=None, school=None):
+    """Safe wrapper around the notification helper.
+
+    Passes ``school`` to ``send_notification`` so every signal-created
+    notification is properly tenant-scoped.  When ``school`` is not given
+    we fall back to ``user.school`` automatically.
+    """
     try:
         from notifications.views import send_notification
-        send_notification(user, title, message, notification_type=notification_type, link=link)
+        resolved_school = school or getattr(user, "school", None)
+        send_notification(
+            user, title, message,
+            notification_type=notification_type,
+            link=link,
+            school=resolved_school,
+        )
     except Exception:
         logger.warning("Failed to deliver notification to user %s", user, exc_info=True)
 
 
 @receiver(post_save, sender="academics.Result")
 def notify_result_saved(sender, instance, created, **kwargs):
-    """Notify the student's parent when a result is created or updated."""
+    """Notify ALL primary guardians when a result is created or updated."""
     if not instance.student:
         return
-    parent = getattr(instance.student, "parent", None)
-    if not parent:
+    guardians = _get_guardians(instance.student)
+    if not guardians:
         return
     student_name = instance.student.user.get_full_name() if instance.student.user else str(instance.student)
     subject_name = str(instance.subject) if instance.subject else "a subject"
     verb = "posted" if created else "updated"
-    _notify(
-        parent,
-        f"Result {verb}: {subject_name}",
-        f"{student_name}'s result for {subject_name} has been {verb}.",
-        notification_type="result",
-        link="/portal/",
-    )
+    school = getattr(instance, "school", None) or getattr(instance.student, "school", None)
+    for guardian in guardians:
+        _notify(
+            guardian,
+            f"Result {verb}: {subject_name}",
+            f"{student_name}'s result for {subject_name} has been {verb}.",
+            notification_type="result",
+            link="/portal/",
+            school=school,
+        )
 
 
 @receiver(post_save, sender="finance.Fee")
 def notify_fee_assigned(sender, instance, created, **kwargs):
-    """Notify parent when a new fee is assigned to their child."""
+    """Notify ALL primary guardians when a new fee is assigned to their child."""
     if not created or not instance.student:
         return
-    parent = getattr(instance.student, "parent", None)
-    if not parent:
+    guardians = _get_guardians(instance.student)
+    if not guardians:
         return
     student_name = instance.student.user.get_full_name() if instance.student.user else str(instance.student)
-    _notify(
-        parent,
-        "New Fee Assigned",
-        f"A fee of GHS {instance.amount} has been assigned for {student_name}.",
-        notification_type="payment",
-        link="/finance/parent-fees/",
-    )
+    school = getattr(instance, "school", None) or getattr(instance.student, "school", None)
+    for guardian in guardians:
+        _notify(
+            guardian,
+            "New Fee Assigned",
+            f"A fee of GHS {instance.amount} has been assigned for {student_name}.",
+            notification_type="payment",
+            link="/finance/parent-fees/",
+            school=school,
+        )
 
 
 @receiver(post_save, sender="students.AbsenceRequest")
@@ -67,18 +108,27 @@ def notify_absence_decision(sender, instance, created, **kwargs):
     if instance.status not in ("approved", "rejected"):
         return
     student_name = instance.student.user.get_full_name() if instance.student and instance.student.user else "Student"
-    recipient = instance.submitted_by or (instance.student.parent if instance.student else None)
-    if not recipient:
+    school = getattr(instance.student, "school", None) if instance.student else None
+    # Notify the submitter first (they may be a teacher, not a guardian)
+    recipients = [instance.submitted_by] if instance.submitted_by else []
+    # Also notify all primary guardians if different from submitter
+    if instance.student:
+        for g in _get_guardians(instance.student):
+            if g and g not in recipients:
+                recipients.append(g)
+    if not recipients:
         return
     end = instance.end_date or instance.date
-    span = f"{instance.date}" if end == instance.date else f"{instance.date}–{end}"
-    _notify(
-        recipient,
-        f"Absence Request {instance.get_status_display()}",
-        f"The absence request for {student_name} for {span} has been {instance.status}.",
-        notification_type="attendance",
-        link="/students/absence/children/",
-    )
+    span = f"{instance.date}" if end == instance.date else f"{instance.date}\u2013{end}"
+    for recipient in recipients:
+        _notify(
+            recipient,
+            f"Absence Request {instance.get_status_display()}",
+            f"The absence request for {student_name} for {span} has been {instance.status}.",
+            notification_type="attendance",
+            link="/students/absence/children/",
+            school=school,
+        )
 
 
 @receiver(pre_save, sender="operations.AdmissionApplication")
@@ -104,8 +154,12 @@ def notify_admission_pipeline(sender, instance, created, **kwargs):
     dispatch_admission_notifications(instance, created=created, old_status=old)
 
 
-def _bulk_notify_user_ids(user_ids, title, message, *, notification_type="info", link=""):
-    """Cap bulk in-app notifications to protect DB and task time."""
+def _bulk_notify_user_ids(user_ids, title, message, *, notification_type="info", link="", school_id=None):
+    """Cap bulk in-app notifications to protect DB and task time.
+
+    ``school_id`` should be provided so every created Notification is
+    properly tenant-scoped (required for school-scoped admin queries).
+    """
     from django.conf import settings
     from django.core.cache import cache
     from notifications.models import Notification
@@ -124,6 +178,7 @@ def _bulk_notify_user_ids(user_ids, title, message, *, notification_type="info",
         [
             Notification(
                 user_id=uid,
+                school_id=school_id,
                 title=str(title)[:255],
                 message=str(message)[:2000],
                 notification_type=notification_type,
@@ -383,3 +438,40 @@ def notify_pt_meeting_booking(sender, instance, created, **kwargs):
             )
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# E-8: Term activation → auto-generate fees + academic_event notification
+# ---------------------------------------------------------------------------
+
+@receiver(post_save, sender="academics.Term", dispatch_uid="term_activation_fee_gen")
+def on_term_activated(sender, instance, created, **kwargs):
+    """When a term becomes is_current=True, trigger fee generation and notify parents."""
+    if not getattr(instance, "is_current", False):
+        return
+    if not instance.school_id:
+        return
+    try:
+        from core.tasks import generate_fees_from_structures
+        generate_fees_from_structures.delay(instance.pk)
+    except Exception:
+        logger.warning("Failed to queue generate_fees_from_structures for term %s", instance.pk)
+
+    try:
+        from notifications.models import Notification
+        ids = _active_parent_ids_for_school(instance.school_id)
+        school_name = instance.school.name if hasattr(instance, "school") else ""
+        term_label = str(instance)
+        Notification.objects.bulk_create([
+            Notification(
+                user_id=uid,
+                school_id=instance.school_id,
+                title=f"[{school_name}] New Term Started: {term_label}",
+                message=f"A new academic term has started: {term_label}. Fee records have been generated.",
+                notification_type="academic_event",
+                is_read=False,
+            )
+            for uid in ids
+        ], ignore_conflicts=True)
+    except Exception:
+        logger.warning("Failed to send academic_event notifications for term %s", instance.pk)

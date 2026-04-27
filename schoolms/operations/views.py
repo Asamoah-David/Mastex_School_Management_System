@@ -298,6 +298,9 @@ def canteen_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "canteen", "accounts:school_dashboard")
+    if redir:
+        return redir
     items = CanteenItem.objects.filter(school=school).order_by("name")
     page_obj = paginate(request, items, per_page=25)
     return render(request, "operations/canteen_list.html", {"items": page_obj, "school": school, "page_obj": page_obj})
@@ -310,6 +313,9 @@ def canteen_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "canteen", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (
         request.user.is_superuser
         or is_school_leadership(request.user)
@@ -350,6 +356,9 @@ def canteen_payments(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "canteen", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not user_can_manage_school(request.user):
         return redirect("operations:canteen_list")
     qs = CanteenPayment.objects.filter(school=school).select_related("student", "student__user")
@@ -362,6 +371,9 @@ def bus_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "bus_transport", "accounts:school_dashboard")
+    if redir:
+        return redir
     routes = BusRoute.objects.filter(school=school)
     return render(request, "operations/bus_list.html", {"routes": routes, "school": school})
 
@@ -373,6 +385,9 @@ def bus_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "bus_transport", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (
         request.user.is_superuser
         or is_school_leadership(request.user)
@@ -411,6 +426,9 @@ def bus_payments(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "bus_transport", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not user_can_manage_school(request.user):
         return redirect("operations:bus_list")
     qs = BusPayment.objects.filter(school=school).select_related("student", "student__user", "route")
@@ -465,6 +483,9 @@ def textbook_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "textbooks", "accounts:school_dashboard")
+    if redir:
+        return redir
     books = Textbook.objects.filter(school=school).order_by("title")
     page_obj = paginate(request, books, per_page=25)
     return render(request, "operations/textbook_list.html", {"books": page_obj, "school": school, "page_obj": page_obj})
@@ -477,6 +498,9 @@ def textbook_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "textbooks", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (
         request.user.is_superuser
         or is_school_leadership(request.user)
@@ -565,6 +589,9 @@ def textbook_sales(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "textbooks", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not user_can_manage_school(request.user):
         return redirect("operations:textbook_list")
     qs = TextbookSale.objects.filter(school=school).select_related("student", "student__user", "textbook")
@@ -1364,6 +1391,9 @@ def library_catalog(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     qs = LibraryBook.objects.filter(school=school).order_by("title", "author")
     page_obj = paginate(request, qs, per_page=50)
     from accounts.permissions import user_can_manage_school
@@ -1377,6 +1407,9 @@ def library_manage(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
     qs = LibraryBook.objects.filter(school=school).order_by("-created_at")
@@ -1390,6 +1423,9 @@ def library_book_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
     if request.method == "POST":
@@ -1449,6 +1485,9 @@ def library_book_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
     book = get_object_or_404(LibraryBook, pk=pk, school=school)
@@ -1466,6 +1505,9 @@ def library_issues(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
     qs = LibraryIssue.objects.filter(school=school).select_related("student", "student__user", "book", "issued_by").order_by("-issue_date")
@@ -1479,6 +1521,9 @@ def library_issue_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
     students = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
@@ -1535,6 +1580,9 @@ def library_issue_return(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
     issue = get_object_or_404(LibraryIssue, pk=pk, school=school)
@@ -1570,6 +1618,9 @@ def library_my_issues(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "library", "accounts:school_dashboard")
+    if redir:
+        return redir
     role = getattr(request.user, "role", None)
     if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
@@ -1599,6 +1650,9 @@ def hostel_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     hostels = Hostel.objects.filter(school=school).order_by("name")
     can_manage = request.user.is_superuser or user_can_manage_school(request.user)
     can_edit_structure = (
@@ -1626,6 +1680,9 @@ def hostel_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (
         request.user.is_superuser
         or is_school_leadership(request.user)
@@ -1661,6 +1718,9 @@ def hostel_rooms(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     hostel = get_object_or_404(Hostel, pk=pk, school=school)
     rooms = HostelRoom.objects.filter(hostel=hostel).order_by("floor", "room_number")
     can_manage = request.user.is_superuser or user_can_manage_school(request.user)
@@ -1673,6 +1733,9 @@ def hostel_room_create(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     hostel = get_object_or_404(Hostel, pk=pk, school=school)
     if not (
         request.user.is_superuser
@@ -1702,6 +1765,9 @@ def hostel_assignments(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
     qs = HostelAssignment.objects.filter(school=school).select_related("student", "student__user", "hostel", "room").order_by("-start_date")
@@ -1715,6 +1781,9 @@ def hostel_assignment_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
     students = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
@@ -1774,6 +1843,9 @@ def hostel_assignment_end(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
     assignment = get_object_or_404(HostelAssignment, pk=pk, school=school)
@@ -1797,6 +1869,9 @@ def hostel_fees(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
     qs = HostelFee.objects.filter(school=school).select_related("student", "student__user", "hostel").order_by("-id")
@@ -1810,6 +1885,9 @@ def hostel_fee_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
     students = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
@@ -1844,6 +1922,9 @@ def hostel_fee_mark_paid(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "hostel", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("home")
     fee = get_object_or_404(HostelFee, pk=pk, school=school)
@@ -4000,7 +4081,7 @@ def timetable_create(request):
     teachers = (
         User.objects.filter(school=school)
         .order_by('first_name', 'last_name')
-        .filter(Q(role='teacher') | Q(secondary_roles__icontains='teacher'))
+        .filter(Q(role='teacher') | Q(secondary_role_entries__role='teacher'))
         .distinct()
     )
     

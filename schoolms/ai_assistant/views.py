@@ -32,6 +32,9 @@ def _get_school(request):
 def ai_assistant_page(request):
     """AI Assistant main page."""
     school = _get_school(request)
+    if school and not school.has_feature("ai_assistant"):
+        from django.shortcuts import render as _render
+        return _render(request, "core/feature_disabled.html", {"disabled_features": ["ai_assistant"]}, status=403)
     return render(request, "ai_assistant/chatbot.html", {"school": school})
 
 
@@ -40,6 +43,9 @@ def ai_assistant_page(request):
 def chatbot_view(request):
     """Chatbot interface."""
     school = _get_school(request)
+    if school and not school.has_feature("ai_assistant"):
+        from django.shortcuts import render as _render
+        return _render(request, "core/feature_disabled.html", {"disabled_features": ["ai_assistant"]}, status=403)
     return render(request, "ai_assistant/chatbot.html", {"school": school})
 
 
@@ -50,6 +56,7 @@ def chatbot_respond(request):
     """Handle chatbot AJAX responses.
 
     IMPORTANT: This view ALWAYS returns HTTP 200 with valid JSON.
+    Feature gate: returns error JSON when ai_assistant is disabled for the school.
     Errors are surfaced as {"response": "..."} (user-friendly message),
     never as HTTP error codes, so the browser fetch API never falls to
     the .catch() handler with a generic "something went wrong" message.
@@ -69,6 +76,8 @@ def chatbot_respond(request):
 
     # ── Build school context for the AI ──────────────────────────────────────
     school = _get_school(request)
+    if school and not school.has_feature("ai_assistant"):
+        return JsonResponse({"response": "The AI Assistant feature is not enabled for your school. Please contact your administrator."})
     school_name = school.name if school else "your school"
     user_role = getattr(request.user, "role", "user")
     user_name = request.user.get_full_name() or request.user.username

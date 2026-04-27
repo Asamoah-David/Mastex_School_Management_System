@@ -25,9 +25,15 @@ class AuditSignalHandler:
 
     _excluded_model_names = frozenset([
         'auditlog', 'session', 'logentry', 'permission', 'contenttype',
-        'migration',
+        'migration', 'webhookdeliveryattempt', 'conversationhistory',
+        'notificationpreference',
     ])
-    _excluded_app_labels = frozenset(['admin', 'auth', 'contenttypes', 'sessions'])
+    _excluded_app_labels = frozenset([
+        'admin', 'auth', 'contenttypes', 'sessions', 'django_celery_beat',
+        'django_celery_results',
+    ])
+    # Only audit changes to fields that matter (exclude volatile bookkeeping)
+    _skip_fields = frozenset(['updated_at', 'last_login', 'total_tokens'])
 
     @classmethod
     def get_model_name(cls, instance):
@@ -44,11 +50,11 @@ class AuditSignalHandler:
     @classmethod
     def get_school(cls, instance):
         if hasattr(instance, 'school_id'):
-            from schools.models import School
             sid = instance.school_id
             if sid:
                 try:
-                    return School(pk=sid)
+                    from schools.models import School
+                    return School.objects.only('pk', 'name').get(pk=sid)
                 except Exception:
                     pass
         return None
@@ -79,48 +85,38 @@ def repr_safe(instance):
         return str(instance.pk)
 
 
-@receiver(pre_save)
+@receiver(pre_save, dispatch_uid='audit_pre_save_global')
 def audit_pre_save(sender, instance, **kwargs):
-    """Capture field changes using in-memory tracker (no extra DB query)."""
+    """Capture field changes using _loaded_values only (no extra DB query)."""
     if not AuditSignalHandler.should_audit(instance):
         return
-
     if not instance.pk:
+        return
+
+    # Only diff when the queryset already stored _loaded_values (from .from_db)
+    # Avoids the expensive per-save SELECT that was previously issued.
+    db_values = getattr(instance, '_loaded_values', None)
+    if not db_values:
         return
 
     try:
         changes = {}
-        db_values = {}
-
-        if hasattr(instance, '_loaded_values'):
-            db_values = instance._loaded_values
-        else:
-            try:
-                db_obj = sender.objects.filter(pk=instance.pk).values().first()
-                if db_obj:
-                    db_values = db_obj
-            except Exception:
-                return
-
-        if not db_values:
-            return
-
+        skip = AuditSignalHandler._skip_fields | {'password'}
         for field in instance._meta.fields:
-            if field.name in ('password',):
+            if field.name in skip:
                 continue
             attname = field.attname
             new_val = getattr(instance, attname, None)
             old_val = db_values.get(attname)
             if old_val != new_val:
                 changes[field.name] = {'old': str(old_val), 'new': str(new_val)}
-
         if changes:
             instance._audit_changes = changes
     except Exception as e:
         logger.error("Audit pre_save signal error: %s", e)
 
 
-@receiver(post_save)
+@receiver(post_save, dispatch_uid='audit_post_save_global')
 def audit_post_save(sender, instance, created, **kwargs):
     if not AuditSignalHandler.should_audit(instance):
         return
@@ -139,7 +135,7 @@ def audit_post_save(sender, instance, created, **kwargs):
         logger.error("Audit save signal error: %s", e)
 
 
-@receiver(post_delete)
+@receiver(post_delete, dispatch_uid='audit_post_delete_global')
 def audit_post_delete(sender, instance, **kwargs):
     if not AuditSignalHandler.should_audit(instance):
         return

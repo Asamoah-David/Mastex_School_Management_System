@@ -1,0 +1,35 @@
+{% extends "base_login.html" %}
+{% load static %}
+
+{% block title %}Two-Factor Verification · MastexEDU{% endblock %}
+
+{% block content %}
+<div class="auth-card-header">
+  <h2 class="auth-card-title">Two-Factor Verification</h2>
+  <p class="auth-card-subtitle">Enter the 6-digit code from your authenticator app to complete sign in.</p>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<form method="post" class="form-stack">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}" />
+  <div class="form-group">
+    <label for="id_token">Authenticator Code</label>
+    <input id="id_token" name="token" type="text" inputmode="numeric" pattern="[0-9]{6}"
+           maxlength="6" autocomplete="one-time-code" required placeholder="6-digit code" autofocus />
+  </div>
+  <button type="submit" class="btn btn-primary btn-block">Verify</button>
+</form>
+
+<div class="auth-link-row" style="margin-top:1.25rem;">
+  <a href="{% url 'accounts:2fa_backup' %}?next={{ next|urlencode }}">Lost access to your authenticator? Use a backup code</a>
+</div>
+<div class="auth-link-row">
+  <a href="{% url 'accounts:login' %}">Sign in as a different user</a>
+</div>
+{% endblock %}
