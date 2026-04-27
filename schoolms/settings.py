@@ -199,7 +199,7 @@ else:
         DATABASES = {
             "default": dj_database_url.config(
                 default=_db_url,
-                conn_max_age=600,
+                conn_max_age=0,
                 conn_health_checks=True,
             )
         }
@@ -212,7 +212,7 @@ else:
                 "PASSWORD": env("POSTGRES_PASSWORD", ""),
                 "HOST": env("POSTGRES_HOST", "db"),
                 "PORT": env("POSTGRES_PORT", "5432"),
-                "CONN_MAX_AGE": 600,
+                "CONN_MAX_AGE": 0,
                 "CONN_HEALTH_CHECKS": True,
             }
         }

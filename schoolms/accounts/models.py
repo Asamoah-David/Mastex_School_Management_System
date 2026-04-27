@@ -234,15 +234,23 @@ class User(AbstractUser):
     
     # ── Secondary roles helpers (backed by UserSecondaryRole through-model) ──
 
+    def _get_secondary_roles_set(self):
+        """Fetch secondary roles from DB once and cache on the instance."""
+        if not hasattr(self, '_secondary_roles_cache'):
+            try:
+                self._secondary_roles_cache = frozenset(
+                    self.secondary_role_entries.values_list('role', flat=True)
+                )
+            except Exception:
+                self._secondary_roles_cache = frozenset()
+        return self._secondary_roles_cache
+
     @property
     def get_secondary_roles_list(self):
         """Return secondary roles as a list of role strings (DB-backed)."""
         if not self.pk:
             return []
-        try:
-            return list(self.secondary_role_entries.values_list('role', flat=True))
-        except Exception:
-            return []
+        return list(self._get_secondary_roles_set())
 
     @property
     def secondary_roles_display(self):
@@ -256,13 +264,11 @@ class User(AbstractUser):
             return True
         if not self.pk:
             return False
-        try:
-            return self.secondary_role_entries.filter(role=role_value).exists()
-        except Exception:
-            return False
+        return role_value in self._get_secondary_roles_set()
 
     def set_secondary_roles(self, roles_list):
         """Replace all secondary roles with roles_list. Requires saved User (pk)."""
+        self.__dict__.pop('_secondary_roles_cache', None)
         if not self.pk:
             return
         valid = {choice[0] for choice in ROLE_CHOICES}

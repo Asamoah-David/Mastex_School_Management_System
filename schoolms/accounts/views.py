@@ -760,28 +760,48 @@ def school_dashboard(request):
 
     today = timezone.now().date()
 
-    student_stats = Student.objects.filter(school=school).aggregate(
-        total=Count("id"),
-        male=Count("id", filter=Q(user__gender="male")),
-        female=Count("id", filter=Q(user__gender="female")),
-    )
+    def _people_and_fee_stats():
+        _ss = Student.objects.filter(school=school).aggregate(
+            total=Count("id"),
+            male=Count("id", filter=Q(user__gender="male")),
+            female=Count("id", filter=Q(user__gender="female")),
+        )
+        _us = User.objects.filter(school=school).aggregate(
+            total_staff=Count("id", filter=Q(role__in=("school_admin", "teacher", "staff"))),
+            teachers_count=Count("id", filter=Q(role="teacher")),
+        )
+        _fs = Fee.objects.filter(school=school).aggregate(
+            total=Sum("amount"), total_paid=Sum("amount_paid")
+        )
+        return {
+            "student_stats": _ss,
+            "user_stats": _us,
+            "inactive_staff_count": User.objects.filter(
+                school=school, role__in=STAFF_ROLES, is_active=False
+            ).count(),
+            "fee_stats": _fs,
+        }
+
+    _pf = _cached_dashboard_data("people_fee", school, _people_and_fee_stats)
+    student_stats = _pf["student_stats"]
+    user_stats = _pf["user_stats"]
+    inactive_staff_count = _pf["inactive_staff_count"]
+
     total_students = student_stats["total"]
     male_students = student_stats["male"]
     female_students = student_stats["female"]
-
-    user_stats = User.objects.filter(school=school).aggregate(
-        total_staff=Count("id", filter=Q(role__in=("school_admin", "teacher", "staff"))),
-        teachers_count=Count("id", filter=Q(role="teacher")),
-    )
     total_staff = user_stats["total_staff"]
     teachers_count = user_stats["teachers_count"]
-    inactive_staff_count = User.objects.filter(school=school, role__in=STAFF_ROLES, is_active=False).count()
 
-    attendance_stats = StudentAttendance.objects.filter(school=school, date=today).aggregate(
-        present=Count("id", filter=Q(status="present")),
-        absent=Count("id", filter=Q(status="absent")),
-        late=Count("id", filter=Q(status="late")),
-        excused=Count("id", filter=Q(status="excused")),
+    attendance_stats = _cached_dashboard_data(
+        "attendance", school,
+        lambda: StudentAttendance.objects.filter(school=school, date=today).aggregate(
+            present=Count("id", filter=Q(status="present")),
+            absent=Count("id", filter=Q(status="absent")),
+            late=Count("id", filter=Q(status="late")),
+            excused=Count("id", filter=Q(status="excused")),
+        ),
+        extra=str(today),
     )
     present_today = attendance_stats["present"]
     late_today = attendance_stats["late"]
@@ -789,10 +809,7 @@ def school_dashboard(request):
 
     upcoming_events = AcademicCalendar.objects.filter(school=school, start_date__gte=today)[:5]
 
-    fee_stats = Fee.objects.filter(school=school).aggregate(
-        total=Sum("amount"),
-        total_paid=Sum("amount_paid"),
-    )
+    fee_stats = _pf["fee_stats"]
     total_fees = fee_stats["total"] or 0
     paid_fees = fee_stats["total_paid"] or 0
     unpaid_fees = max(0, float(total_fees) - float(paid_fees))
@@ -853,10 +870,18 @@ def school_dashboard(request):
         "offered",
         "waitlisted",
     )
-    pending_admissions = AdmissionApplication.objects.filter(
-        school=school, status__in=_open_admission_statuses
-    ).count()
-    overdue_books = LibraryIssue.objects.filter(school=school, return_date__isnull=True, due_date__lt=today).count()
+    def _ops_counts():
+        return {
+            "pending_admissions": AdmissionApplication.objects.filter(
+                school=school, status__in=_open_admission_statuses
+            ).count(),
+            "overdue_books": LibraryIssue.objects.filter(
+                school=school, return_date__isnull=True, due_date__lt=today
+            ).count(),
+        }
+    _ops = _cached_dashboard_data("ops_counts", school, _ops_counts)
+    pending_admissions = _ops["pending_admissions"]
+    overdue_books = _ops["overdue_books"]
     absent_today = attendance_stats["absent"]
 
     from datetime import date, timedelta

@@ -63,9 +63,14 @@ def is_feature_enabled(request, key: str) -> bool:
 
     flags = getattr(request, "_feature_flags_cache", None)
     if flags is None:
-        flags = dict(
-            SchoolFeature.objects.filter(school=school).values_list("key", "enabled")
-        )
+        from django.core.cache import cache as _cache
+        cache_key = f"school_features:{school.pk}"
+        flags = _cache.get(cache_key)
+        if flags is None:
+            flags = dict(
+                SchoolFeature.objects.filter(school=school).values_list("key", "enabled")
+            )
+            _cache.set(cache_key, flags, 300)
         request._feature_flags_cache = flags
 
     enabled = flags.get(key)
