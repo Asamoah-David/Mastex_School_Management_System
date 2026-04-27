@@ -97,13 +97,13 @@ def predictive_analytics(request):
         Student.objects.filter(school=school, status='active')
         .select_related('user')
         .annotate(
-            total_att=Count('attendances', distinct=True),
+            total_att=Count('studentattendance', distinct=True),
             present_att=Count(
-                'attendances',
-                filter=Q(attendances__status='present'),
+                'studentattendance',
+                filter=Q(studentattendance__status='present'),
                 distinct=True,
             ),
-            avg_score=DB_Avg('result__score'),
+            avg_score=DB_Avg('results__score'),
         )
     )
 
