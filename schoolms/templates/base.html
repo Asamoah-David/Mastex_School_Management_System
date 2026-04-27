@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% load static %}
     {% load custom_filters %}
-    <link rel="icon" type="image/jpeg" href="{% static 'mastexedu_logo.jpeg' %}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{% static 'favicon_512.png' %}">
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon_32.png' %}">
     <link rel="icon" type="image/png" sizes="64x64" href="{% static 'favicon_64.png' %}">
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'mastexedu_logo.jpeg' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon_180.png' %}">
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="theme-color" content="#22c55e">
     <meta name="description" content="{% block meta_description %}MastexEDU — academics, finance, canteen, transport, hostel, library, and parent portals in one school ERP. More at mastexedu.online.{% endblock %}">
@@ -604,7 +604,7 @@ background: rgba(2, 6, 23, 0.98);
             align-items: center;
             justify-content: center;
             margin-bottom: 1.25rem;
-        "><img src="{% static 'mastexedu_logo.jpeg' %}" alt="MastexEDU" style="width:64px;height:64px;object-fit:contain;"></div>
+        "><img src="{% static 'favicon_512.png' %}" alt="MastexEDU" style="width:64px;height:64px;object-fit:contain;"></div>
         <div style="font-size:1.1rem;font-weight:700;color:#f1f5f9;letter-spacing:0.04em;margin-bottom:0.35rem;">MastexEDU</div>
         <div id="splash-message" style="
             font-size: 0.95rem;
@@ -639,7 +639,7 @@ background: rgba(2, 6, 23, 0.98);
         <header>
             <div class="nav">
                 <a href="{% url 'home' %}" class="brand">
-                    <img src="{% static 'mastexedu_logo.jpeg' %}" alt="Mastex" class="brand-mark" width="34" height="34" style="border-radius:6px;object-fit:contain;">
+                    <img src="{% static 'favicon_512.png' %}" alt="Mastex" class="brand-mark" width="34" height="34" style="border-radius:6px;object-fit:contain;">
                     <div class="brand-text">
                         <div class="brand-title">MastexEDU</div>
                         <div class="brand-subtitle">Smart school management platform</div>
