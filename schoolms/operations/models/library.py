@@ -2,13 +2,15 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from accounts.models import User
 from students.models import Student
 from schools.models import School
 from core.tenancy import SchoolScopedModel
 
 
-class LibraryBook(models.Model):
+class LibraryBook(SchoolScopedModel):
     """Library book catalog"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     isbn = models.CharField(max_length=20)
@@ -28,7 +30,7 @@ class LibraryBook(models.Model):
         return f"{self.title} by {self.author}"
 
 
-class LibraryIssue(models.Model):
+class LibraryIssue(SchoolScopedModel):
     """Track book borrowing."""
     STATUS_CHOICES = (
         ('issued', 'Issued'),
@@ -157,3 +159,32 @@ class LibraryFine(SchoolScopedModel):
         self.waived_by = user
         self.waiver_reason = reason[:300]
         self.save(update_fields=["status", "waived_by", "waiver_reason", "updated_at"])
+
+
+# ---------------------------------------------------------------------------
+# Signals: keep LibraryBook.available_copies in sync with active issues
+# ---------------------------------------------------------------------------
+
+def _refresh_book_copies(book_id):
+    """Recompute and save available_copies for the given book PK."""
+    if not book_id:
+        return
+    try:
+        book = LibraryBook.objects.get(pk=book_id)
+    except LibraryBook.DoesNotExist:
+        return
+    active_count = LibraryIssue.objects.filter(
+        book_id=book_id, status__in=["issued", "overdue"]
+    ).count()
+    available = max(0, book.total_copies - active_count)
+    LibraryBook.objects.filter(pk=book_id).update(available_copies=available)
+
+
+@receiver(post_save, sender=LibraryIssue)
+def _library_issue_post_save(sender, instance, **kwargs):
+    _refresh_book_copies(instance.book_id)
+
+
+@receiver(post_delete, sender=LibraryIssue)
+def _library_issue_post_delete(sender, instance, **kwargs):
+    _refresh_book_copies(instance.book_id)

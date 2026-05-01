@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ scholarship.name }} · MastexEDU{% endblock %}
+{% block page_title %}{{ scholarship.name }}{% endblock %}
+{% block page_subtitle %}Scholarship detail &amp; award list.{% endblock %}
+
+{% block content %}
+{% if messages %}
+  {% for msg in messages %}<div class="alert alert-{{ msg.tags }}">{{ msg }}</div>{% endfor %}
+{% endif %}
+
+<div class="content-card" style="margin-bottom:1.25rem;">
+  <div style="display:flex;flex-wrap:wrap;gap:1.5rem;">
+    <div style="flex:1;min-width:10rem;">
+      <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;margin-bottom:0.25rem;">Type</div>
+      <div>{{ scholarship.get_scholarship_type_display|default:scholarship.scholarship_type }}</div>
+    </div>
+    <div style="flex:1;min-width:10rem;">
+      <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;margin-bottom:0.25rem;">Cycle</div>
+      <div>{{ scholarship.get_cycle_display|default:scholarship.cycle }}</div>
+    </div>
+    <div style="flex:1;min-width:10rem;">
+      <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;margin-bottom:0.25rem;">Amount / Discount</div>
+      <div>
+        {% if scholarship.amount_per_award %}GHS {{ scholarship.amount_per_award }}{% endif %}
+        {% if scholarship.percentage_discount %}{{ scholarship.percentage_discount }}%{% endif %}
+        {% if not scholarship.amount_per_award and not scholarship.percentage_discount %}—{% endif %}
+      </div>
+    </div>
+    <div style="flex:1;min-width:10rem;">
+      <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;margin-bottom:0.25rem;">Budget</div>
+      <div>{% if scholarship.total_budget %}GHS {{ scholarship.total_budget }}{% else %}—{% endif %}</div>
+    </div>
+    <div style="flex:1;min-width:10rem;">
+      <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;margin-bottom:0.25rem;">Status</div>
+      <div>{% if scholarship.is_active %}<span class="badge" style="background:#22c55e;color:#fff;">Active</span>
+      {% else %}<span class="badge" style="background:#64748b;color:#fff;">Inactive</span>{% endif %}</div>
+    </div>
+  </div>
+  {% if scholarship.eligibility_criteria %}
+  <div style="margin-top:1rem;padding-top:0.85rem;border-top:1px solid var(--line,#334155);">
+    <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;margin-bottom:0.35rem;">Eligibility criteria</div>
+    <p style="margin:0;">{{ scholarship.eligibility_criteria }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="button-row" style="margin-bottom:1rem;">
+  <a href="{% url 'finance:scholarship_award_create' scholarship_pk=scholarship.pk %}" class="btn btn-primary">Award to Student</a>
+  <a href="{% url 'finance:scholarship_list' %}" class="btn btn-secondary">Back to list</a>
+</div>
+
+<h3 style="margin-bottom:0.75rem;">Awards ({{ awards|length }})</h3>
+<div class="table-card">
+  {% if awards %}
+  <table>
+    <thead>
+      <tr>
+        <th>Student</th>
+        <th>Academic year</th>
+        <th>Term</th>
+        <th>Amount (GHS)</th>
+        <th>Status</th>
+        <th>Approved by</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for award in awards %}
+      <tr>
+        <td>{{ award.student.user.get_full_name|default:award.student.user.username }}</td>
+        <td>{{ award.academic_year|default:"—" }}</td>
+        <td>{{ award.term|default:"—" }}</td>
+        <td>{{ award.awarded_amount|default:"—" }}</td>
+        <td>
+          {% if award.status == "active" %}<span class="badge" style="background:#22c55e;color:#fff;">Active</span>
+          {% elif award.status == "pending" %}<span class="badge" style="background:#f59e0b;color:#fff;">Pending</span>
+          {% elif award.status == "revoked" %}<span class="badge" style="background:#ef4444;color:#fff;">Revoked</span>
+          {% else %}<span class="badge" style="background:#64748b;color:#fff;">{{ award.status }}</span>{% endif %}
+        </td>
+        <td>{{ award.approved_by.get_full_name|default:"—" }}</td>
+        <td>
+          {% if award.status == "pending" %}
+          <form method="post" action="{% url 'finance:scholarship_award_action' pk=award.pk %}" style="display:inline;">
+            {% csrf_token %}<input type="hidden" name="action" value="activate">
+            <button type="submit" class="btn btn-success btn-sm">Activate</button>
+          </form>
+          {% endif %}
+          {% if award.status == "active" %}
+          <form method="post" action="{% url 'finance:scholarship_award_action' pk=award.pk %}" style="display:inline;">
+            {% csrf_token %}<input type="hidden" name="action" value="revoke">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke this award?')">Revoke</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-state">No awards yet. <a href="{% url 'finance:scholarship_award_create' scholarship_pk=scholarship.pk %}">Grant the first award.</a></p>
+  {% endif %}
+</div>
+{% endblock %}

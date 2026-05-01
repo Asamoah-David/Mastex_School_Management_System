@@ -16,8 +16,10 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
+
+from schools.features import is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -537,3 +539,150 @@ def generate_bulk_report_cards(request):
     response = HttpResponse(zip_buffer.read(), content_type="application/zip")
     response["Content-Disposition"] = f'attachment; filename="{zip_name}"'
     return response
+
+
+# ---------------------------------------------------------------------------
+# F22 — Generate, persist, and verify report cards via ReportCard model
+# ---------------------------------------------------------------------------
+
+@login_required
+def generate_and_save_report_card(request, student_id):
+    """Generate a PDF report card, persist it as a ReportCard record, and stream it.
+
+    Creates (or replaces) the ReportCard row for the student/term combination.
+    The generated file is saved to MEDIA so it can be downloaded later.
+
+    Query params:
+        term=<pk>   — Term to generate for (defaults to current term).
+        publish=1   — Immediately mark as published so parents can access it.
+    """
+    from students.models import Student
+    from academics.models import Term, AcademicYear, ReportCard
+    from django.core.files.base import ContentFile
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+
+    if not is_feature_enabled(request, "report_cards"):
+        from django.contrib import messages
+        messages.error(request, "Digital Report Cards are not enabled for your school.")
+        return redirect("home")
+
+    user = request.user
+    role = getattr(user, "role", None)
+    if not (user.is_superuser or role in ("school_admin", "admin", "teacher", "hod", "deputy_head")):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+
+    student = get_object_or_404(Student, pk=student_id, school=school)
+
+    term_id = request.GET.get("term")
+    term = None
+    if term_id:
+        term = Term.objects.filter(pk=term_id, school=school).first()
+    if not term:
+        term = Term.objects.filter(school=school, is_current=True).first()
+
+    academic_year = AcademicYear.objects.filter(school=school, is_current=True).first()
+
+    try:
+        pdf_bytes = _build_report_card_pdf_bytes(student, term, school)
+    except Exception as exc:
+        logger.exception("PDF generation failed for student %s", student_id)
+        return HttpResponse(f"PDF generation failed: {exc}", status=500, content_type="text/plain")
+
+    publish = request.GET.get("publish") == "1"
+
+    # Mark previous as not latest, then create new record
+    ReportCard.objects.filter(
+        school=school, student=student, term=term, is_latest=True,
+    ).update(is_latest=False)
+
+    rc = ReportCard(
+        school=school,
+        student=student,
+        academic_year=academic_year,
+        term=term,
+        is_latest=True,
+        generated_by=user,
+        published=publish,
+    )
+    if publish:
+        rc.published_at = timezone.now()
+
+    fname = (
+        f"report_cards/{school.pk}/"
+        f"{student.admission_number or student_id}_{term.name if term else 'all'}.pdf"
+    ).replace(" ", "_").replace("/", "-", 1)  # keep first slash for directory
+
+    rc.pdf_file.save(fname, ContentFile(pdf_bytes), save=False)
+    rc.save()
+
+    # Stream the PDF immediately
+    resp_fname = f"report_card_{student.admission_number or student_id}_{term.name if term else 'all'}.pdf"
+    resp_fname = resp_fname.replace(" ", "_").replace("/", "-")
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{resp_fname}"'
+    return response
+
+
+def verify_report_card_qr(request, qr_token):
+    """Public QR-code verification endpoint — no login required.
+
+    Displays a simple confirmation page (or JSON) that the report card is
+    authentic and has not been tampered with.
+    """
+    from academics.models import ReportCard
+    from django.shortcuts import render as _render
+
+    try:
+        rc = ReportCard.objects.select_related(
+            "student", "student__user", "school", "term", "academic_year", "generated_by"
+        ).get(qr_token=qr_token)
+    except ReportCard.DoesNotExist:
+        if request.headers.get("accept", "").startswith("application/json"):
+            from django.http import JsonResponse
+            return JsonResponse({"valid": False, "error": "Report card not found."}, status=404)
+        return HttpResponse(
+            "<h2>Invalid or expired QR code.</h2><p>This report card could not be verified.</p>",
+            status=404,
+        )
+
+    ctx = {
+        "report_card": rc,
+        "student": rc.student,
+        "school": rc.school,
+        "term": rc.term,
+        "academic_year": rc.academic_year,
+        "generated_at": rc.generated_at,
+        "generated_by": rc.generated_by,
+        "published": rc.published,
+    }
+
+    if request.headers.get("accept", "").startswith("application/json"):
+        from django.http import JsonResponse
+        return JsonResponse({
+            "valid": True,
+            "student": rc.student.user.get_full_name(),
+            "admission_number": rc.student.admission_number,
+            "school": rc.school.name,
+            "term": str(rc.term) if rc.term else None,
+            "academic_year": str(rc.academic_year) if rc.academic_year else None,
+            "generated_at": rc.generated_at.isoformat(),
+            "published": rc.published,
+        })
+
+    try:
+        return _render(request, "academics/report_card_verify.html", ctx)
+    except Exception:
+        # Fallback if template doesn't exist yet
+        body = (
+            f"<h2>Report Card Verified</h2>"
+            f"<p><strong>Student:</strong> {rc.student.user.get_full_name()}</p>"
+            f"<p><strong>School:</strong> {rc.school.name}</p>"
+            f"<p><strong>Term:</strong> {rc.term or 'N/A'}</p>"
+            f"<p><strong>Generated:</strong> {rc.generated_at.strftime('%d %b %Y %H:%M')}</p>"
+            f"<p style='color:green'><strong>✓ Authentic document</strong></p>"
+        )
+        return HttpResponse(body)

@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
 from accounts.models import User
 from students.models import Student
 from schools.models import School
@@ -75,7 +77,7 @@ class SeatAssignment(SchoolScopedModel):
         super().save(*args, **kwargs)
 
 
-class OnlineExam(models.Model):
+class OnlineExam(SchoolScopedModel):
     """Online examination with auto-grading"""
     STATUS_CHOICES = (
         ('draft', 'Draft'),
@@ -230,3 +232,63 @@ class ExamAnswer(models.Model):
 
     class Meta:
         unique_together = ("attempt", "question")
+
+    def __str__(self):
+        return f"Answer by {self.attempt.student} for Q{self.question.order}"
+
+
+# ---------------------------------------------------------------------------
+# Signals: auto re-grade ExamAnswers when correct_answer changes
+# ---------------------------------------------------------------------------
+
+@receiver(pre_save, sender=ExamQuestion)
+def _store_old_correct_answer(sender, instance, **kwargs):
+    """Cache the previous correct_answer so post_save can detect changes."""
+    if instance.pk:
+        try:
+            instance._old_correct_answer = ExamQuestion.objects.values_list(
+                "correct_answer", flat=True
+            ).get(pk=instance.pk)
+        except ExamQuestion.DoesNotExist:
+            instance._old_correct_answer = None
+    else:
+        instance._old_correct_answer = None
+
+
+@receiver(post_save, sender=ExamQuestion)
+def _regrade_answers_on_question_change(sender, instance, created, **kwargs):
+    """Re-evaluate is_correct and marks_obtained for all ExamAnswers of this question."""
+    if created:
+        return
+    old = getattr(instance, "_old_correct_answer", None)
+    if old == instance.correct_answer:
+        return
+
+    answers = ExamAnswer.objects.filter(
+        question=instance,
+        teacher_reviewed=True,
+    ).select_related("attempt")
+
+    _multi_select_types = {"multiple_choice", "true_false", "dropdown", "multi_select"}
+
+    updates = []
+    for ans in answers:
+        q_type = instance.question_type
+        correct_raw = (instance.correct_answer or "").strip().upper()
+        given_raw = (ans.answer_given or "").strip().upper()
+
+        if q_type in _multi_select_types:
+            is_correct = correct_raw == given_raw
+        elif q_type == "short_answer":
+            is_correct = correct_raw == given_raw
+        else:
+            is_correct = False
+
+        marks = instance.marks if is_correct else 0
+        if ans.is_correct != is_correct or ans.marks_obtained != marks:
+            ans.is_correct = is_correct
+            ans.marks_obtained = marks
+            updates.append(ans)
+
+    if updates:
+        ExamAnswer.objects.bulk_update(updates, ["is_correct", "marks_obtained"])

@@ -796,6 +796,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:financial_reports_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C8;</span><div class="nav-item-label"><span class="nav-item-title">Financial Reports</span></div></a></li>
                                 <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B8;</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
                                 <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Budgets</span></div></a></li>
+                                {% if feature_scholarships %}<li><a href="{% url 'finance:scholarship_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Scholarships</span><span class="nav-item-sub">Awards &amp; bursaries</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -806,7 +807,8 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E2;</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Fees, canteen, transport…</span></div></a></li>
                                 {% if feature_library %}<li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Library</span></div></a></li>{% endif %}
                                 {% if feature_canteen %}<li><a href="{% url 'operations:canteen_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F37D;</span><div class="nav-item-label"><span class="nav-item-title">Canteen</span></div></a></li>
-                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">&#x1F961;</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span><span class="nav-item-sub">Place orders for students</span></div></a></li>{% endif %}
+                                <li><a href="{% url 'operations:canteen_order_place' %}" class="nav-item"><span class="nav-item-icon">&#x1F961;</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span><span class="nav-item-sub">Place orders for students</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_order_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Canteen orders</span><span class="nav-item-sub">Manage pre-orders</span></div></a></li>{% endif %}
                                 {% if feature_bus_transport %}<li><a href="{% url 'operations:bus_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F68C;</span><div class="nav-item-label"><span class="nav-item-title">Transport</span></div></a></li>{% endif %}
                                 {% if feature_hostel %}<li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E0;</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>{% endif %}
                                 {% if feature_textbooks %}<li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4D5;</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>{% endif %}
@@ -837,6 +839,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><span class="nav-item-icon">&#x1FAAA;</span><div class="nav-item-label"><span class="nav-item-title">ID Cards</span></div></a></li>
                                 <li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C1;</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>
                                 {% if feature_pt_meetings %}<li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F91D;</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>{% endif %}
+                                {% if feature_early_warning %}<li><a href="{% url 'operations:early_warning_list' %}" class="nav-item"><span class="nav-item-icon">&#x26A0;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Early Warning</span><span class="nav-item-sub">At-risk students</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'audit:dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Audit Log</span></div></a></li>
                                 <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><span class="nav-item-icon">&#x2699;</span><div class="nav-item-label"><span class="nav-item-title">Settings</span></div></a></li>
                             </ul>
@@ -962,7 +965,7 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'students:fees_list' %}" class="nav-item"><span class="nav-item-icon">💵</span><div class="nav-item-label"><span class="nav-item-title">School Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:canteen_my' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen Fees</span></div></a></li>
-                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">🥡</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_order_place' %}" class="nav-item"><span class="nav-item-icon">🥡</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span></div></a></li>
                                 <li><a href="{% url 'operations:bus_my' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>
@@ -1041,7 +1044,7 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'finance:parent_fee_list' %}" class="nav-item"><span class="nav-item-icon">💵</span><div class="nav-item-label"><span class="nav-item-title">School Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:canteen_my' %}" class="nav-item"><span class="nav-item-icon">🍽️</span><div class="nav-item-label"><span class="nav-item-title">Canteen Fees</span></div></a></li>
-                                <li><a href="{% url 'operations:canteen_preorder' %}" class="nav-item"><span class="nav-item-icon">🥡</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span></div></a></li>
+                                <li><a href="{% url 'operations:canteen_order_place' %}" class="nav-item"><span class="nav-item-icon">🥡</span><div class="nav-item-label"><span class="nav-item-title">Canteen pre-order</span></div></a></li>
                                 <li><a href="{% url 'operations:bus_my' %}" class="nav-item"><span class="nav-item-icon">🚌</span><div class="nav-item-label"><span class="nav-item-title">Transport Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>
@@ -1096,7 +1099,8 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 <li><a href="{% url 'operations:financial_reports_page' %}" class="nav-item"><span class="nav-item-icon">📈</span><div class="nav-item-label"><span class="nav-item-title">Financial Reports</span></div></a></li>
                                 <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">💰</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
-                                <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Budgets</span></div></a></li>
+                                <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Budgets</span></div></a></li>
+                                {% if feature_scholarships %}<li><a href="{% url 'finance:scholarship_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Scholarships</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>

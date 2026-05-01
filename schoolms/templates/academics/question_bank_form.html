@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}New Question Bank · MastexEDU{% endblock %}
+{% block page_title %}New Question Bank{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px;">
+    <div class="card-header"><h3 class="card-title">Create Question Bank</h3></div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="form-label">Name *</label>
+            <input type="text" name="name" class="form-control" required placeholder="e.g. Mathematics Form 2 — Algebra">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Subject *</label>
+            <select name="subject" class="form-control" required>
+                <option value="">— select —</option>
+                {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+            <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;">
+                <input type="checkbox" name="is_shared"> Shared (any teacher can use this bank)
+            </label>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Create Bank</button>
+            <a href="{% url 'academics:question_bank_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

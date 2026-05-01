@@ -117,6 +117,7 @@ INSTALLED_APPS = [
     "students",
     "operations",
     "notifications",
+    "recruitment",
     "templatetags.apps.TemplatetagsConfig",
 ]
 
@@ -806,5 +807,10 @@ CELERY_BEAT_SCHEDULE = {
     "attendance-early-warning-daily": {
         "task": "core.tasks.flag_attendance_early_warnings",
         "schedule": 86400,
+    },
+    # F9: EarlyWarningFlag — full multi-signal at-risk detection (weekly)
+    "early-warning-flag-detection-weekly": {
+        "task": "core.tasks.detect_early_warning_flags",
+        "schedule": 86400 * 7,  # every 7 days
     },
 }

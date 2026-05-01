@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.db.models import Q, Avg
+from django.db.models import Q, Avg, Count
 from django.http import HttpResponse
 from django.urls import reverse
 from django.utils import timezone
@@ -1426,14 +1426,33 @@ def report_card_pdf(request, student_id):
     if not term:
         term = Term.objects.filter(school=school, is_current=True).first()
 
+    # Fetch results for the student
+    results = Result.objects.filter(student=student).select_related("subject", "exam_type", "term").order_by("term", "subject")
+    viewer_role = getattr(request.user, "role", None)
+    if viewer_role in {"parent", "student"}:
+        results = results.filter(is_published=True)
+    if term:
+        results = results.filter(term=term)
+
+    # Calculate average score
+    total = sum(r.score for r in results) if results else 0
+    average = (total / len(results)) if results else 0
+
+    term_label = term.name if term else "all"
+
     try:
-        pdf_bytes = _build_report_card_pdf_bytes(student, term, school)
+        pdf_bytes = _build_report_card_pdf_bytes(
+            school=school,
+            student=student,
+            results=results,
+            average=average,
+            term_label=term_label
+        )
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("PDF generation failed for student %s", student_id)
         return HttpResponse(f"PDF generation failed: {exc}", status=500, content_type="text/plain")
 
-    term_label = term.name if term else "all"
     filename = f"report_card_{student.admission_number or student_id}_{term_label}.pdf".replace(" ", "_").replace("/", "-")
     resp = HttpResponse(pdf_bytes, content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
@@ -3254,3 +3273,131 @@ def enhanced_report_card_pdf(request, student_id):
     response = HttpResponse(buf.getvalue(), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+# ---------------------------------------------------------------------------
+# Question Bank (F6)
+# ---------------------------------------------------------------------------
+
+@login_required
+def question_bank_list(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    from academics.models import QuestionBank
+    qs = (
+        QuestionBank.objects.filter(school=school)
+        .select_related("subject", "created_by")
+        .annotate(item_count=Count("items"))
+        .order_by("subject__name", "name")
+    )
+    subject_filter = request.GET.get("subject", "")
+    if subject_filter:
+        qs = qs.filter(subject_id=subject_filter)
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    return render(request, "academics/question_bank_list.html", {
+        "banks": qs,
+        "subjects": subjects,
+        "subject_filter": subject_filter,
+    })
+
+
+@login_required
+def question_bank_create(request):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request.user):
+        return redirect("home")
+    from academics.models import QuestionBank
+    subjects = Subject.objects.filter(school=school).order_by("name")
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        subject_id = request.POST.get("subject")
+        description = request.POST.get("description", "").strip()
+        is_shared = request.POST.get("is_shared") == "on"
+        if not name or not subject_id:
+            messages.error(request, "Name and subject are required.")
+        else:
+            subject = get_object_or_404(Subject, pk=subject_id, school=school)
+            bank = QuestionBank.objects.create(
+                school=school,
+                subject=subject,
+                name=name,
+                description=description,
+                is_shared=is_shared,
+                created_by=request.user,
+            )
+            messages.success(request, f"Question bank '{bank.name}' created.")
+            return redirect("academics:question_bank_detail", pk=bank.pk)
+    return render(request, "academics/question_bank_form.html", {"subjects": subjects})
+
+
+@login_required
+def question_bank_detail(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    from academics.models import QuestionBank, QuestionBankItem
+    bank = get_object_or_404(QuestionBank, pk=pk, school=school)
+    items = bank.items.order_by("difficulty", "question_type")
+    return render(request, "academics/question_bank_detail.html", {
+        "bank": bank,
+        "items": items,
+        "question_types": QuestionBankItem.QUESTION_TYPES,
+        "difficulty_choices": QuestionBankItem.DIFFICULTY_CHOICES,
+    })
+
+
+@login_required
+def question_bank_add_item(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    from academics.models import QuestionBank, QuestionBankItem
+    bank = get_object_or_404(QuestionBank, pk=pk, school=school)
+    if request.method == "POST":
+        question_text = request.POST.get("question_text", "").strip()
+        question_type = request.POST.get("question_type", "multiple_choice")
+        difficulty = request.POST.get("difficulty", "medium")
+        marks = request.POST.get("marks", "1")
+        correct_answer = request.POST.get("correct_answer", "").strip()
+        option_a = request.POST.get("option_a", "").strip()
+        option_b = request.POST.get("option_b", "").strip()
+        option_c = request.POST.get("option_c", "").strip()
+        option_d = request.POST.get("option_d", "").strip()
+        if not question_text:
+            messages.error(request, "Question text is required.")
+        else:
+            try:
+                QuestionBankItem.objects.create(
+                    school=school,
+                    bank=bank,
+                    question_text=question_text,
+                    question_type=question_type,
+                    difficulty=difficulty,
+                    marks=float(marks),
+                    correct_answer=correct_answer,
+                    option_a=option_a,
+                    option_b=option_b,
+                    option_c=option_c,
+                    option_d=option_d,
+                )
+                messages.success(request, "Question added.")
+            except Exception as exc:
+                messages.error(request, f"Error: {exc}")
+    return redirect("academics:question_bank_detail", pk=pk)
+
+
+@login_required
+def question_bank_delete(request, pk):
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request.user):
+        return redirect("home")
+    from academics.models import QuestionBank
+    bank = get_object_or_404(QuestionBank, pk=pk, school=school)
+    bank.delete()
+    messages.success(request, "Question bank deleted.")
+    return redirect("academics:question_bank_list")

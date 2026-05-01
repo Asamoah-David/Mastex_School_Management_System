@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Create Installments · MastexEDU{% endblock %}
+{% block page_title %}Create Installment Plan{% endblock %}
+{% block page_subtitle %}{{ fee.student.user.get_full_name }} — {{ fee }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;">
+    <div class="card-header"><h3 class="card-title">Split Fee into Installments</h3></div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="form-label">Number of Installments *</label>
+            <input type="number" name="count" class="form-control" min="2" max="12" value="3" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">First Installment Date *</label>
+            <input type="date" name="start_date" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Frequency</label>
+            <select name="frequency" class="form-control">
+                <option value="monthly">Monthly</option>
+                <option value="weekly">Weekly</option>
+                <option value="fortnightly">Fortnightly</option>
+            </select>
+        </div>
+        <p class="text-muted">Fee total: <strong>{{ fee.amount }}</strong> · Balance: <strong>{{ fee.remaining_balance }}</strong></p>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Create Installments</button>
+            <a href="{% url 'finance:fee_installment_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

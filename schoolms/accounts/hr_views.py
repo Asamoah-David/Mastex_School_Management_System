@@ -813,3 +813,265 @@ def staff_payroll_export_user(request, pk: int):
             ]
         )
     return response
+
+
+# ===========================================================================
+# Leave Policy & Balance (HR self-service + admin config)
+# ===========================================================================
+
+def _is_hr_admin(request):
+    user = request.user
+    if user.is_superuser or getattr(user, "is_super_admin", False):
+        return True
+    return getattr(user, "role", None) in (
+        "school_admin", "deputy_head", "admin",
+    )
+
+
+@login_required
+def leave_policy_list(request):
+    """Admin: list and create leave policies for the school."""
+    from accounts.hr_models import LeavePolicy
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not _is_hr_admin(request):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+    policies = LeavePolicy.objects.filter(school=school).order_by("leave_type")
+
+    if request.method == "POST":
+        leave_type = request.POST.get("leave_type", "annual")
+        days = request.POST.get("days_per_year", "21")
+        carry_max = request.POST.get("carry_over_max_days", "5")
+        try:
+            obj, created = LeavePolicy.objects.update_or_create(
+                school=school, leave_type=leave_type,
+                defaults={
+                    "days_per_year": Decimal(days),
+                    "carry_over_max_days": Decimal(carry_max),
+                    "is_active": True,
+                },
+            )
+            from django.contrib import messages as _msg
+            _msg.success(request, f"Leave policy {'created' if created else 'updated'}.")
+        except (InvalidOperation, Exception) as exc:
+            from django.contrib import messages as _msg
+            _msg.error(request, f"Error: {exc}")
+        return redirect("accounts:leave_policy_list")
+
+    return render(request, "accounts/leave_policy_list.html", {
+        "policies": policies,
+        "leave_types": LeavePolicy.LEAVE_TYPES,
+    })
+
+
+@login_required
+def leave_balance_list(request):
+    """Admin: view all staff leave balances for the school."""
+    from accounts.hr_models import LeaveBalance
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not _is_hr_admin(request):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+    year_filter = request.GET.get("year", "")
+    qs = LeaveBalance.objects.filter(school=school).select_related("user").order_by(
+        "user__last_name", "leave_type"
+    )
+    if year_filter:
+        qs = qs.filter(academic_year=year_filter)
+    years = LeaveBalance.objects.filter(school=school).values_list("academic_year", flat=True).distinct()
+    return render(request, "accounts/leave_balance_list.html", {
+        "balances": qs,
+        "year_filter": year_filter,
+        "years": sorted(years, reverse=True),
+    })
+
+
+@login_required
+def my_leave_balance(request):
+    """Staff self-service: view own leave balances."""
+    from accounts.hr_models import LeaveBalance
+    from operations.models import StaffLeave
+    school = getattr(request.user, "school", None)
+    balances = LeaveBalance.objects.filter(user=request.user).order_by("-academic_year", "leave_type")
+    if school:
+        balances = balances.filter(school=school)
+    recent_leaves = StaffLeave.objects.filter(staff=request.user).order_by("-start_date")[:10]
+    return render(request, "accounts/my_leave_balance.html", {
+        "balances": balances,
+        "recent_leaves": recent_leaves,
+    })
+
+
+# ===========================================================================
+# PayrollRun
+# ===========================================================================
+
+@login_required
+def payroll_run_list(request):
+    from accounts.hr_models import PayrollRun
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not (is_school_leadership(request.user) or can_manage_finance(request.user)):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+    runs = PayrollRun.objects.filter(school=school).order_by("-pay_date")
+    return render(request, "accounts/payroll_run_list.html", {"runs": runs})
+
+
+@login_required
+def payroll_run_create(request):
+    from accounts.hr_models import PayrollRun
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not (is_school_leadership(request.user) or can_manage_finance(request.user)):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+
+    if request.method == "POST":
+        from django.utils.dateparse import parse_date as _pd
+        period_label = request.POST.get("period_label", "").strip()
+        pay_date_raw = request.POST.get("pay_date", "")
+        pay_date = _pd(pay_date_raw)
+        if not period_label or not pay_date:
+            from django.contrib import messages as _msg
+            _msg.error(request, "Period label and pay date are required.")
+        else:
+            run = PayrollRun.objects.create(
+                school=school,
+                period_label=period_label,
+                pay_date=pay_date,
+                status="draft",
+            )
+            from django.contrib import messages as _msg
+            _msg.success(request, f"Payroll run '{run.period_label}' created.")
+            return redirect("accounts:payroll_run_detail", pk=run.pk)
+
+    return render(request, "accounts/payroll_run_form.html", {})
+
+
+@login_required
+def payroll_run_detail(request, pk):
+    from accounts.hr_models import PayrollRun, StaffPayrollPayment
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not (is_school_leadership(request.user) or can_manage_finance(request.user)):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+    run = get_object_or_404(PayrollRun, pk=pk, school=school)
+    payments = StaffPayrollPayment.objects.filter(
+        payroll_run=run
+    ).select_related("staff").order_by("staff__last_name")
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        transitions = {
+            "process": ("draft", "processing"),
+            "complete": ("processing", "completed"),
+            "fail": ("processing", "failed"),
+        }
+        if action in transitions:
+            from_s, to_s = transitions[action]
+            if run.status == from_s:
+                run.status = to_s
+                totals = payments.aggregate(
+                    g=Sum("gross_salary"), n=Sum("net_salary"),
+                )
+                run.total_gross = totals["g"] or Decimal("0")
+                run.total_net = totals["n"] or Decimal("0")
+                run.staff_count = payments.count()
+                run.save()
+                from django.contrib import messages as _msg
+                _msg.success(request, f"Run status → {to_s}.")
+        return redirect("accounts:payroll_run_detail", pk=pk)
+
+    return render(request, "accounts/payroll_run_detail.html", {
+        "run": run,
+        "payments": payments,
+    })
+
+
+# ===========================================================================
+# StaffPerformanceReview
+# ===========================================================================
+
+@login_required
+def performance_review_list(request):
+    from accounts.hr_models import StaffPerformanceReview
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not _is_hr_admin(request):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+    year_filter = request.GET.get("year", "")
+    qs = StaffPerformanceReview.objects.filter(school=school).select_related(
+        "staff", "reviewer"
+    ).order_by("-academic_year", "staff__last_name")
+    if year_filter:
+        qs = qs.filter(academic_year=year_filter)
+    years = StaffPerformanceReview.objects.filter(school=school).values_list("academic_year", flat=True).distinct()
+    return render(request, "accounts/performance_review_list.html", {
+        "reviews": qs,
+        "year_filter": year_filter,
+        "years": sorted(years, reverse=True),
+    })
+
+
+@login_required
+def performance_review_create(request):
+    from accounts.hr_models import StaffPerformanceReview
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not _is_hr_admin(request):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+
+    staff_qs = User.objects.filter(school=school).exclude(
+        role__in=("student", "parent")
+    ).order_by("last_name", "first_name")
+
+    if request.method == "POST":
+        from django.utils.dateparse import parse_date as _pd
+        staff_id = request.POST.get("staff")
+        staff_user = get_object_or_404(User, pk=staff_id, school=school)
+        academic_year = request.POST.get("academic_year", "").strip()
+        review_period = request.POST.get("review_period", "annual")
+
+        def _score(field):
+            val = request.POST.get(field)
+            return int(val) if val and val.isdigit() else None
+
+        StaffPerformanceReview.objects.create(
+            school=school,
+            staff=staff_user,
+            reviewer=request.user,
+            academic_year=academic_year,
+            review_period=review_period,
+            punctuality_score=_score("punctuality_score"),
+            teaching_quality_score=_score("teaching_quality_score"),
+            communication_score=_score("communication_score"),
+            initiative_score=_score("initiative_score"),
+            teamwork_score=_score("teamwork_score"),
+            overall_rating=_score("overall_rating"),
+            strengths=request.POST.get("strengths", ""),
+            areas_for_improvement=request.POST.get("areas_for_improvement", ""),
+            goals_next_period=request.POST.get("goals_next_period", ""),
+            reviewer_notes=request.POST.get("reviewer_notes", ""),
+        )
+        from django.contrib import messages as _msg
+        _msg.success(request, f"Review created for {staff_user.get_full_name()}.")
+        return redirect("accounts:performance_review_list")
+
+    return render(request, "accounts/performance_review_form.html", {
+        "staff_list": staff_qs,
+        "rating_choices": StaffPerformanceReview.RATING_CHOICES,
+        "review_period_choices": StaffPerformanceReview.REVIEW_PERIOD_CHOICES,
+    })

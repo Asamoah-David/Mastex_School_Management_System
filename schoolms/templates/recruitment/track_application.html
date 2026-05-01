@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Track Application · MastexEDU{% endblock %}
+{% block page_title %}Track Your Application{% endblock %}
+{% block page_subtitle %}Enter your application reference to check the current status{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="max-width:640px;margin:0 auto;">
+    <div class="content-card" style="margin-bottom:1.5rem;">
+        <form method="GET" style="display:flex;gap:0.75rem;align-items:flex-end;">
+            <div class="form-group" style="flex:1;margin:0;">
+                <label class="form-label">Application Reference</label>
+                <input class="form-control" type="text" name="ref" value="{{ ref }}" placeholder="e.g. APP-A1B2C3D4" style="text-transform:uppercase;">
+            </div>
+            <button type="submit" class="btn btn-primary">Track →</button>
+        </form>
+    </div>
+
+    {% if app %}
+    <div class="content-card">
+        <h3 style="margin:0 0 1rem;color:var(--text-main);">Application Status</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.25rem;">
+            <div><p style="margin:0;color:var(--text-soft);font-size:0.78rem;">REFERENCE</p><p style="margin:0.2rem 0 0;font-weight:600;">{{ app.reference }}</p></div>
+            <div><p style="margin:0;color:var(--text-soft);font-size:0.78rem;">POSITION</p><p style="margin:0.2rem 0 0;font-weight:600;">{{ app.job.title }}</p></div>
+            <div><p style="margin:0;color:var(--text-soft);font-size:0.78rem;">SCHOOL</p><p style="margin:0.2rem 0 0;font-weight:600;">{{ app.job.school.name }}</p></div>
+            <div><p style="margin:0;color:var(--text-soft);font-size:0.78rem;">SUBMITTED</p><p style="margin:0.2rem 0 0;font-weight:600;">{{ app.submitted_at|date:"d M Y H:i"|default:"—" }}</p></div>
+        </div>
+        <div style="margin-bottom:1.25rem;">
+            <p style="margin:0;color:var(--text-soft);font-size:0.78rem;">CURRENT STATUS</p>
+            <span style="display:inline-block;margin-top:0.35rem;padding:0.35rem 1rem;border-radius:9999px;font-weight:600;font-size:0.9rem;
+                background:{% if app.status == 'submitted' %}rgba(59,130,246,0.1){% elif app.status == 'shortlisted' %}rgba(251,191,36,0.12){% elif app.status == 'interview_scheduled' %}rgba(139,92,246,0.1){% elif app.status == 'hired' %}rgba(34,197,94,0.1){% elif app.status == 'rejected' %}rgba(239,68,68,0.1){% else %}rgba(148,163,184,0.1){% endif %};
+                color:{% if app.status == 'submitted' %}#3b82f6{% elif app.status == 'shortlisted' %}#f59e0b{% elif app.status == 'interview_scheduled' %}#8b5cf6{% elif app.status == 'hired' %}#22c55e{% elif app.status == 'rejected' %}#ef4444{% else %}#94a3b8{% endif %};">
+                {{ app.get_status_display }}
+            </span>
+        </div>
+        {% if app.status == 'rejected' and app.rejection_reason %}
+        <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:0.75rem;padding:1rem;margin-bottom:1rem;">
+            <p style="margin:0;font-size:0.85rem;color:var(--text-soft);">Feedback from school:</p>
+            <p style="margin:0.4rem 0 0;color:var(--text-main);">{{ app.rejection_reason }}</p>
+        </div>
+        {% endif %}
+        {% if app.status == 'interview_scheduled' and app.interview_schedule %}
+        {% with s=app.interview_schedule %}
+        <div style="background:rgba(139,92,246,0.07);border:1px solid rgba(139,92,246,0.2);border-radius:0.75rem;padding:1rem;margin-bottom:1rem;">
+            <h4 style="margin:0 0 0.75rem;color:#8b5cf6;">📅 Interview Details</h4>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:0.4rem 1rem;font-size:0.88rem;">
+                <span style="color:var(--text-soft);">Date</span><strong>{{ s.interview_date|date:"l, d F Y" }}</strong>
+                <span style="color:var(--text-soft);">Time</span><strong>{{ s.interview_time|time:"g:i A" }}</strong>
+                <span style="color:var(--text-soft);">Format</span><strong>{{ s.get_mode_display }}</strong>
+                {% if s.location %}<span style="color:var(--text-soft);">Venue</span><strong>{{ s.location }}</strong>{% endif %}
+                {% if s.meeting_link %}<span style="color:var(--text-soft);">Link</span><a href="{{ s.meeting_link }}" target="_blank" style="color:#3b82f6;">Join Online</a>{% endif %}
+            </div>
+            {% if s.message_to_applicant %}
+            <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid rgba(139,92,246,0.2);font-size:0.85rem;color:var(--text-soft);">{{ s.message_to_applicant }}</div>
+            {% endif %}
+        </div>
+        {% endwith %}
+        {% endif %}
+    </div>
+    {% elif ref %}
+    <div class="content-card" style="text-align:center;padding:2rem;color:var(--text-soft);">
+        <p style="font-size:2rem;">🔍</p>
+        <p>No paid application found for reference <strong>{{ ref }}</strong>.</p>
+        <p style="font-size:0.85rem;">Ensure you enter the correct reference. Only paid applications are tracked.</p>
+    </div>
+    {% endif %}
+    <div style="text-align:center;margin-top:1rem;font-size:0.85rem;color:var(--text-soft);">
+        <a href="{% url 'recruitment:job_list' %}" style="color:#3b82f6;">← Browse Open Jobs</a>
+    </div>
+</div>
+{% endblock %}

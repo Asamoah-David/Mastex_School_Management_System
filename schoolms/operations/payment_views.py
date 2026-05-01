@@ -38,6 +38,10 @@ from operations.services.portal_payments import (
     mark_textbook_sale_completed,
     mark_textbook_sale_failed,
 )
+from payments.services.ledger import record_payment_transaction, PaymentTypes
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 def _payment_datetime(value):
@@ -86,11 +90,19 @@ def _get_parent_email(student, request):
 
 
 def _portal_children(user):
-    """Students linked to a parent user (stable ordering)."""
+    """Students linked to a parent user via legacy FK or StudentGuardian (stable ordering)."""
     if getattr(user, "role", None) != "parent":
         return []
+    legacy_ids = set(user.children.values_list("id", flat=True))
+    from students.models import StudentGuardian as _SG
+    guardian_ids = set(_SG.objects.filter(guardian=user).values_list("student_id", flat=True))
+    all_ids = legacy_ids | guardian_ids
+    if not all_ids:
+        return []
     return list(
-        user.children.select_related("user", "school").order_by("class_name", "admission_number")
+        Student.objects.filter(pk__in=all_ids, status="active")
+        .select_related("user", "school")
+        .order_by("class_name", "admission_number")
     )
 
 
@@ -1157,6 +1169,24 @@ def payment_dashboard(request):
         .order_by('user__last_name', 'user__first_name')[:10]
     )
 
+    # Daily collections — use PaymentTransaction as the unified ledger
+    from django.db.models.functions import TruncDate
+    from django.db.models import Sum as _Sum
+    from finance.models import PaymentTransaction
+    daily_qs = PaymentTransaction.objects.filter(school=school, status='completed')
+    if range_start:
+        daily_qs = daily_qs.filter(created_at__date__gte=range_start)
+    if range_end:
+        daily_qs = daily_qs.filter(created_at__date__lte=range_end)
+    daily_collections = list(
+        daily_qs
+        .annotate(day=TruncDate('created_at'))
+        .values('day')
+        .annotate(total=_Sum('amount'))
+        .order_by('-day')[:30]
+    )
+    grand_total = sum((r['total'] or Decimal('0')) for r in daily_collections)
+
     context = {
         'fees': school_fees_filtered[:20],
         'school_fees': school_fees_filtered[:20],
@@ -1188,6 +1218,8 @@ def payment_dashboard(request):
         'outstanding_students': outstanding_students,
         'bus_payments_page_obj': bus_payments_page_obj,
         'canteen_payments_page_obj': canteen_payments_page_obj,
+        'daily_collections': daily_collections,
+        'grand_total': grand_total,
     }
     return render(request, 'operations/payment_dashboard.html', context)
 
@@ -1294,53 +1326,164 @@ def student_payment_history(request, student_id):
 
 @login_required
 def record_payment(request):
-    """Manually record a payment for a student."""
+    """Manually record a cash/offline payment for a student."""
     from finance.models import Fee, FeePayment
-    
+
     school = getattr(request.user, 'school', None)
     if not school:
         messages.error(request, "School not found")
         return redirect('accounts:dashboard')
-    
+
     if request.method == 'POST':
-        student_id = request.POST.get('student_id')
-        fee_id = request.POST.get('fee_id')
-        amount = request.POST.get('amount')
+        payment_type = request.POST.get('payment_type', '')
         payment_method = request.POST.get('payment_method', 'cash')
-        
-        try:
-            student = Student.objects.get(id=student_id, school=school)
-            fee = Fee.objects.get(id=fee_id, student=student)
-            
-            amount_decimal = Decimal(str(amount))
-            
-            if amount_decimal <= 0:
-                messages.error(request, "Amount must be positive")
+
+        if payment_type in ('canteen', 'bus', 'textbook'):
+            # ── Services cash recording path ─────────────────────────────────
+            student_id = request.POST.get('student')
+            amount_str = request.POST.get('amount', '0')
+            try:
+                student = Student.objects.get(id=student_id, school=school)
+                amount_decimal = Decimal(str(amount_str)).quantize(Decimal('0.01'))
+                if amount_decimal <= 0:
+                    raise ValueError("Amount must be positive.")
+            except Student.DoesNotExist:
+                messages.error(request, "Student not found.")
                 return redirect('operations:record_payment')
-            
-            FeePayment.objects.create(
-                fee=fee,
-                amount=amount_decimal,
-                payment_method=payment_method,
-                status="completed",
-            )
-            Fee.objects.filter(pk=fee.pk).update(amount_paid=F("amount_paid") + amount_decimal)
-            fee.refresh_from_db()
-            fee.save()
-            
-            messages.success(request, f"Payment of GHS {amount} recorded successfully")
-            return redirect('operations:student_payment_history', student_id=student.id)
-            
-        except (Student.DoesNotExist, Fee.DoesNotExist) as e:
-            messages.error(request, "Student or fee not found")
-        except ValueError:
-            messages.error(request, "Invalid amount")
-    
-    # Get students for dropdown
+            except (ValueError, InvalidOperation) as exc:
+                messages.error(request, f"Invalid amount: {exc}")
+                return redirect('operations:record_payment')
+
+            reference = f"CASH_{payment_type.upper()}_{uuid.uuid4().hex[:10].upper()}"
+            try:
+                if payment_type == 'canteen':
+                    description = request.POST.get('description', '').strip()
+                    obj = CanteenPayment.objects.create(
+                        school=school,
+                        student=student,
+                        amount=amount_decimal,
+                        description=description,
+                        payment_reference=reference,
+                        payment_status='completed',
+                        recorded_by=request.user,
+                    )
+                    record_payment_transaction(
+                        provider='manual',
+                        reference=reference,
+                        school_id=school.pk,
+                        amount=amount_decimal,
+                        status='completed',
+                        payment_type=PaymentTypes.CANTEEN,
+                        object_id=str(obj.pk),
+                        metadata={'payment_method': payment_method, 'description': description},
+                    )
+
+                elif payment_type == 'bus':
+                    term = request.POST.get('term', '').strip()
+                    obj = BusPayment.objects.create(
+                        school=school,
+                        student=student,
+                        amount=amount_decimal,
+                        amount_paid=amount_decimal,
+                        term_period=term,
+                        payment_date=timezone.localdate(),
+                        payment_reference=reference,
+                        payment_status='completed',
+                        paid=True,
+                    )
+                    record_payment_transaction(
+                        provider='manual',
+                        reference=reference,
+                        school_id=school.pk,
+                        amount=amount_decimal,
+                        status='completed',
+                        payment_type=PaymentTypes.BUS,
+                        object_id=str(obj.pk),
+                        metadata={'payment_method': payment_method, 'term': term},
+                    )
+
+                elif payment_type == 'textbook':
+                    textbook_id = request.POST.get('textbook')
+                    try:
+                        qty = max(1, int(request.POST.get('quantity', 1)))
+                    except (TypeError, ValueError):
+                        qty = 1
+                    textbook = Textbook.objects.get(id=textbook_id, school=school)
+                    sale_amount = (Decimal(str(textbook.price)) * qty).quantize(Decimal('0.01'))
+                    obj = TextbookSale.objects.create(
+                        school=school,
+                        student=student,
+                        textbook=textbook,
+                        quantity=qty,
+                        amount=sale_amount,
+                        payment_reference=reference,
+                        payment_status='completed',
+                        recorded_by=request.user,
+                    )
+                    record_payment_transaction(
+                        provider='manual',
+                        reference=reference,
+                        school_id=school.pk,
+                        amount=sale_amount,
+                        status='completed',
+                        payment_type=PaymentTypes.TEXTBOOK,
+                        object_id=str(obj.pk),
+                        metadata={'payment_method': payment_method, 'textbook': textbook.title, 'quantity': qty},
+                    )
+
+                messages.success(request, f"{payment_type.title()} payment of GHS {amount_decimal} recorded.")
+                return redirect('operations:payment_dashboard')
+
+            except Textbook.DoesNotExist:
+                messages.error(request, "Textbook not found.")
+            except Exception as exc:
+                logger.exception("record_payment: failed to record %s cash payment: %s", payment_type, exc)
+                messages.error(request, f"Failed to record payment: {exc}")
+
+        else:
+            # ── Legacy school-fee path (fee_id + student_id via hidden fields) ──
+            student_id = request.POST.get('student_id')
+            fee_id = request.POST.get('fee_id')
+            amount = request.POST.get('amount')
+            try:
+                student = Student.objects.get(id=student_id, school=school)
+                fee = Fee.objects.get(id=fee_id, student=student)
+                amount_decimal = Decimal(str(amount)).quantize(Decimal('0.01'))
+                if amount_decimal <= 0:
+                    messages.error(request, "Amount must be positive")
+                    return redirect('operations:record_payment')
+                fp = FeePayment.objects.create(
+                    fee=fee,
+                    amount=amount_decimal,
+                    payment_method=payment_method,
+                    status="completed",
+                )
+                Fee.objects.filter(pk=fee.pk).update(amount_paid=F("amount_paid") + amount_decimal)
+                fee.refresh_from_db()
+                fee.save()
+                ref = f"CASH_FEE_{fee.pk}_{fp.pk}"
+                record_payment_transaction(
+                    provider='manual',
+                    reference=ref,
+                    school_id=school.pk,
+                    amount=amount_decimal,
+                    status='completed',
+                    payment_type=PaymentTypes.SCHOOL_FEE_MANUAL,
+                    object_id=str(fee.pk),
+                    metadata={'payment_method': payment_method, 'fee_payment_id': fp.pk},
+                )
+                messages.success(request, f"Payment of GHS {amount} recorded successfully")
+                return redirect('operations:student_payment_history', student_id=student.id)
+            except (Student.DoesNotExist, Fee.DoesNotExist):
+                messages.error(request, "Student or fee not found")
+            except (ValueError, InvalidOperation):
+                messages.error(request, "Invalid amount")
+
     students = Student.objects.filter(school=school, status='active').select_related('user').order_by('user__first_name')
-    
+    textbooks = Textbook.objects.filter(school=school, stock__gt=0).order_by('title')
     context = {
         'students': students,
+        'textbooks': textbooks,
         'page_title': 'Record Payment',
     }
     return render(request, 'operations/record_payment.html', context)

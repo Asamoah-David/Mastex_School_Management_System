@@ -13,6 +13,8 @@ from operations.models.attendance import (
 from operations.models.canteen import (
     CanteenItem,
     CanteenPayment,
+    CanteenOrder,
+    CanteenOrderItem,
 )
 from operations.models.transport import (
     BusRoute,
@@ -98,14 +100,19 @@ from operations.models.timetable import (
     TimetableSlot,
     TimetableConflict,
 )
+from operations.models.supply import (
+    ClassSupplyRequest,
+    ClassSupplyItem,
+    StudentSupplyContribution,
+)
 
 __all__ = [
     # attendance
     "TeacherAttendance", "StudentAttendance",
     # canteen
-    "CanteenItem", "CanteenPayment",
+    "CanteenItem", "CanteenPayment", "CanteenOrder", "CanteenOrderItem",
     # transport
-    "BusRoute", "BusPayment", "Textbook", "TextbookSale",
+    "BusRoute", "BusPayment", "BusPaymentLedger", "Textbook", "TextbookSale",
     # library
     "LibraryBook", "LibraryIssue",
     # hostel
@@ -136,4 +143,6 @@ __all__ = [
     "Alumni", "AlumniEvent",
     # timetable
     "TimetableSlot", "TimetableConflict",
+    # supply
+    "ClassSupplyRequest", "ClassSupplyItem", "StudentSupplyContribution",
 ]

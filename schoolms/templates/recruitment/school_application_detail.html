@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ app.full_name }} · Application · MastexEDU{% endblock %}
+{% block page_title %}Application: {{ app.full_name }}{% endblock %}
+{% block page_subtitle %}{{ app.job.title }} · {{ app.job.school.name }}{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="max-width:840px;margin:0 auto;">
+    <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+        <a href="{% url 'recruitment:school_applicant_list' app.job.pk %}" class="btn btn-secondary" style="font-size:0.85rem;">← Back to Applicants</a>
+        <span class="badge badge-primary">Ref: {{ app.reference }}</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.25rem;align-items:start;">
+        <div>
+            <div class="content-card" style="margin-bottom:1.25rem;">
+                <h3 style="margin:0 0 1rem;color:var(--text-main);">👤 Applicant Details</h3>
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:0.5rem 1.25rem;font-size:0.88rem;">
+                    <span style="color:var(--text-soft);">Full Name</span><strong>{{ app.full_name }}</strong>
+                    <span style="color:var(--text-soft);">Email</span><span>{{ app.email }}</span>
+                    <span style="color:var(--text-soft);">Phone</span><span>{{ app.phone }}</span>
+                    <span style="color:var(--text-soft);">Gender</span><span>{{ app.get_gender_display|default:"—" }}</span>
+                    <span style="color:var(--text-soft);">Date of Birth</span><span>{{ app.date_of_birth|date:"d M Y"|default:"—" }}</span>
+                    <span style="color:var(--text-soft);">Nationality</span><span>{{ app.nationality|default:"—" }}</span>
+                    <span style="color:var(--text-soft);">Qualification</span><strong>{{ app.get_highest_qualification_display }}</strong>
+                    <span style="color:var(--text-soft);">Experience</span><span>{{ app.years_experience }} year{{ app.years_experience|pluralize }}</span>
+                    <span style="color:var(--text-soft);">Last Employer</span><span>{{ app.current_employer|default:"—" }}</span>
+                    <span style="color:var(--text-soft);">Subjects</span><span>{{ app.subjects_taught|default:"—" }}</span>
+                </div>
+                {% if app.cv_upload %}
+                <div style="margin-top:0.75rem;">
+                    <a href="{{ app.cv_upload.url }}" target="_blank" class="btn btn-secondary" style="font-size:0.82rem;">⬇ Download CV / Resume</a>
+                </div>
+                {% endif %}
+                {% if app.referees %}
+                <h4 style="margin:1.25rem 0 0.5rem;color:var(--text-main);">Referees</h4>
+                <div style="color:var(--text-soft);white-space:pre-wrap;line-height:1.7;font-size:0.88rem;background:rgba(148,163,184,0.05);padding:1rem;border-radius:0.5rem;">{{ app.referees }}</div>
+                {% endif %}
+                <h4 style="margin:1.25rem 0 0.5rem;color:var(--text-main);">Cover Letter</h4>
+                <div style="color:var(--text-soft);white-space:pre-wrap;line-height:1.7;font-size:0.88rem;background:rgba(148,163,184,0.05);padding:1rem;border-radius:0.5rem;">{{ app.cover_letter }}</div>
+            </div>
+        </div>
+
+        <div>
+            <div class="content-card" style="margin-bottom:1rem;">
+                <h4 style="margin:0 0 1rem;color:var(--text-main);">Update Status</h4>
+                <form method="POST" action="{% url 'recruitment:school_application_action' app.pk %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label class="form-label">New Status</label>
+                        <select class="form-control" name="status" title="Status">
+                            {% for val, label in statuses %}
+                            <option value="{{ val }}" {% if app.status == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Notes / Rejection Reason</label>
+                        <textarea class="form-control" name="rejection_reason" rows="3" placeholder="Optional notes / rejection reason…">{{ app.rejection_reason|default:'' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%;">Save Status</button>
+                </form>
+            </div>
+
+            {% if app.status == 'shortlisted' or app.status == 'interview_scheduled' %}
+            <div class="content-card">
+                <h4 style="margin:0 0 0.75rem;color:var(--text-main);">📅 Schedule Interview</h4>
+                {% if app.interview_schedule %}
+                <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;">Interview scheduled for {{ app.interview_schedule.interview_date|date:"d M Y" }} at {{ app.interview_schedule.interview_time|time:"g:i A" }}.</p>
+                {% endif %}
+                <a href="{% url 'recruitment:school_schedule_interview' app.pk %}" class="btn btn-secondary" style="width:100%;text-align:center;">
+                    {% if app.interview_schedule %}Edit Interview{% else %}Schedule Interview{% endif %}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

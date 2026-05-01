@@ -769,3 +769,161 @@ def apply_fixed_asset_depreciation_annual(self):
     except Exception as exc:
         logger.exception("apply_fixed_asset_depreciation_annual failed")
         raise self.retry(exc=exc)
+
+
+# ---------------------------------------------------------------------------
+# F9 — Early Warning Flag detection (predictive at-risk system)
+# ---------------------------------------------------------------------------
+
+_EW_ATTENDANCE_THRESHOLD = 75      # % below which attendance triggers a flag
+_EW_SCORE_DROP_THRESHOLD = 15      # percentage-point drop in avg score vs. previous term
+_EW_DISCIPLINE_THRESHOLD = 3       # incidents in current term that trigger a flag
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=600)
+def detect_early_warning_flags(self):
+    """Scan active students and raise EarlyWarningFlag rows for at-risk cases.
+
+    Checks three independent signals:
+    1. Attendance rate < threshold (default 75 %).
+    2. Average score dropped by >= threshold vs. prior term.
+    3. Three or more discipline incidents this term.
+
+    Only creates a NEW flag if no open/acknowledged flag already exists for the
+    student in the current academic year.
+
+    Scheduled: weekly via CELERY_BEAT_SCHEDULE.
+    Returns: {"flags_created": N, "students_scanned": M}
+    """
+    try:
+        from django.db.models import Avg, Count, Q
+        from django.utils import timezone as _tz
+        from academics.models import EarlyWarningFlag, AcademicYear, Term
+        from students.models import Student
+        from operations.models import StudentAttendance, DisciplineIncident
+        from academics.models import Result
+
+        now = _tz.now().date()
+        created_count = 0
+        scanned = 0
+
+        for school in __import__("schools.models", fromlist=["School"]).School.objects.filter(
+            subscription_status__in=["active", "trial"]
+        ).iterator(chunk_size=50):
+            try:
+                acad_year = AcademicYear.objects.filter(school=school, is_current=True).first()
+                if not acad_year:
+                    continue
+                year_label = acad_year.name
+                current_term = Term.objects.filter(
+                    school=school, is_current=True
+                ).first()
+                term_label = current_term.name if current_term else ""
+
+                # Determine attendance window
+                term_start = current_term.start_date if current_term else acad_year.start_date
+                term_end = min(current_term.end_date if current_term else acad_year.end_date, now)
+
+                active_students = Student.objects.filter(
+                    school=school, status="active", deleted_at__isnull=True
+                )
+                for student in active_students.iterator(chunk_size=100):
+                    scanned += 1
+                    risk_triggers = []
+                    details = {}
+
+                    # --- 1. Attendance rate --------------------------------
+                    total_days = StudentAttendance.objects.filter(
+                        school=school, student=student,
+                        date__gte=term_start, date__lte=term_end,
+                    ).count()
+                    if total_days >= 10:
+                        present_days = StudentAttendance.objects.filter(
+                            school=school, student=student,
+                            date__gte=term_start, date__lte=term_end,
+                            status__in=["present", "late"],
+                        ).count()
+                        att_rate = round(present_days / total_days * 100, 1)
+                        if att_rate < _EW_ATTENDANCE_THRESHOLD:
+                            risk_triggers.append("attendance")
+                            details["attendance_rate"] = att_rate
+
+                    # --- 2. Score drop vs. prior term ----------------------
+                    current_avg = Result.objects.filter(
+                        school=school, student=student,
+                        academic_year=acad_year,
+                        term=current_term,
+                    ).aggregate(avg=Avg("score"))["avg"]
+                    if current_avg is not None:
+                        prior_results = Result.objects.filter(
+                            school=school, student=student,
+                        ).exclude(
+                            academic_year=acad_year,
+                            term=current_term,
+                        ).order_by("-id")[:20]
+                        if prior_results.exists():
+                            prior_avg = prior_results.aggregate(avg=Avg("score"))["avg"]
+                            if prior_avg and (float(prior_avg) - float(current_avg)) >= _EW_SCORE_DROP_THRESHOLD:
+                                risk_triggers.append("results")
+                                details["score_drop"] = round(float(prior_avg) - float(current_avg), 1)
+                                details["current_avg"] = round(float(current_avg), 1)
+
+                    # --- 3. Discipline incidents ---------------------------
+                    incident_count = DisciplineIncident.objects.filter(
+                        school=school, student=student,
+                        incident_date__gte=term_start, incident_date__lte=term_end,
+                    ).count()
+                    if incident_count >= _EW_DISCIPLINE_THRESHOLD:
+                        risk_triggers.append("discipline")
+                        details["discipline_count"] = incident_count
+
+                    if not risk_triggers:
+                        continue
+
+                    # Determine overall risk level
+                    n = len(risk_triggers)
+                    if n >= 3:
+                        risk_level = "critical"
+                    elif n == 2:
+                        risk_level = "high"
+                    elif "attendance" in risk_triggers and details.get("attendance_rate", 100) < 50:
+                        risk_level = "high"
+                    else:
+                        risk_level = "medium"
+
+                    trigger_type = "composite" if n > 1 else risk_triggers[0]
+
+                    # Skip if already an open/acknowledged flag this year
+                    already_flagged = EarlyWarningFlag.objects.filter(
+                        school=school, student=student,
+                        academic_year=year_label,
+                        status__in=["open", "acknowledged"],
+                    ).exists()
+                    if already_flagged:
+                        continue
+
+                    EarlyWarningFlag.objects.create(
+                        school=school,
+                        student=student,
+                        risk_level=risk_level,
+                        trigger_type=trigger_type,
+                        status="open",
+                        details=details,
+                        academic_year=year_label,
+                        term=term_label,
+                    )
+                    created_count += 1
+
+            except Exception:
+                logger.exception("detect_early_warning_flags: error processing school %s", school.pk)
+                continue
+
+        logger.info(
+            "detect_early_warning_flags: scanned=%d flags_created=%d",
+            scanned, created_count,
+        )
+        return {"flags_created": created_count, "students_scanned": scanned}
+
+    except Exception as exc:
+        logger.exception("detect_early_warning_flags failed")
+        raise self.retry(exc=exc)

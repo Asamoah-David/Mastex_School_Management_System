@@ -1,82 +1,317 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 
 {% block title %}{{ student.user.get_full_name|default:student.user.username }} · MastexEDU{% endblock %}
 {% block page_title %}{{ student.user.get_full_name|default:student.user.username }}{% endblock %}
-{% block page_subtitle %}Admission: {{ student.admission_number }} · Status: {{ student.get_status_display }}{% endblock %}
+{% block page_subtitle %}Admission: {{ student.admission_number }} · Class: {{ student.class_name|default:"—" }} · Status: {{ student.get_status_display }}{% endblock %}
+
 {% block content %}
-<div class="content-grid" style="grid-template-columns: 1fr;">
-    <section class="metric">
-        <div class="metric-label">Admission number</div>
-        <div class="metric-value">{{ student.admission_number }}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Class</div>
-        <div class="metric-value">{{ student.class_name|default:"—" }}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Gender</div>
-        <div class="metric-value">{{ student.user.gender|default:"—"|title }}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Phone Number</div>
-        <div class="metric-value">{{ student.user.phone|default:"—" }}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Email</div>
-        <div class="metric-value">{{ student.user.email|default:"—" }}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Parent</div>
-        <div class="metric-value">{% if student.parent %}{{ student.parent.get_full_name|default:student.parent.username }}{% else %}—{% endif %}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Parent Phone</div>
-        <div class="metric-value">{% if student.parent.phone %}{{ student.parent.phone }}{% else %}—{% endif %}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Parent Email</div>
-        <div class="metric-value">{% if student.parent.email %}{{ student.parent.email }}{% else %}—{% endif %}</div>
-    </section>
-    <section class="metric">
-        <div class="metric-label">Registered on</div>
-        <div class="metric-value">{{ student.user.date_joined|date:"Y-m-d H:i" }}</div>
-    </section>
-    {% if student.status != "active" or student.exit_date %}
-    <section class="metric" style="grid-column: 1 / -1;">
-        <div class="metric-label">Exit record</div>
-        <div class="metric-value" style="font-size: 0.9rem; font-weight: 500;">
-            {% if student.exit_date %}Last exit date: {{ student.exit_date }}{% else %}—{% endif %}
-            {% if student.exit_reason %} · Reason code: {{ student.exit_reason }}{% endif %}
-        </div>
-        {% if student.exit_notes %}
-        <div class="metric-caption" style="margin-top: 0.35rem; text-align: left;">{{ student.exit_notes }}</div>
-        {% endif %}
-    </section>
-    {% endif %}
-    {% if student.parent %}
-    <section class="metric" style="grid-column: 1 / -1;">
-        <div class="metric-label">Parent portal login</div>
-        <div class="metric-value" style="font-size: 0.9rem;">
-            {% if student.parent.is_active %}<span style="color: #4ade80;">Enabled</span>{% else %}<span style="color: #f87171;">Disabled</span>{% endif %}
-            <span style="color: var(--text-soft);"> — independent of this student’s login</span>
-        </div>
-    </section>
-    {% endif %}
-</div>
-<div class="button-row mt-sm">
-    <a href="{% url 'academics:report_card' student.id %}" class="btn btn-primary">View Report Card</a>
-    <a href="{% url 'students:student_edit' student.id %}" class="btn btn-warning">✏️ Edit Student</a>
-    <a href="{% url 'students:student_list' %}" class="btn btn-secondary">Back to students</a>
-    <a href="{% url 'accounts:reset_user_password' student.user.id %}?next={% url 'students:student_detail' student.id %}" class="btn btn-warning">Reset password</a>
+<!-- Action Bar -->
+<div class="button-row mb-sm">
+    <a href="{% url 'academics:report_card' student.id %}" class="btn btn-primary">📄 Report Card</a>
+    <a href="{% url 'students:student_edit' student.id %}" class="btn btn-warning">✏️ Edit</a>
+    <a href="{% url 'operations:student_payment_history' student.id %}" class="btn btn-secondary">💳 Payment History</a>
+    <a href="{% url 'accounts:reset_user_password' student.user.id %}?next={% url 'students:student_detail' student.id %}" class="btn btn-warning">🔑 Reset Password</a>
     {% if student.status != "active" or not student.user.is_active %}
-        <a href="{% url 'students:student_reactivate' student.id %}" class="btn btn-success">Reactivate student</a>
+        <a href="{% url 'students:student_reactivate' student.id %}" class="btn btn-success">Reactivate</a>
     {% endif %}
     {% if student.status == "active" or student.status == "suspended" %}
-        <a href="{% url 'students:student_clearance' student.id %}" class="btn btn-secondary">Leaver clearance</a>
-        <a href="{% url 'students:student_exit' student.id %}" class="btn btn-danger">Record exit / withdraw / dismiss</a>
+        <a href="{% url 'students:student_clearance' student.id %}" class="btn btn-secondary">Leaver Clearance</a>
+        <a href="{% url 'students:student_exit' student.id %}" class="btn btn-danger">Record Exit</a>
     {% endif %}
     {% if request.user.is_superuser or request.user.is_super_admin %}
-        <a href="{% url 'accounts:superuser_edit_credentials' student.user.id %}?next={% url 'students:student_detail' student.id %}" class="btn btn-primary">Edit login</a>
+        <a href="{% url 'accounts:superuser_edit_credentials' student.user.id %}?next={% url 'students:student_detail' student.id %}" class="btn btn-primary">Edit Login</a>
     {% endif %}
+    <a href="{% url 'students:student_list' %}" class="btn btn-secondary">← Back</a>
 </div>
+
+<!-- Summary cards -->
+<div class="stats-grid" style="margin-bottom:1.25rem;">
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value" style="color:{% if fee_balance > 0 %}#ef4444{% else %}#22c55e{% endif %};">{{ fee_balance|format_ghs }}</div>
+            <div class="stat-label">Fee Balance Outstanding</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value">{{ total_paid_fees|format_ghs }}</div>
+            <div class="stat-label">Total Fees Paid</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value" style="color:#22c55e;">{{ attend_present }}</div>
+            <div class="stat-label">Days Present (30d)</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value" style="color:#ef4444;">{{ attend_absent }}</div>
+            <div class="stat-label">Days Absent (30d)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="studentTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-profile" type="button">👤 Profile</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-fees" type="button">💰 Fees</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-payments" type="button">💳 Other Payments</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-attendance" type="button">📅 Attendance</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-discipline" type="button">📋 Discipline</button></li>
+</ul>
+
+<div class="tab-content">
+
+    <!-- PROFILE TAB -->
+    <div class="tab-pane fade show active" id="tab-profile">
+        <div class="content-grid" style="grid-template-columns:1fr;">
+            <section class="metric"><div class="metric-label">Admission No.</div><div class="metric-value">{{ student.admission_number }}</div></section>
+            <section class="metric"><div class="metric-label">Class</div><div class="metric-value">{{ student.class_name|default:"—" }}</div></section>
+            <section class="metric"><div class="metric-label">Gender</div><div class="metric-value">{{ student.user.gender|default:"—"|title }}</div></section>
+            <section class="metric"><div class="metric-label">Phone</div><div class="metric-value">{{ student.user.phone|default:"—" }}</div></section>
+            <section class="metric"><div class="metric-label">Email</div><div class="metric-value">{{ student.user.email|default:"—" }}</div></section>
+            <section class="metric"><div class="metric-label">Registered on</div><div class="metric-value">{{ student.user.date_joined|date:"d M Y" }}</div></section>
+            {% if student.exit_date %}
+            <section class="metric" style="grid-column:1/-1;">
+                <div class="metric-label">Exit record</div>
+                <div class="metric-value">{{ student.exit_date }} · {{ student.exit_reason|default:"—" }}</div>
+                {% if student.exit_notes %}<div class="metric-caption" style="text-align:left;">{{ student.exit_notes }}</div>{% endif %}
+            </section>
+            {% endif %}
+        </div>
+
+        <h4 class="section-title" style="margin-top:1.25rem;">Guardians / Parents</h4>
+        {% if guardians %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Name</th><th>Relationship</th><th>Phone</th><th>Primary</th><th>Can Pickup</th></tr></thead>
+                <tbody>
+                {% for g in guardians %}
+                <tr>
+                    <td><a href="{% url 'accounts:parent_detail' g.guardian.pk %}">{{ g.guardian.get_full_name }}</a></td>
+                    <td>{{ g.get_relationship_display }}</td>
+                    <td>{{ g.guardian.phone|default:"—" }}</td>
+                    <td>{% if g.is_primary %}<span class="tag tag-success">Primary</span>{% else %}—{% endif %}</td>
+                    <td>{% if g.can_pickup %}✅{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% elif student.parent %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Portal</th></tr></thead>
+                <tbody>
+                <tr>
+                    <td>{{ student.parent.get_full_name }}</td>
+                    <td>{{ student.parent.phone|default:"—" }}</td>
+                    <td>{{ student.parent.email|default:"—" }}</td>
+                    <td>{% if student.parent.is_active %}<span class="tag tag-success">Active</span>{% else %}<span class="tag tag-danger">Disabled</span>{% endif %}</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No guardians linked.</p>
+        {% endif %}
+    </div>
+
+    <!-- FEES TAB -->
+    <div class="tab-pane fade" id="tab-fees">
+        <div class="stats-grid" style="margin-bottom:1rem;">
+            <div class="stat-card"><div class="stat-content"><div class="stat-value">{{ total_owed|format_ghs }}</div><div class="stat-label">Total Charged</div></div></div>
+            <div class="stat-card"><div class="stat-content"><div class="stat-value">{{ total_paid_fees|format_ghs }}</div><div class="stat-label">Total Paid</div></div></div>
+            <div class="stat-card"><div class="stat-content"><div class="stat-value" style="color:{% if fee_balance > 0 %}#ef4444{% else %}#22c55e{% endif %};">{{ fee_balance|format_ghs }}</div><div class="stat-label">Balance</div></div></div>
+        </div>
+        <h4 class="section-title">Fee Records</h4>
+        {% if fees %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Description</th><th>Term</th><th>Charged</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for f in fees %}
+                <tr>
+                    <td>{{ f.description|default:f.fee_structure.name|default:"—" }}</td>
+                    <td>{{ f.term|default:"—" }}</td>
+                    <td>{{ f.amount|format_ghs }}</td>
+                    <td>{{ f.amount_paid|format_ghs }}</td>
+                    <td>{{ f.amount|sub:f.amount_paid|format_ghs }}</td>
+                    <td>{% if f.paid %}<span class="tag tag-success">Paid</span>{% else %}<span class="tag tag-warning">Unpaid</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No fee records.</p>{% endif %}
+
+        <h4 class="section-title" style="margin-top:1.25rem;">Recent Fee Payments</h4>
+        {% if recent_fee_payments %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for p in recent_fee_payments %}
+                <tr>
+                    <td>{{ p.created_at|date:"d M Y" }}</td>
+                    <td>{{ p.amount|format_ghs }}</td>
+                    <td>{{ p.payment_method|default:"—" }}</td>
+                    <td>{{ p.status|title }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No payment records.</p>{% endif %}
+    </div>
+
+    <!-- OTHER PAYMENTS TAB -->
+    <div class="tab-pane fade" id="tab-payments">
+        <h4 class="section-title">Canteen Payments</h4>
+        {% if canteen_payments %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Date</th><th>Amount</th><th>Description</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for p in canteen_payments %}
+                <tr>
+                    <td>{{ p.payment_date|date:"d M Y" }}</td>
+                    <td>{{ p.amount|format_ghs }}</td>
+                    <td>{{ p.description|default:"—" }}</td>
+                    <td>{{ p.payment_status|title }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No canteen payments.</p>{% endif %}
+
+        <h4 class="section-title" style="margin-top:1.25rem;">Bus Payments</h4>
+        {% if bus_payments %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Date</th><th>Route</th><th>Amount</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for p in bus_payments %}
+                <tr>
+                    <td>{{ p.payment_date|date:"d M Y" }}</td>
+                    <td>{{ p.route.name|default:"—" }}</td>
+                    <td>{{ p.amount|format_ghs }}</td>
+                    <td>{% if p.paid %}<span class="tag tag-success">Paid</span>{% else %}<span class="tag tag-warning">Unpaid</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No bus payments.</p>{% endif %}
+
+        <h4 class="section-title" style="margin-top:1.25rem;">Textbook Sales</h4>
+        {% if textbook_sales %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Date</th><th>Textbook</th><th>Qty</th><th>Amount</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for s in textbook_sales %}
+                <tr>
+                    <td>{{ s.sale_date|date:"d M Y" }}</td>
+                    <td>{{ s.textbook.title|default:"—" }}</td>
+                    <td>{{ s.quantity|default:1 }}</td>
+                    <td>{{ s.amount|format_ghs }}</td>
+                    <td>{{ s.payment_status|title }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No textbook sales.</p>{% endif %}
+    </div>
+
+    <!-- ATTENDANCE TAB -->
+    <div class="tab-pane fade" id="tab-attendance">
+        <div class="stats-grid" style="margin-bottom:1rem;">
+            <div class="stat-card"><div class="stat-content"><div class="stat-value" style="color:#22c55e;">{{ attend_present }}</div><div class="stat-label">Present</div></div></div>
+            <div class="stat-card"><div class="stat-content"><div class="stat-value" style="color:#ef4444;">{{ attend_absent }}</div><div class="stat-label">Absent</div></div></div>
+            <div class="stat-card"><div class="stat-content"><div class="stat-value" style="color:#f59e0b;">{{ attend_late }}</div><div class="stat-label">Late</div></div></div>
+        </div>
+        <p class="text-muted" style="font-size:0.85rem;">Showing last 30 days.</p>
+        {% if attendance_records %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Date</th><th>Status</th><th>Notes</th></tr></thead>
+                <tbody>
+                {% for a in attendance_records %}
+                <tr>
+                    <td>{{ a.date|date:"D, d M Y" }}</td>
+                    <td>
+                        {% if a.status == "present" %}<span class="tag tag-success">Present</span>
+                        {% elif a.status == "absent" %}<span class="tag tag-danger">Absent</span>
+                        {% elif a.status == "late" %}<span class="tag tag-warning">Late</span>
+                        {% else %}<span class="tag">{{ a.status|title }}</span>{% endif %}
+                    </td>
+                    <td>{{ a.notes|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No attendance records for the last 30 days.</p>{% endif %}
+    </div>
+
+    <!-- DISCIPLINE TAB -->
+    <div class="tab-pane fade" id="tab-discipline">
+        {% if discipline_records %}
+        <div class="table-card">
+            <table>
+                <thead><tr><th>Date</th><th>Incident</th><th>Type</th><th>Action</th></tr></thead>
+                <tbody>
+                {% for d in discipline_records %}
+                <tr>
+                    <td>{{ d.incident_date|date:"d M Y" }}</td>
+                    <td>{{ d.title|default:d.description|default:"—"|truncatechars:60 }}</td>
+                    <td>{{ d.incident_type|default:"—"|title }}</td>
+                    <td>{{ d.action_taken|default:"—"|truncatechars:50 }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No discipline records.</p>{% endif %}
+    </div>
+
+    <!-- Guardians -->
+    <div class="card mb-md">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h3 class="card-title">Guardians / Parents</h3>
+            <a href="{% url 'students:student_guardian_add' student.id %}" class="btn btn-primary btn-sm">+ Link Guardian</a>
+        </div>
+        {% if guardians %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead><tr><th>Name</th><th>Phone</th><th>Relationship</th><th>Primary</th><th>Can Pickup</th><th>Emergency</th><th></th></tr></thead>
+                <tbody>
+                {% for g in guardians %}
+                <tr>
+                    <td><a href="{% url 'accounts:parent_detail' g.guardian.id %}">{{ g.guardian.get_full_name }}</a></td>
+                    <td>{{ g.guardian.phone|default:"—" }}</td>
+                    <td>{{ g.get_relationship_display }}</td>
+                    <td>{% if g.is_primary %}<span class="badge badge-success">Primary</span>{% else %}—{% endif %}</td>
+                    <td>{% if g.can_pickup %}✅{% else %}❌{% endif %}</td>
+                    <td>{% if g.emergency_contact %}✅{% else %}—{% endif %}</td>
+                    <td>
+                        <form method="post" action="{% url 'students:student_guardian_remove' g.id %}" style="display:inline;" onsubmit="return confirm('Remove this guardian link?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted">No guardians linked. <a href="{% url 'students:student_guardian_add' student.id %}">Link one now →</a></p>{% endif %}
+    </div>
+
+</div><!-- /tab-content -->
 {% endblock %}

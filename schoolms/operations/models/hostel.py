@@ -2,12 +2,15 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from students.models import Student
 from schools.models import School
 from accounts.models import User
+from core.tenancy import SchoolScopedModel
 
 
-class Hostel(models.Model):
+class Hostel(SchoolScopedModel):
     """Hostel/Dormitory information"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -21,7 +24,7 @@ class Hostel(models.Model):
         return f"{self.name} ({self.type})"
 
 
-class HostelRoom(models.Model):
+class HostelRoom(SchoolScopedModel):
     """Individual rooms in hostel"""
     hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="rooms")
     room_number = models.CharField(max_length=20)
@@ -36,7 +39,7 @@ class HostelRoom(models.Model):
         return f"{self.hostel.name} - Room {self.room_number}"
 
 
-class HostelAssignment(models.Model):
+class HostelAssignment(SchoolScopedModel):
     """Track student hostel assignments."""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
@@ -83,7 +86,7 @@ class HostelAssignment(models.Model):
         super().save(*args, **kwargs)
 
 
-class HostelFee(models.Model):
+class HostelFee(SchoolScopedModel):
     """Hostel fee tracking with partial payment support"""
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
@@ -233,7 +236,7 @@ class HostelFee(models.Model):
         return True
 
 
-class HostelFeePayment(models.Model):
+class HostelFeePayment(SchoolScopedModel):
     """Immutable ledger rows for hostel fee payments (partial/full)."""
 
     hostel_fee = models.ForeignKey(HostelFee, on_delete=models.CASCADE, related_name="payment_entries")
@@ -261,3 +264,25 @@ class HostelFeePayment(models.Model):
 
     def __str__(self):
         return f"{self.hostel_fee_id} - {self.amount} ({self.payment_reference or 'manual'})"
+
+
+# ---------------------------------------------------------------------------
+# Signals: keep HostelRoom.current_occupancy accurate
+# ---------------------------------------------------------------------------
+
+def _refresh_room_occupancy(room_id):
+    """Recalculate and save current_occupancy for the given room PK."""
+    if not room_id:
+        return
+    count = HostelAssignment.objects.filter(room_id=room_id, is_active=True).count()
+    HostelRoom.objects.filter(pk=room_id).update(current_occupancy=count)
+
+
+@receiver(post_save, sender=HostelAssignment)
+def _hostel_assignment_post_save(sender, instance, **kwargs):
+    _refresh_room_occupancy(instance.room_id)
+
+
+@receiver(post_delete, sender=HostelAssignment)
+def _hostel_assignment_post_delete(sender, instance, **kwargs):
+    _refresh_room_occupancy(instance.room_id)

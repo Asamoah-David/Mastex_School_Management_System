@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Apply Discount · MastexEDU{% endblock %}
+{% block page_title %}Apply Fee Discount{% endblock %}
+{% block page_subtitle %}{{ fee.student.user.get_full_name }} — {{ fee }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;">
+    <div class="card-header"><h3 class="card-title">New Discount</h3></div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="form-label">Discount Type *</label>
+            <select name="discount_type" class="form-control" required>
+                {% for val, label in discount_types %}
+                <option value="{{ val }}" {% if post.discount_type == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Percentage (%) — leave blank if using fixed</label>
+            <input type="number" name="percentage" class="form-control" min="0" max="100" step="0.01" value="{{ post.percentage|default:'' }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Fixed Amount — leave blank if using percentage</label>
+            <input type="number" name="fixed_amount" class="form-control" min="0" step="0.01" value="{{ post.fixed_amount|default:'' }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Reason / Notes</label>
+            <textarea name="reason" class="form-control" rows="3">{{ post.reason|default:'' }}</textarea>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Apply Discount</button>
+            <a href="{% url 'finance:fee_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

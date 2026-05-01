@@ -281,6 +281,12 @@ class SchoolFeature(models.Model):
         ("staff_management", "Staff Management"),
         ("leave_management", "Leave Management"),
         ("staff_paystack_transfers", "Staff payroll (Paystack transfers)"),
+        # New features (Session 9)
+        ("question_bank", "Question Bank"),
+        ("learning_plans", "Individual Learning Plans (IEP/SEN)"),
+        ("early_warning", "Early Warning System"),
+        ("report_cards", "Digital Report Cards"),
+        ("scholarships", "Scholarships & Bursaries"),
     )
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="features")

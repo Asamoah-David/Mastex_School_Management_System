@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Bank Accounts · MastexEDU{% endblock %}
+{% block page_title %}Bank Accounts{% endblock %}
+{% block page_subtitle %}School bank accounts for fee collection and payouts{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'finance:bank_account_create' %}" class="btn btn-primary">+ Add Account</a>
+</div>
+<div class="card">
+    {% if accounts %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Bank</th><th>Account Name</th><th>Number</th><th>Type</th><th>Currency</th><th>Primary</th><th>Active</th><th></th></tr></thead>
+            <tbody>
+            {% for a in accounts %}
+            <tr>
+                <td>{{ a.bank_name }}</td>
+                <td>{{ a.account_name|default:"—" }}</td>
+                <td>{{ a.account_number }}</td>
+                <td>{{ a.get_account_type_display }}</td>
+                <td>{{ a.currency }}</td>
+                <td>{% if a.is_primary %}<span class="badge badge-success">Yes</span>{% else %}—{% endif %}</td>
+                <td>{% if a.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}</td>
+                <td>
+                    <form method="post" action="{% url 'finance:bank_account_toggle' a.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-secondary btn-sm">{% if a.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No bank accounts configured.</p>{% endif %}
+</div>
+{% endblock %}

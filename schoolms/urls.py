@@ -126,6 +126,7 @@ urlpatterns += [
     path("accounts/", include("accounts.urls")),
     path("", include("django.contrib.auth.urls")),
     path("students/", include("students.urls")),
+    path("parent/", include("students.parent_urls")),
     path("academics/", include("academics.urls")),
     path("finance/", include("finance.urls")),
     path("messaging/", include("messaging.urls")),
@@ -133,6 +134,7 @@ urlpatterns += [
     path("ai/", include("ai_assistant.urls")),
     path("notifications/", include("notifications.urls")),
     path("audit/", include("audit.urls")),
+    path("jobs/", include("recruitment.urls")),
     # SSE real-time dashboard (Fix #32)
     path("core/sse/dashboard/", __import__("core.sse_views", fromlist=["sse_dashboard"]).sse_dashboard, name="sse_dashboard"),
 ]

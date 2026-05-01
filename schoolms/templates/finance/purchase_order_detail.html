@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ po.po_number }} · MastexEDU{% endblock %}
+{% block page_title %}{{ po.po_number }}{% endblock %}
+{% block page_subtitle %}{{ po.supplier_name }} · {{ po.get_status_display }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'finance:purchase_order_list' %}" class="btn btn-secondary">← POs</a>
+    {% if po.status == "draft" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="form_type" value="advance_status"><input type="hidden" name="action" value="submit"><button class="btn btn-primary">Submit for Approval</button></form>
+    {% elif po.status == "submitted" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="form_type" value="advance_status"><input type="hidden" name="action" value="approve"><button class="btn btn-success">Approve</button></form>
+    {% elif po.status == "approved" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="form_type" value="advance_status"><input type="hidden" name="action" value="order"><button class="btn btn-primary">Mark Ordered</button></form>
+    {% elif po.status == "ordered" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="form_type" value="advance_status"><input type="hidden" name="action" value="receive"><button class="btn btn-success">Mark Received</button></form>
+    {% elif po.status == "received" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="form_type" value="advance_status"><input type="hidden" name="action" value="pay"><button class="btn btn-success">Mark Paid</button></form>
+    {% endif %}
+    {% if po.status not in "paid,cancelled" %}
+    <form method="post" style="display:inline;" onsubmit="return confirm('Cancel this PO?');"> {% csrf_token %}<input type="hidden" name="form_type" value="advance_status"><input type="hidden" name="action" value="cancel"><button class="btn btn-danger">Cancel PO</button></form>
+    {% endif %}
+</div>
+
+<div class="stats-grid mb-md">
+    <div class="stat-card"><div class="stat-label">Grand Total</div><div class="stat-value">{{ po.grand_total }}</div></div>
+    <div class="stat-card"><div class="stat-label">Tax</div><div class="stat-value">{{ po.tax_amount }}</div></div>
+    <div class="stat-card"><div class="stat-label">Currency</div><div class="stat-value">{{ po.currency }}</div></div>
+    <div class="stat-card"><div class="stat-label">Status</div><div class="stat-value">{{ po.get_status_display }}</div></div>
+</div>
+
+<div class="card mb-md">
+    <div class="card-header"><h3 class="card-title">Line Items</h3></div>
+    {% if items %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+            <tbody>
+            {% for i in items %}
+            <tr><td>{{ i.description }}</td><td>{{ i.quantity }}</td><td>{{ i.unit_price }}</td><td>{{ i.total_price }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted p-sm">No items yet.</p>{% endif %}
+
+    {% if po.status == "draft" %}
+    <div class="card-footer">
+        <form method="post" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;">
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="add_item">
+            <div class="form-group" style="margin:0;flex:2;min-width:160px;"><label class="form-label">Description</label><input type="text" name="description" class="form-control" required></div>
+            <div class="form-group" style="margin:0;width:70px;"><label class="form-label">Qty</label><input type="number" name="quantity" class="form-control" value="1" min="1" required></div>
+            <div class="form-group" style="margin:0;width:110px;"><label class="form-label">Unit Price</label><input type="number" name="unit_price" class="form-control" step="0.01" min="0" required></div>
+            <button type="submit" class="btn btn-primary">Add Item</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+{% if po.notes %}
+<div class="card"><div class="card-header"><h3 class="card-title">Notes</h3></div><p class="p-sm">{{ po.notes }}</p></div>
+{% endif %}
+{% endblock %}

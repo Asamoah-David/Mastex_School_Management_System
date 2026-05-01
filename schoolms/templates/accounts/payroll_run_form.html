@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}New Payroll Run · MastexEDU{% endblock %}
+{% block page_title %}New Payroll Run{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;">
+    <div class="card-header"><h3 class="card-title">Create Payroll Run</h3></div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="form-label">Period Label * (e.g. "January 2026")</label>
+            <input type="text" name="period_label" class="form-control" required placeholder="January 2026">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Pay Date *</label>
+            <input type="date" name="pay_date" class="form-control" required>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Create Run</button>
+            <a href="{% url 'accounts:payroll_run_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}{{ staff.get_full_name|default:staff.username }} · MastexEDU{% endblock %}
 {% block page_title %}{{ staff.get_full_name|default:staff.username }}{% endblock %}
 {% block page_subtitle %}Staff profile · Status: {% if staff.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
@@ -28,6 +29,34 @@
         <div class="metric-label">Registered on</div>
         <div class="metric-value">{{ staff.date_joined|date:"Y-m-d H:i" }}</div>
     </section>
+</div>
+
+<!-- Summary Stats -->
+<div class="stats-grid" style="margin-bottom:1.25rem;">
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value">{{ staff.get_role_display }}</div>
+            <div class="stat-label">Primary Role</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value">{{ staff_contracts|length }}</div>
+            <div class="stat-label">Contracts</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value">{{ staff_payroll|length }}</div>
+            <div class="stat-label">Payroll Records</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-content">
+            <div class="stat-value">{% if staff_homeroom_class %}{{ staff_homeroom_class.name }}{% else %}—{% endif %}</div>
+            <div class="stat-label">Homeroom Class</div>
+        </div>
+    </div>
 </div>
 
 <!-- Role Change Form for School Admins -->

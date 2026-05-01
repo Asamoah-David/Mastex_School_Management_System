@@ -1,13 +1,15 @@
 from django.contrib import admin
 from .models import (
     StudentAttendance, TeacherAttendance, AcademicCalendar,
-    CanteenItem, CanteenPayment, BusRoute, BusPayment, BusPaymentLedger,
+    CanteenItem, CanteenPayment, CanteenOrder, CanteenOrderItem,
+    BusRoute, BusPayment, BusPaymentLedger,
     Textbook, TextbookSale, Announcement, StaffLeave, ActivityLog,
     LibraryBook, LibraryIssue, LibraryFine, Hostel, HostelRoom, HostelAssignment,
     AdmissionApplication, Certificate, StudentIDCard, StaffIDCard,
     ExpenseCategory, Expense, Budget,
-    DisciplineIncident, BehaviorPoint, InventoryCategory, InventoryItem,
+    BehaviorPoint, InventoryCategory, InventoryItem,
     PTMeeting, Sport, Club, ExamHall,
+    ClassSupplyRequest, ClassSupplyItem, StudentSupplyContribution,
 )
 
 
@@ -183,14 +185,6 @@ class BudgetAdmin(admin.ModelAdmin):
     list_filter = ("school", "academic_year")
 
 
-@admin.register(DisciplineIncident)
-class DisciplineIncidentAdmin(admin.ModelAdmin):
-    list_display = ("student", "incident_type", "incident_date", "severity", "school")
-    list_select_related = ("student", "student__user", "school")
-    list_filter = ("school", "severity")
-    raw_id_fields = ("student", "reported_by")
-
-
 @admin.register(BehaviorPoint)
 class BehaviorPointAdmin(admin.ModelAdmin):
     list_display = ("student", "points", "reason", "awarded_at", "school")
@@ -316,3 +310,82 @@ class LibraryFineAdmin(admin.ModelAdmin):
             fine.waive(user=request.user, reason="Bulk waiver via admin")
             count += 1
         self.message_user(request, f"{count} fine(s) waived.")
+
+
+class CanteenOrderItemInline(admin.TabularInline):
+    model = CanteenOrderItem
+    extra = 0
+    fields = ("item", "quantity", "unit_price", "line_total")
+    readonly_fields = ("unit_price", "line_total")
+
+
+@admin.register(CanteenOrder)
+class CanteenOrderAdmin(admin.ModelAdmin):
+    list_display = ("student", "order_date", "order_type", "status", "total_amount", "school")
+    list_select_related = ("student", "student__user", "school")
+    list_filter = ("school", "status", "order_type", "order_date")
+    search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
+    date_hierarchy = "order_date"
+    readonly_fields = ("total_amount", "created_at", "updated_at")
+    inlines = [CanteenOrderItemInline]
+    actions = ["mark_confirmed", "mark_ready", "mark_collected"]
+
+    @admin.action(description="Mark selected orders as Confirmed")
+    def mark_confirmed(self, request, queryset):
+        queryset.filter(status="pending").update(status="confirmed")
+        self.message_user(request, "Orders confirmed.")
+
+    @admin.action(description="Mark selected orders as Ready for Collection")
+    def mark_ready(self, request, queryset):
+        queryset.filter(status="confirmed").update(status="ready")
+        self.message_user(request, "Orders marked ready.")
+
+    @admin.action(description="Mark selected orders as Collected")
+    def mark_collected(self, request, queryset):
+        queryset.filter(status="ready").update(status="collected")
+        self.message_user(request, "Orders marked collected.")
+
+
+@admin.register(CanteenOrderItem)
+class CanteenOrderItemAdmin(admin.ModelAdmin):
+    list_display = ("order", "item", "quantity", "unit_price", "line_total")
+    list_select_related = ("order", "item")
+
+
+# ── Class Supply Tracking ─────────────────────────────────────────────────────
+
+class ClassSupplyItemInline(admin.TabularInline):
+    model = ClassSupplyItem
+    extra = 1
+    fields = ("name", "quantity_per_student", "unit", "notes", "order")
+
+
+@admin.register(ClassSupplyRequest)
+class ClassSupplyRequestAdmin(admin.ModelAdmin):
+    list_display = ("title", "school_class", "school", "academic_year", "deadline", "is_active")
+    list_select_related = ("school_class", "school", "created_by")
+    list_filter = ("school", "is_active", "academic_year")
+    search_fields = ("title", "school_class__name")
+    raw_id_fields = ("created_by",)
+    inlines = [ClassSupplyItemInline]
+    actions = ["close_requests", "reopen_requests"]
+
+    @admin.action(description="Close selected supply requests")
+    def close_requests(self, request, queryset):
+        queryset.update(is_active=False)
+        self.message_user(request, "Requests closed.")
+
+    @admin.action(description="Reopen selected supply requests")
+    def reopen_requests(self, request, queryset):
+        queryset.update(is_active=True)
+        self.message_user(request, "Requests reopened.")
+
+
+@admin.register(StudentSupplyContribution)
+class StudentSupplyContributionAdmin(admin.ModelAdmin):
+    list_display = ("student", "item", "quantity_brought", "brought_date", "recorded_by")
+    list_select_related = ("student", "student__user", "item", "item__request", "recorded_by")
+    list_filter = ("brought_date", "item__request__school")
+    search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number", "item__name")
+    raw_id_fields = ("student", "item", "recorded_by")
+    date_hierarchy = "brought_date"

@@ -24,6 +24,12 @@ from .views import (
     parent_absence_requests,
     absence_requests_review,
     absence_request_decide,
+    student_guardian_add,
+    student_guardian_remove,
+    learning_plan_list,
+    learning_plan_create,
+    learning_plan_detail,
+    learning_plan_delete,
 )
 
 app_name = "students"
@@ -59,4 +65,12 @@ urlpatterns = [
         absence_request_decide,
         name="absence_request_decide",
     ),
+    # Guardian management
+    path("<int:pk>/guardians/add/", student_guardian_add, name="student_guardian_add"),
+    path("guardians/<int:guardian_pk>/remove/", student_guardian_remove, name="student_guardian_remove"),
+    # Learning Plans (F7)
+    path("learning-plans/", learning_plan_list, name="learning_plan_list"),
+    path("<int:student_pk>/learning-plans/create/", learning_plan_create, name="learning_plan_create"),
+    path("learning-plans/<int:pk>/", learning_plan_detail, name="learning_plan_detail"),
+    path("learning-plans/<int:pk>/delete/", learning_plan_delete, name="learning_plan_delete"),
 ]

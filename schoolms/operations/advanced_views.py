@@ -14,6 +14,7 @@ from students.models import Student
 from schools.models import School
 from operations.models import (
     StudentAttendance, Expense, Budget, CanteenItem, CanteenPayment,
+    BusPayment, TextbookSale, HostelFee,
     DisciplineIncident, BehaviorPoint
 )
 from accounts.permissions import user_can_manage_school, can_manage_finance
@@ -388,7 +389,50 @@ def financial_reports_dashboard(request):
     if staff_payroll_monthly_max < 1:
         staff_payroll_monthly_max = 1.0
     staff_payroll_monthly_max_int = max(1, int(round(staff_payroll_monthly_max)))
-    
+
+    # ── Income calculations for current year ──────────────────────────────
+    from decimal import Decimal as _D
+    from django.db.models.functions import ExtractMonth
+    from finance.models import FeePayment
+
+    fee_income = FeePayment.objects.filter(
+        fee__school=school, status='completed', created_at__year=current_year
+    ).aggregate(total=Sum('amount'))['total'] or _D('0')
+    canteen_income = CanteenPayment.objects.filter(
+        school=school, payment_status='completed', payment_date__year=current_year
+    ).aggregate(total=Sum('amount'))['total'] or _D('0')
+    bus_income = BusPayment.objects.filter(
+        school=school, paid=True, payment_date__year=current_year
+    ).aggregate(total=Sum('amount'))['total'] or _D('0')
+    textbook_income = TextbookSale.objects.filter(
+        school=school, payment_status='completed', sale_date__year=current_year
+    ).aggregate(total=Sum('amount'))['total'] or _D('0')
+    hostel_income = HostelFee.objects.filter(
+        school=school, paid=True, payment_date__year=current_year
+    ).aggregate(total=Sum('amount'))['total'] or _D('0')
+
+    total_income = fee_income + canteen_income + bus_income + textbook_income + hostel_income
+    net_position = total_income - _D(str(total_expenses))
+
+    income_by_source = [
+        {'source': 'School Fees', 'total': fee_income},
+        {'source': 'Canteen', 'total': canteen_income},
+        {'source': 'Bus', 'total': bus_income},
+        {'source': 'Textbooks', 'total': textbook_income},
+        {'source': 'Hostel', 'total': hostel_income},
+    ]
+
+    monthly_income_qs = (
+        FeePayment.objects
+        .filter(fee__school=school, status='completed', created_at__year=current_year)
+        .annotate(month=ExtractMonth('created_at'))
+        .values('month')
+        .annotate(total=Sum('amount'))
+        .order_by('month')
+    )
+    monthly_income = list(monthly_income_qs)
+    monthly_income_max = max((float(m['total'] or 0) for m in monthly_income), default=1.0) or 1.0
+
     context = {
         'school': school,
         'total_expenses': total_expenses,
@@ -401,6 +445,11 @@ def financial_reports_dashboard(request):
         'staff_payroll_monthly': staff_payroll_monthly,
         'staff_payroll_monthly_max': staff_payroll_monthly_max_int,
         'budget_vs_actual': budget_vs_actual,
+        'total_income': total_income,
+        'net_position': net_position,
+        'income_by_source': income_by_source,
+        'monthly_income': monthly_income,
+        'monthly_income_max': max(1, int(round(monthly_income_max))),
     }
     return render(request, 'operations/financial_reports.html', context)
 

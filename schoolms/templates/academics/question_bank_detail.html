@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ bank.name }} · MastexEDU{% endblock %}
+{% block page_title %}{{ bank.name }}{% endblock %}
+{% block page_subtitle %}{{ bank.subject.name }} · {{ items|length }} question(s){% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'academics:question_bank_list' %}" class="btn btn-secondary">← Banks</a>
+</div>
+{% if bank.description %}<p class="text-muted mb-sm">{{ bank.description }}</p>{% endif %}
+
+<div class="card mb-md">
+    <div class="card-header"><h3 class="card-title">Questions</h3></div>
+    {% if items %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Difficulty</th><th>Marks</th><th>Correct Answer</th></tr></thead>
+            <tbody>
+            {% for i in items %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ i.question_text|truncatechars:80 }}</td>
+                <td>{{ i.get_question_type_display }}</td>
+                <td><span class="badge badge-{% if i.difficulty == 'easy' %}success{% elif i.difficulty == 'hard' %}danger{% else %}warning{% endif %}">{{ i.get_difficulty_display }}</span></td>
+                <td>{{ i.marks }}</td>
+                <td>{{ i.correct_answer|default:"—"|truncatechars:40 }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted p-sm">No questions yet.</p>{% endif %}
+
+    <div class="card-footer">
+        <h4 class="mb-sm">Add Question</h4>
+        <form method="post" action="{% url 'academics:question_bank_add_item' bank.id %}">
+            {% csrf_token %}
+            <div class="form-group"><label class="form-label">Question Text *</label><textarea name="question_text" class="form-control" rows="2" required></textarea></div>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:140px;">
+                    <label class="form-label">Type</label>
+                    <select name="question_type" class="form-control">
+                        {% for val, label in question_types %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;min-width:120px;">
+                    <label class="form-label">Difficulty</label>
+                    <select name="difficulty" class="form-control">
+                        {% for val, label in difficulty_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="width:80px;">
+                    <label class="form-label">Marks</label>
+                    <input type="number" name="marks" class="form-control" value="1" min="0" step="0.5">
+                </div>
+            </div>
+            <div class="form-group"><label class="form-label">Correct Answer</label><input type="text" name="correct_answer" class="form-control" placeholder="e.g. 'A' or 'True' or short text"></div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;"><label class="form-label">Option A</label><input type="text" name="option_a" class="form-control"></div>
+                <div class="form-group" style="flex:1;"><label class="form-label">Option B</label><input type="text" name="option_b" class="form-control"></div>
+                <div class="form-group" style="flex:1;"><label class="form-label">Option C</label><input type="text" name="option_c" class="form-control"></div>
+                <div class="form-group" style="flex:1;"><label class="form-label">Option D</label><input type="text" name="option_d" class="form-control"></div>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Question</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

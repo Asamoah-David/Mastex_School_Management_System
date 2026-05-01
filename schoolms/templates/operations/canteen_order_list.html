@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Canteen Orders · MastexEDU{% endblock %}
+{% block page_title %}Canteen Orders{% endblock %}
+{% block page_subtitle %}
+  {% if is_staff %}Orders for {{ filter_date }} — confirm, mark ready, or collect.
+  {% else %}Your recent canteen orders.{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if is_staff %}
+<div class="button-row" style="margin-bottom:1rem;">
+  <form method="get" style="display:inline-flex;gap:0.5rem;align-items:center;">
+    <label style="font-size:0.88rem;color:var(--muted,#64748b);">Date:</label>
+    <input type="date" name="date" class="form-control form-control-sm" style="width:auto;" value="{{ filter_date }}" onchange="this.form.submit()">
+  </form>
+  <a href="{% url 'operations:canteen_order_place' %}" class="btn btn-primary btn-sm">Place Order</a>
+</div>
+<div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1rem;">
+  {% for s, n in status_counts.items %}
+  <span class="badge" style="background:#334155;color:#f1f5f9;font-size:0.8rem;padding:0.35rem 0.65rem;">{{ s }}: {{ n }}</span>
+  {% endfor %}
+</div>
+{% else %}
+<div class="button-row">
+  <a href="{% url 'operations:canteen_order_place' %}" class="btn btn-primary">Place New Order</a>
+</div>
+{% endif %}
+
+<div class="table-card">
+  {% if orders %}
+  <table>
+    <thead>
+      <tr>
+        {% if is_staff %}<th>Student</th>{% endif %}
+        <th>Date</th>
+        <th>Items</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Type</th>
+        {% if is_staff %}<th>Actions</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr id="order-row-{{ order.pk }}">
+        {% if is_staff %}
+        <td><strong>{{ order.student.user.get_full_name|default:order.student.user.username }}</strong></td>
+        {% endif %}
+        <td>{{ order.order_date|date:"d M Y" }}</td>
+        <td>
+          <small>
+            {% for oi in order.items.all %}
+              {{ oi.item.name }} ×{{ oi.quantity }}{% if not forloop.last %}, {% endif %}
+            {% empty %}—{% endfor %}
+          </small>
+        </td>
+        <td>GHS {{ order.total_amount|default:"0.00" }}</td>
+        <td>
+          {% if order.status == "pending" %}<span class="badge" style="background:#f59e0b;color:#fff;">Pending</span>
+          {% elif order.status == "confirmed" %}<span class="badge" style="background:#3b82f6;color:#fff;">Confirmed</span>
+          {% elif order.status == "ready" %}<span class="badge" style="background:#22c55e;color:#fff;">Ready</span>
+          {% elif order.status == "collected" %}<span class="badge" style="background:#64748b;color:#fff;">Collected</span>
+          {% elif order.status == "cancelled" %}<span class="badge" style="background:#ef4444;color:#fff;">Cancelled</span>
+          {% else %}<span class="badge" style="background:#334155;color:#fff;">{{ order.status }}</span>{% endif %}
+        </td>
+        <td><small>{{ order.get_order_type_display|default:order.order_type }}</small></td>
+        {% if is_staff %}
+        <td>
+          {% if order.status == "pending" %}
+          <button class="btn btn-primary btn-sm co-action" data-pk="{{ order.pk }}" data-action="confirm">Confirm</button>
+          <button class="btn btn-danger btn-sm co-action" data-pk="{{ order.pk }}" data-action="cancel">Cancel</button>
+          {% elif order.status == "confirmed" %}
+          <button class="btn btn-success btn-sm co-action" data-pk="{{ order.pk }}" data-action="ready">Mark Ready</button>
+          {% elif order.status == "ready" %}
+          <button class="btn btn-secondary btn-sm co-action" data-pk="{{ order.pk }}" data-action="collect">Collected</button>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-state">No orders found for this date.</p>
+  {% endif %}
+</div>
+
+{% if is_staff %}
+<script>
+(function(){
+  const csrf = (document.cookie.match(/csrftoken=([^;]+)/)||[])[1]||'';
+  document.querySelectorAll('.co-action').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      const pk = this.dataset.pk, action = this.dataset.action;
+      fetch("{% url 'operations:canteen_order_update_status' pk=0 %}".replace('/0/','/'+pk+'/'), {
+        method:'POST', credentials:'same-origin',
+        headers:{'X-CSRFToken':csrf,'Content-Type':'application/x-www-form-urlencoded'},
+        body:'action='+encodeURIComponent(action)
+      }).then(r=>r.json()).then(d=>{ if(d.status) location.reload(); else alert(d.error||'Error'); })
+       .catch(()=>alert('Network error.'));
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

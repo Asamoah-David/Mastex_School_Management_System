@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}My Leave · MastexEDU{% endblock %}
+{% block page_title %}My Leave{% endblock %}
+{% block page_subtitle %}Your leave entitlement and history{% endblock %}
+{% block content %}
+<div class="card mb-md">
+    <div class="card-header"><h3 class="card-title">Leave Balances</h3></div>
+    {% if balances %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Leave Type</th><th>Year</th><th>Entitled</th><th>Used</th><th>Remaining</th></tr></thead>
+            <tbody>
+            {% for b in balances %}
+            <tr>
+                <td>{{ b.get_leave_type_display }}</td>
+                <td>{{ b.academic_year }}</td>
+                <td>{{ b.days_entitled }}</td>
+                <td>{{ b.days_used }}</td>
+                <td><strong>{{ b.days_remaining }}</strong></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted p-sm">No leave records found for your account.</p>{% endif %}
+</div>
+<div class="card">
+    <div class="card-header"><h3 class="card-title">Recent Leave Requests</h3></div>
+    {% if recent_leaves %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for l in recent_leaves %}
+            <tr>
+                <td>{{ l.get_leave_type_display }}</td>
+                <td>{{ l.start_date|date:"d M Y" }}</td>
+                <td>{{ l.end_date|date:"d M Y" }}</td>
+                <td>{{ l.number_of_days }}</td>
+                <td><span class="badge badge-{% if l.status == 'approved' %}success{% elif l.status == 'rejected' %}danger{% else %}warning{% endif %}">{{ l.get_status_display }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted p-sm">No leave requests yet.</p>{% endif %}
+</div>
+{% endblock %}

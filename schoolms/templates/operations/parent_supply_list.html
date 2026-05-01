@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}My Children's Supply Requests · MastexEDU{% endblock %}
+{% block page_title %}Pending Supply Items{% endblock %}
+{% block page_subtitle %}Items your child still needs to bring to school{% endblock %}
+{% block content %}
+{% if child_data %}
+{% for entry in child_data %}
+<div class="content-card" style="margin-bottom:1.25rem;">
+    <h3 style="margin:0 0 1rem;color:var(--text-main);">
+        👤 {{ entry.child.user.get_full_name }} — {{ entry.child.school_class.name }}
+    </h3>
+    <table class="data-table">
+        <thead><tr><th>Supply Request</th><th>Item</th><th>Qty Needed</th><th>Unit</th><th>Deadline</th><th>Notes</th></tr></thead>
+        <tbody>
+        {% for pending in entry.pending %}
+        <tr>
+            <td style="font-size:0.85rem;">{{ pending.request.title }}</td>
+            <td style="font-weight:600;">{{ pending.item.name }}</td>
+            <td>{{ pending.item.quantity_per_student }}</td>
+            <td>{{ pending.item.unit }}</td>
+            <td>{{ pending.request.deadline|date:"d M Y"|default:"—" }}</td>
+            <td style="font-size:0.82rem;color:var(--text-soft);">{{ pending.item.notes|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endfor %}
+{% else %}
+<div class="content-card" style="text-align:center;padding:3rem;color:var(--text-soft);">
+    <p style="font-size:2rem;">✅</p>
+    <p>All supply items are up to date! No pending items for your children.</p>
+</div>
+{% endif %}
+{% endblock %}

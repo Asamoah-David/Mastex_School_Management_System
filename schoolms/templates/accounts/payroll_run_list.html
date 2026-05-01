@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Payroll Runs · MastexEDU{% endblock %}
+{% block page_title %}Payroll Runs{% endblock %}
+{% block page_subtitle %}Monthly or term payroll batches{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'accounts:payroll_run_create' %}" class="btn btn-primary">+ New Run</a>
+</div>
+<div class="card">
+    {% if runs %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Period</th><th>Pay Date</th><th>Staff Count</th><th>Total Gross</th><th>Total Net</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            {% for r in runs %}
+            <tr>
+                <td><a href="{% url 'accounts:payroll_run_detail' r.id %}">{{ r.period_label }}</a></td>
+                <td>{{ r.pay_date|date:"d M Y" }}</td>
+                <td>{{ r.staff_count }}</td>
+                <td>{{ r.total_gross }}</td>
+                <td>{{ r.total_net }}</td>
+                <td><span class="badge badge-{% if r.status == 'completed' %}success{% elif r.status == 'failed' %}danger{% elif r.status == 'draft' %}secondary{% else %}warning{% endif %}">{{ r.get_status_display }}</span></td>
+                <td><a href="{% url 'accounts:payroll_run_detail' r.id %}" class="btn btn-secondary btn-sm">View</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No payroll runs found.</p>{% endif %}
+</div>
+{% endblock %}

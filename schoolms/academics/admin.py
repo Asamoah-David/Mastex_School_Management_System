@@ -4,6 +4,7 @@ from .models import (
     Homework, HomeworkSubmission, ExamSchedule, Quiz, QuizAttempt,
     AssessmentType, AssessmentScore, ExamScore, GradingPolicy,
     OnlineMeeting, AIStudentComment, StudentTranscript,
+    QuestionBank, QuestionBankItem, EarlyWarningFlag, ReportCard,
 )
 
 
@@ -204,3 +205,69 @@ class StudentTranscriptAdmin(admin.ModelAdmin):
     def unpublish_transcripts(self, request, queryset):
         updated = queryset.update(is_published=False)
         self.message_user(request, f"{updated} transcript(s) unpublished.")
+
+
+class QuestionBankItemInline(admin.TabularInline):
+    model = QuestionBankItem
+    extra = 0
+    fields = ("question_text", "difficulty", "correct_answer", "marks", "topic")
+    show_change_link = True
+
+
+@admin.register(QuestionBank)
+class QuestionBankAdmin(admin.ModelAdmin):
+    list_display = ("name", "subject", "school", "item_count", "created_at")
+    list_select_related = ("subject", "school")
+    list_filter = ("school", "subject")
+    search_fields = ("name",)
+    inlines = [QuestionBankItemInline]
+
+    def item_count(self, obj):
+        return obj.items.count()
+    item_count.short_description = "Questions"
+
+
+@admin.register(QuestionBankItem)
+class QuestionBankItemAdmin(admin.ModelAdmin):
+    list_display = ("bank", "topic", "difficulty", "marks", "school")
+    list_select_related = ("bank", "school")
+    list_filter = ("school", "difficulty", "bank")
+    search_fields = ("question_text", "topic")
+
+
+@admin.register(EarlyWarningFlag)
+class EarlyWarningFlagAdmin(admin.ModelAdmin):
+    list_display = ("student", "risk_level", "trigger_type", "status", "academic_year", "school", "created_at")
+    list_select_related = ("student", "student__user", "school")
+    list_filter = ("school", "risk_level", "status", "trigger_type")
+    search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
+    readonly_fields = ("created_at",)
+    actions = ["mark_acknowledged", "mark_resolved"]
+
+    @admin.action(description="Mark selected as acknowledged")
+    def mark_acknowledged(self, request, queryset):
+        from django.utils import timezone
+        queryset.update(status="acknowledged", acknowledged_at=timezone.now(), acknowledged_by=request.user)
+        self.message_user(request, f"{queryset.count()} flag(s) acknowledged.")
+
+    @admin.action(description="Mark selected as resolved")
+    def mark_resolved(self, request, queryset):
+        from django.utils import timezone
+        queryset.update(status="resolved", resolved_at=timezone.now(), resolved_by=request.user)
+        self.message_user(request, f"{queryset.count()} flag(s) resolved.")
+
+
+@admin.register(ReportCard)
+class ReportCardAdmin(admin.ModelAdmin):
+    list_display = ("student", "academic_year", "term", "is_latest", "published", "school", "generated_at")
+    list_select_related = ("student", "student__user", "school")
+    list_filter = ("school", "academic_year", "term", "published", "is_latest")
+    search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
+    readonly_fields = ("generated_at", "qr_token")
+    actions = ["publish_selected"]
+
+    @admin.action(description="Publish selected report cards")
+    def publish_selected(self, request, queryset):
+        from django.utils import timezone
+        queryset.update(published=True, published_at=timezone.now())
+        self.message_user(request, f"{queryset.count()} report card(s) published.")

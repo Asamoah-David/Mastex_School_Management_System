@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Place Canteen Order · MastexEDU{% endblock %}
+{% block page_title %}Place Canteen Order{% endblock %}
+{% block page_subtitle %}Pre-order your meal for {{ tomorrow|date:"l, d M Y" }}.{% endblock %}
+
+{% block content %}
+{% if messages %}
+  {% for msg in messages %}<div class="alert alert-{{ msg.tags }}">{{ msg }}</div>{% endfor %}
+{% endif %}
+
+<div class="content-card" style="max-width:600px;">
+  <form method="post">
+    {% csrf_token %}
+    {% if menu_items %}
+    <div class="table-card" style="margin-bottom:1.25rem;">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Category</th><th style="text-align:right;">Price (GHS)</th><th style="width:7rem;">Qty</th></tr>
+        </thead>
+        <tbody>
+          {% for item in menu_items %}
+          <tr>
+            <td><strong>{{ item.name }}</strong></td>
+            <td><small>{{ item.category|default:"—" }}</small></td>
+            <td style="text-align:right;">{{ item.price }}</td>
+            <td>
+              <input type="number" name="qty_{{ item.pk }}" class="form-control form-control-sm"
+                     min="0" max="10" value="0" style="width:5rem;">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="button-row">
+      <button type="submit" class="btn btn-primary">Place Order for {{ tomorrow|date:"d M" }}</button>
+      <a href="{% url 'operations:canteen_order_list' %}" class="btn btn-secondary">My Orders</a>
+    </div>
+    {% else %}
+    <p class="empty-state">No canteen items are available. Ask the school office to add menu items.</p>
+    <a href="{% url 'operations:canteen_order_list' %}" class="btn btn-secondary">Back</a>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

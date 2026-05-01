@@ -124,6 +124,40 @@
         </div>
     </div>
 
+    <!-- Daily Collections Breakdown -->
+    {% if daily_collections %}
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">📅 Daily Collections{% if start_date or end_date %} — {{ start_date|date:"d M Y"|default:"All" }} to {{ end_date|date:"d M Y"|default:"Today" }}{% endif %}</h5>
+            <span class="badge bg-dark">Grand total: {{ grand_total|format_ghs }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Date</th>
+                            <th>Total Collected</th>
+                            <th>Bar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in daily_collections %}
+                        <tr>
+                            <td class="ps-3">{{ row.day|date:"D, d M Y" }}</td>
+                            <td><strong>{{ row.total|format_ghs }}</strong></td>
+                            <td style="width:40%;">
+                                <div style="height:10px;background:#3b82f6;border-radius:4px;width:{% widthratio row.total grand_total 100 %}%;min-width:4px;"></div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Tabs for different payment types -->
     <ul class="nav nav-tabs mb-3" id="paymentTabs" role="tablist">
         <li class="nav-item">

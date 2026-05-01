@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Purchase Orders · MastexEDU{% endblock %}
+{% block page_title %}Purchase Orders{% endblock %}
+{% block page_subtitle %}Procurement requests and approvals{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'finance:purchase_order_create' %}" class="btn btn-primary">+ New PO</a>
+</div>
+<div class="card mb-sm">
+    <form method="get" style="display:flex;gap:.75rem;flex-wrap:wrap;padding:.75rem;">
+        <select name="status" class="form-control" style="width:auto;" onchange="this.form.submit()">
+            <option value="">All Statuses</option>
+            {% for val, label in status_choices %}
+            <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+<div class="card">
+    {% if orders %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>PO Number</th><th>Supplier</th><th>Status</th><th>Grand Total</th><th>Currency</th><th>Created</th><th></th></tr></thead>
+            <tbody>
+            {% for o in orders %}
+            <tr>
+                <td><a href="{% url 'finance:purchase_order_detail' o.id %}">{{ o.po_number }}</a></td>
+                <td>{{ o.supplier_name }}</td>
+                <td><span class="badge badge-{% if o.status == 'paid' %}success{% elif o.status == 'cancelled' %}danger{% elif o.status == 'draft' %}secondary{% else %}warning{% endif %}">{{ o.get_status_display }}</span></td>
+                <td>{{ o.grand_total }}</td>
+                <td>{{ o.currency }}</td>
+                <td>{{ o.created_at|date:"d M Y" }}</td>
+                <td><a href="{% url 'finance:purchase_order_detail' o.id %}" class="btn btn-secondary btn-sm">View</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No purchase orders found.</p>{% endif %}
+</div>
+{% endblock %}

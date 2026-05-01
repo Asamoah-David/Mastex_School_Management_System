@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}New Performance Review · MastexEDU{% endblock %}
+{% block page_title %}Create Performance Review{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+    <div class="card-header"><h3 class="card-title">Staff Appraisal</h3></div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="form-label">Staff Member *</label>
+            <select name="staff" class="form-control" required>
+                <option value="">— select —</option>
+                {% for s in staff_list %}
+                <option value="{{ s.id }}">{{ s.get_full_name }} ({{ s.get_role_display }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Academic Year * (e.g. 2025/2026)</label>
+            <input type="text" name="academic_year" class="form-control" required placeholder="2025/2026">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Review Period</label>
+            <select name="review_period" class="form-control">
+                {% for val, label in review_period_choices %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <hr>
+        <p class="text-muted">Score each category 1 (Unsatisfactory) – 5 (Outstanding). Leave blank to skip.</p>
+        <div class="form-group"><label class="form-label">Punctuality</label><select name="punctuality_score" class="form-control"><option value="">—</option>{% for v, l in rating_choices %}<option value="{{ v }}">{{ v }} — {{ l }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="form-label">Teaching Quality</label><select name="teaching_quality_score" class="form-control"><option value="">—</option>{% for v, l in rating_choices %}<option value="{{ v }}">{{ v }} — {{ l }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="form-label">Communication</label><select name="communication_score" class="form-control"><option value="">—</option>{% for v, l in rating_choices %}<option value="{{ v }}">{{ v }} — {{ l }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="form-label">Initiative</label><select name="initiative_score" class="form-control"><option value="">—</option>{% for v, l in rating_choices %}<option value="{{ v }}">{{ v }} — {{ l }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="form-label">Teamwork</label><select name="teamwork_score" class="form-control"><option value="">—</option>{% for v, l in rating_choices %}<option value="{{ v }}">{{ v }} — {{ l }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="form-label">Overall Rating</label><select name="overall_rating" class="form-control"><option value="">—</option>{% for v, l in rating_choices %}<option value="{{ v }}">{{ v }} — {{ l }}</option>{% endfor %}</select></div>
+        <hr>
+        <div class="form-group"><label class="form-label">Strengths</label><textarea name="strengths" class="form-control" rows="3"></textarea></div>
+        <div class="form-group"><label class="form-label">Areas for Improvement</label><textarea name="areas_for_improvement" class="form-control" rows="3"></textarea></div>
+        <div class="form-group"><label class="form-label">Goals for Next Period</label><textarea name="goals_next_period" class="form-control" rows="3"></textarea></div>
+        <div class="form-group"><label class="form-label">Reviewer Notes</label><textarea name="reviewer_notes" class="form-control" rows="3"></textarea></div>
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save Review</button>
+            <a href="{% url 'accounts:performance_review_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

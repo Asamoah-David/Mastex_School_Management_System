@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Applicants — {{ job.title }} · MastexEDU{% endblock %}
+{% block page_title %}Applicants: {{ job.title }}{% endblock %}
+{% block page_subtitle %}{{ job.school.name }}{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.75rem;">
+    <a href="{% url 'recruitment:school_job_list' %}" class="btn btn-secondary" style="font-size:0.85rem;">← Back to Jobs</a>
+    <form method="GET" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <select class="form-control" name="status" title="Filter by Status" style="font-size:0.82rem;padding:0.3rem 0.6rem;min-width:160px;" onchange="this.form.submit()">
+            <option value="">All Statuses</option>
+            {% for val, label in status_choices %}{% if val != 'pending_payment' %}
+            <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+            {% endif %}{% endfor %}
+        </select>
+        {% if status_filter %}<a href="{% url 'recruitment:school_applicant_list' job.pk %}" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;">✕ Clear</a>{% endif %}
+        <span style="font-size:0.82rem;color:var(--text-soft);">{{ apps|length }} result{{ apps|length|pluralize }}</span>
+    </form>
+</div>
+
+{% if apps %}
+<div class="content-card" style="overflow-x:auto;">
+    <table class="data-table">
+        <thead>
+        <tr>
+            <th>Applicant</th><th>Contact</th><th>Qualification</th><th>Experience</th><th>Applied</th><th>Status</th><th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for app in apps %}
+        <tr>
+            <td>
+                <div style="font-weight:600;">{{ app.full_name }}</div>
+                <div style="font-size:0.75rem;color:var(--text-soft);">{{ app.reference }}</div>
+            </td>
+            <td>
+                <div>{{ app.email }}</div>
+                <div style="font-size:0.78rem;color:var(--text-soft);">{{ app.phone }}</div>
+            </td>
+            <td>{{ app.get_highest_qualification_display }}</td>
+            <td>{{ app.years_experience }} yr{{ app.years_experience|pluralize }}</td>
+            <td>{{ app.submitted_at|date:"d M Y"|default:"—" }}</td>
+            <td>
+                <span style="padding:0.25rem 0.6rem;border-radius:9999px;font-size:0.75rem;font-weight:600;
+                    background:{% if app.status == 'submitted' %}rgba(59,130,246,0.1){% elif app.status == 'shortlisted' %}rgba(251,191,36,0.1){% elif app.status == 'interview_scheduled' %}rgba(139,92,246,0.1){% elif app.status == 'hired' %}rgba(34,197,94,0.1){% elif app.status == 'rejected' %}rgba(239,68,68,0.1){% else %}rgba(148,163,184,0.1){% endif %};
+                    color:{% if app.status == 'submitted' %}#3b82f6{% elif app.status == 'shortlisted' %}#f59e0b{% elif app.status == 'interview_scheduled' %}#8b5cf6{% elif app.status == 'hired' %}#22c55e{% elif app.status == 'rejected' %}#ef4444{% else %}#94a3b8{% endif %};">
+                    {{ app.get_status_display }}
+                </span>
+            </td>
+            <td>
+                <a href="{% url 'recruitment:school_application_detail' app.pk %}" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;">Review →</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="content-card" style="text-align:center;padding:2.5rem;color:var(--text-soft);">
+    <p style="font-size:2rem;">📭</p>
+    <p>No applications received yet for this position.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1152,3 +1152,261 @@ class StudentTranscript(models.Model):
             },
         )
         return obj
+
+
+# ---------------------------------------------------------------------------
+# F6 — Question Bank
+# ---------------------------------------------------------------------------
+
+class QuestionBank(SchoolScopedModel):
+    """Curated question bank per subject for reuse across exams and quizzes.
+
+    Teachers pull questions into OnlineExam / Quiz from here instead of
+    recreating them each term.
+    """
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="question_banks")
+    subject = models.ForeignKey("academics.Subject", on_delete=models.CASCADE, related_name="question_banks")
+    name = models.CharField(max_length=200, help_text="e.g. 'Mathematics Form 2 — Algebra'")
+    description = models.TextField(blank=True)
+    is_shared = models.BooleanField(
+        default=False,
+        help_text="When True, any teacher in the school can use this bank.",
+    )
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Question Bank"
+        verbose_name_plural = "Question Banks"
+        ordering = ["subject__name", "name"]
+        indexes = [
+            models.Index(fields=["school", "subject"], name="idx_qbank_school_subject"),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.subject.name})"
+
+
+class QuestionBankItem(SchoolScopedModel):
+    """A single question stored in a QuestionBank.
+
+    Compatible with OnlineExam question types; can be pulled into
+    exams via a foreign key or copied at import time.
+    """
+
+    QUESTION_TYPES = (
+        ("multiple_choice", "Multiple Choice"),
+        ("true_false", "True/False"),
+        ("short_answer", "Short Answer"),
+        ("essay", "Essay"),
+        ("multi_select", "Multi-Select"),
+        ("matching", "Matching"),
+    )
+    DIFFICULTY_CHOICES = (
+        ("easy", "Easy"),
+        ("medium", "Medium"),
+        ("hard", "Hard"),
+    )
+    BLOOM_LEVELS = (
+        ("remember", "Remember"),
+        ("understand", "Understand"),
+        ("apply", "Apply"),
+        ("analyze", "Analyze"),
+        ("evaluate", "Evaluate"),
+        ("create", "Create"),
+    )
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="question_bank_items")
+    bank = models.ForeignKey(QuestionBank, on_delete=models.CASCADE, related_name="items")
+    topic = models.CharField(max_length=200, blank=True, help_text="Sub-topic within the subject (e.g. 'Quadratic Equations')")
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, default="multiple_choice")
+    question_text = models.TextField()
+    option_a = models.CharField(max_length=500, blank=True)
+    option_b = models.CharField(max_length=500, blank=True)
+    option_c = models.CharField(max_length=500, blank=True)
+    option_d = models.CharField(max_length=500, blank=True)
+    option_e = models.CharField(max_length=500, blank=True)
+    option_f = models.CharField(max_length=500, blank=True)
+    correct_answer = models.CharField(
+        max_length=500, blank=True,
+        help_text="A–F for MCQ; comma-separated for multi_select; text for short_answer.",
+    )
+    marks = models.DecimalField(max_digits=5, decimal_places=2, default=1)
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default="medium", db_index=True)
+    bloom_level = models.CharField(max_length=20, choices=BLOOM_LEVELS, blank=True)
+    explanation = models.TextField(blank=True, help_text="Model answer / marking guide shown after submission.")
+    times_used = models.PositiveIntegerField(default=0, help_text="Counter incremented when imported into an exam.")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Question Bank Item"
+        verbose_name_plural = "Question Bank Items"
+        ordering = ["bank", "topic", "difficulty"]
+        indexes = [
+            models.Index(fields=["school", "difficulty"], name="idx_qbankitem_school_diff"),
+            models.Index(fields=["bank", "topic"], name="idx_qbankitem_bank_topic"),
+        ]
+
+    def __str__(self):
+        return f"[{self.get_difficulty_display()}] {self.question_text[:80]}"
+
+
+# ---------------------------------------------------------------------------
+# F9 — Early Warning Flag (at-risk student detection)
+# ---------------------------------------------------------------------------
+
+class EarlyWarningFlag(SchoolScopedModel):
+    """Flags a student as academically or behaviourally at-risk.
+
+    Generated automatically by the weekly Celery task
+    ``detect_early_warning_flags`` or manually by a teacher/admin.
+    Multiple flags may exist per student; only the latest active one is
+    shown on the dashboard.
+    """
+
+    RISK_LEVELS = (
+        ("low", "Low Risk"),
+        ("medium", "Medium Risk"),
+        ("high", "High Risk"),
+        ("critical", "Critical"),
+    )
+    TRIGGER_TYPES = (
+        ("attendance", "Poor Attendance"),
+        ("results", "Declining Results"),
+        ("discipline", "Discipline Incidents"),
+        ("composite", "Multiple Factors"),
+        ("manual", "Manually Raised"),
+    )
+    STATUS_CHOICES = (
+        ("open", "Open"),
+        ("acknowledged", "Acknowledged"),
+        ("resolved", "Resolved"),
+        ("dismissed", "Dismissed"),
+    )
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="early_warnings")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="early_warnings")
+    risk_level = models.CharField(max_length=10, choices=RISK_LEVELS, default="low", db_index=True)
+    trigger_type = models.CharField(max_length=20, choices=TRIGGER_TYPES, default="composite")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open", db_index=True)
+    details = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            "Structured evidence dict e.g. "
+            '{"attendance_rate": 68, "avg_score_drop": 15, "discipline_count": 2}'
+        ),
+    )
+    notes = models.TextField(blank=True, help_text="Teacher/admin notes or action plan.")
+    raised_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="early_warnings_raised",
+        help_text="Set for manually raised flags; null for system-generated ones.",
+    )
+    acknowledged_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="early_warnings_acknowledged",
+    )
+    resolved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="early_warnings_resolved",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    academic_year = models.CharField(max_length=20, blank=True, db_index=True)
+    term = models.CharField(max_length=20, blank=True)
+
+    class Meta:
+        verbose_name = "Early Warning Flag"
+        verbose_name_plural = "Early Warning Flags"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["school", "risk_level", "status"], name="idx_ewflag_school_risk_status"),
+            models.Index(fields=["school", "created_at"], name="idx_ewflag_school_ts"),
+        ]
+
+    def __str__(self):
+        return f"[{self.risk_level.upper()}] {self.student} — {self.get_trigger_type_display()} ({self.status})"
+
+
+# ---------------------------------------------------------------------------
+# F22 — Report Card
+# ---------------------------------------------------------------------------
+
+class ReportCard(SchoolScopedModel):
+    """Tracks generated PDF report cards per student per term.
+
+    Stores a reference to the PDF file and a QR verification token.
+    Multiple attempts (regenerations) are allowed; is_latest marks the
+    current authoritative copy.
+    """
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="report_cards")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="report_cards")
+    academic_year = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="report_cards",
+    )
+    term = models.ForeignKey(
+        "academics.Term",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="report_cards",
+    )
+    pdf_file = models.FileField(
+        upload_to="report_cards/%Y/%m/",
+        null=True, blank=True,
+        help_text="Generated PDF file stored on the file system / Supabase.",
+    )
+    qr_token = models.CharField(
+        max_length=64, unique=True,
+        help_text="Random token used in QR-code URL for verification.",
+    )
+    is_latest = models.BooleanField(
+        default=True,
+        help_text="Only the most recent generation per student/term should be True.",
+        db_index=True,
+    )
+    generated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    generated_at = models.DateTimeField(auto_now_add=True)
+    published = models.BooleanField(
+        default=False,
+        help_text="When True, parents/students can download. Set by the class teacher or admin.",
+        db_index=True,
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    principal_remarks = models.TextField(blank=True)
+    class_teacher_remarks = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Report Card"
+        verbose_name_plural = "Report Cards"
+        ordering = ["-generated_at"]
+        indexes = [
+            models.Index(fields=["school", "student", "is_latest"], name="idx_rc_school_stu_latest"),
+            models.Index(fields=["school", "published"], name="idx_rc_school_pub"),
+        ]
+
+    def __str__(self):
+        term_str = str(self.term) if self.term else "N/A"
+        return f"Report Card — {self.student} | {term_str}"
+
+    def save(self, *args, **kwargs):
+        if not self.qr_token:
+            import secrets
+            self.qr_token = secrets.token_hex(32)
+        if self.is_latest and not self.pk:
+            ReportCard.objects.filter(
+                school=self.school,
+                student=self.student,
+                term=self.term,
+                is_latest=True,
+            ).update(is_latest=False)
+        super().save(*args, **kwargs)

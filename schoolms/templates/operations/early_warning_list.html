@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Early Warning · MastexEDU{% endblock %}
+{% block page_title %}Early Warning Flags{% endblock %}
+{% block page_subtitle %}At-risk students requiring follow-up — acknowledge or resolve each flag.{% endblock %}
+
+{% block content %}
+<div class="button-row" style="margin-bottom:1rem;">
+  <form method="get" style="display:inline-flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+    <select name="status" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+      <option value="all" {% if status_filter == "all" %}selected{% endif %}>All statuses</option>
+      <option value="open" {% if status_filter == "open" %}selected{% endif %}>Open ({{ counts.open }})</option>
+      <option value="acknowledged" {% if status_filter == "acknowledged" %}selected{% endif %}>Acknowledged ({{ counts.acknowledged }})</option>
+      <option value="resolved" {% if status_filter == "resolved" %}selected{% endif %}>Resolved ({{ counts.resolved }})</option>
+    </select>
+    <select name="risk" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+      <option value="" {% if not risk_filter %}selected{% endif %}>All risk levels</option>
+      <option value="high" {% if risk_filter == "high" %}selected{% endif %}>High</option>
+      <option value="medium" {% if risk_filter == "medium" %}selected{% endif %}>Medium</option>
+      <option value="low" {% if risk_filter == "low" %}selected{% endif %}>Low</option>
+    </select>
+  </form>
+</div>
+
+<div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+  <div class="content-card" style="flex:1;min-width:8rem;padding:0.85rem 1rem;">
+    <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Open</div>
+    <div style="font-size:1.75rem;font-weight:700;color:#ef4444;">{{ counts.open }}</div>
+  </div>
+  <div class="content-card" style="flex:1;min-width:8rem;padding:0.85rem 1rem;">
+    <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Acknowledged</div>
+    <div style="font-size:1.75rem;font-weight:700;color:#f59e0b;">{{ counts.acknowledged }}</div>
+  </div>
+  <div class="content-card" style="flex:1;min-width:8rem;padding:0.85rem 1rem;">
+    <div style="font-size:0.78rem;color:var(--muted,#64748b);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Resolved</div>
+    <div style="font-size:1.75rem;font-weight:700;color:#22c55e;">{{ counts.resolved }}</div>
+  </div>
+</div>
+
+<div class="table-card">
+  {% if flags %}
+  <table>
+    <thead>
+      <tr>
+        <th>Student</th>
+        <th>Flag type</th>
+        <th>Risk</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Notes</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for flag in flags %}
+      <tr id="flag-row-{{ flag.pk }}">
+        <td>
+          <strong>{{ flag.student.user.get_full_name|default:flag.student.user.username }}</strong>
+          {% if flag.student.class_name %}<br><small class="text-muted">{{ flag.student.class_name }}</small>{% endif %}
+        </td>
+        <td>{{ flag.get_flag_type_display|default:flag.flag_type }}</td>
+        <td>
+          {% if flag.risk_level == "high" %}<span class="badge" style="background:#ef4444;color:#fff;">High</span>
+          {% elif flag.risk_level == "medium" %}<span class="badge" style="background:#f59e0b;color:#fff;">Medium</span>
+          {% else %}<span class="badge" style="background:#64748b;color:#fff;">Low</span>{% endif %}
+        </td>
+        <td>
+          {% if flag.status == "open" %}<span class="badge" style="background:#ef4444;color:#fff;">Open</span>
+          {% elif flag.status == "acknowledged" %}<span class="badge" style="background:#f59e0b;color:#fff;">Acknowledged</span>
+          {% else %}<span class="badge" style="background:#22c55e;color:#fff;">Resolved</span>{% endif %}
+        </td>
+        <td><small>{{ flag.created_at|date:"d M Y" }}</small></td>
+        <td><small>{{ flag.notes|default:"—"|truncatechars:60 }}</small></td>
+        <td>
+          {% if flag.status == "open" %}
+          <button class="btn btn-warning btn-sm ew-action-btn" data-pk="{{ flag.pk }}" data-action="acknowledge">Acknowledge</button>
+          {% endif %}
+          {% if flag.status in "open,acknowledged" or flag.status == "open" or flag.status == "acknowledged" %}
+          <button class="btn btn-success btn-sm ew-action-btn" data-pk="{{ flag.pk }}" data-action="resolve">Resolve</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-state">No early warning flags match this filter.</p>
+  {% endif %}
+</div>
+
+<div id="ew-notes-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface,#1e293b);border-radius:0.75rem;padding:1.5rem;width:min(95vw,480px);">
+    <h5 style="margin:0 0 0.85rem;">Add notes (optional)</h5>
+    <textarea id="ew-notes-text" class="form-control" rows="3" placeholder="Describe action taken…"></textarea>
+    <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end;">
+      <button class="btn btn-secondary btn-sm" id="ew-modal-cancel">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="ew-modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const csrftoken = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+  let pendingPk = null, pendingAction = null;
+  const modal = document.getElementById('ew-notes-modal');
+
+  document.querySelectorAll('.ew-action-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      pendingPk = this.dataset.pk;
+      pendingAction = this.dataset.action;
+      document.getElementById('ew-notes-text').value = '';
+      modal.style.display = 'flex';
+    });
+  });
+
+  document.getElementById('ew-modal-cancel').addEventListener('click', function(){ modal.style.display='none'; });
+
+  document.getElementById('ew-modal-confirm').addEventListener('click', function(){
+    const notes = document.getElementById('ew-notes-text').value.trim();
+    modal.style.display = 'none';
+    fetch("{% url 'operations:early_warning_update' pk=0 %}".replace('/0/', '/'+pendingPk+'/'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'X-CSRFToken': csrftoken, 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'action='+encodeURIComponent(pendingAction)+'&notes='+encodeURIComponent(notes)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.status){ location.reload(); }
+      else { alert(data.error || 'Action failed.'); }
+    })
+    .catch(function(){ alert('Network error.'); });
+  });
+})();
+</script>
+{% endblock %}

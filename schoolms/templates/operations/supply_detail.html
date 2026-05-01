@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ supply_req.title }} · Supply · MastexEDU{% endblock %}
+{% block page_title %}{{ supply_req.title }}{% endblock %}
+{% block page_subtitle %}{{ supply_req.school_class.name }}{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+    <a href="{% url 'operations:supply_list' %}" class="btn btn-secondary" style="font-size:0.85rem;">← Back</a>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <a href="{% url 'operations:supply_export_csv' supply_req.pk %}" class="btn btn-secondary" style="font-size:0.82rem;">⬇ Export CSV</a>
+        <form method="POST" action="{% url 'operations:supply_notify' supply_req.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;" title="Re-send notifications to parents/guardians">📣 Notify Parents</button>
+        </form>
+        <form method="POST" action="{% url 'operations:supply_toggle' supply_req.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;">{% if supply_req.is_active %}🔒 Close{% else %}🔓 Reopen{% endif %}</button>
+        </form>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:start;margin-bottom:1.25rem;">
+    <div class="content-card" style="padding:0.9rem;">
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;font-size:0.85rem;">
+            <span>🏫 <strong>{{ supply_req.school_class.name }}</strong></span>
+            {% if supply_req.academic_year %}<span>📅 {{ supply_req.academic_year }}</span>{% endif %}
+            {% if supply_req.deadline %}<span>⏰ Deadline: {{ supply_req.deadline|date:"d M Y" }}</span>{% endif %}
+            <span>📦 {{ items|length }} item{{ items|length|pluralize }}</span>
+            <span>👥 {{ students|length }} student{{ students|length|pluralize }}</span>
+            {% if supply_req.is_active %}<span style="color:#22c55e;font-weight:600;">✅ Active</span>{% else %}<span style="color:#94a3b8;">❌ Closed</span>{% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add item form -->
+<div class="content-card" style="margin-bottom:1.25rem;">
+    <h4 style="margin:0 0 0.75rem;color:var(--text-main);">Add Item</h4>
+    <form method="POST" action="{% url 'operations:supply_item_add' supply_req.pk %}" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;">
+        {% csrf_token %}
+        <div class="form-group" style="margin:0;flex:1;min-width:140px;">
+            <label class="form-label">Item Name *</label>
+            <input class="form-control" type="text" name="name" required placeholder="e.g. Broom">
+        </div>
+        <div class="form-group" style="margin:0;width:80px;">
+            <label class="form-label">Qty</label>
+            <input class="form-control" type="number" name="quantity_per_student" value="1" min="1">
+        </div>
+        <div class="form-group" style="margin:0;width:100px;">
+            <label class="form-label">Unit</label>
+            <input class="form-control" type="text" name="unit" value="piece" placeholder="piece">
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:140px;">
+            <label class="form-label">Notes</label>
+            <input class="form-control" type="text" name="notes" placeholder="Optional">
+        </div>
+        <button type="submit" class="btn btn-primary">+ Add Item</button>
+    </form>
+</div>
+
+<!-- Contribution grid -->
+{% if items and students %}
+<div class="content-card" style="overflow-x:auto;">
+    <h4 style="margin:0 0 1rem;color:var(--text-main);">Contribution Tracker</h4>
+    <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;">Click a student's cell to mark/unmark contribution for that item.</p>
+    <table style="border-collapse:collapse;min-width:100%;">
+        <thead>
+        <tr>
+            <th style="text-align:left;padding:0.6rem 0.75rem;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.15);font-size:0.82rem;white-space:nowrap;">Student</th>
+            {% for item in items %}
+            <th style="text-align:center;padding:0.6rem 0.5rem;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.15);font-size:0.78rem;max-width:90px;">
+                {{ item.name }}<br><span style="color:var(--text-soft);font-weight:400;">{{ item.quantity_per_student }} {{ item.unit }}</span>
+            </th>
+            {% endfor %}
+        </tr>
+        </thead>
+        <tbody>
+        {% for student in students %}
+        <tr>
+            <td style="padding:0.5rem 0.75rem;border:1px solid rgba(148,163,184,0.15);white-space:nowrap;">
+                <div style="font-size:0.85rem;font-weight:500;">{{ student.user.get_full_name }}</div>
+                <div style="font-size:0.72rem;color:var(--text-soft);">{{ student.admission_number }}</div>
+            </td>
+            {% for item in items %}
+            <td style="text-align:center;padding:0.4rem;border:1px solid rgba(148,163,184,0.15);">
+                {% if student.pk in contributed_map|default_if_none:item.pk %}
+                <form method="POST" action="{% url 'operations:supply_unmark' item.pk student.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" title="Click to unmark" style="background:rgba(34,197,94,0.1);border:none;cursor:pointer;padding:0.3rem 0.6rem;border-radius:0.4rem;font-size:1rem;" aria-label="Unmark">✅</button>
+                </form>
+                {% else %}
+                <form method="POST" action="{% url 'operations:supply_mark' item.pk student.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" title="Click to mark as brought" style="background:rgba(148,163,184,0.06);border:1px dashed rgba(148,163,184,0.3);cursor:pointer;padding:0.3rem 0.6rem;border-radius:0.4rem;font-size:1rem;color:var(--text-soft);" aria-label="Mark">—</button>
+                </form>
+                {% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% elif not items %}
+<div class="content-card" style="text-align:center;padding:2rem;color:var(--text-soft);">
+    <p>No items added yet. Use the form above to add supply items.</p>
+</div>
+{% elif not students %}
+<div class="content-card" style="text-align:center;padding:2rem;color:var(--text-soft);">
+    <p>No active students found in {{ supply_req.school_class.name }}.</p>
+</div>
+{% endif %}
+{% endblock %}

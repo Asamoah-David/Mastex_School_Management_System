@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Apply — {{ job.title }} · MastexEDU{% endblock %}
+{% block page_title %}Apply: {{ job.title }}{% endblock %}
+{% block page_subtitle %}{{ job.school.name }}{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="max-width:780px;margin:0 auto;">
+    <div style="margin-bottom:1rem;display:flex;gap:0.5rem;">
+        <a href="{% url 'recruitment:job_detail' job.pk %}" class="btn btn-secondary" style="font-size:0.85rem;">← Back to Job</a>
+    </div>
+    <div class="content-card" style="margin-bottom:1rem;padding:1rem;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:0.75rem;">
+        <strong>{{ job.title }}</strong> · {{ job.school.name }} · Deadline: {{ job.deadline|date:"d M Y" }}<br>
+        <span style="font-size:0.82rem;color:var(--text-soft);">Application Fee: <strong>GHS {{ job.application_fee }}</strong> (paid via Paystack after this form)</span>
+        {% if job.min_qualification or job.min_years_experience %}
+        <div style="margin-top:0.6rem;font-size:0.82rem;color:#8b5cf6;">
+            ⚠️ Minimum requirements:
+            {% if job.min_qualification %}<strong>{{ job.get_min_qualification_display }}</strong> or higher{% endif %}
+            {% if job.min_qualification and job.min_years_experience %} &nbsp;·&nbsp; {% endif %}
+            {% if job.min_years_experience %}<strong>{{ job.min_years_experience }} yr{{ job.min_years_experience|pluralize }}</strong> experience{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="content-card">
+        <h3 style="margin:0 0 1.25rem;color:var(--text-main);">📝 Application Form</h3>
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input class="form-control" type="text" name="full_name" value="{{ post.full_name|default:'' }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address *</label>
+                    <input class="form-control" type="email" name="email" value="{{ post.email|default:'' }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Phone Number *</label>
+                    <input class="form-control" type="tel" name="phone" value="{{ post.phone|default:'' }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Gender</label>
+                    <select class="form-control" name="gender" title="Gender">
+                        <option value="">-- Select --</option>
+                        <option value="male" {% if post.gender == 'male' %}selected{% endif %}>Male</option>
+                        <option value="female" {% if post.gender == 'female' %}selected{% endif %}>Female</option>
+                        <option value="other" {% if post.gender == 'other' %}selected{% endif %}>Other / Prefer not to say</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of Birth</label>
+                    <input class="form-control" type="date" name="date_of_birth" value="{{ post.date_of_birth|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nationality</label>
+                    <input class="form-control" type="text" name="nationality" value="{{ post.nationality|default:'' }}" placeholder="e.g. Ghanaian">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div class="form-group">
+                    <label class="form-label">Highest Qualification *</label>
+                    <select class="form-control" name="highest_qualification" title="Highest Qualification" required>
+                        <option value="wassce" {% if post.highest_qualification == 'wassce' %}selected{% endif %}>WASSCE</option>
+                        <option value="ssce" {% if post.highest_qualification == 'ssce' %}selected{% endif %}>SSCE</option>
+                        <option value="diploma" {% if post.highest_qualification == 'diploma' %}selected{% endif %}>Diploma / HND</option>
+                        <option value="degree" {% if not post.highest_qualification or post.highest_qualification == 'degree' %}selected{% endif %}>Bachelor's Degree</option>
+                        <option value="masters" {% if post.highest_qualification == 'masters' %}selected{% endif %}>Master's Degree</option>
+                        <option value="phd" {% if post.highest_qualification == 'phd' %}selected{% endif %}>PhD / Doctorate</option>
+                        <option value="professional" {% if post.highest_qualification == 'professional' %}selected{% endif %}>Professional Certificate</option>
+                        <option value="other" {% if post.highest_qualification == 'other' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Years of Experience</label>
+                    <input class="form-control" type="number" name="years_experience" value="{{ post.years_experience|default:'0' }}" min="0" max="50">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Current / Last Employer</label>
+                    <input class="form-control" type="text" name="current_employer" value="{{ post.current_employer|default:'' }}" placeholder="School or organisation name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subjects You Can Teach</label>
+                    <input class="form-control" type="text" name="subjects_taught" value="{{ post.subjects_taught|default:'' }}" placeholder="e.g. Mathematics, Physics">
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:1.25rem;">
+                <label class="form-label">Cover Letter / Motivation *</label>
+                <textarea class="form-control" name="cover_letter" rows="6" required placeholder="Tell us why you are the right candidate for this role...">{{ post.cover_letter|default:'' }}</textarea>
+            </div>
+            <div class="form-group" style="margin-bottom:1.25rem;">
+                <label class="form-label">Upload CV / Resume <small style="font-weight:400;color:var(--text-soft);">(PDF, DOC or DOCX — max 5 MB, recommended)</small></label>
+                <input class="form-control" type="file" name="cv_upload" accept=".pdf,.doc,.docx">
+            </div>
+            <div class="form-group" style="margin-bottom:1.25rem;">
+                <label class="form-label">Referees <small style="font-weight:400;color:var(--text-soft);">(2–3 recommended)</small></label>
+                <textarea class="form-control" name="referees" rows="4" placeholder="Name, Position, Organisation, Phone/Email — one referee per line">{{ post.referees|default:'' }}</textarea>
+            </div>
+            <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:0.75rem;padding:0.9rem;margin-bottom:1.25rem;font-size:0.85rem;color:var(--text-soft);">
+                <p style="margin:0 0 0.5rem;"><strong>⚠️ Before you proceed:</strong></p>
+                <ul style="margin:0;padding-left:1.25rem;line-height:1.8;">
+                    <li>After submitting this form you will be redirected to Paystack to pay the <strong>GHS {{ job.application_fee }}</strong> application fee.</li>
+                    <li>Your application is only confirmed upon <strong>successful payment</strong>.</li>
+                    <li><strong>Payment of this fee does not guarantee acceptance or employment.</strong> It is a non-refundable application processing fee. Shortlisting is based solely on qualifications and the school's requirements.</li>
+                </ul>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:1rem;font-size:1rem;font-weight:600;">Continue to Payment →</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

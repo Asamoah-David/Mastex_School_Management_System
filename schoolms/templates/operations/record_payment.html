@@ -3,7 +3,7 @@
 
 {% block title %}Record payment · MastexEDU{% endblock %}
 {% block page_title %}Record payment{% endblock %}
-{% block page_subtitle %}Post canteen, bus, or textbook collections{% endblock %}
+{% block page_subtitle %}Record cash, mobile money, or bank transfer collections for canteen, bus, or textbooks{% endblock %}
 
 {% block content %}
 {% include "includes/finance_subnav.html" %}
@@ -21,7 +21,7 @@
                 {% csrf_token %}
                 
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="payment_type" class="form-label">Payment Type</label>
                         <select name="payment_type" id="payment_type" class="form-select" required onchange="toggleFields()">
                             <option value="">Select Payment Type</option>
@@ -30,8 +30,17 @@
                             <option value="textbook">Textbook</option>
                         </select>
                     </div>
-                    
-                    <div class="col-md-6 mb-3">
+
+                    <div class="col-md-4 mb-3">
+                        <label for="payment_method" class="form-label">Payment Method</label>
+                        <select name="payment_method" id="payment_method" class="form-select">
+                            <option value="cash">Cash</option>
+                            <option value="mobile_money">Mobile Money</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
                         <label for="student" class="form-label">Student</label>
                         <select name="student" id="student" class="form-select searchable-select" data-placeholder="Search for a student..." required>
                             <option value="">Select Student</option>
@@ -77,12 +86,20 @@
                             <label for="textbook" class="form-label">Textbook</label>
                             <select name="textbook" id="textbook" class="form-select searchable-select" data-placeholder="Search for a textbook...">
                                 <option value="">Select Textbook</option>
-                                <!-- Populated dynamically -->
+                                {% for tb in textbooks %}
+                                <option value="{{ tb.id }}" data-price="{{ tb.price }}">{{ tb.title }} — GHS {{ tb.price }} ({{ tb.stock }} in stock)</option>
+                                {% empty %}
+                                <option value="" disabled>No textbooks in stock</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="quantity" class="form-label">Quantity</label>
                             <input type="number" name="quantity" id="quantity" class="form-control" value="1" min="1">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Total</label>
+                            <p id="textbook-total" class="form-control-plaintext fw-bold">GHS —</p>
                         </div>
                     </div>
                 </div>
@@ -100,18 +117,35 @@
 <script>
 function toggleFields() {
     var type = document.getElementById('payment_type').value;
-    
     document.getElementById('canteen-fields').style.display = 'none';
     document.getElementById('bus-fields').style.display = 'none';
     document.getElementById('textbook-fields').style.display = 'none';
-    
     if (type === 'canteen') {
         document.getElementById('canteen-fields').style.display = 'block';
     } else if (type === 'bus') {
         document.getElementById('bus-fields').style.display = 'block';
     } else if (type === 'textbook') {
         document.getElementById('textbook-fields').style.display = 'block';
+        updateTextbookTotal();
     }
 }
+
+function updateTextbookTotal() {
+    var sel = document.getElementById('textbook');
+    var qty = parseInt(document.getElementById('quantity').value, 10) || 1;
+    var opt = sel && sel.options[sel.selectedIndex];
+    var price = opt ? parseFloat(opt.getAttribute('data-price') || '0') : 0;
+    var total = document.getElementById('textbook-total');
+    if (total) {
+        total.textContent = price > 0 ? 'GHS ' + (price * qty).toFixed(2) : 'GHS —';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var tbSel = document.getElementById('textbook');
+    var qtyIn = document.getElementById('quantity');
+    if (tbSel) tbSel.addEventListener('change', updateTextbookTotal);
+    if (qtyIn) qtyIn.addEventListener('input', updateTextbookTotal);
+});
 </script>
 {% endblock %}

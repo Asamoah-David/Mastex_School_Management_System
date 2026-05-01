@@ -27,6 +27,23 @@ class Alumni(SchoolScopedModel):
     contact_email = models.EmailField(blank=True)
     address = models.TextField(blank=True)
     
+    # Career & Higher Education (F14 — Career Tracking)
+    university = models.CharField(max_length=300, blank=True, help_text="University / tertiary institution attended.")
+    degree_programme = models.CharField(max_length=200, blank=True, help_text="Degree or qualification (e.g. BSc Computer Science).")
+    graduation_university_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    employer = models.CharField(max_length=300, blank=True, help_text="Current or most recent employer.")
+    job_title = models.CharField(max_length=200, blank=True)
+    industry_sector = models.CharField(max_length=100, blank=True, help_text="e.g. Finance, Tech, Health, Education.")
+    linkedin_url = models.URLField(max_length=300, blank=True)
+
+    # Donations & Engagement (F14)
+    total_donations = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        help_text="Cumulative donations to the school in GHS.",
+    )
+    last_donation_date = models.DateField(null=True, blank=True)
+    has_mentored_students = models.BooleanField(default=False)
+
     # Membership
     is_active_member = models.BooleanField(default=True)
     membership_year = models.IntegerField(null=True, blank=True)

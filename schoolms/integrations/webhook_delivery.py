@@ -42,9 +42,13 @@ def deliver_school_event(school_id: int, event_type: str, payload: dict[str, Any
     if not qs.exists():
         return
 
+    # S5 — include Unix timestamp in envelope for replay protection.
+    # Receivers should reject if abs(time.time() - t) > REPLAY_WINDOW_SEC (default 300s).
+    ts = int(time.time())
     body_obj = {
         "event": event_type,
         "school_id": school_id,
+        "timestamp": ts,
         "payload": payload,
     }
     body = json.dumps(body_obj, separators=(",", ":"), default=str).encode("utf-8")
@@ -63,10 +67,13 @@ def deliver_school_event(school_id: int, event_type: str, payload: dict[str, Any
             status="pending",
             attempt_count=0,
         )
-        sig = hmac.new(ep.signing_secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        # Sign: HMAC-SHA256 over "timestamp.body" so timestamp is part of the signed payload.
+        signed_payload = f"{ts}.".encode("utf-8") + body
+        sig = hmac.new(ep.signing_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
         headers = {
             "Content-Type": "application/json",
             "X-Mastex-Event": event_type,
+            "X-Mastex-Timestamp": str(ts),
             "X-Mastex-Signature": f"sha256={sig}",
             "User-Agent": "MastexSchoolOS-Webhook/1.0",
         }

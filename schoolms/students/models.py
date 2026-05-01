@@ -26,7 +26,19 @@ class SchoolClass(SchoolScopedModel):
         return f"{self.name} ({self.school.name})"
 
     def student_count(self):
-        return self.students.count()
+        return self.students.filter(deleted_at__isnull=True, status="active").count()
+
+    @property
+    def is_at_capacity(self) -> bool:
+        if not self.capacity:
+            return False
+        return self.student_count() >= self.capacity
+
+    @property
+    def remaining_seats(self) -> int | None:
+        if not self.capacity:
+            return None
+        return max(0, self.capacity - self.student_count())
 
 
 class Student(models.Model):
@@ -114,6 +126,26 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} ({self.admission_number})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.school_class_id and self.status == "active":
+            try:
+                sc = SchoolClass.objects.get(pk=self.school_class_id)
+                if sc.capacity:
+                    active_qs = Student.objects.filter(
+                        school_class_id=self.school_class_id,
+                        status="active",
+                        deleted_at__isnull=True,
+                    )
+                    if self.pk:
+                        active_qs = active_qs.exclude(pk=self.pk)
+                    if active_qs.count() >= sc.capacity:
+                        raise ValidationError(
+                            {"school_class": f"Class '{sc.name}' is at full capacity ({sc.capacity} students)."}
+                        )
+            except SchoolClass.DoesNotExist:
+                pass
 
     def delete(self, using=None, keep_parents=False):
         """Soft-delete: set deleted_at instead of removing the DB row."""
@@ -376,3 +408,75 @@ class AbsenceRequest(models.Model):
         end = self.end_date or self.date
         span = f"{self.date}" if end == self.date else f"{self.date}–{end}"
         return f"{self.student.user.get_full_name()} - {span} ({self.status})"
+
+
+# ---------------------------------------------------------------------------
+# F7 — Individual Learning Plan (IEP / SEN support)
+# ---------------------------------------------------------------------------
+
+class LearningPlan(SchoolScopedModel):
+    """Student Individual Learning Plan for SEN / gifted / remedial support.
+
+    Records goals, accommodations, and review dates.  Linked to the student
+    record so that subject teachers, the SENCO, and parents share the same
+    documented plan.
+    """
+
+    PLAN_TYPES = (
+        ("sen", "Special Educational Needs (SEN)"),
+        ("gifted", "Gifted & Talented"),
+        ("remedial", "Remedial Support"),
+        ("behavioural", "Behavioural Support Plan"),
+        ("other", "Other"),
+    )
+    STATUS_CHOICES = (
+        ("draft", "Draft"),
+        ("active", "Active"),
+        ("under_review", "Under Review"),
+        ("completed", "Completed"),
+        ("discontinued", "Discontinued"),
+    )
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="learning_plans")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="learning_plans")
+    plan_type = models.CharField(max_length=20, choices=PLAN_TYPES, default="sen")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft", db_index=True)
+    academic_year = models.CharField(max_length=20, help_text="e.g. 2025/2026")
+    start_date = models.DateField()
+    review_date = models.DateField(null=True, blank=True, help_text="Scheduled next review date.")
+    end_date = models.DateField(null=True, blank=True)
+    goals = models.TextField(help_text="Specific, measurable learning goals for this plan period.")
+    accommodations = models.TextField(
+        blank=True,
+        help_text="Classroom accommodations: extra time, seating, reader, etc.",
+    )
+    support_resources = models.TextField(blank=True, help_text="External or internal support: speech therapy, tutoring, etc.")
+    progress_notes = models.TextField(blank=True, help_text="Ongoing teacher/SENCO progress notes.")
+    parent_acknowledged = models.BooleanField(
+        default=False,
+        help_text="Set when parent/guardian has been briefed and agrees to the plan.",
+    )
+    parent_acknowledged_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="learning_plans_created",
+    )
+    last_updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="learning_plans_updated",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Learning Plan"
+        verbose_name_plural = "Learning Plans"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["school", "status"], name="idx_lplan_school_status"),
+            models.Index(fields=["school", "student"], name="idx_lplan_school_student"),
+            models.Index(fields=["school", "review_date"], name="idx_lplan_school_review"),
+        ]
+
+    def __str__(self):
+        return f"{self.student} — {self.get_plan_type_display()} ({self.academic_year})"

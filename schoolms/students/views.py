@@ -746,7 +746,67 @@ def student_detail(request, pk):
         pk=pk,
         school=school,
     )
-    return render(request, "students/student_detail.html", {"student": student})
+
+    from decimal import Decimal
+    from datetime import timedelta
+    from django.db.models import Sum
+    from finance.models import Fee, FeePayment
+    from operations.models import CanteenPayment, StudentAttendance
+    from operations.models.transport import BusPayment, TextbookSale
+    from students.models import StudentGuardian
+
+    # ── Fees ────────────────────────────────────────────────────────────────
+    fees_qs = Fee.objects.filter(student=student, school=school).select_related("term", "fee_structure").order_by("-created_at")
+    fee_agg = fees_qs.aggregate(owed=Sum("amount"), paid=Sum("amount_paid"))
+    total_owed = fee_agg["owed"] or Decimal("0")
+    total_paid_fees = fee_agg["paid"] or Decimal("0")
+    fee_balance = total_owed - total_paid_fees
+
+    recent_fee_payments = (
+        FeePayment.objects.filter(fee__student=student)
+        .select_related("fee")
+        .order_by("-created_at")[:15]
+    )
+
+    # ── Canteen / Bus / Textbooks ────────────────────────────────────────────
+    canteen_payments = CanteenPayment.objects.filter(student=student, school=school).order_by("-payment_date")[:10]
+    bus_payments = BusPayment.objects.filter(student=student, school=school).select_related("route").order_by("-payment_date")[:10]
+    textbook_sales = TextbookSale.objects.filter(student=student, school=school).select_related("textbook").order_by("-sale_date")[:10]
+
+    # ── Attendance (last 30 days) ────────────────────────────────────────────
+    thirty_days_ago = timezone.now().date() - timedelta(days=30)
+    attendance_qs = (
+        StudentAttendance.objects.filter(student=student, school=school, date__gte=thirty_days_ago)
+        .order_by("-date")
+    )
+    attend_present = attendance_qs.filter(status="present").count()
+    attend_absent = attendance_qs.filter(status="absent").count()
+    attend_late = attendance_qs.filter(status="late").count()
+
+    # ── Discipline ───────────────────────────────────────────────────────────
+    discipline_records = StudentDiscipline.objects.filter(student=student).order_by("-incident_date")[:15]
+
+    # ── Guardians via through-model ──────────────────────────────────────────
+    guardians = StudentGuardian.objects.filter(student=student).select_related("guardian").order_by("-is_primary")
+
+    ctx = {
+        "student": student,
+        "fees": fees_qs[:15],
+        "total_owed": total_owed,
+        "total_paid_fees": total_paid_fees,
+        "fee_balance": fee_balance,
+        "recent_fee_payments": recent_fee_payments,
+        "canteen_payments": canteen_payments,
+        "bus_payments": bus_payments,
+        "textbook_sales": textbook_sales,
+        "attendance_records": attendance_qs,
+        "attend_present": attend_present,
+        "attend_absent": attend_absent,
+        "attend_late": attend_late,
+        "discipline_records": discipline_records,
+        "guardians": guardians,
+    }
+    return render(request, "students/student_detail.html", ctx)
 
 
 @login_required
@@ -1744,3 +1804,204 @@ def graduate_class(request):
         "school": school,
         "classes": classes,
     })
+
+
+# ---------------------------------------------------------------------------
+# StudentGuardian management
+# ---------------------------------------------------------------------------
+
+@login_required
+def student_guardian_add(request, pk):
+    """Link a parent/guardian User to a student via StudentGuardian."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    student = get_object_or_404(Student, pk=pk, school=school)
+
+    if request.method == "POST":
+        from students.models import StudentGuardian
+        guardian_id = request.POST.get("guardian")
+        relationship = request.POST.get("relationship", "guardian")
+        is_primary = request.POST.get("is_primary") == "on"
+        can_pickup = request.POST.get("can_pickup") == "on"
+        emergency_contact = request.POST.get("emergency_contact") == "on"
+
+        guardian = get_object_or_404(User, pk=guardian_id, school=school, role="parent")
+
+        if StudentGuardian.objects.filter(student=student, guardian=guardian).exists():
+            messages.error(request, f"{guardian.get_full_name()} is already linked to this student.")
+        else:
+            if is_primary:
+                StudentGuardian.objects.filter(student=student, is_primary=True).update(is_primary=False)
+            StudentGuardian.objects.create(
+                school=school,
+                student=student,
+                guardian=guardian,
+                relationship=relationship,
+                is_primary=is_primary,
+                can_pickup=can_pickup,
+                emergency_contact=emergency_contact,
+            )
+            log_activity(
+                request.user, "ADD_GUARDIAN",
+                f"Linked {guardian.get_full_name()} to {student.user.get_full_name()} as {relationship}",
+                school=school, request=request,
+            )
+            messages.success(request, f"{guardian.get_full_name()} linked successfully.")
+        return redirect("students:student_detail", pk=pk)
+
+    from students.models import StudentGuardian
+    already_linked = set(StudentGuardian.objects.filter(student=student).values_list("guardian_id", flat=True))
+    parents = User.objects.filter(school=school, role="parent").exclude(pk__in=already_linked).order_by("last_name", "first_name")
+    return render(request, "students/guardian_add.html", {
+        "student": student,
+        "parents": parents,
+        "relationship_choices": StudentGuardian.RELATIONSHIP_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def student_guardian_remove(request, guardian_pk):
+    """Unlink a guardian from a student."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    from students.models import StudentGuardian
+    sg = get_object_or_404(StudentGuardian, pk=guardian_pk, school=school)
+    student_pk = sg.student_id
+    name = sg.guardian.get_full_name()
+    sg.delete()
+    log_activity(
+        request.user, "REMOVE_GUARDIAN",
+        f"Unlinked {name} from student #{student_pk}",
+        school=school, request=request,
+    )
+    messages.success(request, f"{name} unlinked.")
+    return redirect("students:student_detail", pk=student_pk)
+
+
+# ---------------------------------------------------------------------------
+# LearningPlan (F7 — IEP / SEN support)
+# ---------------------------------------------------------------------------
+
+@login_required
+def learning_plan_list(request):
+    from students.models import LearningPlan
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    status_filter = request.GET.get("status", "")
+    qs = (
+        LearningPlan.objects.filter(school=school)
+        .select_related("student", "student__user", "created_by")
+        .order_by("-created_at")
+    )
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    return render(request, "students/learning_plan_list.html", {
+        "plans": qs,
+        "status_filter": status_filter,
+        "status_choices": LearningPlan.STATUS_CHOICES,
+    })
+
+
+@login_required
+def learning_plan_create(request, student_pk):
+    from students.models import LearningPlan
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    student = get_object_or_404(Student, pk=student_pk, school=school)
+
+    if request.method == "POST":
+        import datetime
+        start_raw = request.POST.get("start_date", "")
+        review_raw = request.POST.get("review_date", "")
+        try:
+            start_date = datetime.date.fromisoformat(start_raw)
+        except ValueError:
+            start_date = timezone.now().date()
+        review_date = None
+        if review_raw:
+            try:
+                review_date = datetime.date.fromisoformat(review_raw)
+            except ValueError:
+                pass
+        plan = LearningPlan.objects.create(
+            school=school,
+            student=student,
+            plan_type=request.POST.get("plan_type", "sen"),
+            status="draft",
+            academic_year=request.POST.get("academic_year", "").strip(),
+            start_date=start_date,
+            review_date=review_date,
+            goals=request.POST.get("goals", ""),
+            accommodations=request.POST.get("accommodations", ""),
+            support_resources=request.POST.get("support_resources", ""),
+            created_by=request.user,
+            last_updated_by=request.user,
+        )
+        messages.success(request, f"Learning plan created for {student.user.get_full_name()}.")
+        return redirect("students:learning_plan_detail", pk=plan.pk)
+
+    from students.models import LearningPlan as LP
+    return render(request, "students/learning_plan_form.html", {
+        "student": student,
+        "plan_types": LP.PLAN_TYPES,
+        "action": "Create",
+    })
+
+
+@login_required
+def learning_plan_detail(request, pk):
+    from students.models import LearningPlan
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    plan = get_object_or_404(LearningPlan, pk=pk, school=school)
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if action == "activate" and plan.status == "draft":
+            plan.status = "active"
+            plan.save(update_fields=["status", "updated_at"])
+            messages.success(request, "Plan activated.")
+        elif action == "acknowledge":
+            plan.parent_acknowledged = True
+            plan.parent_acknowledged_at = timezone.now()
+            plan.save(update_fields=["parent_acknowledged", "parent_acknowledged_at", "updated_at"])
+            messages.success(request, "Parent acknowledgement recorded.")
+        elif action == "progress":
+            notes = request.POST.get("progress_notes", "")
+            plan.progress_notes = notes
+            plan.last_updated_by = request.user
+            plan.save(update_fields=["progress_notes", "last_updated_by", "updated_at"])
+            messages.success(request, "Progress notes saved.")
+        return redirect("students:learning_plan_detail", pk=pk)
+
+    return render(request, "students/learning_plan_detail.html", {"plan": plan})
+
+
+@login_required
+@require_POST
+def learning_plan_delete(request, pk):
+    from students.models import LearningPlan
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    plan = get_object_or_404(LearningPlan, pk=pk, school=school)
+    student_name = plan.student.user.get_full_name()
+    plan.delete()
+    messages.success(request, f"Learning plan for {student_name} deleted.")
+    return redirect("students:learning_plan_list")

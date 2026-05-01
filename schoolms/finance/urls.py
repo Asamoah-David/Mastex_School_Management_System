@@ -1,5 +1,7 @@
 from django.urls import path
 from . import views
+from . import scholarship_views
+from . import erp_views
 
 app_name = "finance"
 
@@ -72,4 +74,31 @@ urlpatterns = [
     # Approval Workflow Inbox (UX-2)
     path("approvals/", views.approval_inbox, name="approval_inbox"),
     path("approvals/<int:pk>/advance/", views.approval_advance, name="approval_advance"),
+
+    # Scholarships (F13)
+    path("scholarships/", scholarship_views.scholarship_list, name="scholarship_list"),
+    path("scholarships/create/", scholarship_views.scholarship_create, name="scholarship_create"),
+    path("scholarships/<int:pk>/", scholarship_views.scholarship_detail, name="scholarship_detail"),
+    path("scholarships/<int:scholarship_pk>/award/", scholarship_views.scholarship_award_create, name="scholarship_award_create"),
+    path("scholarships/awards/<int:pk>/action/", scholarship_views.scholarship_award_action, name="scholarship_award_action"),
+
+    # Fee Discounts
+    path("discounts/", erp_views.fee_discount_list, name="fee_discount_list"),
+    path("fees/<int:fee_id>/discount/add/", erp_views.fee_discount_create, name="fee_discount_create"),
+    path("discounts/<int:pk>/deactivate/", erp_views.fee_discount_deactivate, name="fee_discount_deactivate"),
+
+    # Fee Installment Plans
+    path("installments/", erp_views.fee_installment_list, name="fee_installment_list"),
+    path("fees/<int:fee_id>/installments/create/", erp_views.fee_installment_create, name="fee_installment_create"),
+    path("installments/<int:pk>/pay/", erp_views.fee_installment_mark_paid, name="fee_installment_mark_paid"),
+
+    # Purchase Orders
+    path("purchase-orders/", erp_views.purchase_order_list, name="purchase_order_list"),
+    path("purchase-orders/create/", erp_views.purchase_order_create, name="purchase_order_create"),
+    path("purchase-orders/<int:pk>/", erp_views.purchase_order_detail, name="purchase_order_detail"),
+
+    # Bank Accounts
+    path("bank-accounts/", erp_views.bank_account_list, name="bank_account_list"),
+    path("bank-accounts/create/", erp_views.bank_account_create, name="bank_account_create"),
+    path("bank-accounts/<int:pk>/toggle/", erp_views.bank_account_toggle, name="bank_account_toggle"),
 ]

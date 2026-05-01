@@ -1,6 +1,7 @@
 from django.urls import path
 from operations.receipt_views import receipt_view, receipt_pdf_view
 from operations.partial_payment_views import partial_payment_page
+from operations import supply_views
 
 from django.views.generic import RedirectView
 from . import views
@@ -8,6 +9,7 @@ from . import payment_views
 from . import export_views
 from . import qr_views
 from . import advanced_views
+from . import erp_views
 
 app_name = "operations"
 
@@ -392,7 +394,7 @@ urlpatterns = [
     path("behavior-tracker/", advanced_views.behavior_tracker_page, name="behavior_tracker_page"),
     path("behavior-tracker/record/", advanced_views.record_behavior, name="record_behavior"),
     path("behavior-tracker/student/<int:student_id>/", advanced_views.student_behavior_history, name="student_behavior_history"),
-    
+
     # School-wide performance rankings (attendance + results blend)
     path("school-rankings/", advanced_views.class_rankings_page, name="school_rankings"),
 
@@ -406,4 +408,25 @@ urlpatterns = [
     path('receipt/<int:payment_id>/pdf/', receipt_pdf_view, name='receipt_pdf'),
     path('pay/<str:fee_type>/', partial_payment_page, name='partial_payment'),
     path('pay/', partial_payment_page, name='partial_payment_default'),
+
+    # Early Warning Flags (F9)
+    path("early-warning/", erp_views.early_warning_list, name="early_warning_list"),
+    path("early-warning/<int:pk>/update/", erp_views.early_warning_update_status, name="early_warning_update"),
+
+    # Canteen Pre-Orders (F15)
+    path("canteen/orders/", erp_views.canteen_order_list, name="canteen_order_list"),
+    path("canteen/orders/place/", erp_views.canteen_order_place, name="canteen_order_place"),
+    path("canteen/orders/<int:pk>/status/", erp_views.canteen_order_update_status, name="canteen_order_update_status"),
+
+    # Class Supply Tracker
+    path("supplies/", supply_views.supply_list, name="supply_list"),
+    path("supplies/create/", supply_views.supply_create, name="supply_create"),
+    path("supplies/<int:pk>/", supply_views.supply_detail, name="supply_detail"),
+    path("supplies/<int:pk>/add-item/", supply_views.supply_item_add, name="supply_item_add"),
+    path("supplies/mark/<int:item_pk>/<int:student_pk>/", supply_views.supply_mark, name="supply_mark"),
+    path("supplies/unmark/<int:item_pk>/<int:student_pk>/", supply_views.supply_unmark, name="supply_unmark"),
+    path("supplies/<int:pk>/export.csv", supply_views.supply_export_csv, name="supply_export_csv"),
+    path("supplies/<int:pk>/toggle/", supply_views.supply_toggle, name="supply_toggle"),
+    path("supplies/<int:pk>/notify/", supply_views.supply_notify, name="supply_notify"),
+    path("my-child-supplies/", supply_views.parent_supply_list, name="parent_supply_list"),
 ]

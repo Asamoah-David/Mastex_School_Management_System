@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Question Banks · MastexEDU{% endblock %}
+{% block page_title %}Question Banks{% endblock %}
+{% block page_subtitle %}Curated question pools reusable across exams and quizzes{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'academics:question_bank_create' %}" class="btn btn-primary">+ New Bank</a>
+    {% if subjects %}
+    <form method="get" style="display:inline-flex;gap:.5rem;margin-left:.5rem;">
+        <select name="subject" class="form-control" onchange="this.form.submit()">
+            <option value="">All subjects</option>
+            {% for s in subjects %}<option value="{{ s.id }}" {% if subject_filter == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+        </select>
+    </form>
+    {% endif %}
+</div>
+<div class="card">
+    {% if banks %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Name</th><th>Subject</th><th>Questions</th><th>Shared</th><th>Created By</th><th></th></tr></thead>
+            <tbody>
+            {% for b in banks %}
+            <tr>
+                <td><a href="{% url 'academics:question_bank_detail' b.id %}">{{ b.name }}</a></td>
+                <td>{{ b.subject.name }}</td>
+                <td>{{ b.item_count }}</td>
+                <td>{% if b.is_shared %}<span class="badge badge-success">Yes</span>{% else %}—{% endif %}</td>
+                <td>{{ b.created_by.get_full_name|default:"—" }}</td>
+                <td>
+                    <a href="{% url 'academics:question_bank_detail' b.id %}" class="btn btn-secondary btn-sm">View</a>
+                    <form method="post" action="{% url 'academics:question_bank_delete' b.id %}" style="display:inline;" onsubmit="return confirm('Delete this bank and all its questions?');">
+                        {% csrf_token %}<button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No question banks found.</p>{% endif %}
+</div>
+{% endblock %}

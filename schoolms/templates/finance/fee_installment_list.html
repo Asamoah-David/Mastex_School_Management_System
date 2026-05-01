@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Fee Installments · MastexEDU{% endblock %}
+{% block page_title %}Fee Installment Plans{% endblock %}
+{% block page_subtitle %}Scheduled installments across all fees{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'finance:fee_list' %}" class="btn btn-secondary">← Fees</a>
+    {% if status_filter %}<a href="{% url 'finance:fee_installment_list' %}" class="btn btn-secondary">Clear filter</a>{% endif %}
+</div>
+<div class="card mb-sm">
+    <form method="get" class="filter-row">
+        <select name="status" class="form-control" style="width:auto;display:inline-block;" onchange="this.form.submit()">
+            <option value="">All statuses</option>
+            <option value="pending" {% if status_filter == "pending" %}selected{% endif %}>Pending</option>
+            <option value="partial" {% if status_filter == "partial" %}selected{% endif %}>Partial</option>
+            <option value="paid" {% if status_filter == "paid" %}selected{% endif %}>Paid</option>
+            <option value="overdue" {% if status_filter == "overdue" %}selected{% endif %}>Overdue</option>
+        </select>
+    </form>
+</div>
+<div class="card">
+    {% if installments %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>#</th><th>Student</th><th>Fee</th><th>Due</th><th>Amount Due</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            {% for i in installments %}
+            <tr>
+                <td>{{ i.installment_number }}</td>
+                <td>{{ i.fee.student.user.get_full_name }}</td>
+                <td>{{ i.fee }}</td>
+                <td>{{ i.due_date|date:"d M Y" }}</td>
+                <td>{{ i.amount_due }}</td>
+                <td>{{ i.amount_paid }}</td>
+                <td>{{ i.balance }}</td>
+                <td><span class="badge badge-{% if i.status == 'paid' %}success{% elif i.status == 'overdue' %}danger{% else %}warning{% endif %}">{{ i.get_status_display }}</span></td>
+                <td>
+                    {% if i.status != "paid" %}
+                    <form method="post" action="{% url 'finance:fee_installment_mark_paid' i.id %}" style="display:inline;" onsubmit="return confirm('Mark as fully paid?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success btn-sm">Mark Paid</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No installment plans found.</p>{% endif %}
+</div>
+{% endblock %}

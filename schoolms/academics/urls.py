@@ -104,6 +104,9 @@ urlpatterns = [
     # PDF Report Cards
     path("report-cards/bulk/", pdf_report.generate_bulk_report_cards, name="generate_report_card"),
     path("report-cards/download/<int:student_id>/", pdf_report.generate_report_card_pdf, name="download_report_card"),
+    # F22 — Save report card to DB + QR verification (public)
+    path("report-cards/save/<int:student_id>/", pdf_report.generate_and_save_report_card, name="save_report_card"),
+    path("report-cards/verify/<str:qr_token>/", pdf_report.verify_report_card_qr, name="verify_report_card_qr"),
     
     # Auto Timetable
     path("auto-timetable/", timetable_generator.auto_timetable_generator, name="auto_timetable"),
@@ -119,4 +122,11 @@ urlpatterns = [
 
     # DS-2: Z-Score Outlier Detection
     path("analytics/outliers/", advanced_analytics.class_result_outliers, name="result_outliers"),
+
+    # Question Bank (F6)
+    path("question-banks/", views.question_bank_list, name="question_bank_list"),
+    path("question-banks/create/", views.question_bank_create, name="question_bank_create"),
+    path("question-banks/<int:pk>/", views.question_bank_detail, name="question_bank_detail"),
+    path("question-banks/<int:pk>/add-item/", views.question_bank_add_item, name="question_bank_add_item"),
+    path("question-banks/<int:pk>/delete/", views.question_bank_delete, name="question_bank_delete"),
 ]

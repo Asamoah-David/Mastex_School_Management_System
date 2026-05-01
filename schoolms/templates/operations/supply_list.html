@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Class Supply Requests · MastexEDU{% endblock %}
+{% block page_title %}Class Supply Requests{% endblock %}
+{% block page_subtitle %}Track items requested from students per class{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem;">
+    <form method="GET" style="display:flex;gap:0.75rem;align-items:flex-end;">
+        <div class="form-group" style="margin:0;min-width:160px;">
+            <label class="form-label">Filter by Class</label>
+            <select class="form-control" name="class" onchange="this.form.submit()" title="Filter by Class">
+                <option value="">All Classes</option>
+                {% for c in classes %}<option value="{{ c.pk }}" {% if class_filter == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </select>
+        </div>
+    </form>
+    <a href="{% url 'operations:supply_create' %}" class="btn btn-primary">+ New Supply Request</a>
+</div>
+
+{% if requests %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.25rem;">
+{% for req in requests %}
+<div class="content-card" style="border-left:4px solid {% if req.is_active %}#22c55e{% else %}#94a3b8{% endif %};">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.75rem;">
+        <div>
+            <h4 style="margin:0;color:var(--text-main);">{{ req.title }}</h4>
+            <p style="margin:0.25rem 0 0;color:var(--text-soft);font-size:0.82rem;">🏫 {{ req.school_class.name }}{% if req.academic_year %} · {{ req.academic_year }}{% endif %}</p>
+        </div>
+        <span style="background:{% if req.is_active %}rgba(34,197,94,0.1){% else %}rgba(148,163,184,0.1){% endif %};color:{% if req.is_active %}#22c55e{% else %}#94a3b8{% endif %};padding:0.25rem 0.6rem;border-radius:9999px;font-size:0.72rem;font-weight:600;white-space:nowrap;">
+            {% if req.is_active %}Active{% else %}Closed{% endif %}
+        </span>
+    </div>
+    <div style="font-size:0.82rem;color:var(--text-soft);margin-bottom:0.75rem;">
+        📦 {{ req.items.count }} item{{ req.items.count|pluralize }}
+        {% if req.deadline %} · 📅 Deadline: {{ req.deadline|date:"d M Y" }}{% endif %}
+    </div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <a href="{% url 'operations:supply_detail' req.pk %}" class="btn btn-primary" style="flex:1;text-align:center;font-size:0.82rem;">View Details</a>
+        <form method="POST" action="{% url 'operations:supply_toggle' req.pk %}" style="flex:0;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;">
+                {% if req.is_active %}Close{% else %}Reopen{% endif %}
+            </button>
+        </form>
+    </div>
+</div>
+{% endfor %}
+</div>
+{% else %}
+<div class="content-card" style="text-align:center;padding:3rem;color:var(--text-soft);">
+    <p style="font-size:2rem;">📦</p>
+    <p>No supply requests yet. Create one to start tracking what students need to bring.</p>
+    <a href="{% url 'operations:supply_create' %}" class="btn btn-primary" style="margin-top:0.5rem;">Create Supply Request</a>
+</div>
+{% endif %}
+{% endblock %}

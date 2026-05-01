@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Performance Reviews · MastexEDU{% endblock %}
+{% block page_title %}Staff Performance Reviews{% endblock %}
+{% block page_subtitle %}Annual and term appraisals{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'accounts:performance_review_create' %}" class="btn btn-primary">+ New Review</a>
+    {% if years %}<form method="get" style="display:inline-flex;gap:.5rem;margin-left:.5rem;">
+        <select name="year" class="form-control" onchange="this.form.submit()">
+            <option value="">All years</option>
+            {% for y in years %}<option value="{{ y }}" {% if year_filter == y %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        </select>
+    </form>{% endif %}
+</div>
+<div class="card">
+    {% if reviews %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Staff</th><th>Period</th><th>Year</th><th>Overall</th><th>Reviewer</th><th>Acknowledged</th></tr></thead>
+            <tbody>
+            {% for r in reviews %}
+            <tr>
+                <td>{{ r.staff.get_full_name }}</td>
+                <td>{{ r.get_review_period_display }}</td>
+                <td>{{ r.academic_year }}</td>
+                <td>{% if r.overall_rating %}<span class="badge badge-{% if r.overall_rating >= 4 %}success{% elif r.overall_rating == 3 %}warning{% else %}danger{% endif %}">{{ r.get_overall_rating_display }}</span>{% else %}—{% endif %}</td>
+                <td>{{ r.reviewer.get_full_name|default:"—" }}</td>
+                <td>{% if r.staff_acknowledgement %}<span class="badge badge-success">Yes</span>{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No performance reviews found.</p>{% endif %}
+</div>
+{% endblock %}

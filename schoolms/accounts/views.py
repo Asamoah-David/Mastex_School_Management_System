@@ -1408,10 +1408,43 @@ def parent_detail(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    # from students.models import Student # Moved to top
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
-    children = Student.objects.filter(parent=parent).select_related("user", "school")
-    return render(request, "accounts/parent_detail.html", {"parent": parent, "children": children})
+
+    from students.models import StudentGuardian
+    from django.db.models import Sum
+    from finance.models import Fee
+
+    legacy_ids = set(Student.objects.filter(parent=parent, school=school).values_list("id", flat=True))
+    guardian_ids = set(StudentGuardian.objects.filter(guardian=parent).values_list("student_id", flat=True))
+    all_ids = legacy_ids | guardian_ids
+
+    children_qs = Student.objects.filter(pk__in=all_ids).select_related("user", "school")
+    guardian_map = {
+        g.student_id: g
+        for g in StudentGuardian.objects.filter(guardian=parent, student_id__in=all_ids).select_related("student")
+    }
+
+    children_data = []
+    for child in children_qs:
+        agg = Fee.objects.filter(student=child, school=school).aggregate(owed=Sum("amount"), paid=Sum("amount_paid"))
+        owed = agg["owed"] or 0
+        paid_amt = agg["paid"] or 0
+        g = guardian_map.get(child.pk)
+        children_data.append({
+            "student": child,
+            "relationship": g.get_relationship_display() if g else "Parent",
+            "is_primary": g.is_primary if g else False,
+            "can_pickup": g.can_pickup if g else True,
+            "fee_owed": owed,
+            "fee_paid": paid_amt,
+            "fee_balance": owed - paid_amt,
+        })
+
+    return render(request, "accounts/parent_detail.html", {
+        "parent": parent,
+        "children": children_data,
+        "school": school,
+    })
 
 
 @login_required
@@ -1983,6 +2016,8 @@ def global_search(request):
                     Q(first_name__icontains=q)
                     | Q(last_name__icontains=q)
                     | Q(username__icontains=q)
+                    | Q(phone__icontains=q)
+                    | Q(email__icontains=q)
                 )[:10]
             )
             results["parents"] = list(
@@ -2017,6 +2052,17 @@ def global_search(request):
                     Q(first_name__icontains=q)
                     | Q(last_name__icontains=q)
                     | Q(username__icontains=q)
+                    | Q(phone__icontains=q)
+                    | Q(email__icontains=q)
+                )
+                .select_related("school")[:10]
+            )
+            results["parents"] = list(
+                User.objects.filter(role="parent")
+                .filter(
+                    Q(first_name__icontains=q)
+                    | Q(last_name__icontains=q)
+                    | Q(phone__icontains=q)
                 )
                 .select_related("school")[:10]
             )

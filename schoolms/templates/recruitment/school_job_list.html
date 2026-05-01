@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Manage Job Postings · MastexEDU{% endblock %}
+{% block page_title %}Job Postings{% endblock %}
+{% block page_subtitle %}Manage your school's open positions{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem;">
+    <div style="display:flex;gap:0.5rem;">
+        <a href="{% url 'recruitment:school_job_create' %}" class="btn btn-primary">+ New Job Posting</a>
+        <a href="{% url 'recruitment:job_list' %}" class="btn btn-secondary" target="_blank">View Public Board ↗</a>
+    </div>
+</div>
+{% if jobs %}
+<div class="content-card" style="overflow-x:auto;">
+    <table class="data-table">
+        <thead><tr><th>Position</th><th>Type</th><th>Deadline</th><th>Slots</th><th>Applications</th><th>Shortlisted</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for job in jobs %}
+        <tr>
+            <td>
+                <div style="font-weight:600;">{{ job.title }}</div>
+                <div style="font-size:0.78rem;color:var(--text-soft);">{{ job.reference_code }}</div>
+            </td>
+            <td>{{ job.get_job_type_display }}</td>
+            <td>{{ job.deadline|date:"d M Y" }}{% if job.is_open %} <span style="color:#22c55e;font-size:0.75rem;">✓ Open</span>{% else %} <span style="color:#ef4444;font-size:0.75rem;">Closed</span>{% endif %}</td>
+            <td>{{ job.slots_available }}</td>
+            <td><a href="{% url 'recruitment:school_applicant_list' job.pk %}">{{ job.paid_apps }}</a></td>
+            <td>{{ job.shortlisted }}</td>
+            <td>
+                {% if job.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}
+            </td>
+            <td>
+                <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                    <a href="{% url 'recruitment:school_job_edit' job.pk %}" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;">Edit</a>
+                    <a href="{% url 'recruitment:school_applicant_list' job.pk %}" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;">Applicants</a>
+                    <form method="POST" action="{% url 'recruitment:school_job_toggle' job.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;">
+                            {% if job.is_active %}Deactivate{% else %}Activate{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="content-card" style="text-align:center;padding:3rem;color:var(--text-soft);">
+    <p style="font-size:2rem;">📋</p>
+    <p>No job postings yet. Create your first position to start receiving applications.</p>
+    <a href="{% url 'recruitment:school_job_create' %}" class="btn btn-primary" style="margin-top:0.5rem;">Create Job Posting</a>
+</div>
+{% endif %}
+{% endblock %}

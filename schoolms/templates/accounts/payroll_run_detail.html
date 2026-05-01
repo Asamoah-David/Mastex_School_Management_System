@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ run.period_label }} · MastexEDU{% endblock %}
+{% block page_title %}{{ run.period_label }}{% endblock %}
+{% block page_subtitle %}Pay Date: {{ run.pay_date|date:"d M Y" }} · {{ run.get_status_display }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'accounts:payroll_run_list' %}" class="btn btn-secondary">← Payroll Runs</a>
+    {% if run.status == "draft" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="process"><button type="submit" class="btn btn-primary">Start Processing</button></form>
+    {% elif run.status == "processing" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="complete"><button type="submit" class="btn btn-success">Mark Complete</button></form>
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="fail"><button type="submit" class="btn btn-danger">Mark Failed</button></form>
+    {% endif %}
+</div>
+<div class="stats-grid mb-md">
+    <div class="stat-card"><div class="stat-label">Staff Count</div><div class="stat-value">{{ run.staff_count }}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Gross</div><div class="stat-value">{{ run.total_gross }}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Net</div><div class="stat-value">{{ run.total_net }}</div></div>
+    <div class="stat-card"><div class="stat-label">Status</div><div class="stat-value">{{ run.get_status_display }}</div></div>
+</div>
+<div class="card">
+    <div class="card-header"><h3 class="card-title">Payments</h3></div>
+    {% if payments %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Staff</th><th>Gross</th><th>Deductions</th><th>Net</th><th>Method</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for p in payments %}
+            <tr>
+                <td>{{ p.staff.get_full_name }}</td>
+                <td>{{ p.gross_salary }}</td>
+                <td>{{ p.total_deductions }}</td>
+                <td>{{ p.net_salary }}</td>
+                <td>{{ p.get_method_display }}</td>
+                <td><span class="badge badge-{% if p.status == 'paid' %}success{% elif p.status == 'failed' %}danger{% else %}warning{% endif %}">{{ p.get_status_display }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted p-sm">No payments in this run yet.</p>{% endif %}
+</div>
+{% endblock %}

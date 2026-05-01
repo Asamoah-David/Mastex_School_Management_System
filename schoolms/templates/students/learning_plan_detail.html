@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Learning Plan · {{ plan.student.user.get_full_name }}{% endblock %}
+{% block page_title %}Learning Plan{% endblock %}
+{% block page_subtitle %}{{ plan.student.user.get_full_name }} · {{ plan.get_plan_type_display }} · {{ plan.get_status_display }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'students:learning_plan_list' %}" class="btn btn-secondary">← All Plans</a>
+    <a href="{% url 'students:student_detail' plan.student.id %}" class="btn btn-secondary">Student Profile</a>
+    {% if plan.status == "draft" %}
+    <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="activate"><button type="submit" class="btn btn-success">Activate Plan</button></form>
+    {% endif %}
+    <form method="post" action="{% url 'students:learning_plan_delete' plan.id %}" style="display:inline;" onsubmit="return confirm('Delete this plan permanently?');">
+        {% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+</div>
+
+<div class="stats-grid mb-md">
+    <div class="stat-card"><div class="stat-label">Year</div><div class="stat-value">{{ plan.academic_year }}</div></div>
+    <div class="stat-card"><div class="stat-label">Start Date</div><div class="stat-value">{{ plan.start_date|date:"d M Y" }}</div></div>
+    <div class="stat-card"><div class="stat-label">Review Date</div><div class="stat-value">{{ plan.review_date|date:"d M Y"|default:"—" }}</div></div>
+    <div class="stat-card"><div class="stat-label">Parent Acknowledged</div><div class="stat-value">{% if plan.parent_acknowledged %}Yes{% else %}No{% endif %}</div></div>
+</div>
+
+<div class="card mb-md">
+    <div class="card-header"><h3 class="card-title">Goals</h3></div>
+    <p class="p-sm">{{ plan.goals|linebreaksbr }}</p>
+</div>
+{% if plan.accommodations %}
+<div class="card mb-md">
+    <div class="card-header"><h3 class="card-title">Accommodations</h3></div>
+    <p class="p-sm">{{ plan.accommodations|linebreaksbr }}</p>
+</div>
+{% endif %}
+{% if plan.support_resources %}
+<div class="card mb-md">
+    <div class="card-header"><h3 class="card-title">Support Resources</h3></div>
+    <p class="p-sm">{{ plan.support_resources|linebreaksbr }}</p>
+</div>
+{% endif %}
+
+<div class="card mb-md">
+    <div class="card-header"><h3 class="card-title">Progress Notes</h3></div>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="progress">
+        <textarea name="progress_notes" class="form-control" rows="5">{{ plan.progress_notes }}</textarea>
+        <div class="button-row mt-sm"><button type="submit" class="btn btn-primary">Save Notes</button></div>
+    </form>
+</div>
+
+{% if not plan.parent_acknowledged %}
+<div class="card">
+    <div class="card-header"><h3 class="card-title">Parent Acknowledgement</h3></div>
+    <p class="p-sm">Has the parent/guardian been briefed and agreed to this plan?</p>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="acknowledge">
+        <button type="submit" class="btn btn-success">Record Acknowledgement</button>
+    </form>
+</div>
+{% else %}
+<p class="text-muted">Parent acknowledged on {{ plan.parent_acknowledged_at|date:"d M Y H:i"|default:"—" }}.</p>
+{% endif %}
+{% endblock %}

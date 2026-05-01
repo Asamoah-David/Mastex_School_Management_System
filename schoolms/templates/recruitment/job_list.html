@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Job Portal · MastexEDU{% endblock %}
+{% block page_title %}Jobs & Employment Portal{% endblock %}
+{% block page_subtitle %}Find open teaching and staff positions across schools{% endblock %}
+{% block content %}
+
+{% if messages %}
+<div class="messages">
+{% for message in messages %}
+    <div class="message-box {% if message.tags == 'success' %}success{% endif %}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="content-card" style="margin-bottom:1.5rem;">
+    <form method="GET" style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end;">
+        <div class="form-group" style="flex:1;min-width:180px;">
+            <label class="form-label">Search</label>
+            <input class="form-control" type="text" name="q" value="{{ q }}" placeholder="Title, subject, keyword...">
+        </div>
+        <div class="form-group" style="min-width:160px;">
+            <label class="form-label">Job Type</label>
+            <select class="form-control" name="type">
+                <option value="">All Types</option>
+                {% for val, label in job_types %}<option value="{{ val }}" {% if type_filter == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="min-width:180px;">
+            <label class="form-label">School</label>
+            <select class="form-control" name="school">
+                <option value="">All Schools</option>
+                {% for s in schools %}<option value="{{ s.pk }}" {% if school_filter == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+            <button type="submit" class="btn btn-primary">Search</button>
+            <a href="{% url 'recruitment:job_list' %}" class="btn btn-secondary">Clear</a>
+        </div>
+    </form>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h3 style="margin:0;color:var(--text-main);">{{ jobs|length }} Position{{ jobs|length|pluralize }} Found</h3>
+    <div style="display:flex;gap:0.5rem;">
+        <a href="{% url 'recruitment:track_application' %}" class="btn btn-secondary" style="font-size:0.85rem;">🔍 Track My Application</a>
+        {% if user.is_authenticated %}<a href="{% url 'recruitment:school_job_list' %}" class="btn btn-secondary" style="font-size:0.85rem;">⚙ Manage Jobs</a>{% endif %}
+    </div>
+</div>
+
+{% if jobs %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1.25rem;">
+{% for job in jobs %}
+<div class="content-card" style="position:relative;border-left:4px solid {% if job.job_type == 'teacher' %}#3b82f6{% elif job.job_type == 'hod' %}#8b5cf6{% elif job.job_type == 'admin' %}#f59e0b{% else %}#6b7280{% endif %};">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.75rem;">
+        <div>
+            <span class="badge badge-{% if job.job_type == 'teacher' %}primary{% elif job.job_type == 'admin' %}warning{% else %}secondary{% endif %}" style="font-size:0.7rem;margin-bottom:0.4rem;display:inline-block;">{{ job.get_job_type_display }}</span>
+            <h3 style="margin:0;color:var(--text-main);font-size:1.05rem;">{{ job.title }}</h3>
+            <p style="margin:0.25rem 0 0;color:var(--text-soft);font-size:0.85rem;">🏫 {{ job.school.name }}</p>
+        </div>
+        <span style="background:{% if job.is_open %}rgba(34,197,94,0.1){% else %}rgba(239,68,68,0.1){% endif %};color:{% if job.is_open %}#22c55e{% else %}#ef4444{% endif %};padding:0.25rem 0.6rem;border-radius:9999px;font-size:0.75rem;font-weight:600;white-space:nowrap;">
+            {% if job.is_open %}Open{% else %}Closed{% endif %}
+        </span>
+    </div>
+    {% if job.subjects %}<p style="font-size:0.82rem;color:#3b82f6;margin:0 0 0.5rem;">📚 {{ job.subjects }}</p>{% endif %}
+    <p style="color:var(--text-soft);font-size:0.85rem;margin:0 0 0.75rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">{{ job.description }}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem;font-size:0.78rem;color:var(--text-soft);">
+        <span>📅 Deadline: {{ job.deadline|date:"d M Y" }}</span>
+        <span>·</span>
+        <span>👥 {{ job.slots_available }} slot{{ job.slots_available|pluralize }}</span>
+        {% if job.salary_range %}<span>·</span><span>💰 {{ job.salary_range }}</span>{% endif %}
+        <span>·</span>
+        <span>🧾 {{ job.app_count }} applicant{{ job.app_count|pluralize }}</span>
+    </div>
+    <div style="display:flex;gap:0.5rem;">
+        <a href="{% url 'recruitment:job_detail' job.pk %}" class="btn btn-secondary" style="flex:1;text-align:center;font-size:0.85rem;">View Details</a>
+        {% if job.is_open %}<a href="{% url 'recruitment:job_apply' job.pk %}" class="btn btn-primary" style="flex:1;text-align:center;font-size:0.85rem;">Apply Now →</a>{% endif %}
+    </div>
+    <p style="font-size:0.72rem;color:var(--text-soft);margin:0.6rem 0 0;text-align:right;">Fee: GHS {{ job.application_fee }} · Ref: {{ job.reference_code }}</p>
+</div>
+{% endfor %}
+</div>
+{% else %}
+<div class="content-card" style="text-align:center;padding:3rem;color:var(--text-soft);">
+    <p style="font-size:2rem;">🔍</p>
+    <p>No open positions match your search.</p>
+    <a href="{% url 'recruitment:job_list' %}" class="btn btn-primary" style="margin-top:0.5rem;">View All Jobs</a>
+</div>
+{% endif %}
+{% endblock %}

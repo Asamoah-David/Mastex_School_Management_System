@@ -3,9 +3,10 @@ from django.db.models import Q
 from accounts.models import User
 from students.models import Student
 from schools.models import School
+from core.tenancy import SchoolScopedModel
 
 
-class DisciplineIncident(models.Model):
+class DisciplineIncident(SchoolScopedModel):
     """
     DEPRECATED: Use students.StudentDiscipline for new code.
     This model is retained for historical data only.
@@ -35,7 +36,7 @@ class DisciplineIncident(models.Model):
         return f"{self.student} - {self.incident_type} ({self.severity})"
 
 
-class BehaviorPoint(models.Model):
+class BehaviorPoint(SchoolScopedModel):
     """Track positive/negative behavior points per student."""
     POINT_TYPES = (
         ('positive', 'Positive'),

@@ -1208,3 +1208,194 @@ class FixedAsset(SchoolScopedModel):
         if new_val <= self.salvage_value:
             self.condition = "written_off"
         self.save(update_fields=["current_book_value", "condition", "updated_at"])
+
+
+# ---------------------------------------------------------------------------
+# F13 — Scholarship / Bursary Management
+# ---------------------------------------------------------------------------
+
+class Scholarship(SchoolScopedModel):
+    """A named scholarship or bursary programme offered by the school.
+
+    Individual awards are tracked via ScholarshipAward.  The total_budget
+    and amount_awarded fields give a live view of utilisation.
+    """
+
+    SCHOLARSHIP_TYPES = [
+        ("merit", "Academic Merit"),
+        ("sports", "Sports Excellence"),
+        ("bursary", "Financial Bursary / Hardship"),
+        ("donor", "Donor / Sponsored"),
+        ("staff_child", "Staff Child Benefit"),
+        ("government", "Government Grant"),
+        ("other", "Other"),
+    ]
+    CYCLE_CHOICES = [
+        ("annual", "Annual"),
+        ("termly", "Per Term"),
+        ("one_off", "One-Off"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="scholarships")
+    name = models.CharField(max_length=200)
+    scholarship_type = models.CharField(max_length=20, choices=SCHOLARSHIP_TYPES, default="merit")
+    description = models.TextField(blank=True)
+    eligibility_criteria = models.TextField(
+        blank=True,
+        help_text="Minimum GPA, income threshold, sport performance, etc.",
+    )
+    cycle = models.CharField(max_length=10, choices=CYCLE_CHOICES, default="annual")
+    academic_year = models.CharField(max_length=20, blank=True, help_text="e.g. '2025/2026'")
+    total_budget = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal("0"),
+        help_text="Total GHS budgeted for this scholarship programme.",
+    )
+    amount_per_award = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal("0"),
+        help_text="Default award value per recipient (can be overridden per award).",
+    )
+    percentage_off = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Optional: % fee reduction rather than fixed GHS amount.",
+    )
+    max_recipients = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Maximum number of students who can receive this scholarship.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    application_deadline = models.DateField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Scholarship"
+        verbose_name_plural = "Scholarships"
+        ordering = ["school", "name"]
+        indexes = [
+            models.Index(fields=["school", "scholarship_type"], name="idx_schol_school_type"),
+            models.Index(fields=["school", "is_active"], name="idx_schol_school_active"),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_scholarship_type_display()}) — {self.school}"
+
+    @property
+    def amount_awarded(self) -> Decimal:
+        from django.db.models import Sum
+        return (
+            self.awards.filter(status="active").aggregate(
+                t=Sum("awarded_amount")
+            )["t"] or Decimal("0")
+        )
+
+    @property
+    def budget_utilisation_pct(self) -> Decimal:
+        if not self.total_budget:
+            return Decimal("0")
+        return (self.amount_awarded / self.total_budget * 100).quantize(Decimal("0.1"))
+
+
+class ScholarshipAward(SchoolScopedModel):
+    """An individual scholarship granted to a specific student.
+
+    Linked to a Fee (via FeeDiscount or directly) so that the bursary
+    is reflected in the student's fee balance automatically.
+    """
+
+    STATUS_CHOICES = [
+        ("pending", "Pending Approval"),
+        ("active", "Active"),
+        ("suspended", "Suspended"),
+        ("revoked", "Revoked"),
+        ("completed", "Completed"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="scholarship_awards")
+    scholarship = models.ForeignKey(Scholarship, on_delete=models.CASCADE, related_name="awards")
+    student = models.ForeignKey(
+        "students.Student", on_delete=models.CASCADE, related_name="scholarship_awards",
+    )
+    awarded_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    academic_year = models.CharField(max_length=20, blank=True)
+    term = models.CharField(max_length=20, blank=True)
+    notes = models.TextField(blank=True)
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    linked_fee_discount = models.OneToOneField(
+        "finance.FeeDiscount",
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="scholarship_award",
+        help_text="Auto-created FeeDiscount row when award is activated.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Scholarship Award"
+        verbose_name_plural = "Scholarship Awards"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["school", "status"], name="idx_saward_school_status"),
+        ]
+
+    def __str__(self):
+        return f"{self.scholarship.name} → {self.student} [{self.status}]"
+
+    def activate(self, approver=None):
+        """Mark active and create a FeeDiscount row if not already linked."""
+        from django.utils import timezone as _tz
+        from decimal import Decimal
+        import django.db.models as _m
+
+        self.status = "active"
+        self.approved_by = approver
+        self.approved_at = _tz.now()
+
+        if not self.linked_fee_discount_id:
+            try:
+                from finance.models import Fee, FeeDiscount
+                fee = (
+                    Fee.objects.filter(
+                        student=self.student,
+                        school=self.school,
+                        deleted_at__isnull=True,
+                        is_active=True,
+                    )
+                    .filter(_m.Q(amount_paid__lt=_m.F("amount")))
+                    .order_by("-created_at")
+                    .first()
+                )
+                if fee:
+                    discount = FeeDiscount.objects.create(
+                        school=self.school,
+                        fee=fee,
+                        discount_type="scholarship",
+                        fixed_amount=Decimal(str(self.awarded_amount)),
+                        reason=f"Scholarship: {self.scholarship.name}",
+                        approved_by=approver,
+                        is_active=True,
+                    )
+                    self.linked_fee_discount = discount
+                    credit = min(discount.discount_amount, fee.remaining_balance)
+                    if credit > 0:
+                        Fee.objects.filter(pk=fee.pk).update(
+                            amount_paid=_m.F("amount_paid") + credit
+                        )
+                        fee.refresh_from_db()
+                        fee.save()
+            except Exception:
+                import logging as _log
+                _log.getLogger(__name__).exception(
+                    "ScholarshipAward.activate: FeeDiscount creation failed award=%s", self.pk
+                )
+
+        save_fields = ["status", "approved_by", "approved_at", "updated_at"]
+        if self.linked_fee_discount_id:
+            save_fields.append("linked_fee_discount")
+        self.save(update_fields=save_fields)

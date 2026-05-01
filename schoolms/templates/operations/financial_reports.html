@@ -3,7 +3,7 @@
 
 {% block title %}Financial Reports - {{ school.name }}{% endblock %}
 {% block page_title %}Financial reports{% endblock %}
-{% block page_subtitle %}Budget and expense analysis{% endblock %}
+{% block page_subtitle %}Income, expense and budget analysis{% endblock %}
 
 {% block content %}
 {% include "includes/finance_subnav.html" %}
@@ -22,45 +22,83 @@
     <!-- Summary Stats -->
     <div class="stats-grid" style="margin-top: 1.5rem;">
         <div class="stat-card">
-            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">
-                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                    <line x1="1" y1="10" x2="23" y2="10"></line>
-                </svg>
+            <div class="stat-icon" style="background: rgba(34, 197, 94, 0.2); color: #22c55e;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </div>
             <div class="stat-content">
-                <div class="stat-value" id="totalBudget">{{ total_budget|default:0|format_ghs }}</div>
-                <div class="stat-label">Total Budget</div>
+                <div class="stat-value" style="color:#22c55e;">{{ total_income|default:0|format_ghs }}</div>
+                <div class="stat-label">Total Income Collected</div>
             </div>
         </div>
-        
+
         <div class="stat-card">
             <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">
-                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                    <polyline points="17 6 23 6 23 12"></polyline>
-                </svg>
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
             </div>
             <div class="stat-content">
                 <div class="stat-value" id="totalExpenses">{{ total_expenses|default:0|format_ghs }}</div>
                 <div class="stat-label">Total Expenses</div>
             </div>
         </div>
-        
+
         <div class="stat-card">
-            <div class="stat-icon" style="background: rgba(34, 197, 94, 0.2); color: #22c55e;">
-                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <line x1="12" y1="1" x2="12" y2="23"></line>
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
+            <div class="stat-icon" style="background: rgba(168, 85, 247, 0.2); color: #a855f7;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
             </div>
             <div class="stat-content">
-                <div class="stat-value" id="budgetRemaining" style="color: #22c55e;">{{ budget_remaining|default:0|format_ghs }}</div>
-                <div class="stat-label">Remaining Budget</div>
+                <div class="stat-value" style="color:{% if net_position >= 0 %}#22c55e{% else %}#ef4444{% endif %};">{{ net_position|default:0|format_ghs }}</div>
+                <div class="stat-label">Net Position (Income − Expenses)</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="totalBudget">{{ total_budget|default:0|format_ghs }}</div>
+                <div class="stat-label">Total Budget</div>
             </div>
         </div>
     </div>
     
+    <!-- Income by Source -->
+    {% if income_by_source %}
+    <div class="content-card" style="margin-top: 1.5rem;">
+        <h3 style="margin-top: 0;">💰 Income by Source ({{ current_year }})</h3>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            {% for src in income_by_source %}
+            {% if src.total %}
+            <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                    <strong>{{ src.source }}</strong>
+                    <span>{{ src.total|format_ghs }}</span>
+                </div>
+                <div style="height: 12px; background: rgba(148,163,184,0.2); border-radius: 999px; overflow: hidden;">
+                    <div style="height: 100%; width: {% widthratio src.total total_income 100 %}%; background: #22c55e; border-radius: 999px;"></div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Monthly Income vs Expenses -->
+    {% if monthly_income %}
+    <div class="content-card" style="margin-top: 1.5rem;">
+        <h3 style="margin-top: 0;">📈 Monthly Income (fee payments, {{ current_year }})</h3>
+        <div style="display: flex; justify-content: space-around; align-items: flex-end; height: 180px; padding: 1rem;">
+            {% for m in monthly_income %}
+            <div style="text-align: center; flex: 1; max-width: 48px;">
+                <div style="height: {% widthratio m.total monthly_income_max 140 %}px; min-height: 4px; width: 100%; max-width: 28px; margin: 0 auto; background: #22c55e; border-radius: 4px 4px 0 0;" title="{{ m.total|format_ghs }}"></div>
+                <div style="font-size: 0.7rem; margin-top: 0.5rem;">{{ m.month|month_name|slice:":3" }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Charts -->
     <div class="content-grid-2" style="margin-top: 1.5rem;">
         <div class="content-card">

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Scholarships · MastexEDU{% endblock %}
+{% block page_title %}Scholarships &amp; Bursaries{% endblock %}
+{% block page_subtitle %}Manage scholarship programmes and student awards.{% endblock %}
+
+{% block content %}
+<div class="button-row">
+  <a href="{% url 'finance:scholarship_create' %}" class="btn btn-primary">New Scholarship</a>
+</div>
+
+<div class="table-card">
+  {% if scholarships %}
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Cycle</th>
+        <th>Amount / Discount</th>
+        <th>Budget</th>
+        <th>Max</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in scholarships %}
+      <tr>
+        <td><a href="{% url 'finance:scholarship_detail' pk=s.pk %}"><strong>{{ s.name }}</strong></a></td>
+        <td>{{ s.get_scholarship_type_display|default:s.scholarship_type }}</td>
+        <td>{{ s.get_cycle_display|default:s.cycle }}</td>
+        <td>
+          {% if s.amount_per_award %}GHS {{ s.amount_per_award }}{% endif %}
+          {% if s.percentage_discount %}{{ s.percentage_discount }}%{% endif %}
+          {% if not s.amount_per_award and not s.percentage_discount %}—{% endif %}
+        </td>
+        <td>{% if s.total_budget %}GHS {{ s.total_budget }}{% else %}—{% endif %}</td>
+        <td>{{ s.max_beneficiaries|default:"—" }}</td>
+        <td>
+          {% if s.is_active %}<span class="badge" style="background:#22c55e;color:#fff;">Active</span>
+          {% else %}<span class="badge" style="background:#64748b;color:#fff;">Inactive</span>{% endif %}
+        </td>
+        <td><a href="{% url 'finance:scholarship_detail' pk=s.pk %}" class="btn btn-secondary btn-sm">View</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-state">No scholarships yet. <a href="{% url 'finance:scholarship_create' %}">Create the first one.</a></p>
+  {% endif %}
+</div>
+{% endblock %}

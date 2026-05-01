@@ -1,74 +1,73 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 
-{% block title %}Parent Details · MastexEDU{% endblock %}
-{% block page_title %}Parent Details{% endblock %}
-{% block page_subtitle %}{{ parent.get_full_name }} - {% if school %}{{ school.name }}{% else %}—{% endif %} · Status: {% if parent.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
+{% block title %}{{ parent.get_full_name }} · Parent · MastexEDU{% endblock %}
+{% block page_title %}{{ parent.get_full_name }}{% endblock %}
+{% block page_subtitle %}Parent / Guardian · Status: {% if parent.is_active %}<span style="color:#22c55e;">Active</span>{% else %}<span style="color:#ef4444;">Inactive</span>{% endif %}{% endblock %}
 
 {% block content %}
-<div class="content-card">
-    <h3 class="form-heading">Parent Information</h3>
-    <div class="detail-grid">
-        <div class="detail-card">
-            <div class="detail-label">Name</div>
-            <div class="detail-value">{{ parent.get_full_name }}</div>
-        </div>
-        <div class="detail-card">
-            <div class="detail-label">Username</div>
-            <div class="detail-value">{{ parent.username }}</div>
-        </div>
-        <div class="detail-card">
-            <div class="detail-label">Email</div>
-            <div class="detail-value">{{ parent.email|default:"-" }}</div>
-        </div>
-        <div class="detail-card">
-            <div class="detail-label">Phone</div>
-            <div class="detail-value">{{ parent.phone|default:"-" }}</div>
-        </div>
-        <div class="detail-card">
-            <div class="detail-label">Registered on</div>
-            <div class="detail-value">{{ parent.date_joined|date:"Y-m-d H:i" }}</div>
-        </div>
-    </div>
-</div>
-
-<h3 class="section-title">Linked Children</h3>
-<div class="table-card">
-    {% if children %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Admission Number</th>
-                    <th>Class</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for child in children %}
-                    <tr>
-                        <td>{{ child.user.get_full_name }}</td>
-                        <td>{{ child.admission_number }}</td>
-                        <td>{{ child.class_name }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <div class="empty-state">
-            No children linked to this parent yet.
-        </div>
-    {% endif %}
-</div>
-
-<div class="button-row mt-sm">
-    <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">Back to Parents</a>
-    <a href="{% url 'accounts:reset_user_password' parent.id %}?next={% url 'accounts:parent_detail' parent.id %}" class="btn btn-warning">Reset password</a>
+<div class="button-row mb-sm">
+    <a href="{% url 'accounts:parent_edit' parent.id %}" class="btn btn-warning">✏️ Edit</a>
+    <a href="{% url 'accounts:reset_user_password' parent.id %}?next={% url 'accounts:parent_detail' parent.id %}" class="btn btn-warning">🔑 Reset Password</a>
     {% if parent.is_active %}
         <a href="{% url 'accounts:parent_delete' parent.id %}" class="btn btn-danger">Deactivate</a>
     {% else %}
         <a href="{% url 'accounts:parent_reactivate' parent.id %}" class="btn btn-success">Reactivate</a>
     {% endif %}
     {% if request.user.is_superuser or request.user.is_super_admin %}
-        <a href="{% url 'accounts:superuser_edit_credentials' parent.id %}?next={% url 'accounts:parent_detail' parent.id %}" class="btn btn-primary">Edit login</a>
+        <a href="{% url 'accounts:superuser_edit_credentials' parent.id %}?next={% url 'accounts:parent_detail' parent.id %}" class="btn btn-primary">Edit Login</a>
     {% endif %}
+    <a href="{% url 'accounts:parent_list' %}" class="btn btn-secondary">← Back</a>
 </div>
+
+<div class="content-grid" style="grid-template-columns:1fr;">
+    <section class="metric"><div class="metric-label">Full Name</div><div class="metric-value">{{ parent.get_full_name }}</div></section>
+    <section class="metric"><div class="metric-label">Username</div><div class="metric-value">{{ parent.username }}</div></section>
+    <section class="metric"><div class="metric-label">Phone</div><div class="metric-value">{{ parent.phone|default:"—" }}</div></section>
+    <section class="metric"><div class="metric-label">Email</div><div class="metric-value">{{ parent.email|default:"—" }}</div></section>
+    <section class="metric"><div class="metric-label">Type</div><div class="metric-value">{{ parent.get_parent_type_display|default:"—" }}</div></section>
+    <section class="metric"><div class="metric-label">Registered</div><div class="metric-value">{{ parent.date_joined|date:"d M Y" }}</div></section>
+</div>
+
+<h3 class="section-title" style="margin-top:1.25rem;">Linked Children ({{ children|length }})</h3>
+{% if children %}
+<div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Admission No.</th>
+                <th>Class</th>
+                <th>Relationship</th>
+                <th>Primary</th>
+                <th>Can Pickup</th>
+                <th>Fee Charged</th>
+                <th>Fee Paid</th>
+                <th>Balance</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in children %}
+            <tr>
+                <td>{{ row.student.user.get_full_name }}</td>
+                <td>{{ row.student.admission_number }}</td>
+                <td>{{ row.student.class_name|default:"—" }}</td>
+                <td>{{ row.relationship }}</td>
+                <td>{% if row.is_primary %}<span class="tag tag-success">Primary</span>{% else %}—{% endif %}</td>
+                <td>{% if row.can_pickup %}✅{% else %}—{% endif %}</td>
+                <td>{{ row.fee_owed|format_ghs }}</td>
+                <td>{{ row.fee_paid|format_ghs }}</td>
+                <td style="color:{% if row.fee_balance > 0 %}#ef4444{% else %}#22c55e{% endif %};">
+                    {{ row.fee_balance|format_ghs }}
+                </td>
+                <td><a href="{% url 'students:student_detail' row.student.pk %}" class="btn btn-sm btn-primary">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No children linked to this parent yet.</div>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Leave Balances · MastexEDU{% endblock %}
+{% block page_title %}Staff Leave Balances{% endblock %}
+{% block page_subtitle %}Leave entitlements and remaining days{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    {% if years %}<form method="get" style="display:inline-flex;gap:.5rem;">
+        <select name="year" class="form-control" onchange="this.form.submit()">
+            <option value="">All years</option>
+            {% for y in years %}<option value="{{ y }}" {% if year_filter == y %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        </select>
+    </form>{% endif %}
+</div>
+<div class="card">
+    {% if balances %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Staff</th><th>Leave Type</th><th>Year</th><th>Entitled</th><th>Used</th><th>Remaining</th></tr></thead>
+            <tbody>
+            {% for b in balances %}
+            <tr>
+                <td>{{ b.user.get_full_name }}</td>
+                <td>{{ b.get_leave_type_display }}</td>
+                <td>{{ b.academic_year }}</td>
+                <td>{{ b.days_entitled }}</td>
+                <td>{{ b.days_used }}</td>
+                <td><strong>{{ b.days_remaining }}</strong></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No leave balances found.</p>{% endif %}
+</div>
+{% endblock %}

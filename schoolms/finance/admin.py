@@ -4,6 +4,7 @@ from .models import (
     BankAccount, FeeInstallmentPlan, FeeDiscount,
     PurchaseOrder, PurchaseOrderItem,
     ApprovalWorkflow, WorkflowInstance, FixedAsset,
+    Scholarship, ScholarshipAward,
 )
 
 
@@ -130,3 +131,40 @@ class FixedAssetAdmin(admin.ModelAdmin):
             asset.apply_annual_depreciation()
             count += 1
         self.message_user(request, f"Depreciation applied to {count} asset(s).")
+
+
+class ScholarshipAwardInline(admin.TabularInline):
+    model = ScholarshipAward
+    extra = 0
+    fields = ("student", "awarded_amount", "status", "academic_year", "term")
+    raw_id_fields = ("student",)
+    show_change_link = True
+
+
+@admin.register(Scholarship)
+class ScholarshipAdmin(admin.ModelAdmin):
+    list_display = ("name", "scholarship_type", "cycle", "total_budget", "amount_per_award", "is_active", "school")
+    list_select_related = ("school",)
+    list_filter = ("school", "scholarship_type", "is_active", "cycle")
+    search_fields = ("name",)
+    readonly_fields = ("created_at", "updated_at")
+    inlines = [ScholarshipAwardInline]
+
+
+@admin.register(ScholarshipAward)
+class ScholarshipAwardAdmin(admin.ModelAdmin):
+    list_display = ("scholarship", "student", "awarded_amount", "status", "academic_year", "school")
+    list_select_related = ("scholarship", "student", "student__user", "school")
+    list_filter = ("school", "status", "academic_year")
+    search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
+    raw_id_fields = ("student",)
+    readonly_fields = ("created_at", "updated_at", "approved_at")
+    actions = ["activate_awards"]
+
+    @admin.action(description="Activate selected awards")
+    def activate_awards(self, request, queryset):
+        count = 0
+        for award in queryset.filter(status="pending"):
+            award.activate(approver=request.user)
+            count += 1
+        self.message_user(request, f"{count} award(s) activated.")

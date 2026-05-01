@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Fee Discounts · MastexEDU{% endblock %}
+{% block page_title %}Fee Discounts{% endblock %}
+{% block page_subtitle %}Active and inactive discounts across all fees{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'finance:fee_list' %}" class="btn btn-secondary">← Fees</a>
+</div>
+<div class="card">
+    {% if discounts %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead><tr><th>Student</th><th>Fee</th><th>Type</th><th>Amount</th><th>Reason</th><th>Active</th><th>Approved By</th><th></th></tr></thead>
+            <tbody>
+            {% for d in discounts %}
+            <tr>
+                <td>{{ d.fee.student.user.get_full_name }}</td>
+                <td>{{ d.fee }}</td>
+                <td>{{ d.get_discount_type_display }}</td>
+                <td>{{ d.discount_amount }}</td>
+                <td>{{ d.reason|default:"—"|truncatechars:50 }}</td>
+                <td>{% if d.is_active %}<span class="badge badge-success">Yes</span>{% else %}<span class="badge badge-secondary">No</span>{% endif %}</td>
+                <td>{{ d.approved_by.get_full_name|default:"—" }}</td>
+                <td>
+                    {% if d.is_active %}
+                    <form method="post" action="{% url 'finance:fee_discount_deactivate' d.id %}" style="display:inline;" onsubmit="return confirm('Deactivate this discount?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning btn-sm">Deactivate</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="text-muted">No discounts found.</p>{% endif %}
+</div>
+{% endblock %}

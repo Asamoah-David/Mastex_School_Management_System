@@ -133,4 +133,15 @@ urlpatterns = [
     path("2fa/disable/", totp_views.disable_2fa_view, name="2fa_disable"),
     path("2fa/challenge/", totp_views.login_challenge, name="2fa_challenge"),
     path("2fa/backup/", totp_views.use_backup_code, name="2fa_backup"),
+    # Leave policies & balances
+    path("hr/leave-policies/", hr_views.leave_policy_list, name="leave_policy_list"),
+    path("hr/leave-balances/", hr_views.leave_balance_list, name="leave_balance_list"),
+    path("hr/my-leave/", hr_views.my_leave_balance, name="my_leave_balance"),
+    # Payroll runs
+    path("hr/payroll-runs/", hr_views.payroll_run_list, name="payroll_run_list"),
+    path("hr/payroll-runs/create/", hr_views.payroll_run_create, name="payroll_run_create"),
+    path("hr/payroll-runs/<int:pk>/", hr_views.payroll_run_detail, name="payroll_run_detail"),
+    # Performance reviews
+    path("hr/performance-reviews/", hr_views.performance_review_list, name="performance_review_list"),
+    path("hr/performance-reviews/create/", hr_views.performance_review_create, name="performance_review_create"),
 ]

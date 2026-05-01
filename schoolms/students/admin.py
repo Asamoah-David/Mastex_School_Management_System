@@ -3,6 +3,7 @@ from django.db.models import Count
 from .models import (
     Student, SchoolClass, StudentAchievement, StudentActivity,
     StudentDiscipline, AbsenceRequest, StudentGuardian, StudentClearance,
+    LearningPlan,
 )
 
 
@@ -100,3 +101,31 @@ class StudentClearanceAdmin(admin.ModelAdmin):
     list_filter = ("fees_cleared", "library_cleared")
     search_fields = ("student__admission_number", "student__user__first_name", "student__user__last_name")
     raw_id_fields = ("student", "updated_by")
+
+
+@admin.register(LearningPlan)
+class LearningPlanAdmin(admin.ModelAdmin):
+    list_display = ("student", "plan_type", "status", "academic_year", "start_date", "review_date", "parent_acknowledged", "school")
+    list_select_related = ("student", "student__user", "school")
+    list_filter = ("school", "plan_type", "status", "academic_year", "parent_acknowledged")
+    search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
+    raw_id_fields = ("student", "created_by", "last_updated_by")
+    readonly_fields = ("created_at", "updated_at", "parent_acknowledged_at")
+    fieldsets = (
+        (None, {
+            "fields": ("school", "student", "plan_type", "status", "academic_year"),
+        }),
+        ("Dates", {
+            "fields": ("start_date", "review_date", "end_date"),
+        }),
+        ("Plan Content", {
+            "fields": ("goals", "accommodations", "support_resources", "progress_notes"),
+        }),
+        ("Parental Acknowledgement", {
+            "fields": ("parent_acknowledged", "parent_acknowledged_at"),
+        }),
+        ("Audit", {
+            "fields": ("created_by", "last_updated_by", "created_at", "updated_at"),
+            "classes": ("collapse",),
+        }),
+    )

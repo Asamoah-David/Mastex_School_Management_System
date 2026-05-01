@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Schedule Interview · MastexEDU{% endblock %}
+{% block page_title %}Schedule Interview{% endblock %}
+{% block page_subtitle %}{{ app.full_name }} · {{ app.job.title }}{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="messages">{% for message in messages %}<div class="message-box">{{ message }}</div>{% endfor %}</div>
+{% endif %}
+<div style="max-width:600px;margin:0 auto;">
+    <div style="margin-bottom:1rem;">
+        <a href="{% url 'recruitment:school_application_detail' app.pk %}" class="btn btn-secondary" style="font-size:0.85rem;">← Back to Application</a>
+    </div>
+    <div class="content-card">
+        <form method="POST">
+            {% csrf_token %}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div class="form-group">
+                    <label class="form-label">Interview Date *</label>
+                    <input class="form-control" type="date" name="interview_date" value="{{ schedule.interview_date|date:'Y-m-d'|default:'' }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Interview Time *</label>
+                    <input class="form-control" type="time" name="interview_time" value="{{ schedule.interview_time|time:'H:i'|default:'' }}" required>
+                </div>
+                <div class="form-group" style="grid-column:1/-1;">
+                    <label class="form-label">Interview Format</label>
+                    <select class="form-control" name="mode" id="id_mode" title="Interview Mode" onchange="toggleInterviewFields()">
+                        <option value="in_person" {% if schedule.mode == 'in_person' %}selected{% endif %}>In Person</option>
+                        <option value="video_call" {% if schedule.mode == 'video_call' %}selected{% endif %}>Online / Video Call</option>
+                        <option value="phone" {% if schedule.mode == 'phone' %}selected{% endif %}>Phone Call</option>
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column:1/-1;" id="location_section">
+                    <label class="form-label">Venue / Address</label>
+                    <input class="form-control" type="text" name="location" value="{{ schedule.location|default:'' }}" placeholder="e.g. Headmaster's Office, Block A">
+                </div>
+                <div class="form-group" style="grid-column:1/-1;" id="meeting_link_section"{% if schedule.mode != 'video_call' %} hidden{% endif %}>
+                    <label class="form-label">🔗 Video Call Link <small style="font-weight:400;color:var(--text-soft);">(auto-generated if left blank)</small></label>
+                    <input class="form-control" type="url" name="meeting_link" id="id_meeting_link" value="{{ schedule.meeting_link|default:'' }}" placeholder="Leave blank to auto-generate a Jitsi room, or paste a custom URL">
+                    <small style="color:var(--text-soft);font-size:0.78rem;">A Jitsi Meet room is created automatically for video call interviews. You may override with any Zoom or Google Meet URL.</small>
+                    {% if schedule.meeting_link %}
+                    <div style="margin-top:0.4rem;font-size:0.8rem;">
+                        Current link: <a href="{{ schedule.meeting_link }}" target="_blank" style="color:#3b82f6;">{{ schedule.meeting_link }}</a>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group" style="grid-column:1/-1;">
+                    <label class="form-label">Message to Applicant</label>
+                    <textarea class="form-control" name="message_to_applicant" rows="4" placeholder="Any preparation instructions or additional notes…">{{ schedule.message_to_applicant|default:'' }}</textarea>
+                </div>
+            </div>
+            <div style="display:flex;gap:0.75rem;">
+                <button type="submit" class="btn btn-primary">Save Interview Schedule</button>
+                <a href="{% url 'recruitment:school_application_detail' app.pk %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function toggleInterviewFields() {
+    var mode = document.getElementById('id_mode').value;
+    var linkSection = document.getElementById('meeting_link_section');
+    var locationSection = document.getElementById('location_section');
+    if (mode === 'video_call') {
+        linkSection.removeAttribute('hidden');
+        locationSection.setAttribute('hidden', '');
+    } else if (mode === 'phone') {
+        linkSection.setAttribute('hidden', '');
+        locationSection.setAttribute('hidden', '');
+    } else {
+        linkSection.setAttribute('hidden', '');
+        locationSection.removeAttribute('hidden');
+    }
+}
+document.addEventListener('DOMContentLoaded', toggleInterviewFields);
+</script>
+{% endblock %}
