@@ -1322,12 +1322,7 @@ def class_list(request):
     classes = (
         SchoolClass.objects.filter(school=school)
         .select_related("class_teacher")
-        .annotate(
-            student_count=Count(
-                "school__student_set",
-                filter=Q(school__student_set__class_name=F("name")),
-            )
-        )
+        .annotate(student_count=Count("students"))
         .order_by("name")
     )
     return render(request, "students/class_list.html", {"classes": classes, "school": school})
