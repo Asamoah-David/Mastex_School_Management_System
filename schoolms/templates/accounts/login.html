@@ -17,12 +17,25 @@
     <button type="submit" class="btn btn-primary">Sign in</button>
 </form>
 
-<div class="auth-public-admission" role="region" aria-label="Online admission">
-    <div class="auth-public-admission-label">No account yet?</div>
-    <p class="auth-public-admission-lead">Submit an application online or check status with your reference number.</p>
-    <div class="auth-public-admission-actions">
-        <a href="{% url 'operations:admission_apply' %}" class="btn btn-primary btn-sm">Apply for admission</a>
-        <a href="{% url 'operations:admission_track' %}" class="btn btn-secondary btn-sm">Track application</a>
+<div class="auth-public-services" role="region" aria-label="Public portals">
+    <div class="auth-public-services-label">Public Portals</div>
+    <div class="auth-public-services-grid">
+        <div class="service-card">
+            <h3>Student Admissions</h3>
+            <p>Apply for admission or track your application status</p>
+            <div class="service-actions">
+                <a href="{% url 'operations:admission_apply' %}" class="btn btn-primary btn-sm">Apply</a>
+                <a href="{% url 'operations:admission_track' %}" class="btn btn-secondary btn-sm">Track</a>
+            </div>
+        </div>
+        <div class="service-card">
+            <h3>Job Openings</h3>
+            <p>View available positions or track your job application</p>
+            <div class="service-actions">
+                <a href="{% url 'recruitment:job_list' %}" class="btn btn-primary btn-sm">View Jobs</a>
+                <a href="{% url 'recruitment:track_application' %}" class="btn btn-secondary btn-sm">Track</a>
+            </div>
+        </div>
     </div>
 </div>
 
