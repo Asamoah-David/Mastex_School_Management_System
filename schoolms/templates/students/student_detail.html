@@ -134,7 +134,7 @@
                 <tbody>
                 {% for f in fees %}
                 <tr>
-                    <td>{{ f.description|default:f.fee_structure.name|default:"—" }}</td>
+                    <td>{{ f.description|default:(f.fee_structure.name if f.fee_structure else "—") }}</td>
                     <td>{{ f.term|default:"—" }}</td>
                     <td>{{ f.amount|format_ghs }}</td>
                     <td>{{ f.amount_paid|format_ghs }}</td>
@@ -197,7 +197,7 @@
                 {% for p in bus_payments %}
                 <tr>
                     <td>{{ p.payment_date|date:"d M Y" }}</td>
-                    <td>{{ p.route.name|default:"—" }}</td>
+                    <td>{{ p.route.name if p.route else "—" }}</td>
                     <td>{{ p.amount|format_ghs }}</td>
                     <td>{% if p.paid %}<span class="tag tag-success">Paid</span>{% else %}<span class="tag tag-warning">Unpaid</span>{% endif %}</td>
                 </tr>
