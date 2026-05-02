@@ -134,7 +134,7 @@
                 <tbody>
                 {% for f in fees %}
                 <tr>
-                    <td>{{ f.description|default:(f.fee_structure.name if f.fee_structure else "—") }}</td>
+                    <td>{{ f.fee_structure.name if f.fee_structure else f.description|default:"—" }}</td>
                     <td>{{ f.term|default:"—" }}</td>
                     <td>{{ f.amount|format_ghs }}</td>
                     <td>{{ f.amount_paid|format_ghs }}</td>

@@ -12,53 +12,53 @@
     {% csrf_token %}
     <div class="mb-3">
       <label class="form-label">Name <span style="color:#ef4444;">*</span></label>
-      <input type="text" name="name" class="form-control" value="{{ post.name|default:scholarship.name|default:'' }}" required>
+      <input type="text" name="name" class="form-control" value="{{ post.name|default:scholarship.name|default:'' if scholarship else post.name|default:'' }}" required>
     </div>
     <div class="row g-3 mb-3">
       <div class="col-sm-6">
         <label class="form-label">Type</label>
         <select name="scholarship_type" class="form-select">
-          <option value="full" {% if post.scholarship_type == "full" or scholarship.scholarship_type == "full" %}selected{% endif %}>Full</option>
-          <option value="partial" {% if post.scholarship_type == "partial" or scholarship.scholarship_type == "partial" %}selected{% endif %}>Partial</option>
-          <option value="bursary" {% if post.scholarship_type == "bursary" or scholarship.scholarship_type == "bursary" %}selected{% endif %}>Bursary</option>
-          <option value="merit" {% if post.scholarship_type == "merit" or scholarship.scholarship_type == "merit" %}selected{% endif %}>Merit Award</option>
-          <option value="need" {% if post.scholarship_type == "need" or scholarship.scholarship_type == "need" %}selected{% endif %}>Need-based</option>
+          <option value="full" {% if post.scholarship_type == "full" or (scholarship and scholarship.scholarship_type == "full") %}selected{% endif %}>Full</option>
+          <option value="partial" {% if post.scholarship_type == "partial" or (scholarship and scholarship.scholarship_type == "partial") %}selected{% endif %}>Partial</option>
+          <option value="bursary" {% if post.scholarship_type == "bursary" or (scholarship and scholarship.scholarship_type == "bursary") %}selected{% endif %}>Bursary</option>
+          <option value="merit" {% if post.scholarship_type == "merit" or (scholarship and scholarship.scholarship_type == "merit") %}selected{% endif %}>Merit Award</option>
+          <option value="need" {% if post.scholarship_type == "need" or (scholarship and scholarship.scholarship_type == "need") %}selected{% endif %}>Need-based</option>
         </select>
       </div>
       <div class="col-sm-6">
         <label class="form-label">Cycle</label>
         <select name="cycle" class="form-select">
-          <option value="annual" {% if post.cycle == "annual" or scholarship.cycle == "annual" %}selected{% endif %}>Annual</option>
-          <option value="termly" {% if post.cycle == "termly" or scholarship.cycle == "termly" %}selected{% endif %}>Termly</option>
-          <option value="once" {% if post.cycle == "once" or scholarship.cycle == "once" %}selected{% endif %}>One-off</option>
+          <option value="annual" {% if post.cycle == "annual" or (scholarship and scholarship.cycle == "annual") %}selected{% endif %}>Annual</option>
+          <option value="termly" {% if post.cycle == "termly" or (scholarship and scholarship.cycle == "termly") %}selected{% endif %}>Termly</option>
+          <option value="once" {% if post.cycle == "once" or (scholarship and scholarship.cycle == "once") %}selected{% endif %}>One-off</option>
         </select>
       </div>
     </div>
     <div class="row g-3 mb-3">
       <div class="col-sm-4">
         <label class="form-label">Total budget (GHS)</label>
-        <input type="number" step="0.01" min="0" name="total_budget" class="form-control" value="{{ post.total_budget|default:scholarship.total_budget|default:'' }}" placeholder="Optional">
+        <input type="number" step="0.01" min="0" name="total_budget" class="form-control" value="{{ post.total_budget|default:scholarship.total_budget|default:'' if scholarship else post.total_budget|default:'' }}" placeholder="Optional">
       </div>
       <div class="col-sm-4">
         <label class="form-label">Amount per award (GHS)</label>
-        <input type="number" step="0.01" min="0" name="amount_per_award" class="form-control" value="{{ post.amount_per_award|default:scholarship.amount_per_award|default:'' }}" placeholder="Optional">
+        <input type="number" step="0.01" min="0" name="amount_per_award" class="form-control" value="{{ post.amount_per_award|default:scholarship.amount_per_award|default:'' if scholarship else post.amount_per_award|default:'' }}" placeholder="Optional">
       </div>
       <div class="col-sm-4">
         <label class="form-label">Discount (%)</label>
-        <input type="number" step="0.01" min="0" max="100" name="percentage_discount" class="form-control" value="{{ post.percentage_discount|default:scholarship.percentage_discount|default:'' }}" placeholder="Optional">
+        <input type="number" step="0.01" min="0" max="100" name="percentage_discount" class="form-control" value="{{ post.percentage_discount|default:scholarship.percentage_discount|default:'' if scholarship else post.percentage_discount|default:'' }}" placeholder="Optional">
       </div>
     </div>
     <div class="mb-3">
       <label class="form-label">Max beneficiaries</label>
-      <input type="number" min="1" name="max_beneficiaries" class="form-control" value="{{ post.max_beneficiaries|default:scholarship.max_beneficiaries|default:'' }}" placeholder="Leave blank for unlimited">
+      <input type="number" min="1" name="max_beneficiaries" class="form-control" value="{{ post.max_beneficiaries|default:scholarship.max_beneficiaries|default:'' if scholarship else post.max_beneficiaries|default:'' }}" placeholder="Leave blank for unlimited">
     </div>
     <div class="mb-3">
       <label class="form-label">Eligibility criteria</label>
-      <textarea name="eligibility_criteria" class="form-control" rows="3" placeholder="Describe criteria (academic standing, financial need, etc.)">{{ post.eligibility_criteria|default:scholarship.eligibility_criteria|default:'' }}</textarea>
+      <textarea name="eligibility_criteria" class="form-control" rows="3" placeholder="Describe criteria (academic standing, financial need, etc.)">{{ post.eligibility_criteria|default:scholarship.eligibility_criteria|default:'' if scholarship else post.eligibility_criteria|default:'' }}</textarea>
     </div>
     <div class="mb-3">
       <label class="form-label">Description / notes</label>
-      <textarea name="description" class="form-control" rows="2" placeholder="Internal notes…">{{ post.description|default:scholarship.description|default:'' }}</textarea>
+      <textarea name="description" class="form-control" rows="2" placeholder="Internal notes…">{{ post.description|default:scholarship.description|default:'' if scholarship else post.description|default:'' }}</textarea>
     </div>
     <div class="button-row">
       <button type="submit" class="btn btn-primary">{{ action }}</button>
