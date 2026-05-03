@@ -22,19 +22,19 @@
       <div class="col-sm-6">
         <label class="form-label">Type</label>
         <select name="scholarship_type" class="form-select">
-          <option value="full" {% if post.scholarship_type == "full" or (scholarship and scholarship.scholarship_type == "full") %}selected{% endif %}>Full</option>
-          <option value="partial" {% if post.scholarship_type == "partial" or (scholarship and scholarship.scholarship_type == "partial") %}selected{% endif %}>Partial</option>
-          <option value="bursary" {% if post.scholarship_type == "bursary" or (scholarship and scholarship.scholarship_type == "bursary") %}selected{% endif %}>Bursary</option>
-          <option value="merit" {% if post.scholarship_type == "merit" or (scholarship and scholarship.scholarship_type == "merit") %}selected{% endif %}>Merit Award</option>
-          <option value="need" {% if post.scholarship_type == "need" or (scholarship and scholarship.scholarship_type == "need") %}selected{% endif %}>Need-based</option>
+          <option value="full" {% if post.scholarship_type == "full" or scholarship and scholarship.scholarship_type == "full" %}selected{% endif %}>Full</option>
+          <option value="partial" {% if post.scholarship_type == "partial" or scholarship and scholarship.scholarship_type == "partial" %}selected{% endif %}>Partial</option>
+          <option value="bursary" {% if post.scholarship_type == "bursary" or scholarship and scholarship.scholarship_type == "bursary" %}selected{% endif %}>Bursary</option>
+          <option value="merit" {% if post.scholarship_type == "merit" or scholarship and scholarship.scholarship_type == "merit" %}selected{% endif %}>Merit Award</option>
+          <option value="need" {% if post.scholarship_type == "need" or scholarship and scholarship.scholarship_type == "need" %}selected{% endif %}>Need-based</option>
         </select>
       </div>
       <div class="col-sm-6">
         <label class="form-label">Cycle</label>
         <select name="cycle" class="form-select">
-          <option value="annual" {% if post.cycle == "annual" or (scholarship and scholarship.cycle == "annual") %}selected{% endif %}>Annual</option>
-          <option value="termly" {% if post.cycle == "termly" or (scholarship and scholarship.cycle == "termly") %}selected{% endif %}>Termly</option>
-          <option value="once" {% if post.cycle == "once" or (scholarship and scholarship.cycle == "once") %}selected{% endif %}>One-off</option>
+          <option value="annual" {% if post.cycle == "annual" or scholarship and scholarship.cycle == "annual" %}selected{% endif %}>Annual</option>
+          <option value="termly" {% if post.cycle == "termly" or scholarship and scholarship.cycle == "termly" %}selected{% endif %}>Termly</option>
+          <option value="once" {% if post.cycle == "once" or scholarship and scholarship.cycle == "once" %}selected{% endif %}>One-off</option>
         </select>
       </div>
     </div>
