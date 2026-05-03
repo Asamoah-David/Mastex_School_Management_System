@@ -12,7 +12,11 @@
     {% csrf_token %}
     <div class="mb-3">
       <label class="form-label">Name <span style="color:#ef4444;">*</span></label>
-      <input type="text" name="name" class="form-control" value="{{ post.name|default:scholarship.name|default:'' if scholarship else post.name|default:'' }}" required>
+      {% if scholarship %}
+        <input type="text" name="name" class="form-control" value="{{ post.name|default:scholarship.name|default:'' }}" required>
+      {% else %}
+        <input type="text" name="name" class="form-control" value="{{ post.name|default:'' }}" required>
+      {% endif %}
     </div>
     <div class="row g-3 mb-3">
       <div class="col-sm-6">
@@ -37,28 +41,52 @@
     <div class="row g-3 mb-3">
       <div class="col-sm-4">
         <label class="form-label">Total budget (GHS)</label>
-        <input type="number" step="0.01" min="0" name="total_budget" class="form-control" value="{{ post.total_budget|default:scholarship.total_budget|default:'' if scholarship else post.total_budget|default:'' }}" placeholder="Optional">
+        {% if scholarship %}
+          <input type="number" step="0.01" min="0" name="total_budget" class="form-control" value="{{ post.total_budget|default:scholarship.total_budget|default:'' }}" placeholder="Optional">
+        {% else %}
+          <input type="number" step="0.01" min="0" name="total_budget" class="form-control" value="{{ post.total_budget|default:'' }}" placeholder="Optional">
+        {% endif %}
       </div>
       <div class="col-sm-4">
         <label class="form-label">Amount per award (GHS)</label>
-        <input type="number" step="0.01" min="0" name="amount_per_award" class="form-control" value="{{ post.amount_per_award|default:scholarship.amount_per_award|default:'' if scholarship else post.amount_per_award|default:'' }}" placeholder="Optional">
+        {% if scholarship %}
+          <input type="number" step="0.01" min="0" name="amount_per_award" class="form-control" value="{{ post.amount_per_award|default:scholarship.amount_per_award|default:'' }}" placeholder="Optional">
+        {% else %}
+          <input type="number" step="0.01" min="0" name="amount_per_award" class="form-control" value="{{ post.amount_per_award|default:'' }}" placeholder="Optional">
+        {% endif %}
       </div>
       <div class="col-sm-4">
         <label class="form-label">Discount (%)</label>
-        <input type="number" step="0.01" min="0" max="100" name="percentage_discount" class="form-control" value="{{ post.percentage_discount|default:scholarship.percentage_discount|default:'' if scholarship else post.percentage_discount|default:'' }}" placeholder="Optional">
+        {% if scholarship %}
+          <input type="number" step="0.01" min="0" max="100" name="percentage_discount" class="form-control" value="{{ post.percentage_discount|default:scholarship.percentage_discount|default:'' }}" placeholder="Optional">
+        {% else %}
+          <input type="number" step="0.01" min="0" max="100" name="percentage_discount" class="form-control" value="{{ post.percentage_discount|default:'' }}" placeholder="Optional">
+        {% endif %}
       </div>
     </div>
     <div class="mb-3">
       <label class="form-label">Max beneficiaries</label>
-      <input type="number" min="1" name="max_beneficiaries" class="form-control" value="{{ post.max_beneficiaries|default:scholarship.max_beneficiaries|default:'' if scholarship else post.max_beneficiaries|default:'' }}" placeholder="Leave blank for unlimited">
+      {% if scholarship %}
+        <input type="number" min="1" name="max_beneficiaries" class="form-control" value="{{ post.max_beneficiaries|default:scholarship.max_beneficiaries|default:'' }}" placeholder="Leave blank for unlimited">
+      {% else %}
+        <input type="number" min="1" name="max_beneficiaries" class="form-control" value="{{ post.max_beneficiaries|default:'' }}" placeholder="Leave blank for unlimited">
+      {% endif %}
     </div>
     <div class="mb-3">
       <label class="form-label">Eligibility criteria</label>
-      <textarea name="eligibility_criteria" class="form-control" rows="3" placeholder="Describe criteria (academic standing, financial need, etc.)">{{ post.eligibility_criteria|default:scholarship.eligibility_criteria|default:'' if scholarship else post.eligibility_criteria|default:'' }}</textarea>
+      {% if scholarship %}
+        <textarea name="eligibility_criteria" class="form-control" rows="3" placeholder="Describe criteria (academic standing, financial need, etc.)">{{ post.eligibility_criteria|default:scholarship.eligibility_criteria|default:'' }}</textarea>
+      {% else %}
+        <textarea name="eligibility_criteria" class="form-control" rows="3" placeholder="Describe criteria (academic standing, financial need, etc.)">{{ post.eligibility_criteria|default:'' }}</textarea>
+      {% endif %}
     </div>
     <div class="mb-3">
       <label class="form-label">Description / notes</label>
-      <textarea name="description" class="form-control" rows="2" placeholder="Internal notes…">{{ post.description|default:scholarship.description|default:'' if scholarship else post.description|default:'' }}</textarea>
+      {% if scholarship %}
+        <textarea name="description" class="form-control" rows="2" placeholder="Internal notes…">{{ post.description|default:scholarship.description|default:'' }}</textarea>
+      {% else %}
+        <textarea name="description" class="form-control" rows="2" placeholder="Internal notes…">{{ post.description|default:'' }}</textarea>
+      {% endif %}
     </div>
     <div class="button-row">
       <button type="submit" class="btn btn-primary">{{ action }}</button>
