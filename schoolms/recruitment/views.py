@@ -401,7 +401,12 @@ def school_job_create(request):
         "job_types": JobPosting.JOB_TYPES,
         "qual_choices": QUALIFICATION_CHOICES,
         "action": "Create",
-        "post": {},
+        "post": {
+            "title": "", "job_type": "", "subjects": "",
+            "slots_available": "", "deadline": "", "salary_range": "",
+            "min_qualification": "", "min_years_experience": "",
+            "description": "", "requirements": "",
+        },
     })
 
 
