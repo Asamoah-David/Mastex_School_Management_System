@@ -3420,3 +3420,257 @@ def question_bank_delete(request, pk):
     bank.delete()
     messages.success(request, "Question bank deleted.")
     return redirect("academics:question_bank_list")
+
+
+# ===========================================================================
+# Term Management
+# ===========================================================================
+
+@login_required
+def term_list(request):
+    """List and manage academic terms for the school."""
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+
+    terms = Term.objects.filter(school=school).select_related("academic_year").order_by("-is_current", "-id")
+
+    # Identify auto-created legacy terms (no dates, no year, name matches core defaults)
+    legacy_names = set(CORE_TERMS)
+    for term in terms:
+        term.is_legacy = (
+            term.name in legacy_names
+            and term.start_date is None
+            and term.end_date is None
+            and term.academic_year_id is None
+        )
+
+    # Related record counts for safety awareness
+    term_ids = [t.id for t in terms]
+    result_counts = {
+        row["term_id"]: row["c"]
+        for row in Result.objects.filter(term_id__in=term_ids).values("term_id").annotate(c=Count("id"))
+    }
+    exam_counts = {
+        row["term_id"]: row["c"]
+        for row in ExamSchedule.objects.filter(term_id__in=term_ids).values("term_id").annotate(c=Count("id"))
+    }
+
+    for term in terms:
+        term.result_count = result_counts.get(term.id, 0)
+        term.exam_count = exam_counts.get(term.id, 0)
+        term.total_related = term.result_count + term.exam_count
+
+    academic_years = []
+    from .models import AcademicYear
+    academic_years = list(AcademicYear.objects.filter(school=school).order_by("-start_date"))
+
+    edit_term = None
+    edit_pk = request.GET.get("edit")
+    if edit_pk:
+        try:
+            edit_term = Term.objects.get(pk=int(edit_pk), school=school)
+        except (ValueError, Term.DoesNotExist):
+            pass
+
+    return render(request, "academics/term_list.html", {
+        "school": school,
+        "terms": terms,
+        "academic_years": academic_years,
+        "edit_term": edit_term,
+        "school_academic_year": school.academic_year or "",
+    })
+
+
+@login_required
+def term_create(request):
+    """Create a new academic term."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        start_date = request.POST.get("start_date", "").strip() or None
+        end_date = request.POST.get("end_date", "").strip() or None
+        is_current = request.POST.get("is_current") == "1"
+        academic_year_id = request.POST.get("academic_year") or None
+
+        if not name:
+            messages.error(request, "Term name is required.")
+            return redirect("academics:term_list")
+
+        term_data = {
+            "school": school,
+            "name": name,
+            "is_current": is_current,
+        }
+        if start_date:
+            term_data["start_date"] = start_date
+        if end_date:
+            term_data["end_date"] = end_date
+        if academic_year_id:
+            from .models import AcademicYear
+            try:
+                ay = AcademicYear.objects.get(pk=int(academic_year_id), school=school)
+                term_data["academic_year"] = ay
+            except (ValueError, AcademicYear.DoesNotExist):
+                pass
+
+        # Validate dates
+        if start_date and end_date:
+            from datetime import date as _date
+            try:
+                s = _date.fromisoformat(start_date)
+                e = _date.fromisoformat(end_date)
+                if s >= e:
+                    messages.error(request, "Start date must be before end date.")
+                    return redirect("academics:term_list")
+            except ValueError:
+                messages.error(request, "Invalid date format. Use YYYY-MM-DD.")
+                return redirect("academics:term_list")
+
+        try:
+            Term.objects.create(**term_data)
+            messages.success(request, f"Term '{name}' created.")
+        except Exception as exc:
+            messages.error(request, f"Error creating term: {exc}")
+
+    return redirect("academics:term_list")
+
+
+@login_required
+def term_edit(request, pk):
+    """Edit an existing academic term."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+
+    term = get_object_or_404(Term, pk=pk, school=school)
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        start_date = request.POST.get("start_date", "").strip() or None
+        end_date = request.POST.get("end_date", "").strip() or None
+        is_current = request.POST.get("is_current") == "1"
+        academic_year_id = request.POST.get("academic_year") or None
+
+        if not name:
+            messages.error(request, "Term name is required.")
+            return redirect(f"{reverse('academics:term_list')}?edit={pk}")
+
+        term.name = name
+        term.is_current = is_current
+        term.start_date = start_date if start_date else None
+        term.end_date = end_date if end_date else None
+
+        if academic_year_id:
+            from .models import AcademicYear
+            try:
+                term.academic_year = AcademicYear.objects.get(pk=int(academic_year_id), school=school)
+            except (ValueError, AcademicYear.DoesNotExist):
+                term.academic_year = None
+        else:
+            term.academic_year = None
+
+        if term.start_date and term.end_date:
+            if term.start_date >= term.end_date:
+                messages.error(request, "Start date must be before end date.")
+                return redirect(f"{reverse('academics:term_list')}?edit={pk}")
+
+        try:
+            term.save()
+            messages.success(request, f"Term '{name}' updated.")
+        except Exception as exc:
+            messages.error(request, f"Error updating term: {exc}")
+
+        return redirect("academics:term_list")
+
+    return redirect(f"{reverse('academics:term_list')}?edit={pk}")
+
+
+@login_required
+def term_generate(request):
+    """Generate three standard terms for the school's current academic year."""
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+
+    if request.method != "POST":
+        return redirect("academics:term_list")
+
+    from datetime import date as _date
+    from .models import AcademicYear
+
+    year_label = (school.academic_year or "").strip()
+    today = _date.today()
+
+    # Parse academic year label into two calendar years
+    year1 = today.year
+    year2 = today.year + 1
+    if year_label:
+        for sep in ["/", "-", " ", "—", "–"]:
+            if sep in year_label:
+                parts = year_label.split(sep)
+                try:
+                    y1 = int(parts[0].strip()[:4])
+                    y2 = int(parts[1].strip()[:4])
+                    year1, year2 = y1, y2
+                    break
+                except (ValueError, IndexError):
+                    continue
+
+    # Ensure an AcademicYear record exists
+    ay_name = year_label or f"{year1}/{year2}"
+    ay, _ = AcademicYear.objects.get_or_create(
+        school=school,
+        name=ay_name,
+        defaults={
+            "start_date": _date(year1, 9, 1),
+            "end_date": _date(year2, 7, 31),
+            "is_current": True,
+        },
+    )
+
+    # Typical Ghanaian academic calendar
+    term_defs = [
+        ("Term 1", _date(year1, 9, 1), _date(year1, 12, 20), True),
+        ("Term 2", _date(year2, 1, 5), _date(year2, 4, 15), False),
+        ("Term 3", _date(year2, 5, 1), _date(year2, 7, 31), False),
+    ]
+
+    created = 0
+    for tname, tstart, tend, tcurrent in term_defs:
+        # Avoid duplicating exact name+school+ay combo
+        if not Term.objects.filter(school=school, name=tname, academic_year=ay).exists():
+            Term.objects.create(
+                school=school,
+                name=tname,
+                academic_year=ay,
+                start_date=tstart,
+                end_date=tend,
+                is_current=tcurrent,
+            )
+            created += 1
+        else:
+            # Update dates if term already exists but has no dates
+            existing = Term.objects.filter(school=school, name=tname, academic_year=ay).first()
+            if existing and existing.start_date is None and existing.end_date is None:
+                existing.start_date = tstart
+                existing.end_date = tend
+                existing.save(update_fields=["start_date", "end_date"])
+
+    if created:
+        messages.success(request, f"Generated {created} new term(s) for {ay_name}.")
+    else:
+        messages.info(request, f"Terms for {ay_name} already exist.")
+
+    return redirect("academics:term_list")

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verified Report Card - {{ school.name }}</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; margin: 0; padding: 2rem 1rem; }
+        .card { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 2rem; }
+        .header { text-align: center; margin-bottom: 1.5rem; }
+        .header h2 { margin: 0.5rem 0 0; color: #1e293b; }
+        .badge { display: inline-flex; align-items: center; gap: 0.35rem; background: #dcfce7; color: #166534; padding: 0.4rem 0.85rem; border-radius: 999px; font-size: 0.875rem; font-weight: 500; }
+        .badge svg { width: 16px; height: 16px; }
+        .detail { display: grid; gap: 0.75rem; margin-top: 1.5rem; }
+        .row { display: flex; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; }
+        .row:last-child { border-bottom: none; }
+        .label { color: #64748b; font-size: 0.875rem; }
+        .value { color: #1e293b; font-weight: 500; }
+        .footer { margin-top: 1.5rem; text-align: center; font-size: 0.75rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <div class="badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Authentic Document
+            </div>
+            <h2>{{ school.name }}</h2>
+        </div>
+
+        <div class="detail">
+            <div class="row">
+                <span class="label">Student</span>
+                <span class="value">{{ student.user.get_full_name }}</span>
+            </div>
+            <div class="row">
+                <span class="label">Admission No.</span>
+                <span class="value">{{ student.admission_number }}</span>
+            </div>
+            {% if term %}
+            <div class="row">
+                <span class="label">Term</span>
+                <span class="value">{{ term.name }}</span>
+            </div>
+            {% endif %}
+            {% if academic_year %}
+            <div class="row">
+                <span class="label">Academic Year</span>
+                <span class="value">{{ academic_year.name }}</span>
+            </div>
+            {% endif %}
+            <div class="row">
+                <span class="label">Generated</span>
+                <span class="value">{{ generated_at|date:"d M Y H:i" }}</span>
+            </div>
+            <div class="row">
+                <span class="label">Published</span>
+                <span class="value">{% if published %}Yes{% else %}Draft{% endif %}</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            Verified via QR code scan on {{ generated_at|date:"d M Y" }}<br>
+            This is an official record from {{ school.name }}.
+        </div>
+    </div>
+</body>
+</html>

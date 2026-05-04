@@ -63,7 +63,7 @@
         {% if req.rejected_by %}
         <tr>
             <td class="erp-detail-label erp-note-danger">Rejected by</td>
-            <td>{{ req.rejected_by.get_full_name if req.rejected_by else "-" }}</td>
+            <td>{{ req.rejected_by.get_full_name }}</td>
             <td class="erp-detail-meta">{{ req.rejected_at|date:"d M Y H:i"|default:"-" }}</td>
         </tr>
         {% if req.rejection_reason %}
@@ -73,7 +73,7 @@
         {% if req.cancelled_by %}
         <tr>
             <td class="erp-detail-label erp-note-muted">Cancelled by</td>
-            <td>{{ req.cancelled_by.get_full_name if req.cancelled_by else "-" }}</td>
+            <td>{{ req.cancelled_by.get_full_name }}</td>
             <td class="erp-detail-meta">{{ req.cancelled_at|date:"d M Y H:i"|default:"-" }}</td>
         </tr>
         {% if req.cancellation_reason %}

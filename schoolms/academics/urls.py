@@ -131,6 +131,12 @@ urlpatterns = [
     path("question-banks/<int:pk>/add-item/", views.question_bank_add_item, name="question_bank_add_item"),
     path("question-banks/<int:pk>/delete/", views.question_bank_delete, name="question_bank_delete"),
 
+    # Terms
+    path("terms/", views.term_list, name="term_list"),
+    path("terms/create/", views.term_create, name="term_create"),
+    path("terms/<int:pk>/edit/", views.term_edit, name="term_edit"),
+    path("terms/generate/", views.term_generate, name="term_generate"),
+
     # Assessment Schemes & Score Composition
     path("schemes/", scheme_views.assessment_scheme_list, name="assessment_scheme_list"),
     path("schemes/create/", scheme_views.assessment_scheme_create, name="assessment_scheme_create"),

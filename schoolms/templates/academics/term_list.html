@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Academic Terms - {{ school.name }}{% endblock %}
+{% block page_title %}Academic Terms{% endblock %}
+{% block page_subtitle %}Manage terms, dates, and current term{% endblock %}
+
+{% block content %}
+
+<div class="content-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h3 style="margin: 0;">📅 Terms</h3>
+            <p style="margin: 0.5rem 0 0; color: #6b7280; font-size: 0.875rem;">
+                Define term names, date ranges, and the current active term.
+            </p>
+        </div>
+        {% if school_academic_year %}
+        <form method="post" action="{% url 'academics:term_generate' %}" style="margin: 0;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary" onclick="return confirm('Generate Term 1, Term 2, Term 3 for {{ school_academic_year }}?')">
+                ⚡ Generate for {{ school_academic_year }}
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if edit_term %}
+    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+        <h4 style="margin: 0 0 1rem;">Edit Term</h4>
+        <form method="post" action="{% url 'academics:term_edit' edit_term.pk %}" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end;">
+            {% csrf_token %}
+            <div>
+                <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Name</label>
+                <input type="text" name="name" value="{{ edit_term.name }}" required style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; width: 180px;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Start Date</label>
+                <input type="date" name="start_date" value="{{ edit_term.start_date|date:'Y-m-d'|default:'' }}" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">End Date</label>
+                <input type="date" name="end_date" value="{{ edit_term.end_date|date:'Y-m-d'|default:'' }}" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Academic Year</label>
+                <select name="academic_year" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; min-width: 160px;">
+                    <option value="">— None —</option>
+                    {% for ay in academic_years %}
+                    <option value="{{ ay.pk }}" {% if edit_term.academic_year_id == ay.pk %}selected{% endif %}>{{ ay.name }} ({{ ay.start_date|date:'Y' }}–{{ ay.end_date|date:'Y' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.35rem;">
+                <input type="checkbox" name="is_current" value="1" id="id_edit_is_current" {% if edit_term.is_current %}checked{% endif %}>
+                <label for="id_edit_is_current" style="font-size: 0.875rem;">Current Term</label>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <a href="{% url 'academics:term_list' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+    {% else %}
+    <form method="post" action="{% url 'academics:term_create' %}" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #e5e7eb;">
+        {% csrf_token %}
+        <div>
+            <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Name</label>
+            <input type="text" name="name" placeholder="e.g. 2024/2025 Term 1" required style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; width: 200px;">
+        </div>
+        <div>
+            <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Start Date</label>
+            <input type="date" name="start_date" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
+        </div>
+        <div>
+            <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">End Date</label>
+            <input type="date" name="end_date" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
+        </div>
+        <div>
+            <label style="display: block; font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Academic Year</label>
+            <select name="academic_year" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; min-width: 160px;">
+                <option value="">— None —</option>
+                {% for ay in academic_years %}
+                <option value="{{ ay.pk }}">{{ ay.name }} ({{ ay.start_date|date:'Y' }}–{{ ay.end_date|date:'Y' }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.35rem;">
+            <input type="checkbox" name="is_current" value="1" id="id_is_current">
+            <label for="id_is_current" style="font-size: 0.875rem;">Current Term</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Term</button>
+    </form>
+    {% endif %}
+
+    {% if terms %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Term</th>
+                    <th>Dates</th>
+                    <th>Academic Year</th>
+                    <th>Status</th>
+                    <th>Records</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for term in terms %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <span style="font-size: 1.25rem;">📅</span>
+                            <strong>{{ term.name }}</strong>
+                            {% if term.is_legacy %}
+                            <span class="tag" style="background: #fef3c7; color: #92400e; font-size: 0.7rem;">Legacy (auto)</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if term.start_date and term.end_date %}
+                        {{ term.start_date|date:'M d, Y' }} – {{ term.end_date|date:'M d, Y' }}
+                        {% else %}
+                        <span style="color: #9ca3af;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if term.academic_year %}
+                        {{ term.academic_year.name }}
+                        {% else %}
+                        <span style="color: #9ca3af;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if term.is_current %}
+                        <span class="tag" style="background: #d1fae5; color: #065f46;">Current</span>
+                        {% else %}
+                        <span class="tag" style="background: #f3f4f6; color: #4b5563;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if term.total_related > 0 %}
+                        <span style="font-size: 0.8rem; color: #6b7280;">{{ term.result_count }} results, {{ term.exam_count }} exams</span>
+                        {% else %}
+                        <span style="font-size: 0.8rem; color: #9ca3af;">No records</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'academics:term_list' %}?edit={{ term.pk }}" class="btn btn-secondary btn-sm">Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No terms configured. Use the form above to add your first term, or click <strong>Generate</strong> to auto-create three standard terms.
+    </div>
+    {% endif %}
+</div>
+
+{% if terms %}
+<div class="content-card" style="margin-top: 1.5rem;">
+    <h4 style="margin-top: 0;">ℹ️ About Legacy Terms</h4>
+    <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 0;">
+        Terms marked <strong>Legacy (auto)</strong> were created automatically when your school was first set up.
+        They have no dates and no academic year link. You can safely leave them unused, or edit them to add dates and link them to a year.
+        <strong>Deleting terms is disabled</strong> because results, schedules, and report cards are linked to them.
+    </p>
+</div>
+{% endif %}
+
+{% endblock %}

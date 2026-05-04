@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Cohort Analysis - {{ school.name }}{% endblock %}
+{% block page_title %}Cohort Analysis{% endblock %}
+{% block page_subtitle %}Average performance by admission year and term{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <h3 style="margin-top: 0;">Student Cohorts</h3>
+    <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1rem;">
+        Average exam scores grouped by student admission year and academic term.
+    </p>
+
+    {% if cohorts %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Admission Year</th>
+                    <th>Term</th>
+                    <th>Avg Score</th>
+                    <th>Students</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cohort in cohorts %}
+                {% for term in cohort.terms %}
+                <tr>
+                    {% if forloop.first %}
+                    <td rowspan="{{ cohort.terms|length }}"><strong>{{ cohort.year }}</strong></td>
+                    {% endif %}
+                    <td>{{ term.term }}</td>
+                    <td>{{ term.avg_score }}</td>
+                    <td>{{ term.count }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No cohort data available. Results with term assignments are required.</div>
+    {% endif %}
+</div>
+{% endblock %}

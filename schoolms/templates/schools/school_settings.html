@@ -36,6 +36,12 @@
                 <label for="id_academic_year">Academic Year (e.g. 2024/2025)</label>
                 <input id="id_academic_year" type="text" name="academic_year" value="{{ school.academic_year|default:'' }}">
             </div>
+            <div class="form-group">
+                <p style="margin: 0; font-size: 0.875rem;">
+                    <a href="{% url 'academics:term_list' %}" style="color: var(--primary); text-decoration: underline;">Manage Academic Terms →</a>
+                    <span style="color: #6b7280;">Configure term dates, names, and current term.</span>
+                </p>
+            </div>
             <div class="button-row">
                 <button type="submit" class="btn btn-primary">Save Basic Info</button>
             </div>
