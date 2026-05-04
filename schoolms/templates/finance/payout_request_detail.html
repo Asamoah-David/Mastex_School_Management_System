@@ -49,7 +49,7 @@
         {% if req.approved_by %}
         <tr>
             <td class="erp-detail-label">Approved by</td>
-            <td>{{ req.approved_by.get_full_name if req.approved_by else "-" }}</td>
+            <td>{% if req.approved_by %}{{ req.approved_by.get_full_name }}{% else %}-{% endif %}</td>
             <td class="erp-detail-meta">{{ req.approved_at|date:"d M Y H:i"|default:"-" }}</td>
         </tr>
         {% endif %}

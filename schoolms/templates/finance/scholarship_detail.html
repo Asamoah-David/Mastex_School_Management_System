@@ -77,7 +77,7 @@
           {% elif award.status == "revoked" %}<span class="badge" style="background:#ef4444;color:#fff;">Revoked</span>
           {% else %}<span class="badge" style="background:#64748b;color:#fff;">{{ award.status }}</span>{% endif %}
         </td>
-        <td>{{ award.approved_by.get_full_name if award.approved_by else "—" }}</td>
+        <td>{% if award.approved_by %}{{ award.approved_by.get_full_name }}{% else %}—{% endif %}</td>
         <td>
           {% if award.status == "pending" %}
           <form method="post" action="{% url 'finance:scholarship_award_action' pk=award.pk %}" style="display:inline;">

@@ -20,7 +20,7 @@
                 <td>{{ d.discount_amount }}</td>
                 <td>{{ d.reason|default:"—"|truncatechars:50 }}</td>
                 <td>{% if d.is_active %}<span class="badge badge-success">Yes</span>{% else %}<span class="badge badge-secondary">No</span>{% endif %}</td>
-                <td>{{ d.approved_by.get_full_name if d.approved_by else "—" }}</td>
+                <td>{% if d.approved_by %}{{ d.approved_by.get_full_name }}{% else %}—{% endif %}</td>
                 <td>
                     {% if d.is_active %}
                     <form method="post" action="{% url 'finance:fee_discount_deactivate' d.id %}" style="display:inline;" onsubmit="return confirm('Deactivate this discount?');">

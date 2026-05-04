@@ -70,7 +70,7 @@
                     {% endif %}
                 </td>
                 <td>{{ req.requested_by.get_full_name|default:req.requested_by.username|default:"-" }}</td>
-                <td>{{ req.approved_by.get_full_name if req.approved_by else "-" }}</td>
+                <td>{% if req.approved_by %}{{ req.approved_by.get_full_name }}{% else %}-{% endif %}</td>
                 <td>{{ req.requested_at|date:"d M Y H:i" }}</td>
                 <td class="erp-nowrap">
                     {% if req.status == "pending_approval" %}

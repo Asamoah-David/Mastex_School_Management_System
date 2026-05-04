@@ -3326,7 +3326,7 @@ def question_bank_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not _user_can_manage_school(request.user):
+    if not _user_can_manage_school(request):
         return redirect("home")
     from academics.models import QuestionBank
     subjects = Subject.objects.filter(school=school).order_by("name")
@@ -3413,7 +3413,7 @@ def question_bank_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    if not _user_can_manage_school(request.user):
+    if not _user_can_manage_school(request):
         return redirect("home")
     from academics.models import QuestionBank
     bank = get_object_or_404(QuestionBank, pk=pk, school=school)

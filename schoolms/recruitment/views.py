@@ -401,6 +401,7 @@ def school_job_create(request):
         "job_types": JobPosting.JOB_TYPES,
         "qual_choices": QUALIFICATION_CHOICES,
         "action": "Create",
+        "post": {},
     })
 
 
