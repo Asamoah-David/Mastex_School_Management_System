@@ -76,7 +76,8 @@
         <div style="padding:1rem;">
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:.35rem;">
                 {% for q in questions_range %}
-                {% with q_str=q|stringformat:"s" sa=detected|get_item:q_str ca=answer_key|get_item:q_str %}
+                {% with q_str=q|stringformat:"s" %}
+                {% with sa=detected|get_item:q_str ca=answer_key|get_item:q_str %}
                 <div class="omr-q-card {% if sa == ca %}correct{% elif sa == 'blank' or sa == '' %}blank{% elif sa == 'multiple' %}multiple{% else %}wrong{% endif %}{% if q in flagged %} flagged{% endif %}" id="stcard_{{ q }}">
                     <div class="omr-q-num">Q{{ q }}{% if q in flagged %}⚠{% endif %}</div>
                     <input type="hidden" name="q_{{ q }}" id="stval_{{ q }}" value="{{ sa|default:'blank' }}">
@@ -94,6 +95,7 @@
                     </div>
                     <div class="omr-q-key">✓{{ ca }}</div>
                 </div>
+                {% endwith %}
                 {% endwith %}
                 {% endfor %}
             </div>

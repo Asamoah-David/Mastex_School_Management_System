@@ -55,7 +55,8 @@
             </style>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:.4rem;">
                 {% for q in questions_range %}
-                {% with q_str=q|stringformat:"s" cur=detected|get_item:q_str %}
+                {% with q_str=q|stringformat:"s" %}
+                {% with cur=detected|get_item:q_str %}
                 <div class="omr-q-card {% if q in flagged %}flagged{% else %}ok{% endif %}" id="qcard_{{ q }}">
                     <div class="omr-q-num">Q{{ q }}{% if q in flagged %} ⚠{% endif %}</div>
                     <input type="hidden" name="q_{{ q }}" id="qval_{{ q }}" value="{{ cur|default:'' }}">
@@ -70,6 +71,7 @@
                               title="Clear">clr</span>
                     </div>
                 </div>
+                {% endwith %}
                 {% endwith %}
                 {% endfor %}
             </div>
