@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Manual Exams · MastexEDU{% endblock %}
+{% block page_title %}Manual Offline Exams{% endblock %}
+{% block page_subtitle %}Paper-based exams entered manually{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'academics:manual_exam_create' %}" class="btn btn-primary">+ New Manual Exam</a>
+    <a href="{% url 'academics:assessment_scheme_list' %}" class="btn btn-secondary">Assessment Schemes</a>
+</div>
+{% if messages %}{% for msg in messages %}<div class="alert alert-{{ msg.tags }}">{{ msg }}</div>{% endfor %}{% endif %}
+<div class="card">
+  {% if exams %}
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead><tr><th>Title</th><th>Subject</th><th>Term</th><th>Class</th><th>Max Score</th><th>Date</th><th>Students Scored</th><th></th></tr></thead>
+      <tbody>
+      {% for exam in exams %}
+      <tr>
+        <td>{{ exam.exam_title }}</td>
+        <td>{{ exam.subject.name }}</td>
+        <td>{{ exam.term }}</td>
+        <td>{{ exam.class_name }}</td>
+        <td>{{ exam.max_score }}</td>
+        <td>{{ exam.date|default:"—" }}</td>
+        <td>{{ exam.student_scores.count }}</td>
+        <td class="actions">
+          <a href="{% url 'academics:manual_exam_score_entry' exam.pk %}" class="btn btn-sm btn-primary">Enter Scores</a>
+          <form method="post" action="{% url 'academics:manual_exam_delete' exam.pk %}" style="display:inline" onsubmit="return confirm('Delete this exam and all scores?')">
+            {% csrf_token %}<button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted text-center py-3">No manual exams yet. <a href="{% url 'academics:manual_exam_create' %}">Create one.</a></p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Upload Answer Key · {{ exam.title }} · MastexEDU{% endblock %}
+{% block page_title %}Upload Answer Key{% endblock %}
+{% block page_subtitle %}{{ exam.title }} · {{ exam.subject }} · {{ exam.class_name }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:exam_detail' exam.pk %}" class="btn btn-secondary">← Back to Exam</a>
+</div>
+
+{% if processing_error %}
+<div class="alert alert-danger mb-md">
+    <strong>Processing failed:</strong> {{ processing_error }}
+    <br><small>You can try again with a clearer image, or use manual entry below.</small>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+    <!-- Option 1: Image Upload -->
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">📷 Upload / Photograph Sheet</h3></div>
+        <form method="post" enctype="multipart/form-data" id="akUploadForm" style="padding:1rem;">
+            {% csrf_token %}
+            <input type="hidden" name="upload_mode" value="file">
+
+            <!-- Hidden inputs — triggered by the buttons below -->
+            <input type="file" id="akCameraInput" name="image" accept="image/*" capture="environment" style="display:none;" onchange="omrPreview(this,'akPreview','akSubmitBtn')">
+            <input type="file" id="akGalleryInput" name="image" accept="image/*" style="display:none;" onchange="omrPreview(this,'akPreview','akSubmitBtn')">
+
+            <!-- Capture buttons -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem;">
+                <button type="button" class="btn btn-primary" style="font-size:1rem;padding:.7rem;" onclick="document.getElementById('akCameraInput').click()">
+                    📷 Take Photo
+                </button>
+                <button type="button" class="btn btn-secondary" style="font-size:1rem;padding:.7rem;" onclick="document.getElementById('akGalleryInput').click()">
+                    🖼 Upload File / Gallery
+                </button>
+            </div>
+
+            <!-- Preview area -->
+            <div id="akPreview" style="display:none;margin-bottom:.75rem;text-align:center;">
+                <img id="akPreviewImg" src="" alt="Preview" style="max-width:100%;max-height:320px;border-radius:8px;border:2px solid var(--success);object-fit:contain;">
+                <div style="font-size:.8rem;color:var(--text-muted);margin-top:.35rem;" id="akPreviewName"></div>
+            </div>
+
+            <div class="form-group" style="background:rgba(34,197,94,0.06);border-radius:8px;padding:.75rem;border:1px solid rgba(34,197,94,0.2);">
+                <strong style="font-size:.9rem;">📋 Tips for best accuracy:</strong>
+                <ul style="margin:.5rem 0 0;padding-left:1.2rem;font-size:.85rem;color:var(--text-muted);">
+                    <li>Place sheet on a dark/contrasting flat surface</li>
+                    <li>Ensure good lighting — avoid shadows and glare</li>
+                    <li>Photograph directly above (not at an angle)</li>
+                    <li>Make sure all corners of the sheet are visible</li>
+                    <li>Shade bubbles firmly and neatly</li>
+                </ul>
+            </div>
+            <button type="submit" id="akSubmitBtn" class="btn btn-secondary" style="margin-top:.75rem;width:100%;opacity:.5;cursor:not-allowed;" disabled>
+                Process Image →
+            </button>
+        </form>
+    </div>
+
+    <!-- Option 2: Manual Entry -->
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">✏️ Enter Answers Manually</h3></div>
+        <div style="padding:1rem;">
+            <p class="text-muted" style="font-size:.9rem;">Skip image processing and type in the answer key directly. Useful if you don't have the physical sheet scanned.</p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="upload_mode" value="manual">
+                <button type="submit" class="btn btn-secondary" style="width:100%;margin-top:.75rem;">Enter Answers Manually →</button>
+            </form>
+        </div>
+        <div style="padding:0 1rem 1rem;">
+            <div style="background:rgba(59,130,246,0.08);border-radius:8px;padding:.75rem;border:1px solid rgba(59,130,246,0.2);">
+                <strong style="font-size:.9rem;">Exam Info</strong>
+                <div style="font-size:.85rem;color:var(--text-muted);margin-top:.35rem;">
+                    <div>Template: <strong>{{ exam.get_template_type_display }}</strong></div>
+                    <div>Total Questions: <strong>{{ exam.total_questions }}</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if exam.answer_key %}
+<div class="card mt-md" style="border-left:4px solid var(--warning);">
+    <div style="padding:.75rem 1rem;">
+        <strong>⚠️ An answer key already exists for this exam.</strong>
+        Uploading a new one will replace it. All student results already saved will keep their existing scores unless re-marked.
+    </div>
+</div>
+{% endif %}
+
+<script>
+function omrPreview(input, previewDivId, submitBtnId) {
+    const file = input.files[0];
+    if (!file) return;
+
+    /* Sync: if camera input fired, clear gallery input and vice versa so only one file is sent */
+    if (input.id === 'akCameraInput') document.getElementById('akGalleryInput').value = '';
+    if (input.id === 'akGalleryInput') document.getElementById('akCameraInput').value = '';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const previewDiv = document.getElementById(previewDivId);
+        const img = document.getElementById(previewDivId + 'Img');
+        const nameEl = document.getElementById(previewDivId + 'Name');
+        img.src = e.target.result;
+        previewDiv.style.display = 'block';
+        if (nameEl) nameEl.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+    };
+    reader.readAsDataURL(file);
+
+    const btn = document.getElementById(submitBtnId);
+    if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.className = btn.className.replace('btn-secondary', 'btn-primary');
+        btn.textContent = 'Process Image →';
+    }
+}
+
+/* Before submit: copy the chosen file to the single "image" name field */
+document.getElementById('akUploadForm').addEventListener('submit', function() {
+    const cam = document.getElementById('akCameraInput');
+    const gal = document.getElementById('akGalleryInput');
+    /* whichever has files wins — already cleared the other above, so this is safe */
+    if (cam.files.length) gal.name = '';
+    else if (gal.files.length) cam.name = '';
+});
+</script>
+{% endblock %}

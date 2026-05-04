@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ result.get_student_display_name }} · Result · MastexEDU{% endblock %}
+{% block page_title %}{{ result.get_student_display_name }}{% endblock %}
+{% block page_subtitle %}{{ exam.title }} · {{ result.subject }} · {{ result.class_name }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:results' exam.pk %}" class="btn btn-secondary">← Results</a>
+    <form method="post" action="{% url 'omr:result_delete' result.pk %}" style="display:inline;" onsubmit="return confirm('Delete this result?');">
+        {% csrf_token %}<button type="submit" class="btn btn-danger">Delete Result</button>
+    </form>
+</div>
+
+<div class="stats-grid mb-md">
+    <div class="stat-card">
+        <div class="stat-label">Score</div>
+        <div class="stat-value">{{ result.score|floatformat:0 }}/{{ result.total_questions }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Percentage</div>
+        <div class="stat-value" style="color:{% if result.percentage >= 50 %}var(--success){% else %}var(--danger){% endif %}">{{ result.percentage|floatformat:1 }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Correct</div>
+        <div class="stat-value" style="color:var(--success);">{{ result.correct_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Wrong</div>
+        <div class="stat-value" style="color:var(--danger);">{{ result.wrong_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Blank</div>
+        <div class="stat-value">{{ result.blank_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Multiple</div>
+        <div class="stat-value" style="color:var(--warning);">{{ result.multiple_answer_count }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3 class="card-title">Per-Question Breakdown</h3></div>
+    <div style="padding:1rem;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;">
+            {% for q in questions %}
+            <div style="border-radius:8px;padding:.5rem;text-align:center;
+                {% if q.status == 'correct' %}background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);
+                {% elif q.status == 'wrong' %}background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);
+                {% elif q.status == 'blank' %}background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);
+                {% else %}background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);{% endif %}">
+                <div style="font-size:.68rem;color:var(--text-muted);margin-bottom:.2rem;">Q{{ q.number }}</div>
+                <div style="font-size:1rem;font-weight:700;
+                    {% if q.status == 'correct' %}color:var(--success);
+                    {% elif q.status == 'wrong' %}color:var(--danger);
+                    {% elif q.status == 'blank' %}color:var(--text-muted);
+                    {% else %}color:var(--warning);{% endif %}">
+                    {% if q.student_answer == "blank" %}—
+                    {% elif q.student_answer == "multiple" %}M
+                    {% else %}{{ q.student_answer }}{% endif %}
+                </div>
+                {% if q.status != 'correct' %}
+                <div style="font-size:.65rem;color:var(--text-muted);">✓{{ q.correct_answer }}</div>
+                {% endif %}
+                <div style="font-size:.6rem;margin-top:.15rem;">
+                    {% if q.status == 'correct' %}<span style="color:var(--success);">✓</span>
+                    {% elif q.status == 'wrong' %}<span style="color:var(--danger);">✗</span>
+                    {% elif q.status == 'blank' %}<span style="color:var(--text-muted);">–</span>
+                    {% else %}<span style="color:var(--warning);">M</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div style="margin-top:1rem;display:flex;gap:1rem;font-size:.85rem;flex-wrap:wrap;">
+            <span style="color:var(--success);">■ Correct ({{ result.correct_count }})</span>
+            <span style="color:var(--danger);">■ Wrong ({{ result.wrong_count }})</span>
+            <span style="color:var(--text-muted);">■ Blank ({{ result.blank_count }})</span>
+            <span style="color:var(--warning);">■ Multiple ({{ result.multiple_answer_count }})</span>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-md">
+    <div class="card-header"><h3 class="card-title">Detail Table</h3></div>
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr><th>Q#</th><th>Student Answer</th><th>Correct Answer</th><th>Result</th></tr>
+            </thead>
+            <tbody>
+            {% for q in questions %}
+            <tr>
+                <td>{{ q.number }}</td>
+                <td>
+                    {% if q.student_answer == "blank" %}<em class="text-muted">blank</em>
+                    {% elif q.student_answer == "multiple" %}<span style="color:var(--warning);">multiple</span>
+                    {% else %}<strong>{{ q.student_answer }}</strong>{% endif %}
+                </td>
+                <td><strong>{{ q.correct_answer }}</strong></td>
+                <td>
+                    {% if q.status == 'correct' %}<span class="badge badge-success">Correct</span>
+                    {% elif q.status == 'wrong' %}<span class="badge badge-danger">Wrong</span>
+                    {% elif q.status == 'blank' %}<span class="badge badge-secondary">Blank</span>
+                    {% else %}<span class="badge badge-warning">Multiple</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

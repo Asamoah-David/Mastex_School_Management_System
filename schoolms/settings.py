@@ -45,22 +45,6 @@ _platform_detected = bool(
 )
 DEBUG = env_bool("DEBUG", default=not _platform_detected)
 
-# ---------------------------------------------------------------------------
-# HTTPS / HSTS — only active in production (when DEBUG=False)
-# W004, W008, W012, W016, W018 are suppressed in dev automatically because
-# all of these require DEBUG=False to matter.
-# ---------------------------------------------------------------------------
-if not DEBUG:
-    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=True)
-    SECURE_HSTS_SECONDS = int(env("SECURE_HSTS_SECONDS", default="31536000"))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
-    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", default=False)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = "DENY"
-
 SECRET_KEY = env("SECRET_KEY", default="unsafe-local-secret" if DEBUG else None)
 if not DEBUG and SECRET_KEY == "unsafe-local-secret":
     raise RuntimeError(
@@ -118,6 +102,7 @@ INSTALLED_APPS = [
     "operations",
     "notifications",
     "recruitment",
+    "omr",
     "templatetags.apps.TemplatetagsConfig",
 ]
 
@@ -196,11 +181,14 @@ else:
     import dj_database_url
 
     _db_url = os.getenv("DATABASE_URL")
+    # Railway's TCP proxy drops idle Postgres connections; default CONN_MAX_AGE=0
+    # to avoid "connection already closed" errors. Override via DB_CONN_MAX_AGE env var.
+    _conn_max_age = int(env("DB_CONN_MAX_AGE", "0"))
     if _db_url:
         DATABASES = {
             "default": dj_database_url.config(
                 default=_db_url,
-                conn_max_age=0,
+                conn_max_age=_conn_max_age,
                 conn_health_checks=True,
             )
         }
@@ -213,7 +201,7 @@ else:
                 "PASSWORD": env("POSTGRES_PASSWORD", ""),
                 "HOST": env("POSTGRES_HOST", "db"),
                 "PORT": env("POSTGRES_PORT", "5432"),
-                "CONN_MAX_AGE": 0,
+                "CONN_MAX_AGE": _conn_max_age,
                 "CONN_HEALTH_CHECKS": True,
             }
         }
@@ -232,7 +220,7 @@ if _redis_url:
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
             "LOCATION": _redis_url,
             "TIMEOUT": 300,
-            "KEY_PREFIX": "sms",
+            "KEY_PREFIX": "mastex",
             "OPTIONS": {"socket_connect_timeout": 2},
         }
     }
@@ -328,7 +316,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 # OpenAPI / Swagger: off entirely, or authenticated-only in production (default).
-API_DOCS_ENABLED = env_bool("API_DOCS_ENABLED", True)
+API_DOCS_ENABLED = env_bool("API_DOCS_ENABLED", DEBUG)
 # When False with DEBUG off, schema is only reachable by logged-in users (session or Bearer JWT).
 API_DOCS_PUBLIC = env_bool("API_DOCS_PUBLIC", DEBUG)
 if API_DOCS_PUBLIC:

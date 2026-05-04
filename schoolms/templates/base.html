@@ -754,35 +754,37 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4D6; Academics</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'academics:results_management' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Results Hub</span></div></a></li>
-                                <li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C4;</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>
+                                {% if feature_results %}<li><a href="{% url 'academics:results_management' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Results Hub</span></div></a></li>{% endif %}
+                                {% if feature_report_cards %}<li><a href="{% url 'academics:report_card_generator' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C4;</span><div class="nav-item-label"><span class="nav-item-title">Report Cards</span></div></a></li>{% endif %}
                                 {% if feature_homework %}<li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DD;</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>{% endif %}
                                 {% if feature_timetable %}<li><a href="{% url 'academics:timetable_list' %}" class="nav-item"><span class="nav-item-icon">&#x23F0;</span><div class="nav-item-label"><span class="nav-item-title">Timetable</span></div></a></li>{% endif %}
                                 {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
+                                {% if feature_omr_marking %}<li><a href="{% url 'omr:dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F7;</span><div class="nav-item-label"><span class="nav-item-title">OMR Marking</span><span class="nav-item-sub">Scan &amp; auto-mark sheets</span></div></a></li>{% endif %}
+                                {% if feature_question_bank %}<li><a href="{% url 'academics:question_bank_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F5C3;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Question Bank</span><span class="nav-item-sub">Reusable exam questions</span></div></a></li>{% endif %}
                                 {% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
                                 <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>
                             </ul>
                         </div>
                     </div>
-                    <div class="nav-section">
+                    {% if feature_performance_analytics or feature_ai_assistant %}<div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4C8; Analytics</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'academics:performance_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C8;</span><div class="nav-item-label"><span class="nav-item-title">Performance</span></div></a></li>
-                                <li><a href="{% url 'academics:predictive_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F52E;</span><div class="nav-item-label"><span class="nav-item-title">Predictions</span></div></a></li>
-                                <li><a href="{% url 'academics:trend_analysis' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C9;</span><div class="nav-item-label"><span class="nav-item-title">Trends</span></div></a></li>
-                                <li><a href="{% url 'academics:ai_comment_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F916;</span><div class="nav-item-label"><span class="nav-item-title">AI Comments</span></div></a></li>
+                                {% if feature_performance_analytics %}<li><a href="{% url 'academics:performance_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C8;</span><div class="nav-item-label"><span class="nav-item-title">Performance</span></div></a></li>{% endif %}
+                                {% if feature_performance_analytics %}<li><a href="{% url 'academics:predictive_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F52E;</span><div class="nav-item-label"><span class="nav-item-title">Predictions</span></div></a></li>{% endif %}
+                                {% if feature_performance_analytics %}<li><a href="{% url 'academics:trend_analysis' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C9;</span><div class="nav-item-label"><span class="nav-item-title">Trends</span></div></a></li>{% endif %}
+                                {% if feature_ai_assistant %}<li><a href="{% url 'academics:ai_comment_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F916;</span><div class="nav-item-label"><span class="nav-item-title">AI Comments</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'operations:school_rankings' %}" class="nav-item"><span class="nav-item-icon">&#x1F3C6;</span><div class="nav-item-label"><span class="nav-item-title">School rankings</span><span class="nav-item-sub">Attendance + results blend</span></div></a></li>
                             </ul>
                         </div>
-                    </div>
+                    </div>{% endif %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x2705; Attendance</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F465;</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
-                                <li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F3EB;</span><div class="nav-item-label"><span class="nav-item-title">Teachers</span></div></a></li>
+                                {% if feature_attendance %}<li><a href="{% url 'operations:attendance_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F465;</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>{% endif %}
+                                {% if feature_teacher_attendance %}<li><a href="{% url 'operations:teacher_attendance_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F3EB;</span><div class="nav-item-label"><span class="nav-item-title">Teachers</span></div></a></li>{% endif %}
                                 {% if can_review_absence_requests %}<li><a href="{% url 'students:absence_requests_review' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span></div></a></li>{% endif %}
                             </ul>
                         </div>
@@ -794,9 +796,13 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'finance:fee_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B0;</span><div class="nav-item-label"><span class="nav-item-title">School Fees</span><span class="nav-item-sub">Balances &amp; export</span></div></a></li>
                                 <li><a href="{% url 'operations:payment_dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B3;</span><div class="nav-item-label"><span class="nav-item-title">Payment Dashboard</span></div></a></li>
                                 <li><a href="{% url 'operations:financial_reports_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C8;</span><div class="nav-item-label"><span class="nav-item-title">Financial Reports</span></div></a></li>
-                                <li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B8;</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>
-                                <li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Budgets</span></div></a></li>
+                                {% if feature_expenses %}<li><a href="{% url 'operations:expense_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B8;</span><div class="nav-item-label"><span class="nav-item-title">Expenses</span></div></a></li>{% endif %}
+                                {% if feature_budgets %}<li><a href="{% url 'operations:budget_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Budgets</span></div></a></li>{% endif %}
                                 {% if feature_scholarships %}<li><a href="{% url 'finance:scholarship_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Scholarships</span><span class="nav-item-sub">Awards &amp; bursaries</span></div></a></li>{% endif %}
+                                {% if feature_finance_admin %}<li><a href="{% url 'finance:purchase_order_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F6D2;</span><div class="nav-item-label"><span class="nav-item-title">Purchase Orders</span></div></a></li>
+                                <li><a href="{% url 'finance:bank_account_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E6;</span><div class="nav-item-label"><span class="nav-item-title">Bank Accounts</span></div></a></li>
+                                <li><a href="{% url 'finance:fee_discount_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3F7;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Fee Discounts</span></div></a></li>
+                                <li><a href="{% url 'finance:fee_installment_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C6;</span><div class="nav-item-label"><span class="nav-item-title">Installment Plans</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -813,6 +819,7 @@ background: rgba(2, 6, 23, 0.98);
                                 {% if feature_hostel %}<li><a href="{% url 'operations:hostel_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E0;</span><div class="nav-item-label"><span class="nav-item-title">Hostel</span></div></a></li>{% endif %}
                                 {% if feature_textbooks %}<li><a href="{% url 'operations:textbook_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4D5;</span><div class="nav-item-label"><span class="nav-item-title">Textbooks</span></div></a></li>{% endif %}
                                 {% if feature_inventory %}<li><a href="{% url 'operations:inventory_item_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E6;</span><div class="nav-item-label"><span class="nav-item-title">Inventory</span></div></a></li>{% endif %}
+                                {% if feature_class_supplies %}<li><a href="{% url 'operations:supply_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F392;</span><div class="nav-item-label"><span class="nav-item-title">Class Supplies</span><span class="nav-item-sub">Student supply requests</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -822,9 +829,9 @@ background: rgba(2, 6, 23, 0.98);
                             <ul class="nav-list">
                                 {% if feature_sports %}<li><a href="{% url 'operations:sport_list' %}" class="nav-item"><span class="nav-item-icon">&#x26BD;</span><div class="nav-item-label"><span class="nav-item-title">Sports</span></div></a></li>{% endif %}
                                 {% if feature_clubs %}<li><a href="{% url 'operations:club_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3AD;</span><div class="nav-item-label"><span class="nav-item-title">Clubs</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F6AB;</span><div class="nav-item-label"><span class="nav-item-title">Discipline</span></div></a></li>
-                                <li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">&#x2B50;</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>
-                                <li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E5;</span><div class="nav-item-label"><span class="nav-item-title">Health Records</span></div></a></li>
+                                {% if feature_discipline %}<li><a href="{% url 'operations:discipline_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F6AB;</span><div class="nav-item-label"><span class="nav-item-title">Discipline</span></div></a></li>{% endif %}
+                                {% if feature_discipline %}<li><a href="{% url 'operations:behavior_points_list' %}" class="nav-item"><span class="nav-item-icon">&#x2B50;</span><div class="nav-item-label"><span class="nav-item-title">Behavior Points</span></div></a></li>{% endif %}
+                                {% if feature_health_records %}<li><a href="{% url 'operations:health_record_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E5;</span><div class="nav-item-label"><span class="nav-item-title">Health Records</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -835,12 +842,13 @@ background: rgba(2, 6, 23, 0.98);
                                 {% if feature_academic_calendar %}<li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Calendar</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E2;</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
                                 {% if feature_school_events %}<li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F389;</span><div class="nav-item-label"><span class="nav-item-title">Events</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'operations:certificate_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DC;</span><div class="nav-item-label"><span class="nav-item-title">Certificates</span></div></a></li>
-                                <li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><span class="nav-item-icon">&#x1FAAA;</span><div class="nav-item-label"><span class="nav-item-title">ID Cards</span></div></a></li>
-                                <li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C1;</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>
+                                {% if feature_certificates %}<li><a href="{% url 'operations:certificate_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DC;</span><div class="nav-item-label"><span class="nav-item-title">Certificates</span></div></a></li>{% endif %}
+                                {% if feature_id_cards %}<li><a href="{% url 'operations:id_card_list' %}" class="nav-item"><span class="nav-item-icon">&#x1FAAA;</span><div class="nav-item-label"><span class="nav-item-title">ID Cards</span></div></a></li>{% endif %}
+                                {% if feature_documents %}<li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C1;</span><div class="nav-item-label"><span class="nav-item-title">Documents</span></div></a></li>{% endif %}
                                 {% if feature_pt_meetings %}<li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F91D;</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>{% endif %}
                                 {% if feature_early_warning %}<li><a href="{% url 'operations:early_warning_list' %}" class="nav-item"><span class="nav-item-icon">&#x26A0;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Early Warning</span><span class="nav-item-sub">At-risk students</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'audit:dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Audit Log</span></div></a></li>
+                                {% if feature_learning_plans %}<li><a href="{% url 'students:learning_plan_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Learning Plans</span><span class="nav-item-sub">IEP / SEN student plans</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'schools:school_settings' %}" class="nav-item"><span class="nav-item-icon">&#x2699;</span><div class="nav-item-label"><span class="nav-item-title">Settings</span></div></a></li>
                             </ul>
                         </div>
@@ -849,14 +857,27 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4AC; Communications</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E4;</span><div class="nav-item-label"><span class="nav-item-title">Broadcast SMS / Email</span><span class="nav-item-sub">Parents, students, teachers</span></div></a></li>
-                                <li><a href="{% url 'messaging:bulk_sms_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F1;</span><div class="nav-item-label"><span class="nav-item-title">Bulk SMS</span></div></a></li>
-                                <li><a href="{% url 'messaging:message_history' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DC;</span><div class="nav-item-label"><span class="nav-item-title">Message log</span></div></a></li>
-                                <li><a href="{% url 'messaging:sms_history' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DD;</span><div class="nav-item-label"><span class="nav-item-title">SMS log</span></div></a></li>
-                                <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">&#x1F4AC;</span><div class="nav-item-label"><span class="nav-item-title">Messages</span><span class="nav-item-sub">Chat with staff and parents</span></div></a></li>
+                                {% if feature_messaging %}<li><a href="{% url 'messaging:send_message' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E4;</span><div class="nav-item-label"><span class="nav-item-title">Broadcast SMS / Email</span><span class="nav-item-sub">Parents, students, teachers</span></div></a></li>{% endif %}
+                                {% if feature_messaging %}<li><a href="{% url 'messaging:bulk_sms_page' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F1;</span><div class="nav-item-label"><span class="nav-item-title">Bulk SMS</span></div></a></li>{% endif %}
+                                {% if feature_messaging %}<li><a href="{% url 'messaging:message_history' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DC;</span><div class="nav-item-label"><span class="nav-item-title">Message log</span></div></a></li>{% endif %}
+                                {% if feature_messaging %}<li><a href="{% url 'messaging:sms_history' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DD;</span><div class="nav-item-label"><span class="nav-item-title">SMS log</span></div></a></li>{% endif %}
+                                {% if feature_messaging %}<li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">&#x1F4AC;</span><div class="nav-item-label"><span class="nav-item-title">Messages</span><span class="nav-item-sub">Chat with staff and parents</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
+                    {% if feature_leave_management or feature_staff_paystack_transfers or feature_job_portal %}
+                    <div class="nav-section">
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4BC; HR &amp; Recruitment</span><span class="toggle-icon">&#x25BE;</span></div>
+                        <div class="nav-section-items">
+                            <ul class="nav-list">
+                                {% if feature_leave_management %}<li><a href="{% url 'accounts:leave_policy_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Leave Policies</span></div></a></li>
+                                <li><a href="{% url 'accounts:leave_balance_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3D6;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Leave Balances</span></div></a></li>{% endif %}
+                                {% if feature_staff_paystack_transfers %}<li><a href="{% url 'accounts:payroll_run_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B0;</span><div class="nav-item-label"><span class="nav-item-title">Payroll Runs</span></div></a></li>{% endif %}
+                                {% if feature_job_portal %}<li><a href="{% url 'recruitment:school_job_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BC;</span><div class="nav-item-label"><span class="nav-item-title">Job Portal</span><span class="nav-item-sub">Post jobs &amp; applications</span></div></a></li>{% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                    {% endif %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F527; Tools</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
@@ -885,7 +906,7 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% if feature_homework or feature_results %}
+                    {% if feature_homework or feature_results or feature_omr_marking %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>📝 Homework & Results</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
@@ -893,51 +914,54 @@ background: rgba(2, 6, 23, 0.98);
                                 {% if feature_homework %}<li><a href="{% url 'academics:homework_list' %}" class="nav-item"><span class="nav-item-icon">📝</span><div class="nav-item-label"><span class="nav-item-title">Homework</span></div></a></li>
                                 <li><a href="{% url 'academics:homework_create' %}" class="nav-item"><span class="nav-item-icon">➕</span><div class="nav-item-label"><span class="nav-item-title">Create Homework</span></div></a></li>
                                 <li><a href="{% url 'operations:assignment_submission_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Submissions</span></div></a></li>{% endif %}
-                                {% if feature_results %}<li><a href="{% url 'academics:result_list' %}" class="nav-item"><span class="nav-item-icon">📊</span><div class="nav-item-label"><span class="nav-item-title">Results</span></div></a></li>
-                                <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
-                                <li><a href="{% url 'academics:assessment_score_list' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Assessment Scores</span></div></a></li>{% endif %}
+                                {% if feature_results %}<li><a href="{% url 'academics:result_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Results</span></div></a></li>
+                                <li><a href="{% url 'academics:result_upload' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E4;</span><div class="nav-item-label"><span class="nav-item-title">Upload Results</span></div></a></li>
+                                <li><a href="{% url 'academics:assessment_score_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Assessment Scores</span></div></a></li>{% endif %}
+                                {% if feature_omr_marking %}<li><a href="{% url 'omr:dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F7;</span><div class="nav-item-label"><span class="nav-item-title">OMR Marking</span><span class="nav-item-sub">Scan &amp; auto-mark sheets</span></div></a></li>{% endif %}
+                                {% if feature_question_bank %}<li><a href="{% url 'academics:question_bank_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F5C3;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Question Bank</span><span class="nav-item-sub">Reusable exam questions</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
                     {% endif %}
                     {% if feature_online_exams or feature_quiz or feature_exams %}
                     <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📅 Exams</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4C5; Exams</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-{% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-<li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>
-                                {% if feature_quiz %}<li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">❓</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>{% endif %}
-                                {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
+                                {% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
+                                <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays</span></div></a></li>{% endif %}
+                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>
+                                {% if feature_quiz %}<li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">&#x2753;</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>{% endif %}
+                                {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
                     {% endif %}
                     {% if feature_library %}
                     <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📚 Library</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4DA; Library</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 {% if can_access_services_hub %}
-                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span></div></a></li>
+                                <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">&#x1F3EB;</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span></div></a></li>
                                 {% endif %}
-                                <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">📖</span><div class="nav-item-label"><span class="nav-item-title">Catalog</span></div></a></li>
-                                <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">📥</span><div class="nav-item-label"><span class="nav-item-title">My Issues</span></div></a></li>
+                                <li><a href="{% url 'operations:library_catalog' %}" class="nav-item"><span class="nav-item-icon">&#x1F4D6;</span><div class="nav-item-label"><span class="nav-item-title">Catalog</span></div></a></li>
+                                <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E5;</span><div class="nav-item-label"><span class="nav-item-title">My Issues</span></div></a></li>
                             </ul>
                         </div>
                     </div>
                     {% endif %}
                     <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📢 General</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4E2; General</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">💬</span><div class="nav-item-label"><span class="nav-item-title">Messages</span><span class="nav-item-sub">Chat with parents</span></div></a></li>
-                                <li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">🎯</span><div class="nav-item-label"><span class="nav-item-title">My Activities</span></div></a></li>
-                                {% if can_access_staff_leave_portal %}<li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">🏖️</span><div class="nav-item-label"><span class="nav-item-title">Leave Requests</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
-                                <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">🔔</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
+                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E2;</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">&#x1F4AC;</span><div class="nav-item-label"><span class="nav-item-title">Messages</span><span class="nav-item-sub">Chat with parents</span></div></a></li>
+                                <li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">&#x1F3AF;</span><div class="nav-item-label"><span class="nav-item-title">My Activities</span></div></a></li>
+                                {% if can_access_staff_leave_portal %}<li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3D6;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Leave Requests</span></div></a></li>{% endif %}
+                                {% if feature_class_supplies %}<li><a href="{% url 'operations:supply_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F392;</span><div class="nav-item-label"><span class="nav-item-title">Class Supplies</span><span class="nav-item-sub">Manage supply requests</span></div></a></li>{% endif %}
+                                <li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">&#x1F916;</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
+                                <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">&#x1F514;</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -956,6 +980,9 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">❓</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>
                                 {% if feature_academic_calendar %}<li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span></div></a></li>{% endif %}
                                 {% if feature_school_events %}<li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">School Events</span></div></a></li>{% endif %}
+                                <li><a href="{% url 'academics:question_bank_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F5C3;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Question Bank</span><span class="nav-item-sub">Reusable exam questions</span></div></a></li>
+                                <li><a href="{% url 'students:learning_plan_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Learning Plans</span><span class="nav-item-sub">IEP / SEN student plans</span></div></a></li>
+                                <li><a href="{% url 'operations:supply_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F392;</span><div class="nav-item-label"><span class="nav-item-title">Class Supplies</span><span class="nav-item-sub">Items needed for your class</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -970,46 +997,6 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:my_payments' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payment History</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📚 Services</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'operations:library_my_issues' %}" class="nav-item"><span class="nav-item-icon">📚</span><div class="nav-item-label"><span class="nav-item-title">My Library Books</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🎯 Student life</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'operations:student_life' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Student Life</span><span class="nav-item-sub">Events, sports, clubs</span></div></a></li>
-                                {% if feature_sports or feature_clubs %}<li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">My clubs & sports</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-                                <li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">📹</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🪪 ID & Certificates</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'operations:student_my_id_card' %}" class="nav-item"><span class="nav-item-icon">🪪</span><div class="nav-item-label"><span class="nav-item-title">My ID Card</span></div></a></li>
-                                <li><a href="{% url 'operations:student_my_certificates' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">My Certificates</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📢 General</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                {% if feature_academic_calendar %}<li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span></div></a></li>{% endif %}
-                                {% if feature_school_events %}<li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">School Events</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'students:absence_request_create' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Request Absence</span></div></a></li>
-                                <li><a href="{% url 'students:my_absence_requests' %}" class="nav-item"><span class="nav-item-icon">🗓️</span><div class="nav-item-label"><span class="nav-item-title">My Absence Requests</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1035,6 +1022,9 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:my_submissions' %}" class="nav-item"><span class="nav-item-icon">📤</span><div class="nav-item-label"><span class="nav-item-title">Homework Submissions</span></div></a></li>
                                 {% if feature_academic_calendar %}<li><a href="{% url 'operations:calendar' %}" class="nav-item"><span class="nav-item-icon">📅</span><div class="nav-item-label"><span class="nav-item-title">Academic Calendar</span></div></a></li>{% endif %}
                                 {% if feature_school_events %}<li><a href="{% url 'operations:school_event_list' %}" class="nav-item"><span class="nav-item-icon">🎉</span><div class="nav-item-label"><span class="nav-item-title">School Events</span></div></a></li>{% endif %}
+                                <li><a href="{% url 'academics:question_bank_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F5C3;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Question Bank</span><span class="nav-item-sub">Reusable exam questions</span></div></a></li>
+                                <li><a href="{% url 'students:learning_plan_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Learning Plans</span><span class="nav-item-sub">IEP / SEN student plans</span></div></a></li>
+                                <li><a href="{% url 'operations:supply_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F392;</span><div class="nav-item-label"><span class="nav-item-title">Class Supplies</span><span class="nav-item-sub">Items needed for your child</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1049,30 +1039,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>
                                 <li><a href="{% url 'operations:my_payments' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payment History</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>🎯 Student life</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'operations:student_life' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Student Life</span><span class="nav-item-sub">Events, sports, clubs</span></div></a></li>
-                                {% if feature_sports or feature_clubs %}<li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">⚽</span><div class="nav-item-label"><span class="nav-item-title">Children's activities</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">💻</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📢 General</span><span class="toggle-icon">▾</span></div>
-                        <div class="nav-section-items">
-                            <ul class="nav-list">
-                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">💬</span><div class="nav-item-label"><span class="nav-item-title">Messages</span><span class="nav-item-sub">Chat with teachers</span></div></a></li>
-                                {% if feature_pt_meetings %}<li><a href="{% url 'operations:pt_meeting_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">PT Meetings</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'students:parent_absence_request_create' %}" class="nav-item"><span class="nav-item-icon">📋</span><div class="nav-item-label"><span class="nav-item-title">Request Absence</span></div></a></li>
-                                <li><a href="{% url 'students:parent_absence_requests' %}" class="nav-item"><span class="nav-item-icon">🗓️</span><div class="nav-item-label"><span class="nav-item-title">Absence Requests</span></div></a></li>
-                                <li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
-                                <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">🔔</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
+                                {% if feature_class_supplies %}<li><a href="{% url 'operations:parent_supply_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F392;</span><div class="nav-item-label"><span class="nav-item-title">Class Supplies</span><span class="nav-item-sub">Items needed for your child</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -1090,6 +1057,10 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:payment_dashboard' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payments</span></div></a></li>
                                 <li><a href="{% url 'operations:record_payment' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Record Payment</span></div></a></li>
                                 <li><a href="{% url 'finance:parent_fee_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parent Fees</span></div></a></li>
+                                {% if feature_finance_admin %}<li><a href="{% url 'finance:purchase_order_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F6D2;</span><div class="nav-item-label"><span class="nav-item-title">Purchase Orders</span></div></a></li>
+                                <li><a href="{% url 'finance:bank_account_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E6;</span><div class="nav-item-label"><span class="nav-item-title">Bank Accounts</span></div></a></li>
+                                <li><a href="{% url 'finance:fee_discount_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3F7;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Fee Discounts</span></div></a></li>
+                                <li><a href="{% url 'finance:fee_installment_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C6;</span><div class="nav-item-label"><span class="nav-item-title">Installment Plans</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -1105,12 +1076,12 @@ background: rgba(2, 6, 23, 0.98);
                         </div>
                     </div>
                     <div class="nav-section">
-                        <div class="nav-section-header" onclick="toggleSection(this)"><span>📢 General</span><span class="toggle-icon">▾</span></div>
+                        <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4E2; General</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
-                                <li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
-                                <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">🔔</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
+                                <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E2;</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
+                                <li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">&#x1F916;</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>
+                                <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">&#x1F514;</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
                             </ul>
                         </div>
                     </div>

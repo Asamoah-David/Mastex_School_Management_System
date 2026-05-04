@@ -32,9 +32,6 @@
                 {% for c in classes %}
                 <option value="{{ c }}" {% if exam.class_name == c %}selected{% endif %}>{{ c }}</option>
                 {% endfor %}
-                <option value="SHS 1">SHS 1</option>
-                <option value="SHS 2">SHS 2</option>
-                <option value="SHS 3">SHS 3</option>
             </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
@@ -50,8 +47,8 @@
             <input type="time" id="end_time" name="end_time" title="Enter the end time" style="padding:0.5rem;" value="{{ exam.end_time|time:'H:i'|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
-            <label for="room">Room</label>
-            <input type="text" id="room" name="room" maxlength="50" title="Enter the room number" style="padding:0.5rem;" value="{{ exam.room|default:'' }}">
+            <label for="venue">Venue / Room</label>
+            <input type="text" id="venue" name="venue" maxlength="100" title="Enter the venue or room" style="padding:0.5rem;" value="{{ exam.venue|default:'' }}">
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
             <label for="notes">Notes</label>

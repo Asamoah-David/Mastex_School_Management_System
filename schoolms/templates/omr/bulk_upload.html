@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Bulk Upload · {{ exam.title }} · MastexEDU{% endblock %}
+{% block page_title %}Bulk Upload Student Sheets{% endblock %}
+{% block page_subtitle %}{{ exam.title }} · {{ exam.subject }} · {{ exam.class_name }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:student_upload' exam.pk %}" class="btn btn-secondary">← Single Upload</a>
+    <a href="{% url 'omr:results' exam.pk %}" class="btn btn-secondary">View Results</a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;align-items:start;">
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Upload Multiple Sheets</h3></div>
+        <form method="post" enctype="multipart/form-data" style="padding:1rem;">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label">Select Images <span style="color:var(--danger)">*</span></label>
+                <input type="file" name="images" class="form-control" accept="image/*" multiple required>
+                <small class="text-muted">Select multiple JPG/PNG files at once (Ctrl+Click or Shift+Click).</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Student Names (one per line, matching image order)</label>
+                <textarea name="student_names" class="form-control" rows="6" placeholder="John Mensah&#10;Ama Asante&#10;Kwesi Boateng&#10;... (leave blank to use Student 1, Student 2, etc.)">{{ post.student_names|default:'' }}</textarea>
+                <small class="text-muted">Enter one name per line. Must match the number of images if provided.</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Class (optional)</label>
+                <input type="text" name="class_name" class="form-control" value="{{ post.class_name|default:default_class }}">
+            </div>
+            <div style="background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:.75rem;margin-bottom:1rem;font-size:.88rem;">
+                <strong>Note:</strong> Bulk upload automatically processes and saves all images. You will not be able to review individual sheets before saving. For manual review, use single-sheet upload.
+            </div>
+            <button type="submit" class="btn btn-primary">Process &amp; Save All →</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Exam Info</h3></div>
+        <div style="padding:1rem;font-size:.9rem;">
+            <div class="mb-xs"><strong>Template:</strong> {{ exam.get_template_type_display }}</div>
+            <div class="mb-xs"><strong>Questions:</strong> {{ exam.total_questions }}</div>
+            <div class="mb-xs"><strong>Already marked:</strong> {{ exam.result_count }}</div>
+        </div>
+        <div style="padding:0 1rem 1rem;font-size:.85rem;color:var(--text-muted);">
+            <strong>Processing order:</strong>
+            <ul style="margin:.35rem 0 0;padding-left:1.1rem;line-height:1.6;">
+                <li>Images sorted by filename</li>
+                <li>Names matched by list order</li>
+                <li>Failed images are skipped (warning shown)</li>
+                <li>Successful results saved immediately</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

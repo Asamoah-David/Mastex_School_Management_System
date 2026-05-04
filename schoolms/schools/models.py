@@ -287,6 +287,10 @@ class SchoolFeature(models.Model):
         ("early_warning", "Early Warning System"),
         ("report_cards", "Digital Report Cards"),
         ("scholarships", "Scholarships & Bursaries"),
+        # New features (Session 10+)
+        ("omr_marking", "OMR Exam Marking"),
+        ("class_supplies", "Class Supply Tracker"),
+        ("job_portal", "Job Portal (Recruitment)"),
     )
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="features")

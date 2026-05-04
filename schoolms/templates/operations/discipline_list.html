@@ -4,10 +4,11 @@
 {% block page_title %}Discipline Incidents{% endblock %}
 {% block extra_css %}
 <style>
+.badge-positive { background: #28a745; color: #fff; }
 .badge-minor { background: #ffc107; color: #000; }
-.badge-moderate { background: #fd7e14; color: #fff; }
-.badge-serious { background: #dc3545; color: #fff; }
-.badge-severe { background: #6f42c1; color: #fff; }
+.badge-major { background: #dc3545; color: #fff; }
+.badge-suspension { background: #6f42c1; color: #fff; }
+.badge-expulsion { background: #343a40; color: #fff; }
 </style>
 {% endblock %}
 {% block content %}
@@ -37,9 +38,9 @@
         {% for inc in incidents %}
         <tr>
             <td>{{ inc.student.user.get_full_name }}</td>
-            <td>{{ inc.incident_type }}</td>
+            <td>{{ inc.title }}</td>
             <td>{{ inc.incident_date|date:"M d, Y" }}</td>
-            <td><span class="badge badge-{{ inc.severity }}">{{ inc.severity|title }}</span></td>
+            <td><span class="badge badge-{{ inc.incident_type }}">{{ inc.get_incident_type_display }}</span></td>
             <td>{{ inc.reported_by.get_full_name|default:"N/A" }}</td>
             <td>
                 <a href="{% url 'operations:discipline_detail' inc.pk %}" class="btn btn-sm btn-info">👁️ View</a>

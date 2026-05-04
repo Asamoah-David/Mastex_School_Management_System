@@ -401,6 +401,173 @@ class GradingService:
         }
 
 
+class SchemeBasedGradingService:
+    """Compute report-card scores using an AssessmentScheme.
+
+    Formula (matches spec exactly):
+        CA  contribution  = (ca_raw  / ca_possible)  * ca_weight
+        Exam contribution = (exam_raw / exam_possible) * exam_weight
+        Final             = CA contribution + Exam contribution
+    """
+
+    @staticmethod
+    def _raw_score_for_item(item, student):
+        """Return (raw_score, is_found) for a single AssessmentSchemeItem."""
+        from .models import AssessmentScore, ManualExamScore, ManualExamStudentScore
+        st = item.source_type
+
+        if st in ("quiz",):
+            from .models import QuizAttempt
+            if item.source_id:
+                attempt = (
+                    QuizAttempt.objects
+                    .filter(quiz_id=item.source_id, student=student, is_completed=True)
+                    .order_by("-score")
+                    .first()
+                )
+                if attempt and attempt.score is not None:
+                    # QuizAttempt.score is a percentage (0–100); scale to item.max_score
+                    raw = round(float(attempt.score) / 100.0 * item.max_score, 2)
+                    return raw, True
+            return 0.0, False
+
+        if st in ("online_exam",):
+            try:
+                from operations.models import ExamAttempt
+                if item.source_id:
+                    attempt = (
+                        ExamAttempt.objects
+                        .filter(exam_id=item.source_id, student=student, is_completed=True)
+                        .order_by("-score")
+                        .first()
+                    )
+                    if attempt and attempt.score is not None:
+                        pct = float(attempt.score)
+                        return round(pct / 100 * item.max_score, 2), True
+            except ImportError:
+                pass
+            return 0.0, False
+
+        if st in ("omr_exam",):
+            from omr.models import OmrResult
+            if item.source_id:
+                result = OmrResult.objects.filter(exam_id=item.source_id, student=student).first()
+                if result:
+                    return result.score, True
+            return 0.0, False
+
+        if st in ("omr_combined",):
+            from omr.models import OmrExamSectionB
+            if item.source_id:
+                sec_b = OmrExamSectionB.objects.filter(exam_id=item.source_id, student=student).first()
+                if sec_b:
+                    return sec_b.total_raw_score, True
+            return 0.0, False
+
+        if st == "manual_exam":
+            if item.source_id:
+                entry = ManualExamStudentScore.objects.filter(
+                    exam_id=item.source_id, student=student
+                ).first()
+                if entry:
+                    return entry.score, True
+            return 0.0, False
+
+        if st == "imported_exam":
+            # Imported exam scores are read from StudentResultSummary.exam_score
+            # (pre-existing result data, e.g. migrated from another system).
+            # source_id is not used — there is one summary per student/subject/term.
+            from .models import StudentResultSummary
+            summary = StudentResultSummary.objects.filter(
+                student=student, subject=item.scheme.subject, term=item.scheme.term
+            ).first()
+            if summary and summary.exam_score is not None:
+                return float(summary.exam_score), True
+            return 0.0, False
+
+        if st in ("manual_ca", "assignment", "class_test", "other_ca"):
+            qs = AssessmentScore.objects.filter(
+                student=student, subject=item.scheme.subject, term=item.scheme.term
+            )
+            if item.source_id:
+                # source_id = AssessmentType PK — filter to that specific type only
+                qs = qs.filter(assessment_type_id=item.source_id)
+            total = sum(float(s.score) for s in qs)
+            return total, bool(qs.exists())
+
+        return 0.0, False
+
+    @staticmethod
+    def compute_and_save(scheme, student):
+        """Calculate CA + Exam contributions and upsert StudentReportCardScore."""
+        from .models import StudentReportCardScore
+
+        ca_items = [i for i in scheme.items.filter(include_in_report_card=True, category="ca")]
+        exam_items = [i for i in scheme.items.filter(include_in_report_card=True, category="exam")]
+
+        ca_raw = 0.0
+        ca_possible = sum(float(i.max_score) for i in ca_items)
+        ca_found_any = False
+        for item in ca_items:
+            raw, found = SchemeBasedGradingService._raw_score_for_item(item, student)
+            ca_raw += raw
+            if found:
+                ca_found_any = True
+
+        exam_raw = 0.0
+        exam_possible = sum(float(i.max_score) for i in exam_items)
+        exam_found_any = False
+        for item in exam_items:
+            raw, found = SchemeBasedGradingService._raw_score_for_item(item, student)
+            exam_raw += raw
+            if found:
+                exam_found_any = True
+
+        ca_contribution = round((ca_raw / ca_possible) * scheme.ca_weight, 2) if ca_possible > 0 else 0.0
+        exam_contribution = round((exam_raw / exam_possible) * scheme.exam_weight, 2) if exam_possible > 0 else 0.0
+        final = round(ca_contribution + exam_contribution, 2)
+
+        has_ca_items = bool(ca_items)
+        has_exam_items = bool(exam_items)
+        if (has_ca_items and not ca_found_any) or (has_exam_items and not exam_found_any):
+            status = "incomplete"
+        elif not has_ca_items and not has_exam_items:
+            status = "pending"
+        else:
+            status = "complete"
+
+        obj, _ = StudentReportCardScore.objects.update_or_create(
+            student=student,
+            subject=scheme.subject,
+            term=scheme.term,
+            defaults={
+                "school": scheme.school,  # use scheme.school — student.school may be None
+                "scheme": scheme,
+                "ca_raw_score": round(ca_raw, 2),
+                "ca_total_possible": ca_possible,
+                "ca_contribution": ca_contribution,
+                "exam_raw_score": round(exam_raw, 2),
+                "exam_total_possible": exam_possible,
+                "exam_contribution": exam_contribution,
+                "final_score": final,
+                "status": status,
+            },
+        )
+        return obj
+
+    @staticmethod
+    def compute_for_class(scheme):
+        """Compute StudentReportCardScore for every student in scheme.class_name."""
+        from django.db import transaction
+        from students.models import Student
+        students = list(Student.objects.filter(school=scheme.school, class_name=scheme.class_name))
+        results = []
+        with transaction.atomic():
+            for student in students:
+                results.append(SchemeBasedGradingService.compute_and_save(scheme, student))
+        return results
+
+
 def ensure_default_grading_setup(school):
     """
     Ensure a school has default grading configuration.

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Score Entry · {{ exam.exam_title }} · MastexEDU{% endblock %}
+{% block page_title %}Score Entry{% endblock %}
+{% block page_subtitle %}{{ exam.exam_title }} — {{ exam.subject }} | {{ exam.term }} | {{ exam.class_name }} (Max: {{ exam.max_score }}){% endblock %}
+{% block content %}
+{% if messages %}{% for msg in messages %}<div class="alert alert-{{ msg.tags }}">{{ msg }}</div>{% endfor %}{% endif %}
+<div class="button-row mb-sm">
+  <a href="{% url 'academics:manual_exam_list' %}" class="btn btn-secondary">Back to Exams</a>
+</div>
+<div class="card">
+  {% if rows %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Admission No.</th>
+            <th>Student Name</th>
+            <th>Score (0–{{ exam.max_score }})</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.student.admission_number }}</td>
+          <td>{{ row.student.user.get_full_name }}</td>
+          <td>
+            <input type="number"
+                   name="score_{{ row.student.pk }}"
+                   value="{{ row.score }}"
+                   min="0" max="{{ exam.max_score }}" step="0.5"
+                   class="form-control form-control-sm"
+                   style="width:100px"
+                   placeholder="—">
+          </td>
+          <td>
+            <input type="text"
+                   name="remarks_{{ row.student.pk }}"
+                   value="{{ row.remarks }}"
+                   class="form-control form-control-sm"
+                   placeholder="optional">
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="button-row mt-sm">
+      <button type="submit" class="btn btn-primary">Save Scores</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="text-muted text-center py-3">No students found in class <strong>{{ exam.class_name }}</strong>.</p>
+  {% endif %}
+</div>
+{% endblock %}

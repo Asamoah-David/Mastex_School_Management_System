@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{% if editing %}Edit Scheme{% else %}New Scheme{% endif %} · MastexEDU{% endblock %}
+{% block page_title %}{% if editing %}Edit Assessment Scheme{% else %}New Assessment Scheme{% endif %}{% endblock %}
+{% block page_subtitle %}Configure CA/Exam weights and score sources{% endblock %}
+{% block content %}
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+<div class="card" style="max-width:680px">
+  <form method="post">
+    {% csrf_token %}
+    {% if not editing %}
+    <div class="form-group">
+      <label class="form-label">Class</label>
+      <input type="text" name="class_name" class="form-control" list="class-list" value="{{ scheme.class_name|default:'' }}" required>
+      <datalist id="class-list">{% for c in classes %}<option value="{{ c }}">{% endfor %}</datalist>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Subject</label>
+      <select name="subject_id" class="form-control" required>
+        <option value="">-- Select Subject --</option>
+        {% for s in subjects %}<option value="{{ s.pk }}" {% if scheme.subject_id == s.pk %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Term</label>
+      <select name="term_id" class="form-control" required>
+        <option value="">-- Select Term --</option>
+        {% for t in terms %}<option value="{{ t.pk }}" {% if scheme.term_id == t.pk %}selected{% endif %}>{{ t.name }}{% if t.is_current %} (current){% endif %}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="form-group">
+      <label class="form-label">Academic Year</label>
+      <select name="academic_year_id" class="form-control">
+        <option value="">-- None --</option>
+        {% for y in academic_years %}<option value="{{ y.pk }}" {% if scheme.academic_year_id == y.pk %}selected{% endif %}>{{ y.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="row">
+      <div class="col">
+        <div class="form-group">
+          <label class="form-label">CA Weight (%)</label>
+          <input type="number" name="ca_weight" class="form-control" min="0" max="100" step="0.1" value="{{ scheme.ca_weight|default:'50' }}" required>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-group">
+          <label class="form-label">Exam Weight (%)</label>
+          <input type="number" name="exam_weight" class="form-control" min="0" max="100" step="0.1" value="{{ scheme.exam_weight|default:'50' }}" required>
+          <small class="text-muted">CA + Exam must total 100.</small>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea name="notes" class="form-control" rows="2">{{ scheme.notes|default:'' }}</textarea>
+    </div>
+    {% if editing %}
+    <div class="form-group">
+      <label class="form-check-label">
+        <input type="checkbox" name="is_active" {% if scheme.is_active %}checked{% endif %}> Active
+      </label>
+    </div>
+    {% endif %}
+    <div class="button-row mt-sm">
+      <button type="submit" class="btn btn-primary">{% if editing %}Save Changes{% else %}Create Scheme{% endif %}</button>
+      <a href="{% url 'academics:assessment_scheme_list' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

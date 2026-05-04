@@ -21,11 +21,11 @@
         </div>
         <div class="detail-item">
             <label>Type:</label>
-            <span>{{ incident.incident_type }}</span>
+            <span>{{ incident.title }}</span>
         </div>
         <div class="detail-item">
             <label>Severity:</label>
-            <span class="badge badge-{{ incident.severity }}">{{ incident.severity|title }}</span>
+            <span class="badge badge-{{ incident.incident_type }}">{{ incident.get_incident_type_display }}</span>
         </div>
         <div class="detail-item">
             <label>Reported By:</label>

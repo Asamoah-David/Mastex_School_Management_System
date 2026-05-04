@@ -528,8 +528,8 @@ class ExamSchedule(models.Model):
         related_name="exam_schedules",
     )
     exam_date = models.DateField()
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     venue = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
 
@@ -1410,3 +1410,206 @@ class ReportCard(SchoolScopedModel):
                 is_latest=True,
             ).update(is_latest=False)
         super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Assessment Scheme — flexible CA/Exam score composition
+# ---------------------------------------------------------------------------
+
+class AssessmentScheme(SchoolScopedModel):
+    """Per class/subject/term configuration of which score sources count.
+
+    The teacher selects which quiz, OMR, manual or other items contribute
+    to CA (50 %) and which contribute to Exam (50 %).  The weights must
+    sum to 100.
+    """
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="assessment_schemes")
+    class_name = models.CharField(max_length=100, help_text="Class this scheme applies to.")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="assessment_schemes")
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="assessment_schemes")
+    academic_year = models.ForeignKey(
+        AcademicYear, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="assessment_schemes",
+    )
+    ca_weight = models.FloatField(default=50.0, help_text="CA contribution to final score (%).")
+    exam_weight = models.FloatField(default=50.0, help_text="Exam contribution to final score (%).")
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Assessment Scheme"
+        verbose_name_plural = "Assessment Schemes"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "class_name", "subject", "term"],
+                name="uniq_scheme_school_class_subj_term",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        total = round(float(self.ca_weight or 0) + float(self.exam_weight or 0), 4)
+        if total != 100.0:
+            raise ValidationError("ca_weight and exam_weight must sum to 100.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.class_name} | {self.subject} | {self.term} — CA {self.ca_weight}% / Exam {self.exam_weight}%"
+
+
+class AssessmentSchemeItem(models.Model):
+    """A single score source linked to an AssessmentScheme.
+
+    source_type identifies the origin (quiz, omr_exam, manual_exam, …).
+    source_id is the PK of the related object (nullable for future items
+    not yet created or for manual_ca entries without a specific record).
+    """
+
+    SOURCE_TYPE_CHOICES = [
+        ("quiz", "Quiz"),
+        ("assignment", "Assignment / Homework"),
+        ("class_test", "Class Test"),
+        ("manual_ca", "Manual CA Entry"),
+        ("other_ca", "Other CA"),
+        ("online_exam", "Online Exam"),
+        ("omr_exam", "OMR Exam (Section A only)"),
+        ("omr_combined", "OMR Exam (Section A + Section B)"),
+        ("manual_exam", "Manual Offline Exam"),
+        ("imported_exam", "Imported Exam Score"),
+    ]
+    CATEGORY_CHOICES = [
+        ("ca", "Continuous Assessment"),
+        ("exam", "Exam"),
+    ]
+
+    scheme = models.ForeignKey(AssessmentScheme, on_delete=models.CASCADE, related_name="items")
+    source_type = models.CharField(max_length=20, choices=SOURCE_TYPE_CHOICES)
+    source_id = models.IntegerField(
+        null=True, blank=True,
+        help_text="PK of the related OmrExam / Quiz / ManualExamScore / etc. record.",
+    )
+    category = models.CharField(max_length=5, choices=CATEGORY_CHOICES)
+    label = models.CharField(max_length=200, help_text="Human-readable display name for this item.")
+    max_score = models.FloatField(default=100.0, help_text="Maximum possible raw score for this item.")
+    include_in_report_card = models.BooleanField(default=True)
+    order_index = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["category", "order_index", "id"]
+        verbose_name = "Assessment Scheme Item"
+        verbose_name_plural = "Assessment Scheme Items"
+
+    def __str__(self):
+        return f"[{self.get_category_display()}] {self.label} ({self.get_source_type_display()})"
+
+
+class ManualExamScore(SchoolScopedModel):
+    """Offline / paper exam score entered manually by a teacher.
+
+    Can be selected as an Exam source in an AssessmentScheme.
+    """
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="manual_exam_scores")
+    exam_title = models.CharField(max_length=200)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="manual_exam_scores")
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="manual_exam_scores")
+    class_name = models.CharField(max_length=100)
+    max_score = models.FloatField(default=100.0)
+    date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Manual Exam"
+        verbose_name_plural = "Manual Exams"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "exam_title", "subject", "term", "class_name"],
+                name="uniq_manualexam_school_title_subj_term_class",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.exam_title} — {self.subject} | {self.term}"
+
+
+class ManualExamStudentScore(models.Model):
+    """Per-student score for a ManualExamScore record."""
+
+    exam = models.ForeignKey(ManualExamScore, on_delete=models.CASCADE, related_name="student_scores")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="manual_exam_student_scores")
+    score = models.FloatField()
+    remarks = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("exam", "student")]
+        ordering = ["student__admission_number"]
+        verbose_name = "Manual Exam Student Score"
+
+    def clean(self):
+        super().clean()
+        if self.score < 0:
+            raise ValidationError({"score": "Score cannot be negative."})
+        if self.score > self.exam.max_score:
+            raise ValidationError({"score": "Score cannot exceed the exam's max_score."})
+
+    def __str__(self):
+        return f"{self.student} — {self.exam.exam_title}: {self.score}/{self.exam.max_score}"
+
+
+class StudentReportCardScore(models.Model):
+    """Scheme-computed CA + Exam contributions → final score per student/subject/term.
+
+    Replaces nothing — sits alongside StudentResultSummary.
+    Generated (or regenerated) via SchemeBasedGradingService.compute_and_save().
+    """
+
+    STATUS_CHOICES = [
+        ("complete", "Complete"),
+        ("incomplete", "Incomplete — missing sources"),
+        ("pending", "Pending calculation"),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="report_card_scores")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="report_card_scores")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="report_card_scores")
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="report_card_scores")
+    scheme = models.ForeignKey(
+        AssessmentScheme, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="report_card_scores",
+    )
+    ca_raw_score = models.FloatField(default=0)
+    ca_total_possible = models.FloatField(default=0)
+    ca_contribution = models.FloatField(default=0, help_text="Out of ca_weight (e.g. 50).")
+    exam_raw_score = models.FloatField(default=0)
+    exam_total_possible = models.FloatField(default=0)
+    exam_contribution = models.FloatField(default=0, help_text="Out of exam_weight (e.g. 50).")
+    final_score = models.FloatField(default=0, help_text="ca_contribution + exam_contribution.")
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="pending", db_index=True)
+    calculated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("student", "subject", "term")]
+        verbose_name = "Student Report Card Score"
+        verbose_name_plural = "Student Report Card Scores"
+        ordering = ["student__admission_number"]
+        indexes = [
+            models.Index(fields=["school", "term"], name="idx_rcscore_school_term"),
+            models.Index(fields=["school", "status"], name="idx_rcscore_school_status"),
+        ]
+
+    def __str__(self):
+        return f"{self.student} | {self.subject} | {self.term}: {self.final_score:.1f}"

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}OMR Marking · MastexEDU{% endblock %}
+{% block page_title %}OMR Marking{% endblock %}
+{% block page_subtitle %}Scan-and-mark answer sheets automatically{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:exam_create' %}" class="btn btn-primary">+ New Exam</a>
+    <a href="{% url 'omr:printable_sheet' 'basic_30_ad' %}" class="btn btn-secondary" target="_blank">Print 30-Q Sheet</a>
+    <a href="{% url 'omr:printable_sheet' 'bece_60_ae' %}" class="btn btn-secondary" target="_blank">Print 60-Q Sheet</a>
+</div>
+
+{% if exams %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Exam Title</th>
+                    <th>Subject</th>
+                    <th>Class</th>
+                    <th>Date</th>
+                    <th>Template</th>
+                    <th>Answer Key</th>
+                    <th>Results</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for exam in exams %}
+            <tr>
+                <td><a href="{% url 'omr:exam_detail' exam.pk %}"><strong>{{ exam.title }}</strong></a></td>
+                <td>{{ exam.subject }}</td>
+                <td>{{ exam.class_name }}</td>
+                <td>{{ exam.date|date:"d M Y" }}</td>
+                <td><span class="badge badge-info">{{ exam.get_template_type_display }}</span></td>
+                <td>
+                    {% if exam.has_answer_key %}
+                        <span class="badge badge-success">Confirmed</span>
+                    {% elif exam.answer_key %}
+                        <span class="badge badge-warning">Unconfirmed</span>
+                    {% else %}
+                        <span class="badge badge-secondary">Not set</span>
+                    {% endif %}
+                </td>
+                <td>{{ exam.result_count }}</td>
+                <td>
+                    <a href="{% url 'omr:exam_detail' exam.pk %}" class="btn btn-secondary btn-sm">Open</a>
+                    {% if exam.result_count > 0 %}
+                    <a href="{% url 'omr:results' exam.pk %}" class="btn btn-secondary btn-sm">Results</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card text-center p-lg">
+    <div style="font-size:3rem;margin-bottom:1rem;">📋</div>
+    <h3 style="color:var(--text-main);margin-bottom:.5rem;">No exams yet</h3>
+    <p class="text-muted mb-md">Create your first OMR exam to get started.</p>
+    <a href="{% url 'omr:exam_create' %}" class="btn btn-primary">Create Exam</a>
+</div>
+{% endif %}
+
+<div class="card mt-md" style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);">
+    <div class="card-header"><h3 class="card-title">How OMR Marking Works</h3></div>
+    <div style="padding:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;">
+        <div>
+            <div style="font-size:1.5rem;margin-bottom:.25rem;">1️⃣</div>
+            <strong>Create Exam</strong>
+            <p class="text-muted" style="font-size:.85rem;margin:.25rem 0 0;">Set title, subject, class and template type.</p>
+        </div>
+        <div>
+            <div style="font-size:1.5rem;margin-bottom:.25rem;">2️⃣</div>
+            <strong>Upload Answer Key</strong>
+            <p class="text-muted" style="font-size:.85rem;margin:.25rem 0 0;">Photograph the teacher's filled answer sheet.</p>
+        </div>
+        <div>
+            <div style="font-size:1.5rem;margin-bottom:.25rem;">3️⃣</div>
+            <strong>Review & Confirm</strong>
+            <p class="text-muted" style="font-size:.85rem;margin:.25rem 0 0;">Check detected answers and correct if needed.</p>
+        </div>
+        <div>
+            <div style="font-size:1.5rem;margin-bottom:.25rem;">4️⃣</div>
+            <strong>Upload Student Sheets</strong>
+            <p class="text-muted" style="font-size:.85rem;margin:.25rem 0 0;">One at a time or bulk upload.</p>
+        </div>
+        <div>
+            <div style="font-size:1.5rem;margin-bottom:.25rem;">5️⃣</div>
+            <strong>View Results & Export</strong>
+            <p class="text-muted" style="font-size:.85rem;margin:.25rem 0 0;">See class analysis and download CSV.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

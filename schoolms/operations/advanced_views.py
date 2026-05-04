@@ -15,7 +15,7 @@ from schools.models import School
 from operations.models import (
     StudentAttendance, Expense, Budget, CanteenItem, CanteenPayment,
     BusPayment, TextbookSale, HostelFee,
-    DisciplineIncident, BehaviorPoint
+    BehaviorPoint
 )
 from accounts.permissions import user_can_manage_school, can_manage_finance
 from accounts.hr_models import StaffPayrollPayment

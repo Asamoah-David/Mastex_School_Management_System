@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Upload Student Sheet · {{ exam.title }} · MastexEDU{% endblock %}
+{% block page_title %}Upload Student Sheet{% endblock %}
+{% block page_subtitle %}{{ exam.title }} · {{ exam.subject }} · {{ exam.class_name }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:exam_detail' exam.pk %}" class="btn btn-secondary">← Back to Exam</a>
+    <a href="{% url 'omr:bulk_upload' exam.pk %}" class="btn btn-secondary">Bulk Upload</a>
+    {% if exam.result_count > 0 %}
+    <a href="{% url 'omr:results' exam.pk %}" class="btn btn-secondary">View Results ({{ exam.result_count }})</a>
+    {% endif %}
+</div>
+
+{% if processing_error %}
+<div class="card mb-md" style="border-left:4px solid var(--danger);">
+    <div style="padding:.75rem 1rem;">
+        <strong>Processing failed:</strong> {{ processing_error }}
+        <br><small>Use manual entry below, or try again with a clearer image.</small>
+    </div>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;align-items:start;">
+    <div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Student Information</h3></div>
+            <form method="post" enctype="multipart/form-data" id="studentUploadForm" style="padding:1rem;">
+                {% csrf_token %}
+                <input type="hidden" name="upload_mode" id="upload_mode" value="file">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Student Name <span style="color:var(--danger)">*</span></label>
+                        <input type="text" name="student_name" class="form-control" value="{{ post.student_name|default:'' }}" placeholder="e.g. John Mensah" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Class</label>
+                        <input type="text" name="class_name" class="form-control" value="{{ post.class_name|default:default_class }}">
+                    </div>
+                </div>
+                <div class="form-group" id="imageField">
+                    <label class="form-label">Answer Sheet Image</label>
+                    <!-- Hidden file inputs — triggered by buttons -->
+                    <input type="file" id="stCameraInput" name="image" accept="image/*" capture="environment" style="display:none;" onchange="stPreview(this)">
+                    <input type="file" id="stGalleryInput" name="image" accept="image/*" style="display:none;" onchange="stPreview(this)">
+                    <!-- Capture buttons -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.5rem;">
+                        <button type="button" class="btn btn-primary" style="font-size:1rem;padding:.6rem;" onclick="document.getElementById('stCameraInput').click()">
+                            📷 Take Photo
+                        </button>
+                        <button type="button" class="btn btn-secondary" style="font-size:1rem;padding:.6rem;" onclick="document.getElementById('stGalleryInput').click()">
+                            🖼 Upload File
+                        </button>
+                    </div>
+                    <!-- Preview -->
+                    <div id="stPreview" style="display:none;margin-bottom:.5rem;text-align:center;">
+                        <img id="stPreviewImg" src="" alt="Preview" style="max-width:100%;max-height:260px;border-radius:8px;border:2px solid var(--success);object-fit:contain;">
+                        <div id="stPreviewName" style="font-size:.75rem;color:var(--text-muted);margin-top:.25rem;"></div>
+                    </div>
+                </div>
+                <div style="margin-top:.75rem;padding:.6rem .75rem;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:8px;display:flex;align-items:center;gap:.6rem;">
+                    <input type="checkbox" id="autoSaveCheck" name="auto_save" value="1" checked style="width:1.1rem;height:1.1rem;cursor:pointer;">
+                    <label for="autoSaveCheck" style="cursor:pointer;font-size:.9rem;margin:0;">
+                        <strong>Fast mode</strong> — skip review &amp; save automatically if all answers detected clearly
+                    </label>
+                </div>
+                <div style="display:flex;gap:.75rem;margin-top:.75rem;">
+                    <button type="submit" id="btnProcess" class="btn btn-secondary" style="opacity:.5;cursor:not-allowed;" disabled>Process &amp; Save →</button>
+                    <button type="button" id="btnManual" class="btn btn-secondary" onclick="switchToManual()">Enter Manually</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Exam Info</h3></div>
+            <div style="padding:1rem;font-size:.9rem;">
+                <div class="mb-xs"><strong>Template:</strong> {{ exam.get_template_type_display }}</div>
+                <div class="mb-xs"><strong>Questions:</strong> {{ exam.total_questions }}</div>
+                <div class="mb-xs"><strong>Subject:</strong> {{ exam.subject }}</div>
+                <div class="mb-xs"><strong>Class:</strong> {{ exam.class_name }}</div>
+                <div class="mb-xs"><strong>Marked so far:</strong> {{ exam.result_count }}</div>
+            </div>
+        </div>
+        <div class="card mt-sm" style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.15);">
+            <div style="padding:.75rem;font-size:.85rem;">
+                <strong>Tips:</strong>
+                <ul style="margin:.4rem 0 0;padding-left:1.1rem;color:var(--text-muted);line-height:1.6;">
+                    <li>Dark contrasting background</li>
+                    <li>All 4 corners visible</li>
+                    <li>Good lighting, no glare</li>
+                    <li>Photo directly above</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function stPreview(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    /* Sync: clear the other input so only one file is submitted */
+    if (input.id === 'stCameraInput') document.getElementById('stGalleryInput').value = '';
+    else document.getElementById('stCameraInput').value = '';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const preview = document.getElementById('stPreview');
+        document.getElementById('stPreviewImg').src = e.target.result;
+        document.getElementById('stPreviewName').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+        preview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+
+    const btn = document.getElementById('btnProcess');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    btn.className = btn.className.replace('btn-secondary', 'btn-primary');
+}
+
+function switchToManual() {
+    document.getElementById('upload_mode').value = 'manual';
+    document.getElementById('imageField').style.display = 'none';
+    document.getElementById('btnManual').style.display = 'none';
+    document.getElementById('studentUploadForm').submit();
+}
+
+/* Before submit: strip the name off whichever input is empty */
+document.getElementById('studentUploadForm').addEventListener('submit', function() {
+    const cam = document.getElementById('stCameraInput');
+    const gal = document.getElementById('stGalleryInput');
+    if (cam && cam.files.length) { if (gal) gal.name = ''; }
+    else if (gal && gal.files.length) { if (cam) cam.name = ''; }
+});
+</script>
+{% endblock %}

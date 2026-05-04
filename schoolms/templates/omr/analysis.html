@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Analysis · {{ exam.title }} · MastexEDU{% endblock %}
+{% block page_title %}Class Analysis{% endblock %}
+{% block page_subtitle %}{{ exam.title }} · {{ exam.subject }} · {{ exam.class_name }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:results' exam.pk %}" class="btn btn-secondary">← Results</a>
+    <a href="{% url 'omr:export_csv' exam.pk %}" class="btn btn-success">⬇ Export CSV</a>
+</div>
+
+<div class="stats-grid mb-md">
+    <div class="stat-card">
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value">{{ analysis.total_students }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Class Average</div>
+        <div class="stat-value">{{ analysis.average_percentage }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Highest Score</div>
+        <div class="stat-value" style="color:var(--success);">{{ analysis.highest_percentage }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Lowest Score</div>
+        <div class="stat-value" style="color:var(--danger);">{{ analysis.lowest_percentage }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Passed (≥50%)</div>
+        <div class="stat-value" style="color:var(--success);">{{ analysis.pass_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Failed</div>
+        <div class="stat-value" style="color:var(--danger);">{{ analysis.fail_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Pass Rate</div>
+        <div class="stat-value">{{ analysis.pass_rate }}%</div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+    <!-- Top Missed Questions -->
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Most Missed Questions (Top 10)</h3></div>
+        {% if analysis.top_missed_questions %}
+        <div style="padding:.5rem 0;">
+            {% for q in analysis.top_missed_questions %}
+            <div style="padding:.5rem 1rem;display:flex;align-items:center;gap:.75rem;border-bottom:1px solid rgba(148,163,184,0.08);">
+                <span style="font-weight:700;min-width:2rem;">Q{{ q.question }}</span>
+                <div style="flex:1;background:rgba(15,23,42,0.4);border-radius:4px;height:8px;overflow:hidden;">
+                    <div style="height:8px;background:{% if q.correct_pct < 30 %}var(--danger){% elif q.correct_pct < 60 %}var(--warning){% else %}var(--success){% endif %};width:{{ q.correct_pct }}%;transition:width .3s;"></div>
+                </div>
+                <span style="min-width:3.5rem;font-size:.85rem;text-align:right;">{{ q.correct_pct }}%</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:1rem;color:var(--text-muted);">No data yet.</div>
+        {% endif %}
+    </div>
+
+    <!-- Student Ranking -->
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Student Ranking</h3></div>
+        {% if analysis.ranking %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead><tr><th>#</th><th>Student</th><th>Score</th><th>%</th></tr></thead>
+                <tbody>
+                {% for s in analysis.ranking %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ s.student_name }}</td>
+                    <td>{{ s.score|floatformat:0 }}/{{ s.total_questions }}</td>
+                    <td><span style="color:{% if s.percentage >= 50 %}var(--success){% else %}var(--danger){% endif %}">{{ s.percentage|floatformat:1 }}%</span></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding:1rem;color:var(--text-muted);">No results yet.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Per-Question Performance Table -->
+{% if analysis.question_performance %}
+<div class="card">
+    <div class="card-header"><h3 class="card-title">Per-Question Performance</h3></div>
+    <div style="padding:1rem;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:.4rem;">
+        {% for q in analysis.question_performance %}
+        <div style="border-radius:6px;padding:.4rem;text-align:center;background:{% if q.correct_pct >= 60 %}rgba(34,197,94,0.08){% elif q.correct_pct >= 30 %}rgba(234,179,8,0.08){% else %}rgba(239,68,68,0.08){% endif %};border:1px solid {% if q.correct_pct >= 60 %}rgba(34,197,94,0.25){% elif q.correct_pct >= 30 %}rgba(234,179,8,0.25){% else %}rgba(239,68,68,0.25){% endif %};">
+            <div style="font-size:.7rem;color:var(--text-muted);">Q{{ q.question }}</div>
+            <div style="font-size:.95rem;font-weight:700;color:{% if q.correct_pct >= 60 %}var(--success){% elif q.correct_pct >= 30 %}var(--warning){% else %}var(--danger){% endif %}">{{ q.correct_pct }}%</div>
+            <div style="font-size:.65rem;color:var(--text-muted);">{{ q.correct }}/{{ q.correct|add:q.wrong|add:q.blank|add:q.multiple }}</div>
+        </div>
+        {% endfor %}
+        </div>
+        <div style="margin-top:.75rem;display:flex;gap:1rem;font-size:.8rem;flex-wrap:wrap;">
+            <span style="color:var(--success);">■ ≥60% correct</span>
+            <span style="color:var(--warning);">■ 30–59% correct</span>
+            <span style="color:var(--danger);">■ &lt;30% correct</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if analysis.total_students == 0 %}
+<div class="card text-center p-lg">
+    <div style="font-size:2.5rem;margin-bottom:.75rem;">📊</div>
+    <h3 style="color:var(--text-main);margin-bottom:.5rem;">No results to analyse</h3>
+    <p class="text-muted mb-md">Upload student sheets first.</p>
+    <a href="{% url 'omr:student_upload' exam.pk %}" class="btn btn-primary">Upload Sheet</a>
+</div>
+{% endif %}
+{% endblock %}

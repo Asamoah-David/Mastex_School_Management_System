@@ -10,6 +10,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.utils import timezone
 from django.core.cache import cache
@@ -2796,19 +2797,20 @@ def payment_ledger_bulk_review_preview(request):
 
 # ============ Subscription Cron Endpoint (for Railway/external cron services) ============
 
+@require_POST
 def run_subscription_check(request):
     """
     Endpoint for external cron services (like cron-job.org) to trigger subscription checks.
     Requires a secret key for security.
     
-    Usage: GET /finance/run-subscription-check/?key=YOUR_SECRET_KEY
+    Usage: POST /finance/run-subscription-check/  Header: X-Cron-Key: YOUR_SECRET_KEY
     """
     import os
     from django.conf import settings
     
     import hmac as _hmac
     
-    provided_key = request.GET.get("key", "") or request.headers.get("X-Cron-Key", "")
+    provided_key = request.headers.get("X-Cron-Key", "") or request.POST.get("key", "")
     expected_key = getattr(settings, 'CRON_SECRET_KEY', os.environ.get('CRON_SECRET_KEY', ''))
     
     if not expected_key:

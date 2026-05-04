@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 from urllib.parse import urlencode
 
-from students.models import Student
+from students.models import Student, SchoolClass
 from schools.models import School
 from accounts.permissions import (
     user_can_manage_school,
@@ -452,6 +452,26 @@ def _ensure_core_academics_for_school(school):
         Subject.objects.get_or_create(school=school, name=name)
 
 
+def _get_school_classes(school):
+    """Return a sorted, deduplicated list of class names for a school.
+
+    Unions the canonical SchoolClass records with any free-text class_name
+    values already on Student records, so the dropdown is always complete
+    regardless of whether students have been enrolled yet.
+    """
+    if not school:
+        return []
+    from_school_class = set(
+        SchoolClass.objects.filter(school=school).values_list("name", flat=True)
+    )
+    from_students = set(
+        Student.objects.filter(school=school)
+        .exclude(class_name="")
+        .values_list("class_name", flat=True)
+    )
+    return sorted(from_school_class | from_students, key=str.lower)
+
+
 @login_required
 def results_management(request):
     """Results Management Hub - consolidated results entry page."""
@@ -550,8 +570,7 @@ def result_upload(request):
     _ensure_core_academics_for_school(school)
 
     # Get filter options
-    classes = Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
-    classes = [c for c in classes if c]
+    classes = _get_school_classes(school)
     subjects = Subject.objects.filter(school=school).order_by("name")
     exam_types = ExamType.objects.filter(school=school).order_by("name")
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
@@ -841,8 +860,7 @@ def result_list(request):
 
     results = results.order_by("student__admission_number", "term__name", "subject__name")
 
-    classes = Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
-    classes = [c for c in classes if c]
+    classes = _get_school_classes(school)
     subjects = Subject.objects.filter(school=school).order_by("name")
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
 
@@ -967,7 +985,7 @@ def report_card_generator(request):
     selected_student = (request.GET.get("student") or "").strip()
     selected_term = (request.GET.get("term") or "").strip()
 
-    classes = [c for c in Student.objects.filter(school=school).values_list("class_name", flat=True).distinct() if c]
+    classes = _get_school_classes(school)
     students = (
         Student.objects.filter(school=school, class_name=selected_class).select_related("user").order_by("admission_number")
         if selected_class
@@ -1078,8 +1096,7 @@ def homework_list(request):
 
     if class_filter:
         qs = qs.filter(class_name=class_filter)
-    classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
-    classes = [c for c in classes if c]
+    classes = _get_school_classes(school)
     page_obj = paginate(request, qs, per_page=25)
     return render(request, "academics/homework_list.html", {"homework": page_obj, "school": school, "classes": classes, "read_only": False, "page_obj": page_obj})
 
@@ -1117,11 +1134,12 @@ def homework_create(request):
                 )
                 messages.success(request, "Homework added.")
                 return redirect("academics:homework_list")
-            except (Subject.DoesNotExist, ValueError):
-                pass
+            except Subject.DoesNotExist:
+                messages.error(request, "Invalid subject selection.")
+            except ValueError:
+                messages.error(request, "Invalid due date format.")
     subjects = Subject.objects.filter(school=school).order_by("name")
-    classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
-    classes = [c for c in classes if c]
+    classes = _get_school_classes(school)
     return render(request, "academics/homework_form.html", {"school": school, "subjects": subjects, "classes": classes})
 
 
@@ -1152,11 +1170,12 @@ def homework_edit(request, pk):
                 homework.save()
                 messages.success(request, "Homework updated.")
                 return redirect("academics:homework_list")
-            except (Subject.DoesNotExist, ValueError):
-                pass
+            except Subject.DoesNotExist:
+                messages.error(request, "Invalid subject selection.")
+            except ValueError:
+                messages.error(request, "Invalid due date format.")
     subjects = Subject.objects.filter(school=school).order_by("name")
-    classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
-    classes = [c for c in classes if c]
+    classes = _get_school_classes(school)
     return render(request, "academics/homework_form.html", {"school": school, "subjects": subjects, "classes": classes, "homework": homework})
 
 
@@ -1193,7 +1212,7 @@ def exam_schedule_list(request):
     if class_name:
         qs = qs.filter(class_name=class_name)
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
-    classes = [c for c in Student.objects.filter(school=school).values_list("class_name", flat=True).distinct() if c]
+    classes = _get_school_classes(school)
 
     if not can_manage:
         if role == "student":
@@ -1237,7 +1256,7 @@ def exam_schedule_create(request):
         exam_date = request.POST.get("exam_date")
         start = request.POST.get("start_time") or None
         end = request.POST.get("end_time") or None
-        room = request.POST.get("room", "").strip()
+        venue = request.POST.get("venue", "").strip()
         notes = request.POST.get("notes", "").strip()
         if term_id and subject_id and exam_date:
             try:
@@ -1259,21 +1278,20 @@ def exam_schedule_create(request):
                     exam_date=exam_d,
                     start_time=st,
                     end_time=en,
-                    room=room,
+                    venue=venue,
                     notes=notes,
                 )
                 messages.success(request, "Exam scheduled.")
                 return redirect("academics:exam_schedule_list")
-            except (Term.DoesNotExist, Subject.DoesNotExist, ValueError, TypeError):
-                pass
+            except (Term.DoesNotExist, Subject.DoesNotExist):
+                messages.error(request, "Invalid term or subject. Please try again.")
+            except ValueError:
+                messages.error(request, "Invalid date or time format.")
     # Ensure standard options exist for dropdowns.
     _ensure_core_academics_for_school(school)
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
     subjects = Subject.objects.filter(school=school).order_by("name")
-    classes = (
-        Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
-    )
-    classes = [c for c in classes if c]
+    classes = _get_school_classes(school)
     return render(
         request,
         "academics/exam_schedule_form.html",
@@ -1296,7 +1314,7 @@ def exam_schedule_edit(request, pk):
         exam_date = request.POST.get("exam_date")
         start = request.POST.get("start_time") or None
         end = request.POST.get("end_time") or None
-        room = request.POST.get("room", "").strip()
+        venue = request.POST.get("venue", "").strip()
         notes = request.POST.get("notes", "").strip()
         if term_id and subject_id and exam_date:
             try:
@@ -1316,18 +1334,19 @@ def exam_schedule_edit(request, pk):
                 exam.exam_date = exam_d
                 exam.start_time = st
                 exam.end_time = en
-                exam.room = room
+                exam.venue = venue
                 exam.notes = notes
                 exam.save()
                 messages.success(request, "Exam schedule updated.")
                 return redirect("academics:exam_schedule_list")
-            except (Term.DoesNotExist, Subject.DoesNotExist, ValueError, TypeError):
-                pass
+            except (Term.DoesNotExist, Subject.DoesNotExist):
+                messages.error(request, "Invalid term or subject. Please try again.")
+            except ValueError:
+                messages.error(request, "Invalid date or time format.")
     _ensure_core_academics_for_school(school)
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
     subjects = Subject.objects.filter(school=school).order_by("name")
-    classes = Student.objects.filter(school=school).values_list("class_name", flat=True).distinct()
-    classes = [c for c in classes if c]
+    classes = _get_school_classes(school)
     return render(
         request,
         "academics/exam_schedule_form.html",

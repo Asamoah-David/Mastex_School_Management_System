@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Create OMR Exam · MastexEDU{% endblock %}
+{% block page_title %}Create OMR Exam{% endblock %}
+{% block page_subtitle %}Set up a new scan-marking session{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:dashboard' %}" class="btn btn-secondary">← OMR Dashboard</a>
+</div>
+
+<div class="card" style="max-width:640px;">
+    <div class="card-header"><h3 class="card-title">Exam Details</h3></div>
+    <form method="post" style="padding:1rem;">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="form-label">Exam Title <span style="color:var(--danger)">*</span></label>
+            <input type="text" name="title" class="form-control" value="{{ post.title|default:'' }}" placeholder="e.g. Term 2 Mathematics Exam" required>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label class="form-label">Subject <span style="color:var(--danger)">*</span></label>
+                <input type="text" name="subject" class="form-control" value="{{ post.subject|default:'' }}" placeholder="e.g. Mathematics" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Class <span style="color:var(--danger)">*</span></label>
+                <input type="text" name="class_name" class="form-control" value="{{ post.class_name|default:'' }}" placeholder="e.g. Form 2A" required>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label class="form-label">Exam Date <span style="color:var(--danger)">*</span></label>
+                <input type="date" name="date" class="form-control" value="{{ post.date|default:today }}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Template Type <span style="color:var(--danger)">*</span></label>
+                <select name="template_type" id="id_template_type" class="form-control" required>
+                    <option value="">— select —</option>
+                    {% for tmpl in templates %}
+                    <option value="{{ tmpl.template_id }}"
+                        data-max="{{ tmpl.total_questions }}"
+                        {% if post.template_type == tmpl.template_id %}selected{% endif %}>
+                        {{ tmpl.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Total Questions <span style="color:var(--danger)">*</span></label>
+            <input type="number" name="total_questions" id="id_total_questions" class="form-control"
+                value="{{ post.total_questions|default:'' }}" min="1" required>
+            <small class="text-muted" id="q_hint">Select a template to see the maximum questions.</small>
+        </div>
+        <div style="display:flex;gap:.75rem;margin-top:1.5rem;">
+            <button type="submit" class="btn btn-primary">Create Exam →</button>
+            <a href="{% url 'omr:dashboard' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="card mt-md" style="max-width:640px;">
+    <div class="card-header"><h3 class="card-title">Available Templates</h3></div>
+    <div style="padding:1rem;">
+        {% for tmpl in templates %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid rgba(148,163,184,0.1);">
+            <div>
+                <strong>{{ tmpl.name }}</strong>
+                <span class="text-muted" style="margin-left:.5rem;">{{ tmpl.total_questions }} questions · Options: {{ tmpl.options|join:", " }}</span>
+            </div>
+            <a href="{% url 'omr:printable_sheet' tmpl.template_id %}" class="btn btn-secondary btn-sm" target="_blank">Print Sheet</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script>
+document.getElementById('id_template_type').addEventListener('change', function() {
+    const sel = this.options[this.selectedIndex];
+    const maxQ = sel.getAttribute('data-max');
+    const qInput = document.getElementById('id_total_questions');
+    const hint = document.getElementById('q_hint');
+    if (maxQ) {
+        qInput.max = maxQ;
+        hint.textContent = 'Maximum ' + maxQ + ' questions for this template.';
+        if (!qInput.value || parseInt(qInput.value) > parseInt(maxQ)) {
+            qInput.value = maxQ;
+        }
+    }
+});
+</script>
+{% endblock %}

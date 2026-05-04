@@ -5,6 +5,8 @@ from .models import (
     AssessmentType, AssessmentScore, ExamScore, GradingPolicy,
     OnlineMeeting, AIStudentComment, StudentTranscript,
     QuestionBank, QuestionBankItem, EarlyWarningFlag, ReportCard,
+    AssessmentScheme, AssessmentSchemeItem,
+    ManualExamScore, ManualExamStudentScore, StudentReportCardScore,
 )
 
 
@@ -271,3 +273,42 @@ class ReportCardAdmin(admin.ModelAdmin):
         from django.utils import timezone
         queryset.update(published=True, published_at=timezone.now())
         self.message_user(request, f"{queryset.count()} report card(s) published.")
+
+
+class AssessmentSchemeItemInline(admin.TabularInline):
+    model = AssessmentSchemeItem
+    extra = 0
+    fields = ("category", "source_type", "source_id", "label", "max_score", "order_index", "include_in_report_card")
+
+
+@admin.register(AssessmentScheme)
+class AssessmentSchemeAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "school", "class_name", "subject", "term", "ca_weight", "exam_weight", "is_active")
+    list_filter = ("school", "is_active", "term")
+    search_fields = ("class_name", "subject__name")
+    readonly_fields = ("created_at", "updated_at")
+    inlines = [AssessmentSchemeItemInline]
+
+
+@admin.register(ManualExamScore)
+class ManualExamScoreAdmin(admin.ModelAdmin):
+    list_display = ("exam_title", "school", "subject", "term", "class_name", "max_score", "date")
+    list_filter = ("school", "term", "subject")
+    search_fields = ("exam_title", "class_name")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(ManualExamStudentScore)
+class ManualExamStudentScoreAdmin(admin.ModelAdmin):
+    list_display = ("student", "exam", "score", "created_at")
+    list_filter = ("exam__school",)
+    search_fields = ("student__user__first_name", "student__user__last_name", "exam__exam_title")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(StudentReportCardScore)
+class StudentReportCardScoreAdmin(admin.ModelAdmin):
+    list_display = ("student", "subject", "term", "ca_contribution", "exam_contribution", "final_score", "status", "calculated_at")
+    list_filter = ("school", "term", "status")
+    search_fields = ("student__user__first_name", "student__user__last_name", "subject__name")
+    readonly_fields = ("calculated_at",)

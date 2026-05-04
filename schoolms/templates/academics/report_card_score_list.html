@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Report Card Scores · MastexEDU{% endblock %}
+{% block page_title %}Report Card Scores{% endblock %}
+{% block page_subtitle %}Scheme-computed CA + Exam final scores{% endblock %}
+{% block content %}
+{% if messages %}{% for msg in messages %}<div class="alert alert-{{ msg.tags }}">{{ msg }}</div>{% endfor %}{% endif %}
+<div class="button-row mb-sm">
+  <a href="{% url 'academics:assessment_scheme_list' %}" class="btn btn-secondary">Assessment Schemes</a>
+</div>
+<div class="card mb-sm">
+  <form method="get" class="filter-row">
+    <select name="term_id" class="form-control form-control-sm">
+      <option value="">All Terms</option>
+      {% for t in terms %}<option value="{{ t.pk }}" {% if selected_term_id == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+    </select>
+    <input type="text" name="class_name" value="{{ selected_class }}" list="class-list" class="form-control form-control-sm" placeholder="Filter by class">
+    <datalist id="class-list">{% for c in classes %}<option value="{{ c }}">{% endfor %}</datalist>
+    <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+    <a href="{% url 'academics:report_card_score_list' %}" class="btn btn-sm btn-link">Clear</a>
+  </form>
+</div>
+<div class="card">
+  {% if scores %}
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Student</th><th>Class</th><th>Subject</th><th>Term</th>
+          <th>CA Raw</th><th>CA Contrib.</th><th>Exam Raw</th><th>Exam Contrib.</th>
+          <th>Final</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in scores %}
+      <tr>
+        <td>{{ s.student.user.get_full_name }}</td>
+        <td>{{ s.student.class_name }}</td>
+        <td>{{ s.subject.name }}</td>
+        <td>{{ s.term }}</td>
+        <td>{{ s.ca_raw_score }}/{{ s.ca_total_possible }}</td>
+        <td>{{ s.ca_contribution }}</td>
+        <td>{{ s.exam_raw_score }}/{{ s.exam_total_possible }}</td>
+        <td>{{ s.exam_contribution }}</td>
+        <td><strong>{{ s.final_score }}</strong></td>
+        <td>
+          {% if s.status == "complete" %}<span class="badge badge-success">Complete</span>
+          {% elif s.status == "incomplete" %}<span class="badge badge-warning">Incomplete</span>
+          {% else %}<span class="badge badge-secondary">Pending</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted text-center py-3">No scores calculated yet. Use <a href="{% url 'academics:assessment_scheme_list' %}">Assessment Schemes</a> to trigger calculation.</p>
+  {% endif %}
+</div>
+{% endblock %}

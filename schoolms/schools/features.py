@@ -321,6 +321,13 @@ FEATURE_REGISTRY: dict[str, dict] = {
         "min_plan": "basic",
         "icon": "bi-file-earmark-text",
     },
+    "omr_marking": {
+        "label": "OMR Exam Marking",
+        "description": "Scan and auto-mark multiple-choice answer sheets. Upload answer key once, then photograph student sheets to detect answers, calculate scores, and export CSV results.",
+        "category": "Academics",
+        "min_plan": "standard",
+        "icon": "bi-upc-scan",
+    },
     "scholarships": {
         "label": "Scholarships & Bursaries",
         "description": "Manage scholarship programmes, track awards, and link to fee discounts.",

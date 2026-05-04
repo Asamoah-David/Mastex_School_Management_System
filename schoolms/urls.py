@@ -124,6 +124,7 @@ if settings.API_DOCS_ENABLED:
 urlpatterns += [
     # App includes
     path("accounts/", include("accounts.urls")),
+    path("login/", RedirectView.as_view(url="/accounts/login/", permanent=True)),
     path("", include("django.contrib.auth.urls")),
     path("students/", include("students.urls")),
     path("parent/", include("students.parent_urls")),
@@ -135,6 +136,7 @@ urlpatterns += [
     path("notifications/", include("notifications.urls")),
     path("audit/", include("audit.urls")),
     path("jobs/", include("recruitment.urls")),
+    path("omr/", include("omr.urls")),
     # SSE real-time dashboard (Fix #32)
     path("core/sse/dashboard/", __import__("core.sse_views", fromlist=["sse_dashboard"]).sse_dashboard, name="sse_dashboard"),
 ]

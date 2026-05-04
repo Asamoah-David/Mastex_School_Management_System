@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+{% block title %}Review Answer Key · {{ exam.title }} · MastexEDU{% endblock %}
+{% block page_title %}Review Answer Key{% endblock %}
+{% block page_subtitle %}{{ exam.title }} — tap an option to set the answer, then confirm{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:answer_key_upload' exam.pk %}" class="btn btn-secondary">← Re-upload</a>
+</div>
+
+{% if quality_warnings %}
+<div class="card mb-sm" style="border-left:4px solid var(--warning);">
+    <div style="padding:.6rem 1rem;font-size:.88rem;">
+        <strong>⚠️ Image Quality Warnings:</strong>
+        {% for w in quality_warnings %} {{ w }}.{% endfor %}
+        Please check flagged questions carefully.
+    </div>
+</div>
+{% endif %}
+
+{% if flagged %}
+<div class="card mb-sm" style="border-left:4px solid var(--warning);background:rgba(234,179,8,0.05);">
+    <div style="padding:.6rem 1rem;font-size:.88rem;">
+        <strong>⚠ Flagged (uncertain):</strong>
+        <span style="color:var(--warning);">{% for q in flagged %}Q{{ q }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+        — check these first.
+    </div>
+</div>
+{% endif %}
+
+<form method="post" id="akReviewForm">
+    {% csrf_token %}
+    <div class="card mb-md">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+            <h3 class="card-title">{{ exam.total_questions }} Questions · Tap to set answer</h3>
+            <div style="display:flex;align-items:center;gap:.75rem;">
+                <span id="akFilledCount" style="font-size:.85rem;color:var(--text-muted);">0 / {{ exam.total_questions }} filled</span>
+                <span class="text-muted" style="font-size:.8rem;">Options: {{ tmpl.options|join:", " }}</span>
+            </div>
+        </div>
+        <div style="padding:1rem;">
+            <style>
+            .omr-q-card { border-radius:8px; padding:.4rem .35rem; text-align:center; }
+            .omr-q-num { font-size:.65rem; color:var(--text-muted); margin-bottom:.2rem; line-height:1; }
+            .omr-opt-row { display:flex; gap:3px; justify-content:center; flex-wrap:wrap; }
+            .omr-opt { display:inline-flex; align-items:center; justify-content:center;
+                        width:28px; height:28px; border-radius:5px; font-size:.8rem; font-weight:700;
+                        cursor:pointer; border:1.5px solid rgba(148,163,184,0.25);
+                        background:rgba(15,23,42,0.55); color:var(--text-muted);
+                        transition:background .12s,color .12s; user-select:none; -webkit-user-select:none; }
+            .omr-opt.selected { background:var(--primary,#22c55e); color:#fff; border-color:transparent; }
+            .omr-opt.blank-opt { font-size:.65rem; }
+            .omr-q-card.flagged { background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.35); }
+            .omr-q-card.ok { background:rgba(15,23,42,0.45); border:1px solid rgba(148,163,184,0.1); }
+            </style>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:.4rem;">
+                {% for q in questions_range %}
+                {% with q_str=q|stringformat:"s" cur=detected|get_item:q_str %}
+                <div class="omr-q-card {% if q in flagged %}flagged{% else %}ok{% endif %}" id="qcard_{{ q }}">
+                    <div class="omr-q-num">Q{{ q }}{% if q in flagged %} ⚠{% endif %}</div>
+                    <input type="hidden" name="q_{{ q }}" id="qval_{{ q }}" value="{{ cur|default:'' }}">
+                    <div class="omr-opt-row">
+                        {% for opt in tmpl.options %}
+                        <span class="omr-opt{% if cur == opt %} selected{% endif %}"
+                              onclick="akSelect({{ q }},'{{ opt }}')"
+                              title="{{ opt }}">{{ opt }}</span>
+                        {% endfor %}
+                        <span class="omr-opt blank-opt{% if not cur or cur == '' %} selected{% endif %}"
+                              onclick="akSelect({{ q }},'')"
+                              title="Clear">clr</span>
+                    </div>
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary" id="akConfirmBtn">✓ Confirm Answer Key</button>
+        <a href="{% url 'omr:answer_key_upload' exam.pk %}" class="btn btn-secondary">Re-upload</a>
+        <a href="{% url 'omr:exam_detail' exam.pk %}" class="btn btn-secondary">Cancel</a>
+        <small class="text-muted" id="akWarningMsg"></small>
+    </div>
+</form>
+
+<script>
+const AK_TOTAL = {{ exam.total_questions }};
+
+function akSelect(q, opt) {
+    document.getElementById('qval_' + q).value = opt;
+    const card = document.getElementById('qcard_' + q);
+    card.querySelectorAll('.omr-opt').forEach(function(btn) {
+        const isBlank = btn.classList.contains('blank-opt');
+        btn.classList.toggle('selected',
+            isBlank ? (opt === '') : (btn.textContent.trim() === opt)
+        );
+    });
+    akUpdateCount();
+}
+
+function akUpdateCount() {
+    let filled = 0;
+    for (let q = 1; q <= AK_TOTAL; q++) {
+        const v = document.getElementById('qval_' + q);
+        if (v && v.value.trim() !== '') filled++;
+    }
+    document.getElementById('akFilledCount').textContent = filled + ' / ' + AK_TOTAL + ' filled';
+    const btn = document.getElementById('akConfirmBtn');
+    const warn = document.getElementById('akWarningMsg');
+    if (filled < AK_TOTAL) {
+        btn.style.opacity = '.65';
+        warn.textContent = (AK_TOTAL - filled) + ' question(s) still empty';
+    } else {
+        btn.style.opacity = '1';
+        warn.textContent = 'All answers set — ready to confirm!';
+        warn.style.color = 'var(--success)';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', akUpdateCount);
+
+document.getElementById('akReviewForm').addEventListener('submit', function(e) {
+    let missing = [];
+    for (let q = 1; q <= AK_TOTAL; q++) {
+        const v = document.getElementById('qval_' + q);
+        if (!v || v.value.trim() === '') missing.push(q);
+    }
+    if (missing.length) {
+        e.preventDefault();
+        alert('Please set answers for: Q' + missing.slice(0,10).join(', Q') + (missing.length > 10 ? '...' : ''));
+    }
+});
+</script>
+{% endblock %}

@@ -17,7 +17,7 @@ from integrations.hooks import schedule_expense_webhook, schedule_staff_leave_we
 import logging
 
 from schools.models import School
-from students.models import Student
+from students.models import Student, StudentDiscipline
 from accounts.models import User
 from .models import (
     StudentAttendance,
@@ -43,7 +43,6 @@ from .models import (
     ExpenseCategory,
     Expense,
     Budget,
-    DisciplineIncident,
     BehaviorPoint,
     StudentDocument,
     Alumni,
@@ -711,6 +710,11 @@ def teacher_attendance_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "teacher_attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        return redirect("home")
     from django.contrib import messages
     default_day = timezone.now().date()
     raw_from = request.GET.get("from")
@@ -746,7 +750,9 @@ def teacher_attendance_mark(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
-    
+    redir = require_feature(request, "teacher_attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
     # Only school admins can mark teacher (staff) attendance
     from accounts.permissions import is_school_leadership
     if not (request.user.is_superuser or is_school_leadership(request.user)):
@@ -811,6 +817,9 @@ def teacher_attendance_edit(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "teacher_attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("home")
     attendance = get_object_or_404(TeacherAttendance, pk=pk, school=school)
@@ -3397,15 +3406,15 @@ def discipline_list(request):
     # Parents see their children's incidents, students see their own
     if role == 'parent':
         children = Student.objects.filter(parent=request.user, school=school)
-        incidents = DisciplineIncident.objects.filter(school=school, student__in=children).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
+        incidents = StudentDiscipline.objects.filter(school=school, student__in=children).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
     elif role == 'student':
         student = Student.objects.filter(user=request.user, school=school).first()
         if student:
-            incidents = DisciplineIncident.objects.filter(school=school, student=student).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
+            incidents = StudentDiscipline.objects.filter(school=school, student=student).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
         else:
-            incidents = DisciplineIncident.objects.none()
+            incidents = StudentDiscipline.objects.none()
     elif user_can_manage_school(request.user) or request.user.is_superuser:
-        incidents = DisciplineIncident.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
+        incidents = StudentDiscipline.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
     else:
         return redirect('home')
 
@@ -3434,15 +3443,21 @@ def discipline_create(request):
         description = request.POST.get('description', '').strip()
         action_taken = request.POST.get('action_taken', '').strip()
         
+        _severity_map = {
+            'low': 'minor', 'minor': 'minor', 'moderate': 'minor',
+            'medium': 'minor', 'high': 'major', 'serious': 'major',
+            'severe': 'major', 'major': 'major',
+            'positive': 'positive', 'suspension': 'suspension', 'expulsion': 'expulsion',
+        }
         if student_id and incident_type and description:
             student = Student.objects.filter(id=student_id, school=school).first()
             if student:
-                DisciplineIncident.objects.create(
+                StudentDiscipline.objects.create(
                     school=school,
                     student=student,
-                    incident_date=timezone.now(),
-                    incident_type=incident_type,
-                    severity=severity,
+                    incident_date=timezone.now().date(),
+                    title=incident_type,
+                    incident_type=_severity_map.get(severity, 'minor'),
                     description=description,
                     action_taken=action_taken,
                     reported_by=request.user
@@ -3465,7 +3480,7 @@ def discipline_detail(request, pk):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    incident = get_object_or_404(DisciplineIncident, pk=pk, school=school)
+    incident = get_object_or_404(StudentDiscipline, pk=pk, school=school)
     
     return render(request, 'operations/discipline_detail.html', {
         'incident': incident,
@@ -3481,7 +3496,7 @@ def discipline_delete(request, pk):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    incident = get_object_or_404(DisciplineIncident, pk=pk, school=school)
+    incident = get_object_or_404(StudentDiscipline, pk=pk, school=school)
     
     if request.method == 'POST':
         incident.delete()
@@ -4072,6 +4087,7 @@ def timetable_create(request):
     """Create timetable slot."""
     from accounts.permissions import is_school_leadership
     from academics.models import Subject
+    from students.models import SchoolClass
     
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
@@ -4083,6 +4099,9 @@ def timetable_create(request):
         .order_by('first_name', 'last_name')
         .filter(Q(role='teacher') | Q(secondary_role_entries__role='teacher'))
         .distinct()
+    )
+    school_classes = list(
+        SchoolClass.objects.filter(school=school).values_list('name', flat=True).order_by('name')
     )
     
     if request.method == 'POST':
@@ -4098,7 +4117,6 @@ def timetable_create(request):
         if class_name and day and period_number and subject_id and start_time and end_time:
             try:
                 from core.timetable_validation import collect_timetable_slot_conflicts
-                from django.contrib import messages
 
                 subject = Subject.objects.get(id=subject_id, school=school)
                 teacher = User.objects.get(id=teacher_id, school=school) if teacher_id else None
@@ -4128,13 +4146,16 @@ def timetable_create(request):
                     )
                     messages.success(request, 'Timetable slot created!')
                     return redirect('operations:timetable_view')
-            except Exception:
-                pass
+            except (Subject.DoesNotExist, User.DoesNotExist):
+                messages.error(request, 'Invalid subject or teacher selection.')
+            except (ValueError, TypeError) as e:
+                messages.error(request, f'Invalid data: {e}')
     
     return render(request, 'operations/timetable_form.html', {
         'school': school,
         'subjects': subjects,
-        'teachers': teachers
+        'teachers': teachers,
+        'school_classes': school_classes,
     })
 
 
@@ -4202,11 +4223,10 @@ def id_card_create(request):
                         expiry_date=expiry_date,
                         created_by=request.user
                     )
-                    from django.contrib import messages
                     messages.success(request, 'ID Card created successfully!')
                     return redirect('operations:id_card_list')
-                except Exception:
-                    pass
+                except Exception as e:
+                    messages.error(request, f'Could not create ID card: {e}')
     
     return render(request, 'operations/id_card_form.html', {
         'school': school,
@@ -4859,10 +4879,10 @@ def staff_id_card_create(request):
         position = request.POST.get('position', '').strip()
         
         if staff_id and card_number and issue_date:
-            try:
-                from .models import StaffIDCard
-                staff = User.objects.filter(id=staff_id, school=school).first()
-                if staff:
+            from .models import StaffIDCard
+            staff = User.objects.filter(id=staff_id, school=school).first()
+            if staff:
+                try:
                     StaffIDCard.objects.create(
                         staff=staff,
                         school=school,
@@ -4872,11 +4892,10 @@ def staff_id_card_create(request):
                         expiry_date=expiry_date,
                         created_by=request.user
                     )
-                    from django.contrib import messages
                     messages.success(request, 'Staff ID Card created successfully!')
                     return redirect('operations:staff_id_card_list')
-            except Exception:
-                pass
+                except Exception as e:
+                    messages.error(request, f'Could not create staff ID card: {e}')
     
     return render(request, 'operations/staff_id_card_form.html', {
         'school': school,
@@ -8180,8 +8199,11 @@ def online_exam_create(request):
     
     subjects = Subject.objects.filter(school=school).order_by('name')
     
-    # Get unique classes from students for the dropdown
-    school_classes = sorted(set(Student.objects.filter(school=school).values_list('class_name', flat=True)))
+    # Get classes from SchoolClass + enrolled students (union)
+    from students.models import SchoolClass as _SchoolClass
+    _sc_names = set(_SchoolClass.objects.filter(school=school).values_list('name', flat=True))
+    _st_names = set(Student.objects.filter(school=school).exclude(class_name='').values_list('class_name', flat=True))
+    school_classes = sorted(_sc_names | _st_names)
     
     if request.method == 'POST':
         from datetime import datetime
@@ -8227,8 +8249,8 @@ def online_exam_create(request):
                         from django.contrib import messages
                         messages.success(request, 'Exam created! Add questions next.')
                         return redirect('operations:online_exam_detail', pk=exam.pk)
-                except Exception:
-                    pass
+                except Exception as e:
+                    messages.error(request, f'Could not create exam: {e}')
     
     return render(request, 'operations/online_exam_form.html', {
         'school': school, 'subjects': subjects, 'school_classes': school_classes
@@ -8331,9 +8353,10 @@ def online_exam_edit(request, pk):
     
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     subjects = Subject.objects.filter(school=school).order_by('name')
-    school_classes = sorted(
-        set(Student.objects.filter(school=school).values_list('class_name', flat=True))
-    )
+    from students.models import SchoolClass as _SchoolClass
+    _sc_names = set(_SchoolClass.objects.filter(school=school).values_list('name', flat=True))
+    _st_names = set(Student.objects.filter(school=school).exclude(class_name='').values_list('class_name', flat=True))
+    school_classes = sorted(_sc_names | _st_names)
     
     if request.method == 'POST':
         from datetime import datetime
@@ -8383,8 +8406,8 @@ def online_exam_edit(request, pk):
                         from django.contrib import messages
                         messages.success(request, 'Exam updated!')
                         return redirect('operations:online_exam_detail', pk=exam.pk)
-                except Exception:
-                    pass
+                except Exception as e:
+                    messages.error(request, f'Could not update exam: {e}')
     
     return render(request, 'operations/online_exam_form.html', {
         'school': school, 'subjects': subjects, 'exam': exam, 'school_classes': school_classes

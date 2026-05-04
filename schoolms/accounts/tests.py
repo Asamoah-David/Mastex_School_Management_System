@@ -172,7 +172,13 @@ class StaffPayrollDisburseTests(TestCase):
         )
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.client = Client()
+
+    def tearDown(self):
+        from django.core.cache import cache
+        cache.clear()
 
     def test_teacher_cannot_open_disburse(self):
         self.client.login(username="pay_teacher", password="pass12345")

@@ -6,6 +6,7 @@ from . import advanced_analytics
 from . import ai_comment_views
 from . import pdf_report
 from . import timetable_generator
+from . import scheme_views
 
 app_name = "academics"
 
@@ -129,4 +130,23 @@ urlpatterns = [
     path("question-banks/<int:pk>/", views.question_bank_detail, name="question_bank_detail"),
     path("question-banks/<int:pk>/add-item/", views.question_bank_add_item, name="question_bank_add_item"),
     path("question-banks/<int:pk>/delete/", views.question_bank_delete, name="question_bank_delete"),
+
+    # Assessment Schemes & Score Composition
+    path("schemes/", scheme_views.assessment_scheme_list, name="assessment_scheme_list"),
+    path("schemes/create/", scheme_views.assessment_scheme_create, name="assessment_scheme_create"),
+    path("schemes/<int:pk>/", scheme_views.assessment_scheme_detail, name="assessment_scheme_detail"),
+    path("schemes/<int:pk>/edit/", scheme_views.assessment_scheme_edit, name="assessment_scheme_edit"),
+    path("schemes/<int:pk>/delete/", scheme_views.assessment_scheme_delete, name="assessment_scheme_delete"),
+    path("schemes/<int:pk>/add-item/", scheme_views.assessment_scheme_add_item, name="assessment_scheme_add_item"),
+    path("schemes/<int:pk>/remove-item/<int:item_pk>/", scheme_views.assessment_scheme_remove_item, name="assessment_scheme_remove_item"),
+
+    # Manual Offline Exams
+    path("manual-exams/", scheme_views.manual_exam_list, name="manual_exam_list"),
+    path("manual-exams/create/", scheme_views.manual_exam_create, name="manual_exam_create"),
+    path("manual-exams/<int:pk>/scores/", scheme_views.manual_exam_score_entry, name="manual_exam_score_entry"),
+    path("manual-exams/<int:pk>/delete/", scheme_views.manual_exam_delete, name="manual_exam_delete"),
+
+    # Report Card Score Preview
+    path("report-card-scores/", scheme_views.report_card_score_list, name="report_card_score_list"),
+    path("report-card-scores/calculate/<int:scheme_pk>/", scheme_views.report_card_score_calculate, name="report_card_score_calculate"),
 ]

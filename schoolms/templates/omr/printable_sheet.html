@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ tmpl.name }} — OMR Answer Sheet</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #000; }
+  @media print { body { margin: 0; padding: 10px; } .no-print { display: none; } }
+  .sheet-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
+  .sheet-header h1 { font-size: 18px; margin: 0 0 4px; }
+  .sheet-header p { font-size: 12px; margin: 2px 0; }
+  .info-row { display: flex; gap: 20px; margin-bottom: 16px; }
+  .info-field { flex: 1; border-bottom: 1px solid #000; font-size: 12px; }
+  .info-field label { font-size: 10px; display: block; color: #555; }
+  .questions-grid { display: grid; gap: 4px; }
+  .q-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid #eee; }
+  .q-num { font-size: 11px; min-width: 28px; font-weight: bold; }
+  .bubble { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; border: 1.5px solid #000; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 4px; }
+  .instructions { font-size: 11px; background: #f5f5f5; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 14px; }
+  .print-btn { margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="no-print print-btn">
+    <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;">🖨 Print Sheet</button>
+    <button onclick="window.close()" style="padding:8px 16px;font-size:14px;cursor:pointer;margin-left:8px;">✕ Close</button>
+</div>
+
+<div class="sheet-header">
+    <h1>OMR ANSWER SHEET — {{ tmpl.name }}</h1>
+    <p>MastexEDU School Management System</p>
+</div>
+
+<div class="info-row">
+    <div class="info-field"><label>Student Name:</label>&nbsp;</div>
+    <div class="info-field"><label>Class:</label>&nbsp;</div>
+    <div class="info-field"><label>Date:</label>&nbsp;</div>
+    <div class="info-field"><label>Exam / Subject:</label>&nbsp;</div>
+</div>
+
+<div class="instructions">
+    <strong>Instructions:</strong> Shade the correct bubble completely using a dark pen or pencil.
+    Shade only ONE bubble per question. Do not shade partially or use tick marks.
+    Do not write outside the boxes. Keep the sheet flat and clean when photographed.
+</div>
+
+{% if tmpl.total_questions <= 30 %}
+<div class="questions-grid" style="grid-template-columns: 1fr 1fr;">
+    {% for q in tmpl.answer_regions %}
+    <div class="q-row">
+        <span class="q-num">{{ q.question }}.</span>
+        {% for opt in tmpl.options %}
+        <span class="bubble">{{ opt }}</span>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="questions-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    {% for q in tmpl.answer_regions %}
+    <div class="q-row">
+        <span class="q-num">{{ q.question }}.</span>
+        {% for opt in tmpl.options %}
+        <span class="bubble">{{ opt }}</span>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div style="margin-top:20px;border-top:1px solid #ccc;padding-top:8px;font-size:10px;color:#666;text-align:center;">
+    MastexEDU · {{ tmpl.name }} · {{ tmpl.total_questions }} Questions · Options: {{ tmpl.options|join:", " }}
+</div>
+</body>
+</html>

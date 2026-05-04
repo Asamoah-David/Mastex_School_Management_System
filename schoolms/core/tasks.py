@@ -800,7 +800,8 @@ def detect_early_warning_flags(self):
         from django.utils import timezone as _tz
         from academics.models import EarlyWarningFlag, AcademicYear, Term
         from students.models import Student
-        from operations.models import StudentAttendance, DisciplineIncident
+        from operations.models import StudentAttendance
+        from students.models import StudentDiscipline as _StudentDiscipline
         from academics.models import Result
 
         now = _tz.now().date()
@@ -869,7 +870,7 @@ def detect_early_warning_flags(self):
                                 details["current_avg"] = round(float(current_avg), 1)
 
                     # --- 3. Discipline incidents ---------------------------
-                    incident_count = DisciplineIncident.objects.filter(
+                    incident_count = _StudentDiscipline.objects.filter(
                         school=school, student=student,
                         incident_date__gte=term_start, incident_date__lte=term_end,
                     ).count()

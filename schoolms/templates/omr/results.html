@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Results · {{ exam.title }} · MastexEDU{% endblock %}
+{% block page_title %}Results — {{ exam.title }}{% endblock %}
+{% block page_subtitle %}{{ exam.subject }} · {{ exam.class_name }} · {{ exam.date|date:"d M Y" }}{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'omr:exam_detail' exam.pk %}" class="btn btn-secondary">← Exam Detail</a>
+    <a href="{% url 'omr:student_upload' exam.pk %}" class="btn btn-primary">+ Upload Sheet</a>
+    <a href="{% url 'omr:bulk_upload' exam.pk %}" class="btn btn-secondary">Bulk Upload</a>
+    <a href="{% url 'omr:analysis' exam.pk %}" class="btn btn-secondary">Analysis</a>
+    <a href="{% url 'omr:export_csv' exam.pk %}" class="btn btn-success">⬇ Export CSV</a>
+</div>
+
+{% if results %}
+<div class="stats-grid mb-md">
+    <div class="stat-card">
+        <div class="stat-label">Students Marked</div>
+        <div class="stat-value">{{ results|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Highest Score</div>
+        <div class="stat-value">{{ results.first.score|floatformat:0 }}/{{ exam.total_questions }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Template</div>
+        <div class="stat-value" style="font-size:.95rem;">{{ exam.get_template_type_display }}</div>
+    </div>
+</div>
+{% endif %}
+
+{% if results %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Student Name</th>
+                    <th>Class</th>
+                    <th>Score</th>
+                    <th>Percentage</th>
+                    <th>Correct</th>
+                    <th>Wrong</th>
+                    <th>Blank</th>
+                    <th>Multiple</th>
+                    <th>Grade</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in results %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td><strong>{{ r.get_student_display_name }}</strong></td>
+                <td>{{ r.class_name }}</td>
+                <td>{{ r.score|floatformat:0 }}/{{ r.total_questions }}</td>
+                <td>
+                    <span style="font-weight:600;color:{% if r.percentage >= 50 %}var(--success){% else %}var(--danger){% endif %}">
+                        {{ r.percentage|floatformat:1 }}%
+                    </span>
+                </td>
+                <td style="color:var(--success);">{{ r.correct_count }}</td>
+                <td style="color:var(--danger);">{{ r.wrong_count }}</td>
+                <td>{{ r.blank_count }}</td>
+                <td>{% if r.multiple_answer_count > 0 %}<span style="color:var(--warning);">{{ r.multiple_answer_count }}</span>{% else %}0{% endif %}</td>
+                <td>
+                    {% if r.percentage >= 80 %}<span class="badge badge-success">A</span>
+                    {% elif r.percentage >= 70 %}<span class="badge badge-success">B</span>
+                    {% elif r.percentage >= 60 %}<span class="badge badge-info">C</span>
+                    {% elif r.percentage >= 50 %}<span class="badge badge-warning">D</span>
+                    {% else %}<span class="badge badge-danger">F</span>{% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'omr:result_detail' r.pk %}" class="btn btn-secondary btn-sm">View</a>
+                    <form method="post" action="{% url 'omr:result_delete' r.pk %}" style="display:inline;" onsubmit="return confirm('Delete result for {{ r.get_student_display_name }}?');">
+                        {% csrf_token %}<button type="submit" class="btn btn-danger btn-sm">Del</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card text-center p-lg">
+    <div style="font-size:2.5rem;margin-bottom:.75rem;">📄</div>
+    <h3 style="color:var(--text-main);margin-bottom:.5rem;">No results yet</h3>
+    <p class="text-muted mb-md">Upload student sheets to start marking.</p>
+    <a href="{% url 'omr:student_upload' exam.pk %}" class="btn btn-primary">Upload Sheet</a>
+</div>
+{% endif %}
+{% endblock %}

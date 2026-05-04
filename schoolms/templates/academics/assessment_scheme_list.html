@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Assessment Schemes · MastexEDU{% endblock %}
+{% block page_title %}Assessment Schemes{% endblock %}
+{% block page_subtitle %}Configure which score sources count toward CA and Exam{% endblock %}
+{% block content %}
+<div class="button-row mb-sm">
+    <a href="{% url 'academics:assessment_scheme_create' %}" class="btn btn-primary">+ New Scheme</a>
+    <a href="{% url 'academics:manual_exam_list' %}" class="btn btn-secondary">Manual Exams</a>
+    <a href="{% url 'academics:report_card_score_list' %}" class="btn btn-secondary">Report Card Scores</a>
+</div>
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+<div class="card">
+  {% if schemes %}
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Class</th><th>Subject</th><th>Term</th>
+          <th>CA %</th><th>Exam %</th><th>Items</th><th>Active</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in schemes %}
+      <tr>
+        <td>{{ s.class_name }}</td>
+        <td>{{ s.subject.name }}</td>
+        <td>{{ s.term }}</td>
+        <td>{{ s.ca_weight }}</td>
+        <td>{{ s.exam_weight }}</td>
+        <td>{{ s.items.count }}</td>
+        <td>{% if s.is_active %}<span class="badge badge-success">Yes</span>{% else %}<span class="badge badge-secondary">No</span>{% endif %}</td>
+        <td class="actions">
+          <a href="{% url 'academics:assessment_scheme_detail' s.pk %}" class="btn btn-sm btn-info">View</a>
+          <a href="{% url 'academics:assessment_scheme_edit' s.pk %}" class="btn btn-sm btn-secondary">Edit</a>
+          <form method="post" action="{% url 'academics:assessment_scheme_delete' s.pk %}" style="display:inline" onsubmit="return confirm('Delete this scheme?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted text-center py-3">No assessment schemes yet. <a href="{% url 'academics:assessment_scheme_create' %}">Create the first one.</a></p>
+  {% endif %}
+</div>
+{% endblock %}

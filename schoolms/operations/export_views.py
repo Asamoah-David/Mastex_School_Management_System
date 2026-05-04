@@ -16,9 +16,10 @@ from accounts.permissions import can_export_data
 from schools.models import School
 from students.models import Student
 from accounts.models import User
+from students.models import StudentDiscipline
 from .models import (
     StudentAttendance, TeacherAttendance, Expense, ExpenseCategory,
-    DisciplineIncident, LibraryBook, LibraryIssue, InventoryItem,
+    LibraryBook, LibraryIssue, InventoryItem,
     InventoryCategory, Announcement, HostelAssignment, HostelFee,
     Certificate, AdmissionApplication, Budget
 )
@@ -605,15 +606,15 @@ def export_discipline(request):
     if not school:
         return redirect("home")
     
-    incidents = DisciplineIncident.objects.filter(school=school).select_related("student", "student__user", "reported_by").order_by("-incident_date")
+    incidents = StudentDiscipline.objects.filter(school=school).select_related("student", "student__user", "reported_by").order_by("-incident_date")
     
     fields = [
         ("Date", "incident_date"),
         ("Student", "student__user__first_name"),
         ("Admission No.", "student__admission_number"),
         ("Class", "student__class_name"),
-        ("Type", "incident_type"),
-        ("Severity", "severity"),
+        ("Type", "title"),
+        ("Severity", "incident_type"),
         ("Description", "description"),
     ]
     

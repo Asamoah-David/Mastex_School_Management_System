@@ -44,3 +44,7 @@ django-celery-beat>=2.6,<3.0
 # AI integrations
 groq>=0.9,<2.0
 google-generativeai>=0.8,<1.0
+
+# OMR image processing
+opencv-python-headless>=4.8,<5.0
+numpy>=1.26,<3.0
