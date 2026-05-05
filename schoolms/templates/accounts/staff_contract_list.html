@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block page_title %}Staff Contracts{% endblock %}
+{% block page_subtitle %}School-wide employment contracts{% endblock %}
+{% block content %}
+<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+  <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary btn-sm">&#x2190; Staff</a>
+</div>
+
+<!-- Stats -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem;">
+  {% for label,val in counts.items %}
+  <div class="content-card" style="padding:.85rem 1rem;text-align:center;">
+    <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">{{ val }}</div>
+    <div style="font-size:.78rem;color:var(--text-soft);text-transform:capitalize;">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filters -->
+<form method="get" style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem;">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search staff name…" class="form-control" style="max-width:220px;">
+  {% if status_choices %}
+  <select name="status" class="form-control" style="max-width:160px;" title="Status filter">
+    <option value="">All statuses</option>
+    {% for val,label in status_choices %}
+    <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+  {% if contract_type_choices %}
+  <select name="contract_type" class="form-control" style="max-width:180px;" title="Contract type filter">
+    <option value="">All types</option>
+    {% for val,label in contract_type_choices %}
+    <option value="{{ val }}" {% if val == contract_type_filter %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+  <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+  <a href="{% url 'accounts:staff_contract_list' %}" class="btn btn-secondary btn-sm">Clear</a>
+</form>
+
+<div class="content-card">
+  {% if contracts %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Staff</th><th>Contract Type</th><th>Start Date</th><th>End Date</th>
+        <th>Salary (GHS)</th><th>Status</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for contract in contracts %}
+      <tr>
+        <td><a href="{% url 'accounts:staff_detail' contract.staff.pk %}">{{ contract.staff.get_full_name|default:contract.staff.username }}</a></td>
+        <td>{{ contract.get_contract_type_display|default:contract.contract_type }}</td>
+        <td>{{ contract.start_date }}</td>
+        <td>{{ contract.end_date|default:"—" }}</td>
+        <td>{{ contract.salary|default:"—" }}</td>
+        <td>
+          <span class="badge-pill {% if contract.status == 'active' %}badge-success{% elif contract.status == 'terminated' %}badge-danger{% else %}badge-warning{% endif %}">
+            {{ contract.get_status_display|default:contract.status }}
+          </span>
+        </td>
+        <td>
+          <a href="{% url 'accounts:staff_detail' contract.staff.pk %}" class="btn btn-secondary btn-sm">View Staff</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--text-soft);text-align:center;padding:2rem;">No contracts found matching your filters.</p>
+  {% endif %}
+</div>
+{% endblock %}

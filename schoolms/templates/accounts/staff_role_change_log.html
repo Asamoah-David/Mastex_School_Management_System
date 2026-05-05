@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block page_title %}Staff Role Change Log{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header"><h2 class="card-title">&#x1F4CB; Staff Role Change Log</h2></div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <select name="user" title="Filter by staff member" style="padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;min-width:200px;">
+        <option value="">All staff</option>
+        {% for u in staff_users %}
+        <option value="{{ u.pk }}" {% if selected_user == u.pk|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary">Filter</button>
+      {% if selected_user %}<a href="{% url 'accounts:staff_role_change_log' %}" class="btn btn-secondary">Clear</a>{% endif %}
+    </form>
+
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr><th>Date</th><th>Staff</th><th>Change</th><th>From</th><th>To</th><th>Changed By</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td style="white-space:nowrap;">{{ log.changed_at|date:"d M Y H:i" }}</td>
+            <td>{{ log.user.get_full_name|default:log.user.username }}</td>
+            <td><span style="font-size:.75rem;padding:.2rem .5rem;border-radius:.25rem;background:#eff6ff;color:#1d4ed8;">{{ log.get_change_kind_display }}</span></td>
+            <td><code>{{ log.from_value|default:"—" }}</code></td>
+            <td><code>{{ log.to_value|default:"—" }}</code></td>
+            <td>{{ log.changed_by.get_full_name|default:log.changed_by.username|default:"System" }}</td>
+            <td>{{ log.notes|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" style="text-align:center;color:#6b7280;">No role change records found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if logs|length == 200 %}<p style="color:#6b7280;font-size:.875rem;">Showing latest 200 records.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

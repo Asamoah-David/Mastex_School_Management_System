@@ -4,9 +4,17 @@ from .models import SubscriptionPlan, SchoolSubscription, PaymentReminder
 
 @admin.register(SubscriptionPlan)
 class SubscriptionPlanAdmin(admin.ModelAdmin):
+    """DEPRECATED model — read-only display only; new records are blocked."""
     list_display = ("name", "price", "duration_days", "max_students", "max_staff", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name",)
+    readonly_fields = ("name", "description", "price", "duration_days", "max_students", "max_staff", "features", "is_active", "created_at", "updated_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(SchoolSubscription)

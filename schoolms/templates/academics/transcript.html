@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block page_title %}Full Transcript — {{ student.user.get_full_name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
+    <div>
+      <h2 class="card-title" style="margin:0;">&#x1F4DC; Academic Transcript</h2>
+      <p style="margin:.25rem 0 0;color:#6b7280;">
+        {{ student.user.get_full_name }} &nbsp;&bull;&nbsp;
+        Admission #: {{ student.admission_number }} &nbsp;&bull;&nbsp;
+        Class: {{ student.class_name|default:"N/A" }}
+      </p>
+    </div>
+    <div style="font-size:.85rem;color:#6b7280;">{{ total_terms }} term(s) on record</div>
+  </div>
+
+  <div class="card-body">
+    {% if not terms_list %}
+      <p style="color:#6b7280;">No result summaries found for this student yet.</p>
+    {% else %}
+
+      <!-- ── SECTION 1: Per-term breakdown ── -->
+      {% for td in terms_list %}
+      <div style="margin-bottom:2rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;padding:.5rem .75rem;background:#f1f5f9;border-radius:.375rem;margin-bottom:.75rem;">
+          <h3 style="margin:0;font-size:1rem;">{{ td.term.name }}{% if td.term.academic_year %} &mdash; {{ td.term.academic_year }}{% endif %}</h3>
+          <div style="display:flex;gap:1rem;font-size:.85rem;flex-wrap:wrap;">
+            {% if td.average is not None %}
+            <span>Term Avg: <strong>{{ td.average }}</strong></span>
+            {% endif %}
+            {% if td.position %}
+            <span>Position: <strong>{{ td.position }}</strong></span>
+            {% endif %}
+            {% if td.cumulative_gpa %}
+            <span>Cum. GPA: <strong>{{ td.cumulative_gpa|floatformat:2 }}</strong></span>
+            {% endif %}
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="table" style="min-width:420px;">
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th style="text-align:center;">CA</th>
+                <th style="text-align:center;">Exam</th>
+                <th style="text-align:center;font-weight:700;">Final</th>
+                <th style="text-align:center;">Grade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in td.rows %}
+              <tr>
+                <td>{{ row.subject.name }}</td>
+                <td style="text-align:center;">{{ row.ca_score|floatformat:1 }}</td>
+                <td style="text-align:center;">{{ row.exam_score|floatformat:1 }}</td>
+                <td style="text-align:center;font-weight:600;
+                  {% if row.final_score >= 80 %}color:#15803d;
+                  {% elif row.final_score >= 50 %}color:#1d4ed8;
+                  {% else %}color:#dc2626;{% endif %}">
+                  {{ row.final_score|floatformat:1 }}
+                </td>
+                <td style="text-align:center;">
+                  <span style="padding:.1rem .45rem;border-radius:.25rem;font-size:.85rem;font-weight:700;
+                    {% if row.grade == 'A' %}background:#dcfce7;color:#15803d;
+                    {% elif row.grade == 'B' %}background:#dbeafe;color:#1d4ed8;
+                    {% elif row.grade == 'C' %}background:#fef9c3;color:#b45309;
+                    {% else %}background:#fee2e2;color:#dc2626;{% endif %}">
+                    {{ row.grade|default:"—" }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            {% if td.average is not None %}
+            <tfoot>
+              <tr style="background:#f9fafb;font-weight:700;">
+                <td>Term Average</td>
+                <td colspan="2"></td>
+                <td style="text-align:center;">{{ td.average }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- ── SECTION 2: Subject progression across terms ── -->
+      {% if subject_progression and term_names_ordered|length > 1 %}
+      <div style="margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e5e7eb;">
+        <h3 style="margin:0 0 1rem;">&#x1F4C8; Subject Progression Across Terms</h3>
+        <div style="overflow-x:auto;">
+          <table class="table" style="min-width:420px;white-space:nowrap;">
+            <thead>
+              <tr>
+                <th style="position:sticky;left:0;background:#f9fafb;">Subject</th>
+                {% for tname in term_names_ordered %}<th style="text-align:center;">{{ tname }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for subj_name, scores in subject_progression.items %}
+              <tr>
+                <td style="position:sticky;left:0;background:#fff;font-weight:600;">{{ subj_name }}</td>
+                {% for tname in term_names_ordered %}
+                <td style="text-align:center;">
+                  {% with score=scores|default_if_none:"" %}
+                    {% if scores %}
+                      {% for k, v in scores.items %}{% if k == tname %}<span style="font-weight:600;{% if v >= 80 %}color:#15803d;{% elif v >= 50 %}color:#1d4ed8;{% else %}color:#dc2626;{% endif %}">{{ v|floatformat:1 }}</span>{% endif %}{% endfor %}
+                    {% else %}<span style="color:#d1d5db;">—</span>{% endif %}
+                  {% endwith %}
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

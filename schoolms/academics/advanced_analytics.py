@@ -474,7 +474,8 @@ def online_meetings_visible_to_user(user, school):
             | Q(class_name="")
         )
     if user_role == "parent":
-        children = Student.objects.filter(parent=user, school=school)
+        from students.utils import get_children_for_parent
+        children = get_children_for_parent(user, school=school, active_only=False)
         child_classes = [c.class_name for c in children if c.class_name]
         if child_classes:
             return meetings.filter(

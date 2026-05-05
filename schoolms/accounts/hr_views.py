@@ -1075,3 +1075,219 @@ def performance_review_create(request):
         "rating_choices": StaffPerformanceReview.RATING_CHOICES,
         "review_period_choices": StaffPerformanceReview.REVIEW_PERIOD_CHOICES,
     })
+
+
+@login_required
+def staff_contract_list(request):
+    """School-wide list of all staff contracts with status and type filters."""
+    from accounts.hr_models import StaffContract
+    from accounts.permissions import user_can_manage_school
+    from schools.features import is_feature_enabled
+
+    if not user_can_manage_school(request.user):
+        from django.contrib import messages as _msg
+        _msg.error(request, "Access denied.")
+        return redirect("home")
+
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    status_filter = request.GET.get("status", "")
+    contract_type_filter = request.GET.get("contract_type", "")
+    q = request.GET.get("q", "").strip()
+
+    qs = StaffContract.objects.filter(school=school).select_related("staff").order_by("-start_date")
+
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    if contract_type_filter:
+        qs = qs.filter(contract_type=contract_type_filter)
+    if q:
+        qs = qs.filter(staff__first_name__icontains=q) | qs.filter(staff__last_name__icontains=q)
+
+    counts = {
+        "total": StaffContract.objects.filter(school=school).count(),
+        "active": StaffContract.objects.filter(school=school, status="active").count(),
+        "expired": StaffContract.objects.filter(school=school, status="expired").count(),
+        "terminated": StaffContract.objects.filter(school=school, status="terminated").count(),
+    }
+
+    return render(request, "accounts/staff_contract_list.html", {
+        "contracts": qs[:300],
+        "status_filter": status_filter,
+        "contract_type_filter": contract_type_filter,
+        "q": q,
+        "counts": counts,
+        "status_choices": StaffContract.STATUS_CHOICES if hasattr(StaffContract, "STATUS_CHOICES") else [],
+        "contract_type_choices": StaffContract.CONTRACT_TYPE_CHOICES if hasattr(StaffContract, "CONTRACT_TYPE_CHOICES") else [],
+    })
+
+
+# ---------------------------------------------------------------------------
+# Staff Teaching Assignments
+# ---------------------------------------------------------------------------
+
+@login_required
+def teaching_assignment_list(request):
+    """List (and create) formal subject-class teaching assignments."""
+    from accounts.hr_models import StaffTeachingAssignment
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not _require_manage(request):
+        return redirect("home")
+
+    qs = StaffTeachingAssignment.objects.filter(school=school).select_related(
+        "user", "subject", "school_class"
+    )
+
+    q = request.GET.get("q", "").strip()
+    active_only = request.GET.get("active", "1")
+    if q:
+        qs = qs.filter(
+            models.Q(user__first_name__icontains=q) |
+            models.Q(user__last_name__icontains=q) |
+            models.Q(subject__name__icontains=q) |
+            models.Q(class_name__icontains=q)
+        )
+    if active_only == "1":
+        qs = qs.filter(is_active=True)
+
+    if request.method == "POST":
+        from academics.models import Subject
+        user_pk = request.POST.get("user")
+        subject_pk = request.POST.get("subject")
+        class_name = request.POST.get("class_name", "").strip()
+        academic_year = request.POST.get("academic_year", "").strip()
+        if user_pk and subject_pk and class_name:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                staff_user = User.objects.get(pk=user_pk, school=school)
+                subject = Subject.objects.get(pk=subject_pk, school=school)
+                StaffTeachingAssignment.objects.create(
+                    school=school,
+                    user=staff_user,
+                    subject=subject,
+                    class_name=class_name,
+                    academic_year=academic_year,
+                    is_active=True,
+                )
+                messages.success(request, "Teaching assignment created.")
+            except Exception as exc:
+                messages.error(request, f"Error: {exc}")
+        return redirect("accounts:teaching_assignment_list")
+
+    from academics.models import Subject
+    staff_list = school.users.filter(
+        role__in=["teacher", "hod", "school_admin", "deputy_head"]
+    ).order_by("last_name", "first_name")
+    subjects = Subject.objects.filter(school=school).order_by("name")
+
+    return render(request, "accounts/teaching_assignment_list.html", {
+        "assignments": qs,
+        "staff_list": staff_list,
+        "subjects": subjects,
+        "q": q,
+        "active_only": active_only,
+    })
+
+
+@login_required
+def teaching_assignment_deactivate(request, pk):
+    """Mark a teaching assignment as ended."""
+    from accounts.hr_models import StaffTeachingAssignment
+    school = getattr(request.user, "school", None)
+    if not school or not _require_manage(request):
+        return redirect("home")
+    if request.method == "POST":
+        try:
+            assignment = StaffTeachingAssignment.objects.get(pk=pk, school=school)
+            assignment.is_active = False
+            assignment.save(update_fields=["is_active"])
+            messages.success(request, "Assignment ended.")
+        except StaffTeachingAssignment.DoesNotExist:
+            messages.error(request, "Assignment not found.")
+    return redirect("accounts:teaching_assignment_list")
+
+
+# ---------------------------------------------------------------------------
+# Staff Role Change Log
+# ---------------------------------------------------------------------------
+
+@login_required
+def staff_role_change_log(request):
+    """Read-only audit trail of staff role changes."""
+    from accounts.hr_models import StaffRoleChangeLog
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    if not _require_leadership(request):
+        return redirect("home")
+
+    qs = StaffRoleChangeLog.objects.filter(school=school).select_related(
+        "user", "changed_by"
+    )
+
+    user_pk = request.GET.get("user", "").strip()
+    if user_pk:
+        qs = qs.filter(user_id=user_pk)
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    staff_users = User.objects.filter(school=school, role__in=[
+        "teacher", "hod", "school_admin", "deputy_head", "accountant",
+        "librarian", "school_nurse", "admin_assistant", "admission_officer", "staff",
+    ]).order_by("last_name", "first_name")
+
+    return render(request, "accounts/staff_role_change_log.html", {
+        "logs": qs[:200],
+        "staff_users": staff_users,
+        "selected_user": user_pk,
+    })
+
+
+# ---------------------------------------------------------------------------
+# My Performance Reviews (staff self-service portal)
+# ---------------------------------------------------------------------------
+
+@login_required
+def my_performance_reviews(request):
+    """Staff: view own finalised performance reviews and acknowledge them."""
+    from accounts.hr_models import StaffPerformanceReview
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+
+    if request.method == "POST":
+        review_pk = request.POST.get("review_pk")
+        staff_comments = request.POST.get("staff_comments", "").strip()
+        try:
+            review = StaffPerformanceReview.objects.get(
+                pk=review_pk,
+                school=school,
+                staff=request.user,
+                is_finalised=True,
+            )
+            review.staff_acknowledgement = True
+            review.staff_comments = staff_comments
+            review.save(update_fields=["staff_acknowledgement", "staff_comments", "updated_at"])
+            messages.success(request, "Review acknowledged successfully.")
+        except StaffPerformanceReview.DoesNotExist:
+            messages.error(request, "Review not found or not yet finalised.")
+        return redirect("accounts:my_performance_reviews")
+
+    reviews = StaffPerformanceReview.objects.filter(
+        school=school,
+        staff=request.user,
+        is_finalised=True,
+    ).select_related("reviewer").order_by("-academic_year")
+
+    RATING_LABELS = {1: "Unsatisfactory", 2: "Needs Improvement", 3: "Meets Expectations",
+                     4: "Exceeds Expectations", 5: "Outstanding"}
+
+    return render(request, "accounts/my_performance_reviews.html", {
+        "reviews": reviews,
+        "rating_labels": RATING_LABELS,
+    })

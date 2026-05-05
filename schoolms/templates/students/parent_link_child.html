@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block page_title %}Link to My Child{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px;">
+  <div class="card-header"><h2 class="card-title">&#x1F9D2; Link to My Child</h2></div>
+  <div class="card-body">
+    <p style="color:#6b7280;margin-bottom:1.25rem;">
+      Enter your child's admission number to link your parent account. The school can verify
+      and update the relationship at any time.
+    </p>
+
+    {% if not found_student %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="step" value="search">
+      <label style="display:block;font-weight:600;margin-bottom:.25rem;">Admission Number</label>
+      <div style="display:flex;gap:.5rem;">
+        <input name="admission_number" required placeholder="e.g. STU-2025-001"
+               style="flex:1;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+        <button type="submit" class="btn btn-primary">Search</button>
+      </div>
+    </form>
+    {% else %}
+      {% if already_linked %}
+      <div style="padding:1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:.5rem;">
+        <p style="margin:0;color:#15803d;font-weight:600;">
+          &#x2713; You are already linked to <strong>{{ found_student.user.get_full_name }}</strong>.
+        </p>
+      </div>
+      <a href="{% url 'students:portal' %}" class="btn btn-secondary" style="margin-top:1rem;">Back to Portal</a>
+      {% else %}
+      <div style="padding:1rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:.5rem;margin-bottom:1.25rem;">
+        <p style="margin:0 0 .25rem;font-weight:600;">Student found:</p>
+        <p style="margin:0;">{{ found_student.user.get_full_name }} &mdash; Class {{ found_student.class_name|default:"N/A" }}</p>
+        <p style="margin:.25rem 0 0;font-size:.85rem;color:#6b7280;">Admission #: {{ found_student.admission_number }}</p>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="step" value="confirm">
+        <input type="hidden" name="student_pk" value="{{ found_student.pk }}">
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Your Relationship</label>
+        <select name="relationship" title="Relationship to student" required
+                style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;margin-bottom:1rem;">
+          {% for val, label in relationship_choices %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div style="display:flex;gap:.75rem;">
+          <button type="submit" class="btn btn-primary">Confirm Link</button>
+          <a href="{% url 'students:parent_link_child' %}" class="btn btn-secondary">Search Again</a>
+        </div>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

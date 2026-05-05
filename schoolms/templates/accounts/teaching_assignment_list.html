@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block page_title %}Teaching Assignments{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <h2 class="card-title">Teaching Assignments</h2>
+  </div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <input name="q" value="{{ q }}" placeholder="Search staff, subject, class…" style="flex:1;min-width:200px;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+      <select name="active" title="Filter by status" style="padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+        <option value="1" {% if active_only == "1" %}selected{% endif %}>Active only</option>
+        <option value="0" {% if active_only == "0" %}selected{% endif %}>All</option>
+      </select>
+      <button type="submit" class="btn btn-primary">Filter</button>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr><th>Staff</th><th>Subject</th><th>Class</th><th>Year</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          {% for a in assignments %}
+          <tr>
+            <td>{{ a.user.get_full_name|default:a.user.username }}</td>
+            <td>{{ a.subject.name }}</td>
+            <td>{{ a.class_name }}</td>
+            <td>{{ a.academic_year|default:"—" }}</td>
+            <td>{% if a.is_active %}<span style="color:#16a34a;font-weight:600;">Active</span>{% else %}<span style="color:#6b7280;">Ended</span>{% endif %}</td>
+            <td>
+              {% if a.is_active %}
+              <form method="post" action="{% url 'accounts:teaching_assignment_deactivate' a.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('End this assignment?')">End</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="text-align:center;color:#6b7280;">No assignments found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1.5rem;">
+  <div class="card-header"><h3 class="card-title">New Assignment</h3></div>
+  <div class="card-body">
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;">
+      {% csrf_token %}
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Staff Member</label>
+        <select name="user" title="Staff member" required style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+          <option value="">— select —</option>
+          {% for s in staff_list %}<option value="{{ s.pk }}">{{ s.get_full_name|default:s.username }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Subject</label>
+        <select name="subject" title="Subject" required style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+          <option value="">— select —</option>
+          {% for s in subjects %}<option value="{{ s.pk }}">{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Class Name</label>
+        <input name="class_name" placeholder="e.g. Form 1A" required style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+      </div>
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Academic Year</label>
+        <input name="academic_year" placeholder="e.g. 2025/2026" style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button type="submit" class="btn btn-primary" style="width:100%;">Add Assignment</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -127,11 +127,12 @@ def _fee_for_payment_request(user, fee_id):
     fee = qs.first()
     if fee is None:
         raise Http404("Fee not found.")
+    from students.utils import parent_is_guardian_of
     is_own = bool(
         fee.student_id
         and (
-            fee.student.parent_id == user.pk
-            or fee.student.user_id == user.pk
+            fee.student.user_id == user.pk
+            or parent_is_guardian_of(user, fee.student)
         )
     )
     is_staff = user.is_superuser or user_can_manage_school(user)
@@ -1528,9 +1529,9 @@ def parent_fee_list(request):
 
     user = request.user
 
-    from students.models import Student
+    from students.utils import get_children_for_parent
 
-    students = Student.objects.filter(parent=user).order_by("class_name", "admission_number")
+    students = get_children_for_parent(user, active_only=False)
 
     if not students.exists():
         messages.info(request, "No students linked to your account.")
@@ -1624,8 +1625,10 @@ def payment_receipt(request, pk):
     school = fee.school if fee else None
     user = request.user
 
+    from students.utils import parent_is_guardian_of
     is_parent_of = fee.student and (
-        fee.student.parent_id == user.id or (fee.student.user and fee.student.user_id == user.id)
+        (fee.student.user and fee.student.user_id == user.id)
+        or parent_is_guardian_of(user, fee.student)
     )
     user_school = getattr(user, "school", None)
     is_school_staff = (user.is_superuser or user_can_manage_school(user)) and (

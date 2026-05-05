@@ -2,6 +2,7 @@ from django.urls import path
 from operations.receipt_views import receipt_view, receipt_pdf_view
 from operations.partial_payment_views import partial_payment_page
 from operations import supply_views
+from operations import library_fine_views
 
 from django.views.generic import RedirectView
 from . import views
@@ -429,4 +430,12 @@ urlpatterns = [
     path("supplies/<int:pk>/toggle/", supply_views.supply_toggle, name="supply_toggle"),
     path("supplies/<int:pk>/notify/", supply_views.supply_notify, name="supply_notify"),
     path("my-child-supplies/", supply_views.parent_supply_list, name="parent_supply_list"),
+
+    # Library Fines
+    path("library/fines/", library_fine_views.library_fine_list, name="library_fine_list"),
+    path("library/fines/<int:pk>/pay/", library_fine_views.library_fine_mark_paid, name="library_fine_mark_paid"),
+    path("library/fines/<int:pk>/waive/", library_fine_views.library_fine_waive, name="library_fine_waive"),
+
+    # Attendance Analytics
+    path("attendance/analytics/", advanced_views.attendance_analytics, name="attendance_analytics"),
 ]

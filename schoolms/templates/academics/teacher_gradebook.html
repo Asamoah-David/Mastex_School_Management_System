@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block page_title %}Grade Book{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header"><h2 class="card-title">&#x1F4D2; Grade Book</h2></div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem;align-items:flex-end;">
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Class</label>
+        <select name="class_name" title="Select class" style="padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;min-width:160px;">
+          <option value="">— select —</option>
+          {% for c in classes %}<option value="{{ c }}" {% if c == class_name %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Term</label>
+        <select name="term_id" title="Select term" style="padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;min-width:160px;">
+          <option value="">— select —</option>
+          {% for t in terms %}<option value="{{ t.pk }}" {% if t.pk|stringformat:"s" == term_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Show</label>
+        <select name="published" title="Published filter" style="padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+          <option value="1" {% if show_published_only == "1" %}selected{% endif %}>Published only</option>
+          <option value="0" {% if show_published_only == "0" %}selected{% endif %}>All results</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">View</button>
+    </form>
+
+    {% if class_name and term_id %}
+      {% if not matrix %}
+        <p style="color:#6b7280;">No results found for <strong>{{ class_name }}</strong> in <strong>{{ selected_term }}</strong>.</p>
+      {% else %}
+        <p style="color:#6b7280;margin-bottom:.75rem;">
+          {{ class_name }} &mdash; {{ selected_term }} &mdash; {{ matrix|length }} student(s), {{ subjects|length }} subject(s)
+        </p>
+        <div style="overflow-x:auto;">
+          <table class="table" style="min-width:600px;white-space:nowrap;">
+            <thead>
+              <tr>
+                <th style="position:sticky;left:0;background:#f9fafb;z-index:1;">Student</th>
+                {% for s in subjects %}<th>{{ s.name }}</th>{% endfor %}
+                <th style="font-weight:700;color:#1d4ed8;">Avg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in matrix %}
+              <tr>
+                <td style="position:sticky;left:0;background:#fff;font-weight:600;">{{ row.student.user.get_full_name }}</td>
+                {% for score in row.scores %}
+                <td style="text-align:center;">
+                  {% if score is not None %}
+                    <span style="{% if score >= 80 %}color:#15803d;{% elif score >= 50 %}color:#1d4ed8;{% else %}color:#dc2626;{% endif %}font-weight:600;">{{ score|floatformat:1 }}</span>
+                  {% else %}
+                    <span style="color:#d1d5db;">—</span>
+                  {% endif %}
+                </td>
+                {% endfor %}
+                <td style="text-align:center;font-weight:700;">
+                  {% if row.average is not None %}{{ row.average }}{% else %}<span style="color:#d1d5db;">—</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p style="margin-top:.75rem;font-size:.8rem;color:#6b7280;">
+          Colour coding: <span style="color:#15803d;font-weight:600;">&#x25CF;</span> &ge;80 &nbsp;
+          <span style="color:#1d4ed8;font-weight:600;">&#x25CF;</span> 50–79 &nbsp;
+          <span style="color:#dc2626;font-weight:600;">&#x25CF;</span> &lt;50
+        </p>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

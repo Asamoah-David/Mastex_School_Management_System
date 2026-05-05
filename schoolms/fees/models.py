@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+import warnings
+from django.core.exceptions import PermissionDenied
 
 User = get_user_model()
 
@@ -19,6 +21,19 @@ class SubscriptionPlan(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if self.pk is None:
+            raise PermissionDenied(
+                "SubscriptionPlan is deprecated. Use School.subscription_plan instead."
+            )
+        warnings.warn(
+            "SubscriptionPlan is deprecated and will be removed. "
+            "Use School.subscription_plan for feature gating.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

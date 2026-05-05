@@ -398,3 +398,88 @@ def bank_account_toggle(request, pk):
     account.save(update_fields=["is_active"])
     messages.success(request, f"Account {'activated' if account.is_active else 'deactivated'}.")
     return redirect("finance:bank_account_list")
+
+
+# ---------------------------------------------------------------------------
+# Bulk Fee Generation
+# ---------------------------------------------------------------------------
+
+@login_required
+def bulk_fee_generate(request):
+    """Generate Fee records for every student in a class from a FeeStructure.
+
+    GET  — display form (fee_structure selector + optional due_date + dry-run toggle).
+    POST — create fees, skip students who already have a fee from this structure
+           for the selected term.  Returns a summary of created / skipped counts.
+    """
+    from finance.models import FeeStructure, Fee
+    from students.models import Student
+    from django.db import transaction
+
+    school = _school(request)
+    if not school:
+        return redirect("home")
+    if not _is_finance_admin(request):
+        return HttpResponseForbidden("Access denied.")
+
+    structures = FeeStructure.objects.filter(school=school, is_active=True).order_by("name")
+
+    result = None
+    if request.method == "POST":
+        structure_pk = request.POST.get("fee_structure")
+        due_date_raw = request.POST.get("due_date") or None
+        dry_run = request.POST.get("dry_run") == "1"
+
+        structure = get_object_or_404(FeeStructure, pk=structure_pk, school=school)
+
+        student_qs = Student.objects.filter(school=school, is_active=True)
+        if structure.class_name:
+            student_qs = student_qs.filter(class_name__iexact=structure.class_name)
+        elif structure.school_class_id:
+            student_qs = student_qs.filter(school_class_id=structure.school_class_id)
+
+        created, skipped = 0, 0
+        with transaction.atomic():
+            for student in student_qs.iterator():
+                already_exists = Fee.objects.filter(
+                    school=school,
+                    student=student,
+                    fee_structure=structure,
+                    deleted_at__isnull=True,
+                ).exists()
+                if already_exists:
+                    skipped += 1
+                    continue
+                if not dry_run:
+                    Fee.objects.create(
+                        school=school,
+                        student=student,
+                        fee_structure=structure,
+                        term=structure.term_fk,
+                        amount=structure.amount,
+                        description=f"{structure.name} — bulk generated",
+                        due_date=due_date_raw or None,
+                        is_active=True,
+                    )
+                created += 1
+            if dry_run:
+                transaction.set_rollback(True)
+
+        result = {
+            "structure": structure,
+            "created": created,
+            "skipped": skipped,
+            "total": created + skipped,
+            "dry_run": dry_run,
+        }
+        if not dry_run:
+            messages.success(
+                request,
+                f"Generated {created} fee records from '{structure.name}'. "
+                f"{skipped} students already had this fee."
+            )
+
+    return render(request, "finance/bulk_fee_generate.html", {
+        "structures": structures,
+        "result": result,
+    })

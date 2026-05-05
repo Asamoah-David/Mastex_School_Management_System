@@ -16,9 +16,9 @@ def parent_has_other_active_children_at_school(
 ) -> bool:
     if not parent:
         return False
-    from students.models import Student
+    from students.utils import get_children_for_parent
 
-    qs = Student.objects.filter(parent=parent, school=school, status="active")
+    qs = get_children_for_parent(parent, school=school, active_only=True)
     if exclude_student_pk is not None:
         qs = qs.exclude(pk=exclude_student_pk)
     return qs.exists()
@@ -49,11 +49,8 @@ def reactivate_parent_if_has_active_children(parent: User | None, school) -> boo
     """
     if not parent or parent.is_active:
         return False
-    from students.models import Student
-
-    if not Student.objects.filter(
-        parent=parent, school=school, status="active"
-    ).exists():
+    from students.utils import get_children_for_parent
+    if not get_children_for_parent(parent, school=school, active_only=True).exists():
         return False
     parent.is_active = True
     parent.save(update_fields=["is_active"])

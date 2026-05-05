@@ -9,6 +9,7 @@
 <!-- Action Bar -->
 <div class="button-row mb-sm">
     <a href="{% url 'academics:report_card' student.id %}" class="btn btn-primary">📄 Report Card</a>
+    <a href="{% url 'academics:student_transcript' student.id %}" class="btn btn-secondary">&#x1F4DC; Transcript</a>
     <a href="{% url 'students:student_edit' student.id %}" class="btn btn-warning">✏️ Edit</a>
     <a href="{% url 'operations:student_payment_history' student.id %}" class="btn btn-secondary">💳 Payment History</a>
     <a href="{% url 'accounts:reset_user_password' student.user.id %}?next={% url 'students:student_detail' student.id %}" class="btn btn-warning">🔑 Reset Password</a>

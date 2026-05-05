@@ -144,4 +144,13 @@ urlpatterns = [
     # Performance reviews
     path("hr/performance-reviews/", hr_views.performance_review_list, name="performance_review_list"),
     path("hr/performance-reviews/create/", hr_views.performance_review_create, name="performance_review_create"),
+    # Staff contracts (school-wide list)
+    path("hr/contracts/", hr_views.staff_contract_list, name="staff_contract_list"),
+    # Teaching assignments
+    path("hr/teaching-assignments/", hr_views.teaching_assignment_list, name="teaching_assignment_list"),
+    path("hr/teaching-assignments/<int:pk>/deactivate/", hr_views.teaching_assignment_deactivate, name="teaching_assignment_deactivate"),
+    # Staff role change log
+    path("hr/role-change-log/", hr_views.staff_role_change_log, name="staff_role_change_log"),
+    # My performance reviews (staff self-service)
+    path("hr/my-reviews/", hr_views.my_performance_reviews, name="my_performance_reviews"),
 ]

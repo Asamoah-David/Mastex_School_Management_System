@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block page_title %}Library Fines{% endblock %}
+{% block page_subtitle %}Manage overdue book fines{% endblock %}
+{% block content %}
+<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+  <a href="{% url 'operations:library_issues' %}" class="btn btn-secondary btn-sm">&#x2190; Book Issues</a>
+</div>
+
+<!-- Stats -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem;">
+  {% for label,val in counts.items %}
+  <div class="content-card" style="padding:.85rem 1rem;text-align:center;">
+    <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">{{ val }}</div>
+    <div style="font-size:.78rem;color:var(--text-soft);text-transform:capitalize;">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filters -->
+<form method="get" style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem;">
+  <input type="text" name="q" value="{{ student_q }}" placeholder="Search student name…" class="form-control" style="max-width:220px;">
+  <select name="status" class="form-control" style="max-width:160px;">
+    <option value="">All statuses</option>
+    <option value="pending" {% if status_filter == "pending" %}selected{% endif %}>Pending</option>
+    <option value="partial" {% if status_filter == "partial" %}selected{% endif %}>Partial</option>
+    <option value="paid" {% if status_filter == "paid" %}selected{% endif %}>Paid</option>
+    <option value="waived" {% if status_filter == "waived" %}selected{% endif %}>Waived</option>
+  </select>
+  <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+  <a href="{% url 'operations:library_fine_list' %}" class="btn btn-secondary btn-sm">Clear</a>
+</form>
+
+<div class="content-card">
+  {% if fines %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>#</th><th>Student</th><th>Book</th><th>Due Date</th>
+        <th>Fine (GHS)</th><th>Paid (GHS)</th><th>Balance (GHS)</th><th>Status</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fine in fines %}
+      <tr>
+        <td>{{ fine.pk }}</td>
+        <td>{{ fine.issue.student.user.get_full_name|default:fine.issue.student }}</td>
+        <td>{{ fine.issue.book.title }}</td>
+        <td>{{ fine.issue.due_date }}</td>
+        <td>{{ fine.fine_amount }}</td>
+        <td>{{ fine.amount_paid }}</td>
+        <td>{{ fine.balance }}</td>
+        <td>
+          <span class="badge-pill {% if fine.status == 'paid' %}badge-success{% elif fine.status == 'waived' %}badge-info{% elif fine.status == 'partial' %}badge-warning{% else %}badge-danger{% endif %}">
+            {{ fine.get_status_display }}
+          </span>
+        </td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;">
+          {% if fine.status not in "paid,waived" %}
+          <form method="post" action="{% url 'operations:library_fine_mark_paid' fine.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="number" name="amount" min="0.01" step="0.01" max="{{ fine.balance }}" value="{{ fine.balance }}"
+                   style="width:90px;" class="form-control form-control-sm" required>
+            <button type="submit" class="btn btn-primary btn-sm" style="margin-top:.25rem;">Pay</button>
+          </form>
+          <form method="post" action="{% url 'operations:library_fine_waive' fine.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="text" name="reason" placeholder="Waiver reason" class="form-control form-control-sm" style="width:140px;">
+            <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:.25rem;" onclick="return confirm('Waive this fine?')">Waive</button>
+          </form>
+          {% else %}
+          {% if fine.waived_by %}<span style="font-size:.75rem;color:var(--text-soft);">by {{ fine.waived_by.get_full_name }}</span>{% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--text-soft);text-align:center;padding:2rem;">No fines found matching your filters.</p>
+  {% endif %}
+</div>
+{% endblock %}

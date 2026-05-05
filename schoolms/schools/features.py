@@ -349,6 +349,27 @@ FEATURE_REGISTRY: dict[str, dict] = {
         "min_plan": "standard",
         "icon": "bi-briefcase",
     },
+    "virtual_meetings": {
+        "label": "Virtual Meetings / Online Classes",
+        "description": "Host video-linked online classes and virtual parent-teacher meetings.",
+        "category": "Academics",
+        "min_plan": "standard",
+        "icon": "bi-camera-video",
+    },
+    "attendance_analytics": {
+        "label": "Attendance Analytics",
+        "description": "Chronic absenteeism reports, class-level attendance rates, and at-risk student identification.",
+        "category": "Operations",
+        "min_plan": "standard",
+        "icon": "bi-bar-chart-line",
+    },
+    "staff_contracts": {
+        "label": "Staff Contracts",
+        "description": "Manage staff employment contracts, contract types, and status workflows.",
+        "category": "HR",
+        "min_plan": "standard",
+        "icon": "bi-file-earmark-person",
+    },
 }
 
 # Convenience set of all keys (used by ensure_features_exist)

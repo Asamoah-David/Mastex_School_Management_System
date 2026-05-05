@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block page_title %}Bulk Fee Generation{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <div class="card-header"><h2 class="card-title">&#x1F4B0; Bulk Fee Generation</h2></div>
+  <div class="card-body">
+    <p style="color:#6b7280;margin-bottom:1.25rem;">
+      Select a fee structure to generate fee records for all matching students in one click.
+      Use <strong>Dry Run</strong> first to preview without creating records.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      <div style="margin-bottom:1rem;">
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Fee Structure</label>
+        <select name="fee_structure" title="Fee structure" required style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+          <option value="">— select a fee structure —</option>
+          {% for s in structures %}
+          <option value="{{ s.pk }}">{{ s.name }}{% if s.class_name %} ({{ s.class_name }}){% else %} (All classes){% endif %} — {{ s.amount }} GHS</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="margin-bottom:1rem;">
+        <label style="display:block;font-weight:600;margin-bottom:.25rem;">Due Date <span style="font-weight:400;color:#6b7280;">(optional)</span></label>
+        <input type="date" name="due_date" style="padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+      </div>
+      <div style="margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <input type="checkbox" name="dry_run" value="1" id="dry_run" style="width:1rem;height:1rem;">
+        <label for="dry_run" style="font-weight:600;">Dry Run — preview only, no records created</label>
+      </div>
+      <button type="submit" class="btn btn-primary">Generate Fees</button>
+    </form>
+  </div>
+</div>
+
+{% if result %}
+<div class="card" style="max-width:640px;margin-top:1.5rem;border:2px solid {% if result.dry_run %}#f59e0b{% else %}#16a34a{% endif %};">
+  <div class="card-header" style="background:{% if result.dry_run %}#fffbeb{% else %}#f0fdf4{% endif %};">
+    <h3 class="card-title">{% if result.dry_run %}&#x1F50D; Dry Run Result{% else %}&#x2705; Generation Complete{% endif %}</h3>
+  </div>
+  <div class="card-body">
+    <p><strong>Fee Structure:</strong> {{ result.structure.name }}</p>
+    <p><strong>Students matched:</strong> {{ result.total }}</p>
+    <p style="color:#16a34a;"><strong>Would create / Created:</strong> {{ result.created }}</p>
+    <p style="color:#6b7280;"><strong>Already had this fee (skipped):</strong> {{ result.skipped }}</p>
+    {% if result.dry_run %}
+    <p style="margin-top:.75rem;color:#b45309;font-weight:600;">No records were written. Uncheck Dry Run and submit again to apply.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

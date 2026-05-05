@@ -23,6 +23,7 @@ from core.pagination import paginate
 from core.academic_context import get_current_term_for_school
 
 from students.models import Student
+from students.utils import parent_is_guardian_of
 from schools.models import School
 from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook, TextbookSale, HostelFee
 from finance.paystack_service import paystack_service
@@ -91,19 +92,8 @@ def _get_parent_email(student, request):
 
 def _portal_children(user):
     """Students linked to a parent user via legacy FK or StudentGuardian (stable ordering)."""
-    if getattr(user, "role", None) != "parent":
-        return []
-    legacy_ids = set(user.children.values_list("id", flat=True))
-    from students.models import StudentGuardian as _SG
-    guardian_ids = set(_SG.objects.filter(guardian=user).values_list("student_id", flat=True))
-    all_ids = legacy_ids | guardian_ids
-    if not all_ids:
-        return []
-    return list(
-        Student.objects.filter(pk__in=all_ids, status="active")
-        .select_related("user", "school")
-        .order_by("class_name", "admission_number")
-    )
+    from students.utils import get_children_for_parent
+    return list(get_children_for_parent(user))
 
 
 def student_for_portal(request):
@@ -177,7 +167,7 @@ def user_can_access_student_payment(user, student):
     role = getattr(user, "role", None)
     if role == "student" and student.user_id == user.id:
         return True
-    if role == "parent" and student.parent_id == user.id:
+    if role == "parent" and parent_is_guardian_of(user, student):
         return True
     school = getattr(user, "school", None)
     if school and student.school_id == school.id:

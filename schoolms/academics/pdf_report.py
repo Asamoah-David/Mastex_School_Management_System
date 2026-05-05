@@ -457,7 +457,8 @@ def generate_report_card_pdf(request, student_id):
     role = getattr(user, "role", None)
     is_manager = user.is_superuser or role in ("school_admin", "admin", "teacher", "hod", "deputy_head", "accountant")
     is_own_student = role == "student" and student.user_id == user.id
-    is_parent = role == "parent" and student.parent_id == user.id
+    from students.utils import parent_is_guardian_of
+    is_parent = role == "parent" and parent_is_guardian_of(user, student)
     if not (is_manager or is_own_student or is_parent):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden("Access denied.")

@@ -7,6 +7,7 @@ inline ``user.role ==`` checks.
 from accounts.permissions import (
     is_super_admin,
     is_school_admin,
+    is_hod,
     is_school_leadership,
     is_staff_member,
     is_student,
@@ -157,6 +158,7 @@ def role_permissions(request):
     return {
         "is_super_admin": is_super_admin(user),
         "is_school_admin": is_school_admin(user),
+        "is_hod": is_hod(user),
         "is_school_leadership": is_school_leadership(user),
         "is_staff_member": is_staff_member(user),
         "can_manage_school": can_manage_school(user),

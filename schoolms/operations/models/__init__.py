@@ -83,7 +83,7 @@ from operations.models.finance import (
     Budget,
 )
 from operations.models.discipline import (
-    DisciplineIncident,
+    DisciplineIncident,  # DEPRECATED — use students.StudentDiscipline for new code
     BehaviorPoint,
 )
 from operations.models.submissions import (
@@ -133,8 +133,8 @@ __all__ = [
     "ExamHall", "SeatingPlan", "SeatAssignment", "OnlineExam", "ExamQuestion", "ExamAttempt", "ExamAnswer",
     # finance
     "ExpenseCategory", "Expense", "Budget",
-    # discipline
-    "DisciplineIncident", "BehaviorPoint",
+    # discipline (DisciplineIncident is DEPRECATED — use students.StudentDiscipline)
+    "BehaviorPoint",
     # submissions
     "AssignmentSubmission",
     # documents

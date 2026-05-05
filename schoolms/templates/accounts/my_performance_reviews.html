@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block page_title %}My Performance Reviews{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header"><h2 class="card-title">&#x2B50; My Performance Reviews</h2></div>
+  <div class="card-body">
+    {% if not reviews %}
+      <p style="color:#6b7280;">No finalised performance reviews found for your account yet.</p>
+    {% else %}
+      {% for review in reviews %}
+      <div style="border:1px solid #e5e7eb;border-radius:.5rem;padding:1.25rem;margin-bottom:1.25rem;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
+          <div>
+            <h3 style="margin:0 0 .25rem;">{{ review.get_review_period_display }} — {{ review.academic_year }}</h3>
+            <p style="color:#6b7280;margin:0;">Reviewed by: {{ review.reviewer.get_full_name|default:"School Admin" }}</p>
+          </div>
+          <div style="text-align:right;">
+            {% if review.overall_rating %}
+            <span style="font-size:1.1rem;font-weight:700;color:#1d4ed8;">{{ rating_labels|default_if_none:"" }}</span>
+            <div style="font-size:1.5rem;">
+              {% for i in "12345" %}&#x2B50;{% if forloop.counter <= review.overall_rating %}{% else %}<span style="opacity:.3;">&#x2B50;</span>{% endif %}{% endfor %}
+            </div>
+            {% endif %}
+            {% if review.staff_acknowledgement %}
+            <span style="background:#dcfce7;color:#15803d;padding:.2rem .6rem;border-radius:.25rem;font-size:.8rem;font-weight:600;">&#x2713; Acknowledged</span>
+            {% else %}
+            <span style="background:#fef9c3;color:#b45309;padding:.2rem .6rem;border-radius:.25rem;font-size:.8rem;font-weight:600;">Pending acknowledgement</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if review.strengths or review.areas_for_improvement or review.goals_next_period %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:1rem;">
+          {% if review.strengths %}
+          <div>
+            <p style="font-weight:600;margin:0 0 .25rem;color:#15803d;">Strengths</p>
+            <p style="margin:0;white-space:pre-line;">{{ review.strengths }}</p>
+          </div>
+          {% endif %}
+          {% if review.areas_for_improvement %}
+          <div>
+            <p style="font-weight:600;margin:0 0 .25rem;color:#b45309;">Areas for Improvement</p>
+            <p style="margin:0;white-space:pre-line;">{{ review.areas_for_improvement }}</p>
+          </div>
+          {% endif %}
+          {% if review.goals_next_period %}
+          <div>
+            <p style="font-weight:600;margin:0 0 .25rem;color:#1d4ed8;">Goals Next Period</p>
+            <p style="margin:0;white-space:pre-line;">{{ review.goals_next_period }}</p>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if not review.staff_acknowledgement %}
+        <form method="post" style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
+          {% csrf_token %}
+          <input type="hidden" name="review_pk" value="{{ review.pk }}">
+          <label style="display:block;font-weight:600;margin-bottom:.5rem;">Your Comments (optional)</label>
+          <textarea name="staff_comments" rows="3" style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;resize:vertical;" placeholder="Add any comments or responses to this review…">{{ review.staff_comments }}</textarea>
+          <button type="submit" class="btn btn-primary" style="margin-top:.75rem;">Acknowledge Review</button>
+        </form>
+        {% elif review.staff_comments %}
+        <div style="margin-top:1rem;padding:1rem;background:#f8fafc;border-radius:.375rem;">
+          <p style="font-weight:600;margin:0 0 .25rem;">Your Comments</p>
+          <p style="margin:0;white-space:pre-line;">{{ review.staff_comments }}</p>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

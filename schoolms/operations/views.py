@@ -83,6 +83,7 @@ from core.utils import (
     log_activity,
 )
 from students.absence_utils import ranges_overlap
+from students.utils import get_children_for_parent, parent_is_guardian_of
 from accounts.permissions import (
     can_access_staff_leave_portal,
     can_review_staff_leave,
@@ -448,7 +449,7 @@ def bus_my(request):
     school = _get_school(request)
     if role == "parent":
         # Get school from any of the parent's children
-        child = Student.objects.filter(parent=request.user).first()
+        child = get_children_for_parent(request.user).first()
         if child:
             school = child.school
         else:
@@ -466,7 +467,7 @@ def bus_my(request):
         student = Student.objects.filter(user=request.user, school=school).first()
         my_payments = BusPayment.objects.filter(school=school, student=student).select_related("route").order_by("-payment_date")[:50] if student else []
     else:
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school)
         my_payments = BusPayment.objects.filter(school=school, student__in=children).select_related("route", "student", "student__user").order_by("-payment_date")[:100]
     
     return render(request, "operations/bus_my.html", {
@@ -553,7 +554,7 @@ def textbook_my(request):
     school = _get_school(request)
     if role == "parent":
         # Get school from any of the parent's children
-        child = Student.objects.filter(parent=request.user).first()
+        child = get_children_for_parent(request.user).first()
         if child:
             school = child.school
         else:
@@ -571,7 +572,7 @@ def textbook_my(request):
         student = Student.objects.filter(user=request.user, school=school).first()
         my_purchases = TextbookSale.objects.filter(school=school, student=student).select_related("textbook").order_by("-sale_date")[:50] if student else []
     else:
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school)
         my_purchases = TextbookSale.objects.filter(school=school, student__in=children).select_related("textbook", "student", "student__user").order_by("-sale_date")[:100]
     
     return render(request, "operations/textbook_my.html", {
@@ -1642,7 +1643,7 @@ def library_my_issues(request):
         )
         return render(request, "operations/library_my_issues.html", {"issues": issues, "school": school, "mode": "student"})
     if role == "parent":
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school, active_only=False)
         issues = (
             LibraryIssue.objects.filter(school=school, student__in=children)
             .select_related("book", "student", "student__user")
@@ -2022,7 +2023,7 @@ def hostel_my(request):
             },
         )
     if role == "parent":
-        children = list(Student.objects.filter(parent=request.user, school=school).select_related("user").order_by("class_name", "admission_number"))
+        children = list(get_children_for_parent(request.user, school=school, active_only=False))
         assignments = HostelAssignment.objects.filter(school=school, student__in=children, is_active=True).select_related("student", "student__user", "hostel", "room")
         fees_page = (
             paginate(
@@ -3405,7 +3406,7 @@ def discipline_list(request):
     
     # Parents see their children's incidents, students see their own
     if role == 'parent':
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school, active_only=False)
         incidents = StudentDiscipline.objects.filter(school=school, student__in=children).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
     elif role == 'student':
         student = Student.objects.filter(user=request.user, school=school).first()
@@ -3584,7 +3585,7 @@ def document_list(request):
         student = Student.objects.filter(user=request.user, school=school).first()
         documents = StudentDocument.objects.filter(student=student).order_by('-uploaded_at') if student else []
     elif role == 'parent':
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school, active_only=False)
         documents = StudentDocument.objects.filter(student__in=children).select_related('student', 'student__user').order_by('-uploaded_at')[:200]
     elif user_can_manage_school(request.user) or request.user.is_superuser:
         qs = StudentDocument.scoped.for_school(school).select_related('student', 'student__user', 'uploaded_by').order_by('-uploaded_at')
@@ -3615,7 +3616,7 @@ def document_upload(request):
     if role == 'student':
         students = [Student.objects.filter(user=request.user, school=school).first()]
     elif role == 'parent':
-        students = list(Student.objects.filter(parent=request.user, school=school))
+        students = list(get_children_for_parent(request.user, school=school, active_only=False))
     elif user_can_manage_school(request.user) or request.user.is_superuser:
         students = list(Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')[:100])
     else:
@@ -5489,11 +5490,7 @@ def student_life(request):
         )
         return render(request, "operations/student_life.html", ctx)
 
-    children = (
-        Student.objects.filter(parent=request.user, school=school)
-        .select_related("user")
-        .order_by("class_name", "admission_number")
-    )
+    children = get_children_for_parent(request.user, school=school)
     totals = []
     for child in children:
         sport_n = (
@@ -6567,11 +6564,7 @@ def my_activities(request):
         )
 
     if role == "parent":
-        children = (
-            Student.objects.filter(parent=request.user, school=school)
-            .select_related("user", "school")
-            .order_by("class_name", "admission_number")
-        )
+        children = get_children_for_parent(request.user, school=school)
         rows = []
         for child in children:
             sports = StudentSport.objects.filter(student=child, is_active=True).select_related("sport")
@@ -6907,7 +6900,7 @@ def pt_meeting_book(request, pk):
         return redirect("home")
 
     meeting = get_object_or_404(PTMeeting, pk=pk, school=school)
-    children = Student.objects.filter(parent=request.user, school=school).select_related("user")
+    children = get_children_for_parent(request.user, school=school)
 
     if request.method == "POST":
         student_id = request.POST.get("student")
@@ -6916,10 +6909,8 @@ def pt_meeting_book(request, pk):
         pref_time = parse_time(preferred_raw) if preferred_raw else None
 
         if student_id:
-            student = Student.objects.filter(
-                id=student_id, school=school, parent=request.user
-            ).first()
-            if not student:
+            student = Student.objects.filter(id=student_id, school=school).first()
+            if not student or not parent_is_guardian_of(request.user, student):
                 messages.error(request, "Invalid student selection.")
             else:
                 try:
@@ -7056,7 +7047,7 @@ def health_record_list(request):
     # Parents see their children's health records, students see their own
     page_obj = None
     if role == 'parent':
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school, active_only=False)
         records = StudentHealth.objects.filter(school=school, student__in=children).select_related('student', 'student__user').order_by('-last_updated')[:200]
     elif role == 'student':
         student = Student.objects.filter(user=request.user, school=school).first()
@@ -7748,7 +7739,7 @@ def school_event_rsvp(request, pk):
                 defaults={"is_attending": True},
             )
     else:
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school)
         for child in children:
             EventRSVP.objects.update_or_create(
                 event=event,
@@ -7783,7 +7774,7 @@ def homework_for_student(request):
         students = [student]
         is_parent = False
     else:
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school)
         students = list(children)
         is_parent = True
 

@@ -35,6 +35,7 @@ from accounts.permissions import (
     is_super_admin,
 )
 from students.absence_utils import absence_range_end, pending_absence_overlaps
+from students.utils import get_children_for_parent, parent_is_guardian_of
 from operations.alumni_sync import sync_alumni_from_graduated_student
 from core.utils import log_activity
 from schools.models import School
@@ -58,10 +59,7 @@ def parent_dashboard(request):
         from academics.models import Result, ExamType, Term, ExamSchedule
 
         user_school = getattr(request.user, "school", None)
-        children_qs = Student.objects.filter(parent=request.user).select_related("school", "user")
-        if user_school:
-            children_qs = children_qs.filter(school=user_school)
-        children = children_qs
+        children = get_children_for_parent(request.user, school=user_school, active_only=False)
         
         # Handle case with no children
         if not children:
@@ -429,7 +427,7 @@ def announcements_list(request):
         )
 
     if role == "parent":
-        children = list(Student.objects.filter(parent=request.user).select_related("school"))
+        children = list(get_children_for_parent(request.user, active_only=False))
         schools = list({c.school for c in children if c.school_id})
         fallback_school = getattr(request.user, "school", None)
         if fallback_school and fallback_school not in schools:
@@ -494,11 +492,7 @@ def fees_list(request):
         )
 
     if is_parent(request.user):
-        children = list(
-            Student.objects.filter(parent=request.user)
-            .select_related("user")
-            .order_by("class_name", "admission_number")
-        )
+        children = list(get_children_for_parent(request.user, active_only=False))
         student_id = (request.GET.get("student") or "").strip()
         active_child = None
         if student_id and children:
@@ -579,7 +573,7 @@ def results_list(request):
         )
 
     if role == "parent":
-        children = list(Student.objects.filter(parent=request.user).select_related("school", "user").order_by("class_name", "admission_number"))
+        children = list(get_children_for_parent(request.user, active_only=False))
         if not children:
             return render(request, "students/results_list.html", {"mode": "parent", "children": [], "results": [], "terms": [], "exam_types": []})
 
@@ -1455,11 +1449,7 @@ def parent_absence_request_create(request):
     if getattr(request.user, "role", None) != "parent":
         return redirect("home")
 
-    children = list(
-        Student.objects.filter(parent=request.user)
-        .select_related("school", "user")
-        .order_by("class_name", "admission_number")
-    )
+    children = list(get_children_for_parent(request.user))
     if not children:
         messages.error(request, "No children are linked to this parent account yet.")
         return redirect("portal")
@@ -1474,7 +1464,9 @@ def parent_absence_request_create(request):
             messages.error(request, "Please select a child and provide dates and a reason.")
         else:
             try:
-                child = Student.objects.select_related("school", "user").get(id=int(student_id), parent=request.user)
+                child = Student.objects.select_related("school", "user").get(id=int(student_id))
+                if not parent_is_guardian_of(request.user, child):
+                    raise Student.DoesNotExist
             except (Student.DoesNotExist, ValueError):
                 messages.error(request, "Invalid child selected.")
             else:
@@ -1527,8 +1519,9 @@ def parent_absence_requests(request):
     if getattr(request.user, "role", None) != "parent":
         return redirect("home")
 
+    child_ids = list(get_children_for_parent(request.user, active_only=False).values_list("id", flat=True))
     qs = (
-        AbsenceRequest.objects.filter(student__parent=request.user)
+        AbsenceRequest.objects.filter(student_id__in=child_ids)
         .select_related("student", "student__user", "decided_by")
         .order_by("-created_at")
     )
@@ -2000,3 +1993,79 @@ def learning_plan_delete(request, pk):
     plan.delete()
     messages.success(request, f"Learning plan for {student_name} deleted.")
     return redirect("students:learning_plan_list")
+
+
+# ---------------------------------------------------------------------------
+# Parent self-service: link to own child
+# ---------------------------------------------------------------------------
+
+@login_required
+def parent_link_child(request):
+    """Parent self-service: enter a student's admission number to link as guardian.
+
+    Step 1 (GET / initial POST): show search form.
+    Step 2 (POST with student_pk): confirm and create the StudentGuardian link.
+    """
+    from students.models import Student, StudentGuardian
+
+    if getattr(request.user, "role", "") != "parent":
+        messages.error(request, "Only parent accounts can use this feature.")
+        return redirect("home")
+
+    school = getattr(request.user, "school", None)
+    if not school:
+        messages.error(request, "Your account is not linked to a school.")
+        return redirect("home")
+
+    found_student = None
+    already_linked = False
+
+    if request.method == "POST":
+        step = request.POST.get("step", "search")
+
+        if step == "confirm":
+            student_pk = request.POST.get("student_pk")
+            relationship = request.POST.get("relationship", "guardian")
+            student = get_object_or_404(Student, pk=student_pk, school=school, is_active=True)
+
+            if StudentGuardian.objects.filter(student=student, guardian=request.user).exists():
+                messages.info(request, f"You are already linked to {student}.")
+            else:
+                StudentGuardian.objects.create(
+                    school=school,
+                    student=student,
+                    guardian=request.user,
+                    relationship=relationship,
+                    is_primary=False,
+                    can_pickup=True,
+                    emergency_contact=False,
+                )
+                messages.success(
+                    request,
+                    f"You have been linked to {student.user.get_full_name()} as {relationship}. "
+                    f"A school administrator may contact you to verify this relationship."
+                )
+            return redirect("students:portal")
+
+        else:
+            admission_number = request.POST.get("admission_number", "").strip()
+            if admission_number:
+                student = Student.objects.filter(
+                    school=school,
+                    admission_number__iexact=admission_number,
+                    is_active=True,
+                ).select_related("user").first()
+                if student:
+                    already_linked = StudentGuardian.objects.filter(
+                        student=student, guardian=request.user
+                    ).exists()
+                    found_student = student
+                else:
+                    messages.error(request, f"No active student found with admission number '{admission_number}'.")
+
+    RELATIONSHIP_CHOICES = StudentGuardian.RELATIONSHIP_CHOICES
+    return render(request, "students/parent_link_child.html", {
+        "found_student": found_student,
+        "already_linked": already_linked,
+        "relationship_choices": RELATIONSHIP_CHOICES,
+    })

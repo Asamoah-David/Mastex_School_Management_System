@@ -40,6 +40,7 @@ from core.pagination import paginate
 from .pdf_report import _build_report_card_pdf_bytes
 
 from core.utils import get_school as _get_school, can_manage as _user_can_manage_school
+from students.utils import get_children_for_parent
 
 def _quiz_grade_response(given, question):
     """Return (is_correct, marks_obtained) for any question type."""
@@ -128,7 +129,8 @@ def _can_view_student_record(user, student):
     if role == "student":
         return student.user_id == user.id
     if role == "parent":
-        return student.parent_id == user.id
+        from students.utils import parent_is_guardian_of
+        return parent_is_guardian_of(user, student)
     return False
 
 
@@ -1082,7 +1084,7 @@ def homework_list(request):
                 {"homework": qs, "school": school, "classes": classes, "read_only": True},
             )
         if role == "parent":
-            children = list(Student.objects.filter(parent=request.user, school=school).only("class_name"))
+            children = list(get_children_for_parent(request.user, school=school, active_only=False))
             class_names = sorted({c.class_name for c in children if c.class_name})
             qs = qs.filter(class_name__in=class_names) if class_names else qs.none()
             if class_filter and class_filter in class_names:
@@ -1221,7 +1223,7 @@ def exam_schedule_list(request):
             qs = qs.filter(Q(class_name__in=allowed) | Q(class_name="") | Q(class_name__isnull=True))
             classes = allowed
         elif role == "parent":
-            children = list(Student.objects.filter(parent=request.user, school=school).only("class_name"))
+            children = list(get_children_for_parent(request.user, school=school, active_only=False))
             allowed = sorted({c.class_name for c in children if c.class_name})
             qs = qs.filter(Q(class_name__in=allowed) | Q(class_name="") | Q(class_name__isnull=True))
             classes = allowed
@@ -1755,11 +1757,7 @@ def timetable_my(request):
         )
 
     if role == "parent":
-        children = list(
-            Student.objects.filter(parent=request.user, school=school)
-            .select_related("user")
-            .order_by("class_name", "admission_number")
-        )
+        children = list(get_children_for_parent(request.user, school=school, active_only=False))
         selected_id = request.GET.get("student")
         selected = None
         for c in children:
@@ -1881,7 +1879,7 @@ def quiz_list(request):
         else:
             quizzes = Quiz.objects.none()
     elif role == "parent":
-        children = Student.objects.filter(parent=request.user, school=school)
+        children = get_children_for_parent(request.user, school=school, active_only=False)
         class_names = [c.class_name for c in children if c.class_name]
         if class_names:
             quizzes = Quiz.objects.filter(
@@ -3674,3 +3672,207 @@ def term_generate(request):
         messages.info(request, f"Terms for {ay_name} already exist.")
 
     return redirect("academics:term_list")
+
+
+# ---------------------------------------------------------------------------
+# Teacher Grade Book
+# ---------------------------------------------------------------------------
+
+@login_required
+def teacher_gradebook(request):
+    """Per-class, per-term results grid: students (rows) × subjects (columns).
+
+    Accessible to teachers, HODs, and school admins.
+    """
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+
+    role = getattr(request.user, "role", "")
+    allowed_roles = {"teacher", "hod", "school_admin", "deputy_head", "headteacher"}
+    if role not in allowed_roles and not request.user.is_superuser:
+        return redirect("home")
+
+    from academics.models import Result
+    from students.models import Student
+
+    classes = sorted(set(
+        Student.objects.filter(school=school, is_active=True)
+        .values_list("class_name", flat=True)
+    ) - {""})
+    terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
+
+    class_name = request.GET.get("class_name", "")
+    term_id = request.GET.get("term_id", "")
+    show_published_only = request.GET.get("published", "1")
+
+    matrix = []
+    subjects_ordered = []
+    selected_term = None
+
+    if class_name and term_id:
+        selected_term = Term.objects.filter(pk=term_id, school=school).first()
+        if selected_term:
+            students = Student.objects.filter(
+                school=school, class_name=class_name, is_active=True
+            ).select_related("user").order_by("user__last_name", "user__first_name")
+
+            result_qs = Result.objects.filter(
+                school=school,
+                term=selected_term,
+                student__class_name=class_name,
+                deleted_at__isnull=True,
+            ).select_related("subject")
+            if show_published_only == "1":
+                result_qs = result_qs.filter(is_published=True)
+
+            subjects_ordered = sorted(
+                {r.subject for r in result_qs},
+                key=lambda s: s.name,
+            )
+
+            score_map = {}
+            for r in result_qs:
+                score_map.setdefault(r.student_id, {})[r.subject_id] = r.score
+
+            for student in students:
+                row = {"student": student, "scores": []}
+                total, count = 0, 0
+                for subject in subjects_ordered:
+                    score = score_map.get(student.pk, {}).get(subject.pk)
+                    row["scores"].append(score)
+                    if score is not None:
+                        total += score
+                        count += 1
+                row["average"] = round(total / count, 1) if count else None
+                matrix.append(row)
+
+    return render(request, "academics/teacher_gradebook.html", {
+        "classes": classes,
+        "terms": terms,
+        "class_name": class_name,
+        "term_id": term_id,
+        "selected_term": selected_term,
+        "subjects": subjects_ordered,
+        "matrix": matrix,
+        "show_published_only": show_published_only,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Student Full Transcript (all terms)
+# ---------------------------------------------------------------------------
+
+@login_required
+def student_transcript(request, student_id):
+    """Aggregated multi-term academic transcript for a single student.
+
+    Access:
+    - The student themselves.
+    - A linked parent/guardian (via StudentGuardian or legacy parent FK).
+    - Any teacher, HOD, school_admin, deputy_head, or superuser.
+    """
+    from students.models import Student, StudentGuardian
+    from academics.models import StudentResultSummary
+
+    school = _get_school(request)
+    if not school:
+        return redirect("home")
+
+    student = get_object_or_404(Student, pk=student_id, school=school)
+
+    user = request.user
+    role = getattr(user, "role", "")
+
+    can_manage = user.is_superuser or role in {
+        "school_admin", "headteacher", "deputy_head", "teacher", "hod",
+        "admin_assistant", "admin",
+    }
+    is_own = role == "student" and student.user_id == user.id
+    is_parent_of = role == "parent" and (
+        getattr(student, "parent_id", None) == user.id
+        or StudentGuardian.objects.filter(student=student, guardian=user).exists()
+    )
+
+    if not (can_manage or is_own or is_parent_of):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Access denied.")
+
+    summaries = (
+        StudentResultSummary.objects
+        .filter(student=student)
+        .select_related("subject", "term")
+        .order_by("term__id", "subject__name")
+    )
+
+    from collections import defaultdict
+    terms_dict = {}
+    subject_names = set()
+
+    for s in summaries:
+        tkey = s.term_id
+        if tkey not in terms_dict:
+            terms_dict[tkey] = {
+                "term": s.term,
+                "rows": [],
+                "total": 0,
+                "count": 0,
+                "position": s.term_position,
+                "cumulative_gpa": s.cumulative_gpa,
+            }
+        terms_dict[tkey]["rows"].append(s)
+        terms_dict[tkey]["total"] += s.final_score
+        terms_dict[tkey]["count"] += 1
+        subject_names.add(s.subject.name)
+
+    for td in terms_dict.values():
+        td["average"] = round(td["total"] / td["count"], 1) if td["count"] else None
+
+    terms_list = sorted(terms_dict.values(), key=lambda x: x["term"].id)
+
+    subject_progression = {}
+    for name in sorted(subject_names):
+        subject_progression[name] = {}
+    for s in summaries:
+        subject_progression[s.subject.name][s.term.name] = s.final_score
+
+    term_names_ordered = [t["term"].name for t in terms_list]
+
+    return render(request, "academics/transcript.html", {
+        "student": student,
+        "terms_list": terms_list,
+        "subject_progression": subject_progression,
+        "term_names_ordered": term_names_ordered,
+        "total_terms": len(terms_list),
+    })
+
+
+@login_required
+def my_transcript(request):
+    """Self-service redirect: student sees own transcript; parent sees list of children."""
+    from students.models import Student, StudentGuardian
+
+    role = getattr(request.user, "role", "")
+
+    if role == "student":
+        student = Student.objects.filter(user=request.user).first()
+        if student:
+            return redirect("academics:student_transcript", student_id=student.pk)
+        messages.error(request, "No student profile linked to your account.")
+        return redirect("home")
+
+    if role == "parent":
+        guardian_links = StudentGuardian.objects.filter(
+            guardian=request.user
+        ).select_related("student__user").order_by("student__user__last_name")
+        children = [gl.student for gl in guardian_links]
+        if not children:
+            legacy_student = Student.objects.filter(parent=request.user).first()
+            if legacy_student:
+                return redirect("academics:student_transcript", student_id=legacy_student.pk)
+        if len(children) == 1:
+            return redirect("academics:student_transcript", student_id=children[0].pk)
+        return render(request, "academics/my_transcript_select.html", {"children": children})
+
+    messages.error(request, "Access denied.")
+    return redirect("home")

@@ -1310,10 +1310,12 @@ class EarlyWarningFlag(SchoolScopedModel):
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="early_warnings_acknowledged",
     )
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
     resolved_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="early_warnings_resolved",
     )
+    resolved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     academic_year = models.CharField(max_length=20, blank=True, db_index=True)

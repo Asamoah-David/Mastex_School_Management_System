@@ -1,7 +1,39 @@
-from django.db import models
 from django.conf import settings
-from core.tenancy import SchoolScopedModel
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.utils import timezone
+
+from core.tenancy import SchoolScopedModel, SchoolScopedManager, SchoolScopedQuerySet
 from schools.models import School
+
+
+# ---------------------------------------------------------------------------
+# Soft-delete aware manager for OmrExam
+# ---------------------------------------------------------------------------
+
+class OmrExamQuerySet(SchoolScopedQuerySet):
+    def delete(self):
+        return self.update(deleted_at=timezone.now())
+
+    def hard_delete(self):
+        return super(SchoolScopedQuerySet, self).delete()
+
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+    def deleted(self):
+        return self.filter(deleted_at__isnull=False)
+
+
+class OmrExamManager(SchoolScopedManager):
+    def get_queryset(self):
+        return OmrExamQuerySet(self.model, using=self._db).alive()
+
+    def for_school(self, school):
+        return self.get_queryset().for_school(school)
+
+    def all_with_deleted(self):
+        return OmrExamQuerySet(self.model, using=self._db)
 
 
 TEMPLATE_CHOICES = [
@@ -11,7 +43,12 @@ TEMPLATE_CHOICES = [
 
 
 class OmrExam(SchoolScopedModel):
-    """An OMR-marked exam session for a class/subject."""
+    """An OMR-marked exam session for a class/subject.
+
+    Supports soft deletion: calling .delete() sets deleted_at rather than
+    removing the row, preserving historical result data.  Use .hard_delete()
+    to permanently remove.
+    """
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="omr_exams")
     title = models.CharField(max_length=200)
@@ -29,8 +66,11 @@ class OmrExam(SchoolScopedModel):
         blank=True,
         related_name="omr_exams_created",
     )
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OmrExamManager()
 
     class Meta:
         ordering = ["-created_at"]
@@ -43,6 +83,21 @@ class OmrExam(SchoolScopedModel):
     @property
     def result_count(self):
         return self.results.count()
+
+    def delete(self, using=None, keep_parents=False):
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at"])
+
+    def hard_delete(self, using=None, keep_parents=False):
+        super().delete(using=using, keep_parents=keep_parents)
+
+    def restore(self):
+        self.deleted_at = None
+        self.save(update_fields=["deleted_at"])
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
     @property
     def has_answer_key(self):
@@ -107,7 +162,7 @@ class OmrResult(SchoolScopedModel):
         return "Unknown Student"
 
 
-class OmrExamSectionB(models.Model):
+class OmrExamSectionB(SchoolScopedModel):
     """Manual Section B marks for an OMR exam.
 
     Section A (objective) is marked automatically by OMR; Section B

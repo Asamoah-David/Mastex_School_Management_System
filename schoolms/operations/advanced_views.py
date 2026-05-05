@@ -20,6 +20,7 @@ from operations.models import (
 from accounts.permissions import user_can_manage_school, can_manage_finance
 from accounts.hr_models import StaffPayrollPayment
 from accounts.hr_utils import sync_expired_staff_contracts
+from students.utils import get_children_for_parent, parent_is_guardian_of
 
 
 def _budget_vs_actual_rows(school, year: int):
@@ -71,7 +72,8 @@ def _preorder_students_queryset(user, school):
         return qs.order_by("class_name", "user__last_name", "user__first_name")
     role = getattr(user, "role", None)
     if role == "parent":
-        return qs.filter(parent=user).order_by("user__last_name", "user__first_name")
+        child_ids = set(get_children_for_parent(user, school=school).values_list("id", flat=True))
+        return qs.filter(pk__in=child_ids).order_by("user__last_name", "user__first_name")
     if role == "student":
         return qs.filter(user=user)
     return Student.objects.none()
@@ -84,7 +86,7 @@ def _user_may_preorder_for(user, student, school):
         return False
     if user_can_manage_school(user):
         return True
-    if getattr(user, "role", None) == "parent" and student.parent_id == user.id:
+    if getattr(user, "role", None) == "parent" and parent_is_guardian_of(user, student):
         return True
     if getattr(user, "role", None) == "student" and student.user_id == user.id:
         return True
@@ -653,6 +655,82 @@ def financial_reports_page(request):
 def budget_vs_actual(request):
     """Wrapper for budget vs actual data."""
     return get_financial_data(request)
+
+
+@login_required
+def attendance_analytics(request):
+    """Chronic absenteeism report: per-student and per-class attendance rates."""
+    from django.db.models import Avg, Count, Q
+    from accounts.permissions import user_can_manage_school
+    from core.utils import get_school
+    from schools.features import is_feature_enabled
+    from operations.models import StudentAttendance
+
+    school = get_school(request)
+    if not school:
+        return redirect("home")
+    if not is_feature_enabled(request, "attendance_analytics"):
+        from django.contrib import messages as _m
+        _m.error(request, "Attendance Analytics is not enabled for your school.")
+        return redirect("home")
+    if not user_can_manage_school(request.user):
+        from django.contrib import messages as _m
+        _m.error(request, "Access denied.")
+        return redirect("home")
+
+    threshold = int(request.GET.get("threshold", 80))
+    class_filter = request.GET.get("class_name", "").strip()
+
+    base_qs = StudentAttendance.objects.filter(school=school)
+    if class_filter:
+        base_qs = base_qs.filter(class_name=class_filter)
+
+    student_stats = (
+        base_qs.values("student", "student__user__first_name", "student__user__last_name", "class_name")
+        .annotate(
+            total=Count("id"),
+            present=Count("id", filter=Q(status__in=["present", "late"])),
+        )
+        .filter(total__gt=0)
+        .order_by("class_name", "student__user__last_name")
+    )
+
+    at_risk = []
+    on_track = []
+    for row in student_stats:
+        rate = round((row["present"] / row["total"]) * 100, 1) if row["total"] else 0
+        row["attendance_rate"] = rate
+        if rate < threshold:
+            at_risk.append(row)
+        else:
+            on_track.append(row)
+
+    class_stats = (
+        base_qs.values("class_name")
+        .annotate(
+            total=Count("id"),
+            present=Count("id", filter=Q(status__in=["present", "late"])),
+        )
+        .filter(total__gt=0)
+        .order_by("class_name")
+    )
+    for row in class_stats:
+        row["attendance_rate"] = round((row["present"] / row["total"]) * 100, 1) if row["total"] else 0
+
+    available_classes = list(
+        base_qs.values_list("class_name", flat=True).distinct().order_by("class_name")
+    )
+
+    return render(request, "operations/attendance_analytics.html", {
+        "at_risk": at_risk,
+        "on_track": on_track,
+        "class_stats": list(class_stats),
+        "threshold": threshold,
+        "class_filter": class_filter,
+        "available_classes": available_classes,
+        "at_risk_count": len(at_risk),
+        "total_students": len(at_risk) + len(on_track),
+    })
 
 
 @login_required

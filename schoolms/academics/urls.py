@@ -155,4 +155,11 @@ urlpatterns = [
     # Report Card Score Preview
     path("report-card-scores/", scheme_views.report_card_score_list, name="report_card_score_list"),
     path("report-card-scores/calculate/<int:scheme_pk>/", scheme_views.report_card_score_calculate, name="report_card_score_calculate"),
+
+    # Teacher Grade Book
+    path("gradebook/", views.teacher_gradebook, name="teacher_gradebook"),
+
+    # Student Full Transcript (all terms)
+    path("transcript/<int:student_id>/", views.student_transcript, name="student_transcript"),
+    path("transcript/", views.my_transcript, name="my_transcript"),
 ]

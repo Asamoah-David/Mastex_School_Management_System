@@ -30,6 +30,7 @@ from .views import (
     learning_plan_create,
     learning_plan_detail,
     learning_plan_delete,
+    parent_link_child,
 )
 
 app_name = "students"
@@ -73,4 +74,6 @@ urlpatterns = [
     path("<int:student_pk>/learning-plans/create/", learning_plan_create, name="learning_plan_create"),
     path("learning-plans/<int:pk>/", learning_plan_detail, name="learning_plan_detail"),
     path("learning-plans/<int:pk>/delete/", learning_plan_delete, name="learning_plan_delete"),
+    # Parent self-service child linking
+    path("link-child/", parent_link_child, name="parent_link_child"),
 ]

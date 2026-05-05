@@ -1382,20 +1382,34 @@ def parent_register(request):
             elif email and User.objects.filter(email=email).exists():
                 messages.error(request, "That email is already in use.")
             else:
-                User.objects.create(
-                    username=username,
-                    email=email or f"{username}@school.local",
-                    first_name=first_name,
-                    last_name=last_name,
-                    password=make_password(password),
-                    role="parent",
-                    school=school,
-                    phone=phone,
-                    parent_type=parent_type,
-                )
-                messages.success(request, "Parent account created.")
-                return redirect("accounts:parent_list")
-        elif request.method == "POST":
+                try:
+                    validate_password(
+                        password,
+                        user=User(
+                            username=username,
+                            email=email,
+                            first_name=first_name,
+                            last_name=last_name,
+                        ),
+                    )
+                except ValidationError as e:
+                    for msg in e.messages:
+                        messages.error(request, msg)
+                else:
+                    User.objects.create_user(
+                        username=username,
+                        email=email or f"{username}@school.local",
+                        first_name=first_name,
+                        last_name=last_name,
+                        password=password,
+                        role="parent",
+                        school=school,
+                        phone=phone,
+                        parent_type=parent_type,
+                    )
+                    messages.success(request, "Parent account created.")
+                    return redirect("accounts:parent_list")
+        else:
             messages.error(request, "Please fill all required fields.")
     return render(request, "accounts/parent_register.html", {"school": school})
 
@@ -1411,14 +1425,12 @@ def parent_detail(request, pk):
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
 
     from students.models import StudentGuardian
+    from students.utils import get_children_for_parent
     from django.db.models import Sum
     from finance.models import Fee
 
-    legacy_ids = set(Student.objects.filter(parent=parent, school=school).values_list("id", flat=True))
-    guardian_ids = set(StudentGuardian.objects.filter(guardian=parent).values_list("student_id", flat=True))
-    all_ids = legacy_ids | guardian_ids
-
-    children_qs = Student.objects.filter(pk__in=all_ids).select_related("user", "school")
+    children_qs = get_children_for_parent(parent, school=school, active_only=False)
+    all_ids = set(children_qs.values_list("id", flat=True))
     guardian_map = {
         g.student_id: g
         for g in StudentGuardian.objects.filter(guardian=parent, student_id__in=all_ids).select_related("student")

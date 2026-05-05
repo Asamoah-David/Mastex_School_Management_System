@@ -101,4 +101,7 @@ urlpatterns = [
     path("bank-accounts/", erp_views.bank_account_list, name="bank_account_list"),
     path("bank-accounts/create/", erp_views.bank_account_create, name="bank_account_create"),
     path("bank-accounts/<int:pk>/toggle/", erp_views.bank_account_toggle, name="bank_account_toggle"),
+
+    # Bulk Fee Generation
+    path("bulk-generate/", erp_views.bulk_fee_generate, name="bulk_fee_generate"),
 ]
