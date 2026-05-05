@@ -1154,6 +1154,9 @@ def teaching_assignment_list(request):
     if active_only == "1":
         qs = qs.filter(is_active=True)
 
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
     if request.method == "POST":
         from academics.models import Subject
         user_pk = request.POST.get("user")
@@ -1161,8 +1164,6 @@ def teaching_assignment_list(request):
         class_name = request.POST.get("class_name", "").strip()
         academic_year = request.POST.get("academic_year", "").strip()
         if user_pk and subject_pk and class_name:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
             try:
                 staff_user = User.objects.get(pk=user_pk, school=school)
                 subject = Subject.objects.get(pk=subject_pk, school=school)
