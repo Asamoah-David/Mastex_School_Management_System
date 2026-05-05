@@ -967,7 +967,7 @@ def payroll_run_detail(request, pk):
     run = get_object_or_404(PayrollRun, pk=pk, school=school)
     payments = StaffPayrollPayment.objects.filter(
         payroll_run=run
-    ).select_related("staff").order_by("staff__last_name")
+    ).select_related("user").order_by("user__last_name")
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -1097,14 +1097,14 @@ def staff_contract_list(request):
     contract_type_filter = request.GET.get("contract_type", "")
     q = request.GET.get("q", "").strip()
 
-    qs = StaffContract.objects.filter(school=school).select_related("staff").order_by("-start_date")
+    qs = StaffContract.objects.filter(school=school).select_related("user").order_by("-start_date")
 
     if status_filter:
         qs = qs.filter(status=status_filter)
     if contract_type_filter:
         qs = qs.filter(contract_type=contract_type_filter)
     if q:
-        qs = qs.filter(staff__first_name__icontains=q) | qs.filter(staff__last_name__icontains=q)
+        qs = qs.filter(user__first_name__icontains=q) | qs.filter(user__last_name__icontains=q)
 
     counts = {
         "total": StaffContract.objects.filter(school=school).count(),
@@ -1180,7 +1180,8 @@ def teaching_assignment_list(request):
         return redirect("accounts:teaching_assignment_list")
 
     from academics.models import Subject
-    staff_list = school.users.filter(
+    staff_list = User.objects.filter(
+        school=school,
         role__in=["teacher", "hod", "school_admin", "deputy_head"]
     ).order_by("last_name", "first_name")
     subjects = Subject.objects.filter(school=school).order_by("name")

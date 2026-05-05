@@ -270,7 +270,7 @@ def get_school_statistics(request):
     # Class performance
     class_performance = students.values('class_name').annotate(
         total_students=Count('id'),
-        avg_score=Avg('result__score', filter=Result.objects.filter(student__in=students))
+        avg_score=Avg('result__score')
     ).order_by('class_name')
     
     # Gender performance

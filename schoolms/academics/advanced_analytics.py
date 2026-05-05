@@ -1162,13 +1162,17 @@ def cohort_analysis(request):
 
     sorted_cohorts = sorted(cohorts.values(), key=lambda c: c["year"], reverse=True)
 
-    if request.GET.get("format") == "html":
-        return render(request, "academics/cohort_analysis.html", {
-            "cohorts": sorted_cohorts,
-            "school": school,
-        })
+    wants_json = (
+        request.GET.get("format") == "json"
+        or request.headers.get("Accept", "").startswith("application/json")
+    )
+    if wants_json:
+        return JsonResponse({"cohorts": sorted_cohorts})
 
-    return JsonResponse({"cohorts": sorted_cohorts})
+    return render(request, "academics/cohort_analysis.html", {
+        "cohorts": sorted_cohorts,
+        "school": school,
+    })
 
 
 # ====================================================================================
@@ -1243,10 +1247,14 @@ def subject_performance_heatmap(request):
         "school_avg": round(float(school_avg), 1),
     }
 
-    if request.GET.get("format") == "html":
-        return render(request, "academics/subject_heatmap.html", {**payload, "school": school})
+    wants_json = (
+        request.GET.get("format") == "json"
+        or request.headers.get("Accept", "").startswith("application/json")
+    )
+    if wants_json:
+        return JsonResponse(payload)
 
-    return JsonResponse(payload)
+    return render(request, "academics/subject_heatmap.html", {**payload, "school": school})
 
 
 # ====================================================================================

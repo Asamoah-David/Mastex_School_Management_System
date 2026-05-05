@@ -660,7 +660,7 @@ def budget_vs_actual(request):
 @login_required
 def attendance_analytics(request):
     """Chronic absenteeism report: per-student and per-class attendance rates."""
-    from django.db.models import Avg, Count, Q
+    from django.db.models import Avg, Count, F, Q
     from accounts.permissions import user_can_manage_school
     from core.utils import get_school
     from schools.features import is_feature_enabled
@@ -681,7 +681,9 @@ def attendance_analytics(request):
     threshold = int(request.GET.get("threshold", 80))
     class_filter = request.GET.get("class_name", "").strip()
 
-    base_qs = StudentAttendance.objects.filter(school=school)
+    base_qs = StudentAttendance.objects.filter(school=school).annotate(
+        class_name=F("student__class_name")
+    )
     if class_filter:
         base_qs = base_qs.filter(class_name=class_filter)
 
