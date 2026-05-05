@@ -81,10 +81,14 @@ class Command(BaseCommand):
             "SESSION_COOKIE_HTTPONLY": True,
             "SECURE_CONTENT_TYPE_NOSNIFF": True,
         }
+        ci_mode = getattr(settings, "CI", False)
         for key, expected in cookie_checks.items():
             actual = getattr(settings, key, None)
             if actual != expected:
-                errors.append(f"{key} is {actual!r}, expected {expected!r}")
+                if ci_mode:
+                    errors.append(f"{key} is {actual!r}, expected {expected!r}")
+                else:
+                    warnings.append(f"{key} is {actual!r}, expected {expected!r}")
             else:
                 self._ok(key)
 

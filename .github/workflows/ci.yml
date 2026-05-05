@@ -34,6 +34,10 @@ jobs:
       SENTRY_DSN: ""
       BEHIND_TLS_TERMINATING_PROXY: "true"
       CI: "true"
+      SESSION_COOKIE_SECURE: "True"
+      CSRF_COOKIE_SECURE: "True"
+      SESSION_COOKIE_HTTPONLY: "True"
+      SECURE_CONTENT_TYPE_NOSNIFF: "True"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
