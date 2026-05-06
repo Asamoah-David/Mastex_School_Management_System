@@ -120,3 +120,16 @@ def format_ghs(value):
     quantized = d.quantize(Decimal("0.01"))
     text = f"{quantized:,.2f}"
     return f"GHS {text}"
+
+
+@register.filter
+def percentage(value):
+    """Format a decimal/float as a percentage string."""
+    if value is None:
+        return "0%"
+    try:
+        pct = float(value) * 100
+        return f"{pct:.0f}%"
+    except (ValueError, TypeError):
+        return "0%"
+
