@@ -25,6 +25,39 @@
 </div>
 {% endif %}
 
+<!-- Detection Metadata -->
+<div class="card mb-sm" style="border-left:4px solid var(--info);background:rgba(59,130,246,0.05);">
+    <div style="padding:.6rem 1rem;font-size:.88rem;">
+        <strong>📊 Detection Info:</strong>
+        <span class="text-muted">
+            {% if perspective_corrected %}✓ Perspective corrected{% else %}⚠ No perspective correction{% endif %} |
+            {{ registration_marks_found }} timing marks found |
+            Coverage: {{ coverage_ratio|percentage }}
+            {% if coverage_warning %}<span class="text-warning">(Low - review recommended)</span>{% endif %}
+        </span>
+    </div>
+</div>
+
+<!-- Debug Image -->
+{% if debug_image_path %}
+<div class="card mb-sm">
+    <div class="card-header" style="font-size:.9rem;">
+        <strong>🔍 Detection Overlay</strong>
+        <span class="text-muted" style="font-size:.75rem;">Green=detected, Orange=flagged, Red=uncertain, Gray=blank</span>
+        <button type="button" class="btn btn-sm btn-secondary float-end" onclick="toggleDebugImage()">Show/Hide</button>
+    </div>
+    <div class="card-body text-center" id="debugImageContainer" style="display:none;">
+        <img src="{{ MEDIA_URL }}{{ debug_image_path }}" class="img-fluid border" style="max-height:400px;">
+    </div>
+</div>
+<script>
+function toggleDebugImage() {
+    const container = document.getElementById('debugImageContainer');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endif %}
+
 <style>
 .omr-q-card{border-radius:8px;padding:.35rem .3rem;text-align:center;transition:background .15s,border-color .15s}
 .omr-q-card.correct{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3)}

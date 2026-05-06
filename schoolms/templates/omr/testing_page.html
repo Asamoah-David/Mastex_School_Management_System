@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}OMR Testing & Debug{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <h2 class="mb-4">
+    <i class="bi bi-bug"></i> OMR Testing & Debug Page
+  </h2>
+  <p class="text-muted">
+    Upload an answer sheet to test the OMR detection pipeline. View detailed detection results including
+    perspective correction, answer boxes overlay, fill scores, and confidence metrics.
+  </p>
+
+  <div class="row">
+    <!-- Upload Form -->
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <i class="bi bi-upload"></i> Test Image Upload
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label">Template Type</label>
+              <select name="template_type" class="form-select">
+                {% for t in templates %}
+                <option value="{{ t.template_id }}" {% if forloop.first %}selected{% endif %}>
+                  {{ t.name }} ({{ t.total_questions }} questions)
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Image File</label>
+              <input type="file" name="image" class="form-control" accept="image/*" required>
+              <div class="form-text">JPG or PNG, preferably taken with good lighting</div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-play"></i> Process & Analyze
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {% if quality %}
+      <div class="card mt-3">
+        <div class="card-header {% if quality.pass %}bg-success{% else %}bg-warning{% endif %} text-white">
+          <i class="bi bi-check-circle"></i> Image Quality Check
+        </div>
+        <div class="card-body">
+          {% if quality.warnings %}
+          <ul class="list-unstyled mb-0">
+            {% for warning in quality.warnings %}
+            <li class="mb-2">
+              <i class="bi bi-exclamation-triangle text-warning"></i> {{ warning }}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="mb-0 text-success">
+            <i class="bi bi-check-circle-fill"></i> Image quality looks good!
+          </p>
+          {% endif %}
+          
+          {% if quality.metrics %}
+          <hr>
+          <small class="text-muted">
+            Brightness: {{ quality.metrics.mean_brightness|floatformat:1 }} |
+            Contrast: {{ quality.metrics.contrast|floatformat:1 }}
+            {% if quality.metrics.sharpness %}
+            | Sharpness: {{ quality.metrics.sharpness|floatformat:1 }}
+            {% endif %}
+          </small>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Results -->
+    <div class="col-md-8">
+      {% if result %}
+      <!-- Detection Summary -->
+      <div class="card mb-3">
+        <div class="card-header bg-info text-white">
+          <i class="bi bi-graph-up"></i> Detection Summary
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3 text-center">
+              <div class="h3 mb-0">{{ result.coverage_ratio|percentage }}</div>
+              <small class="text-muted">Coverage</small>
+              {% if result.coverage_warning %}
+              <div class="badge bg-warning">Low Coverage</div>
+              {% endif %}
+            </div>
+            <div class="col-md-3 text-center">
+              <div class="h3 mb-0">{{ result.flagged_count }}</div>
+              <small class="text-muted">Flagged Questions</small>
+            </div>
+            <div class="col-md-3 text-center">
+              <div class="h3 mb-0">
+                {% if result.perspective_corrected %}
+                <i class="bi bi-check-circle text-success"></i>
+                {% else %}
+                <i class="bi bi-x-circle text-warning"></i>
+                {% endif %}
+              </div>
+              <small class="text-muted">Perspective</small>
+            </div>
+            <div class="col-md-3 text-center">
+              <div class="h3 mb-0">{{ result.registration_marks_found }}</div>
+              <small class="text-muted">Timing Marks</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Debug Image -->
+      {% if result.debug_image_path %}
+      <div class="card mb-3">
+        <div class="card-header bg-dark text-white">
+          <i class="bi bi-image"></i> Detection Overlay
+          <span class="float-end">
+            <small>Green = Detected | Orange = Flagged | Red = Uncertain/Multiple | Gray = Blank</small>
+          </span>
+        </div>
+        <div class="card-body text-center">
+          <img src="{{ MEDIA_URL }}{{ result.debug_image_path }}" class="img-fluid border" style="max-height: 600px;">
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Per-Question Breakdown -->
+      <div class="card">
+        <div class="card-header bg-secondary text-white">
+          <i class="bi bi-list-ol"></i> Per-Question Breakdown
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="sticky-top bg-light">
+                <tr>
+                  <th>Q#</th>
+                  <th>Detected</th>
+                  <th>Confidence</th>
+                  <th>Option Scores</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for q in result.questions %}
+                <tr class="{% if q.is_flagged %}table-warning{% endif %}">
+                  <td><strong>{{ q.number }}</strong></td>
+                  <td>
+                    {% if q.answer == 'blank' %}
+                    <span class="badge bg-secondary">Blank</span>
+                    {% elif q.answer == 'uncertain' %}
+                    <span class="badge bg-danger">Uncertain</span>
+                    {% elif q.answer == 'multiple' %}
+                    <span class="badge bg-danger">Multiple</span>
+                    {% else %}
+                    <span class="badge bg-success">{{ q.answer }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ q.confidence|floatformat:3 }}</td>
+                  <td>
+                    <small class="font-monospace">
+                      {% for opt, score in q.option_scores.items %}
+                      {{ opt }}:{{ score|floatformat:2 }}{% if not forloop.last %}, {% endif %}
+                      {% endfor %}
+                    </small>
+                  </td>
+                  <td>
+                    {% if q.is_flagged %}
+                    <i class="bi bi-flag-fill text-warning"></i>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="card">
+        <div class="card-body text-center text-muted py-5">
+          <i class="bi bi-upload display-4"></i>
+          <p class="mt-3">Upload an image to see detailed detection analysis</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

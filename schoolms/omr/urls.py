@@ -32,4 +32,8 @@ urlpatterns = [
 
     # Section B — manual mark entry
     path("<int:pk>/section-b/", views.omr_section_b_entry, name="section_b_entry"),
+
+    # Testing and calibration
+    path("testing/", views.omr_testing_page, name="testing_page"),
+    path("calibrate/<str:template_id>/", views.omr_calibration_page, name="calibration_page"),
 ]

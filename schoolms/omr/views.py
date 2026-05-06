@@ -36,8 +36,12 @@ from core.utils import get_effective_school
 
 from .analysis import get_exam_analysis
 from .models import OmrExam, OmrResult, OmrExamSectionB
-from .omr_templates import get_template, list_templates
-from .processor import process_omr_image, quality_check
+from .omr_templates_v2 import get_template, list_templates, get_capture_guidance
+from .omr_processor_v2 import (
+    process_omr_image_v2,
+    enhanced_quality_check,
+    DetectionThresholds,
+)
 from .scoring import apply_manual_corrections, calculate_score
 
 
@@ -241,8 +245,11 @@ def omr_answer_key_upload(request, pk):
             messages.error(request, "Failed to save uploaded image. Please try again.")
             return render(request, "omr/answer_key_upload.html", {"exam": exam})
 
-        quality_data = quality_check(tmp_path)
-        result = process_omr_image(tmp_path, tmpl)
+        # Enhanced quality check with template-specific guidance
+        quality_data = enhanced_quality_check(tmp_path, tmpl)
+        
+        # Process with debug mode enabled for answer key (for verification)
+        result = process_omr_image_v2(tmp_path, tmpl, generate_debug_image=True)
         _delete_temp_image(tmp_path)
 
         if not result["success"]:
@@ -250,20 +257,41 @@ def omr_answer_key_upload(request, pk):
             return render(request, "omr/answer_key_upload.html", {
                 "exam": exam,
                 "processing_error": result.get("error"),
+                "quality_warnings": quality_data.get("warnings", []),
             })
+
+        # Check coverage for answer key (must have at least 70% confident detections)
+        if result.get("coverage_warning"):
+            confident_count = int(result.get("coverage_ratio", 0) * exam.total_questions)
+            messages.warning(
+                request,
+                f"Only {confident_count} out of {exam.total_questions} answers were confidently detected. "
+                "Please retake the photo with better lighting and alignment, or use manual entry."
+            )
 
         session_key = f"omr_ak_{exam.pk}"
         request.session[session_key] = {
             "answers": result["answers"],
             "confidence": result["confidence"],
+            "option_details": result.get("option_details", {}),
             "flagged_questions": result["flagged_questions"],
             "perspective_corrected": result["perspective_corrected"],
+            "perspective_quality": result.get("perspective_quality", {}),
+            "registration_marks_found": result.get("registration_marks_found", 0),
             "quality_warnings": quality_data.get("warnings", []),
+            "coverage_ratio": result.get("coverage_ratio", 0),
+            "coverage_warning": result.get("coverage_warning", False),
+            "debug_image_path": result.get("debug_image_path"),
             "manual_entry": False,
         }
         return redirect("omr:answer_key_review", pk=exam.pk)
 
-    return render(request, "omr/answer_key_upload.html", {"exam": exam})
+    # Add capture guidance for the template
+    capture_guidance = get_capture_guidance(exam.template_type)
+    return render(request, "omr/answer_key_upload.html", {
+        "exam": exam,
+        "capture_guidance": capture_guidance,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -392,8 +420,11 @@ def omr_student_upload(request, pk):
             messages.error(request, "Failed to save uploaded image.")
             return render(request, "omr/student_upload.html", {"exam": exam, "post": request.POST})
 
-        quality_data = quality_check(tmp_path)
-        result = process_omr_image(tmp_path, tmpl)
+        # Enhanced quality check with template-specific guidance
+        quality_data = enhanced_quality_check(tmp_path, tmpl)
+        
+        # Process with enhanced V2 processor
+        result = process_omr_image_v2(tmp_path, tmpl, generate_debug_image=True)
         _delete_temp_image(tmp_path)
 
         if not result["success"]:
@@ -402,16 +433,18 @@ def omr_student_upload(request, pk):
                 "exam": exam,
                 "post": request.POST,
                 "processing_error": result.get("error"),
+                "quality_warnings": quality_data.get("warnings", []),
             })
 
         # ── Fast-mode auto-save ──────────────────────────────────────────────
         # If the teacher enabled "fast mode" AND detection is clean (no flags,
-        # no quality warnings), save the result immediately without review.
+        # no quality warnings, good coverage), save immediately without review.
         auto_save = request.POST.get("auto_save") == "1"
         has_flags = bool(result["flagged_questions"])
         has_quality_issues = bool(quality_data.get("warnings"))
+        coverage_ok = not result.get("coverage_warning", False)
 
-        if auto_save and not has_flags and not has_quality_issues:
+        if auto_save and not has_flags and not has_quality_issues and coverage_ok:
             score_data = calculate_score(result["answers"], exam.answer_key, exam.total_questions)
             school = get_effective_school(request)
             OmrResult.objects.create(
@@ -448,15 +481,25 @@ def omr_student_upload(request, pk):
             "class_name": class_name,
             "answers": result["answers"],
             "confidence": result["confidence"],
+            "option_details": result.get("option_details", {}),
             "flagged_questions": result["flagged_questions"],
+            "perspective_corrected": result["perspective_corrected"],
+            "perspective_quality": result.get("perspective_quality", {}),
+            "registration_marks_found": result.get("registration_marks_found", 0),
             "quality_warnings": quality_data.get("warnings", []),
+            "coverage_ratio": result.get("coverage_ratio", 0),
+            "coverage_warning": result.get("coverage_warning", False),
+            "debug_image_path": result.get("debug_image_path"),
             "manual_entry": False,
         }
         return redirect("omr:student_review", pk=exam.pk)
 
+    # Add capture guidance for the template
+    capture_guidance = get_capture_guidance(exam.template_type)
     return render(request, "omr/student_upload.html", {
         "exam": exam,
         "default_class": exam.class_name,
+        "capture_guidance": capture_guidance,
     })
 
 
@@ -547,9 +590,15 @@ def omr_student_review(request, pk):
         "class_name": pending["class_name"],
         "detected": pending["answers"],
         "confidence": pending["confidence"],
+        "option_details": pending.get("option_details", {}),
         "flagged": pending["flagged_questions"],
         "quality_warnings": pending.get("quality_warnings", []),
         "perspective_corrected": pending.get("perspective_corrected", False),
+        "perspective_quality": pending.get("perspective_quality", {}),
+        "registration_marks_found": pending.get("registration_marks_found", 0),
+        "coverage_ratio": pending.get("coverage_ratio", 0),
+        "coverage_warning": pending.get("coverage_warning", False),
+        "debug_image_path": pending.get("debug_image_path"),
         "manual_entry": pending.get("manual_entry", False),
         "preview": preview_score,
         "questions_range": range(1, exam.total_questions + 1),
@@ -888,4 +937,118 @@ def omr_section_b_entry(request, pk):
         "exam": exam,
         "rows": rows,
         "section_b_max": section_b_max,
+    })
+
+
+# ---------------------------------------------------------------------------
+# OMR Testing & Debug Page
+# ---------------------------------------------------------------------------
+
+@login_required
+@feature_required("omr_marking")
+def omr_testing_page(request):
+    """
+    OMR Testing/Debug Page
+    Upload an image and see detailed detection results including:
+    - Perspective-corrected sheet
+    - Detected answer boxes overlay
+    - Fill scores for every option
+    - Final detected answers
+    - Confidence scores
+    - Flagged questions
+    """
+    guard = _require_staff(request)
+    if guard:
+        return guard
+
+    templates = list_templates()
+    result_data = None
+    quality_data = None
+
+    if request.method == "POST":
+        template_type = request.POST.get("template_type", "bece_60_ae")
+        tmpl = get_template(template_type)
+
+        image_file = request.FILES.get("image")
+        if not image_file:
+            messages.error(request, "Please select an image file to test.")
+            return render(request, "omr/testing_page.html", {"templates": templates})
+
+        tmp_path = _save_temp_image(image_file)
+        if not tmp_path:
+            messages.error(request, "Failed to save uploaded image.")
+            return render(request, "omr/testing_page.html", {"templates": templates})
+
+        # Enhanced quality check
+        quality_data = enhanced_quality_check(tmp_path, tmpl)
+
+        # Process with full debug output
+        result = process_omr_image_v2(tmp_path, tmpl, generate_debug_image=True)
+        _delete_temp_image(tmp_path)
+
+        if not result["success"]:
+            messages.error(request, result.get("error", "Processing failed."))
+        else:
+            # Build detailed per-question breakdown
+            questions_detail = []
+            for q_num in range(1, tmpl["total_questions"] + 1):
+                q_str = str(q_num)
+                option_scores = result.get("option_details", {}).get(q_str, {})
+                questions_detail.append({
+                    "number": q_num,
+                    "answer": result["answers"].get(q_str, "blank"),
+                    "confidence": result["confidence"].get(q_str, 0),
+                    "option_scores": option_scores,
+                    "is_flagged": q_num in result["flagged_questions"],
+                })
+
+            result_data = {
+                "success": result["success"],
+                "perspective_corrected": result["perspective_corrected"],
+                "perspective_quality": result.get("perspective_quality", {}),
+                "registration_marks_found": result.get("registration_marks_found", 0),
+                "coverage_ratio": result.get("coverage_ratio", 0),
+                "coverage_warning": result.get("coverage_warning", False),
+                "template_id": result["template_id"],
+                "questions": questions_detail,
+                "flagged_count": len(result["flagged_questions"]),
+                "debug_image_path": result.get("debug_image_path"),
+            }
+
+    return render(request, "omr/testing_page.html", {
+        "templates": templates,
+        "result": result_data,
+        "quality": quality_data,
+    })
+
+
+@login_required
+@feature_required("omr_marking")
+def omr_calibration_page(request, template_id):
+    """
+    Template Calibration Page
+    Upload a clear sample sheet and manually mark reference points to calibrate
+    the template coordinates for your specific printer/scanner setup.
+    """
+    guard = _require_staff(request)
+    if guard:
+        return guard
+
+    tmpl = get_template(template_id)
+    if not tmpl:
+        messages.error(request, "Unknown template.")
+        return redirect("omr:dashboard")
+
+    calibration_result = None
+
+    if request.method == "POST":
+        # Handle calibration data submission
+        # This would process the user-marked reference points
+        # For now, show the calibration interface
+        pass
+
+    return render(request, "omr/calibration_page.html", {
+        "tmpl": tmpl,
+        "calibration_points": tmpl.get("calibration_points", {}),
+        "result": calibration_result,
     })

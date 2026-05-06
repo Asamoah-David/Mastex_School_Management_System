@@ -14,6 +14,17 @@
 </div>
 {% endif %}
 
+{% if quality_warnings %}
+<div class="alert alert-warning mb-md">
+    <strong><i class="bi bi-exclamation-triangle"></i> Image Quality Issues:</strong>
+    <ul class="mb-0 mt-2">
+        {% for warning in quality_warnings %}
+        <li>{{ warning }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
     <!-- Option 1: Image Upload -->
     <div class="card">
@@ -45,11 +56,17 @@
             <div class="form-group" style="background:rgba(34,197,94,0.06);border-radius:8px;padding:.75rem;border:1px solid rgba(34,197,94,0.2);">
                 <strong style="font-size:.9rem;">📋 Tips for best accuracy:</strong>
                 <ul style="margin:.5rem 0 0;padding-left:1.2rem;font-size:.85rem;color:var(--text-muted);">
-                    <li>Place sheet on a dark/contrasting flat surface</li>
-                    <li>Ensure good lighting — avoid shadows and glare</li>
-                    <li>Photograph directly above (not at an angle)</li>
-                    <li>Make sure all corners of the sheet are visible</li>
-                    <li>Shade bubbles firmly and neatly</li>
+                    {% if capture_guidance %}
+                        {% for tip in capture_guidance %}
+                        <li>{{ tip }}</li>
+                        {% endfor %}
+                    {% else %}
+                        <li>Place sheet on a dark/contrasting flat surface</li>
+                        <li>Ensure good lighting — avoid shadows and glare</li>
+                        <li>Photograph directly above (not at an angle)</li>
+                        <li>Make sure all corners of the sheet are visible</li>
+                        <li>Shade bubbles firmly and neatly</li>
+                    {% endif %}
                 </ul>
             </div>
             <button type="submit" id="akSubmitBtn" class="btn btn-secondary" style="margin-top:.75rem;width:100%;opacity:.5;cursor:not-allowed;" disabled>

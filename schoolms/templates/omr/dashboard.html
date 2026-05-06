@@ -7,6 +7,7 @@
     <a href="{% url 'omr:exam_create' %}" class="btn btn-primary">+ New Exam</a>
     <a href="{% url 'omr:printable_sheet' 'basic_30_ad' %}" class="btn btn-secondary" target="_blank">Print 30-Q Sheet</a>
     <a href="{% url 'omr:printable_sheet' 'bece_60_ae' %}" class="btn btn-secondary" target="_blank">Print 60-Q Sheet</a>
+    <a href="{% url 'omr:testing_page' %}" class="btn btn-info"><i class="bi bi-bug"></i> Test OMR</a>
 </div>
 
 {% if exams %}

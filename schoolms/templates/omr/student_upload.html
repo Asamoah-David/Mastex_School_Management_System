@@ -20,6 +20,13 @@
 </div>
 {% endif %}
 
+{% if quality_warnings %}
+<div class="alert alert-warning mb-md">
+    <strong><i class="bi bi-exclamation-triangle"></i> Image Quality Issues:</strong>
+    <ul class="mb-0 mt-2">{% for warning in quality_warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;align-items:start;">
     <div>
         <div class="card">
@@ -86,10 +93,7 @@
             <div style="padding:.75rem;font-size:.85rem;">
                 <strong>Tips:</strong>
                 <ul style="margin:.4rem 0 0;padding-left:1.1rem;color:var(--text-muted);line-height:1.6;">
-                    <li>Dark contrasting background</li>
-                    <li>All 4 corners visible</li>
-                    <li>Good lighting, no glare</li>
-                    <li>Photo directly above</li>
+                    {% if capture_guidance %}{% for tip in capture_guidance %}<li>{{ tip }}</li>{% endfor %}{% else %}<li>Dark contrasting background</li><li>All 4 corners visible</li><li>Good lighting, no glare</li><li>Photo directly above</li>{% endif %}
                 </ul>
             </div>
         </div>
