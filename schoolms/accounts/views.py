@@ -1609,6 +1609,7 @@ def staff_reactivate(request, pk):
             "object": staff,
             "type": "staff reactivation",
             "cancel_url": "accounts:staff_detail",
+            "cancel_url_args": {"pk": staff.pk},
         },
     )
 
