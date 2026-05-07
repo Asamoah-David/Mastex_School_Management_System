@@ -32,7 +32,7 @@ class FeeStructureAdmin(admin.ModelAdmin):
 
 @admin.register(FeePayment)
 class FeePaymentAdmin(admin.ModelAdmin):
-    list_display = ("fee", "amount", "gross_amount", "status", "payment_method", "created_at")
+    list_display = ("fee", "amount", "gross_amount", "status", "voided_at", "payment_method", "created_at")
     list_select_related = ("fee", "fee__student", "fee__student__user")
     list_filter = ("status", "payment_method")
     search_fields = ("fee__student__admission_number", "paystack_reference")

@@ -156,3 +156,28 @@ def resolve_stale_early_warnings(self):
     except Exception as exc:
         logger.error("resolve_stale_early_warnings failed: %s", exc, exc_info=True)
         raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=120)
+def recompute_assessment_scheme_task(self, scheme_pk: int):
+    """Recompute all StudentReportCardScore rows for a scheme (heavy classes → queue this)."""
+    try:
+        from .models import AssessmentScheme
+        from .services import SchemeBasedGradingService
+
+        scheme = AssessmentScheme.objects.get(pk=scheme_pk)
+        rows = SchemeBasedGradingService.compute_for_class(scheme)
+        return {"scheme_pk": scheme_pk, "rows": len(rows)}
+    except Exception as exc:
+        logger.exception("recompute_assessment_scheme_task failed")
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=60)
+def generate_report_cards_zip_task(self, school_pk: int, class_name: str, term_pk: int, user_pk: int | None = None):
+    """Placeholder hook: wire to ``report_cards_export_zip`` logic for large batches."""
+    logger.warning(
+        "generate_report_cards_zip_task not fully implemented (school=%s class=%s term=%s)",
+        school_pk, class_name, term_pk,
+    )
+    return {"status": "noop", "school_pk": school_pk}

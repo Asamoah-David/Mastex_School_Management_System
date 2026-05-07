@@ -28,6 +28,28 @@
 </div>
 {% endif %}
 
+{% if answer_key_needs_review %}
+<div class="card mb-sm" style="border-left:4px solid #b45309;background:rgba(180,83,9,0.06);">
+    <div style="padding:.6rem 1rem;font-size:.88rem;">
+        <strong>Manual review required:</strong> more than 10% of items are blank, multiple, or uncertain in the raw scan.
+        Correct the grid below before confirming the official key.
+    </div>
+</div>
+{% endif %}
+
+{% if debug_urls %}
+<div class="card mb-sm">
+    <div class="card-header" style="font-size:.9rem;"><strong>OMR debug</strong> — normalized scan, difference, inner zones</div>
+    <div style="padding:.75rem;display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-start;">
+        {% if debug_urls.normalized_gray %}<div><div class="text-muted small">Normalized</div><img src="{{ MEDIA_URL }}{{ debug_urls.normalized_gray }}" alt="" style="max-height:220px;border:1px solid #ccc;"></div>{% endif %}
+        {% if debug_urls.difference %}<div><div class="text-muted small">Difference</div><img src="{{ MEDIA_URL }}{{ debug_urls.difference }}" alt="" style="max-height:220px;border:1px solid #ccc;"></div>{% endif %}
+        {% if debug_urls.overlay_inner_zones %}<div><div class="text-muted small">Inner zones</div><img src="{{ MEDIA_URL }}{{ debug_urls.overlay_inner_zones }}" alt="" style="max-height:220px;border:1px solid #ccc;"></div>{% endif %}
+    </div>
+</div>
+{% elif debug_image_path %}
+<div class="card mb-sm"><div style="padding:.75rem;"><img src="{{ MEDIA_URL }}{{ debug_image_path }}" alt="debug" style="max-height:240px;border:1px solid #ccc;"></div></div>
+{% endif %}
+
 <form method="post" id="akReviewForm">
     {% csrf_token %}
     <div class="card mb-md">
@@ -52,12 +74,14 @@
             .omr-opt.blank-opt { font-size:.65rem; }
             .omr-q-card.flagged { background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.35); }
             .omr-q-card.ok { background:rgba(15,23,42,0.45); border:1px solid rgba(148,163,184,0.1); }
+            .omr-q-card.multi { background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); }
+            .omr-q-card.blankcv { background:rgba(148,163,184,0.12); border:1px solid rgba(148,163,184,0.25); }
             </style>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:.4rem;">
                 {% for q in questions_range %}
                 {% with q_str=q|stringformat:"s" %}
-                {% with cur=detected|get_item:q_str %}
-                <div class="omr-q-card {% if q in flagged %}flagged{% else %}ok{% endif %}" id="qcard_{{ q }}">
+                {% with cur=detected|get_item:q_str pq=per_question|get_item:q_str %}
+                <div class="omr-q-card {% if pq and pq.status == 'multiple' %}multi{% elif pq and pq.status == 'blank' %}blankcv{% elif q in flagged %}flagged{% else %}ok{% endif %}" id="qcard_{{ q }}">
                     <div class="omr-q-num">Q{{ q }}{% if q in flagged %} ⚠{% endif %}</div>
                     <input type="hidden" name="q_{{ q }}" id="qval_{{ q }}" value="{{ cur|default:'' }}">
                     <div class="omr-opt-row">

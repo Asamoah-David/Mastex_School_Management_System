@@ -8,10 +8,12 @@ from finance.paystack_service import compute_paystack_gross_from_net
 
 from django.test import Client, TestCase
 from django.urls import reverse
+from unittest.mock import patch
 
-from finance.models import PaymentTransaction
+from finance.models import PaymentTransaction, Fee, FeePayment
 from schools.models import School
 from accounts.models import User
+from students.models import Student
 from payments.services.ledger import PaymentTypes, record_payment_transaction
 from audit.models import AuditLog
 
@@ -421,3 +423,132 @@ class SchoolFundsLedgerTests(TestCase):
         # After rebuild, balance should reflect all entries from all tests for school_a
         self.assertGreaterEqual(bal["collected_total"], Decimal("400.00"))
         self.assertIsNotNone(bal["last_reconciled_at"])
+
+
+class PaymentVoidWorkflowTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Void School", subdomain="void-school")
+        cls.admin = User.objects.create_user(
+            username="void_admin",
+            password="pw12345",
+            school=cls.school,
+            role="school_admin",
+        )
+        cls.student_user = User.objects.create_user(
+            username="void_student_user",
+            password="pw12345",
+            school=cls.school,
+            role="student",
+        )
+        cls.student = Student.objects.create(
+            school=cls.school,
+            user=cls.student_user,
+            admission_number="VOID-001",
+            class_name="JHS 1",
+        )
+        cls.fee = Fee.objects.create(
+            school=cls.school,
+            student=cls.student,
+            amount=Decimal("100.00"),
+            amount_paid=Decimal("100.00"),
+            paid=True,
+        )
+        cls.payment = FeePayment.objects.create(
+            fee=cls.fee,
+            school=cls.school,
+            amount=Decimal("100.00"),
+            status="completed",
+            paystack_reference="REF_VOID_001",
+        )
+
+    def setUp(self):
+        self.client = Client()
+        self.client.login(username="void_admin", password="pw12345")
+
+    @patch("finance.views.paystack_service.initiate_refund")
+    def test_void_completed_payment_restores_fee_balance(self, refund_mock):
+        refund_mock.return_value = {"status": True, "message": "ok"}
+        resp = self.client.post(
+            reverse("finance:payment_history_void", kwargs={"pk": self.payment.pk}),
+            data={"void_reason": "Duplicate receipt posted in error."},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.payment.refresh_from_db()
+        self.fee.refresh_from_db()
+        self.assertEqual(self.payment.status, "failed")
+        self.assertIsNotNone(self.payment.voided_at)
+        self.assertEqual(self.fee.amount_paid, Decimal("0.00"))
+        self.assertFalse(self.fee.paid)
+
+    @patch("finance.views.paystack_service.initiate_refund")
+    def test_void_aborts_when_refund_fails(self, refund_mock):
+        refund_mock.return_value = {"status": False, "message": "gateway timeout"}
+        resp = self.client.post(
+            reverse("finance:payment_history_void", kwargs={"pk": self.payment.pk}),
+            data={"void_reason": "Customer reversal request."},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.payment.refresh_from_db()
+        self.fee.refresh_from_db()
+        self.assertEqual(self.payment.status, "completed")
+        self.assertIsNone(self.payment.voided_at)
+        self.assertEqual(self.fee.amount_paid, Decimal("100.00"))
+
+
+class PaymentSuccessAccessTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Pay Success School", subdomain="pay-success-sch")
+        cls.owner_parent = User.objects.create_user(
+            username="ps_parent_owner", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.other_parent = User.objects.create_user(
+            username="ps_parent_other", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.student_user = User.objects.create_user(
+            username="ps_student_user", password="pw12345", school=cls.school, role="student"
+        )
+        cls.student = Student.objects.create(
+            school=cls.school,
+            user=cls.student_user,
+            parent=cls.owner_parent,
+            admission_number="PS-001",
+            class_name="JHS 1",
+        )
+        cls.fee = Fee.objects.create(
+            school=cls.school,
+            student=cls.student,
+            amount=Decimal("50.00"),
+            amount_paid=Decimal("50.00"),
+            paid=True,
+        )
+        cls.reference = "PS_REF_001"
+        cls.fee_payment = FeePayment.objects.create(
+            fee=cls.fee,
+            school=cls.school,
+            amount=Decimal("50.00"),
+            status="completed",
+            paystack_reference=cls.reference,
+        )
+        PaymentTransaction.objects.create(
+            school=cls.school,
+            provider="paystack",
+            reference=cls.reference,
+            amount=Decimal("50.00"),
+            currency="GHS",
+            status="completed",
+            payment_type=PaymentTypes.SCHOOL_FEE,
+            object_id=str(cls.fee.pk),
+        )
+
+    def test_unrelated_user_cannot_view_payment_success(self):
+        self.client.login(username="ps_parent_other", password="pw12345")
+        resp = self.client.get(reverse("finance:payment_success"), {"reference": self.reference})
+        self.assertEqual(resp.status_code, 302)
+
+    def test_owner_parent_can_view_payment_success(self):
+        self.client.login(username="ps_parent_owner", password="pw12345")
+        resp = self.client.get(reverse("finance:payment_success"), {"reference": self.reference})
+        self.assertEqual(resp.status_code, 200)

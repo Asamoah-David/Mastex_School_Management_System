@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import OmrExam, OmrResult, OmrExamSectionB
+from .models import OmrExam, OmrResult, OmrExamSectionB, OmrTemplateCalibration
 
 
 class OmrResultInline(admin.TabularInline):
@@ -30,6 +30,13 @@ class OmrResultAdmin(admin.ModelAdmin):
     list_filter = ("exam__template_type", "school")
     search_fields = ("student_name", "exam__title", "class_name")
     readonly_fields = ("created_at", "per_question_result", "detected_answers", "answer_key")
+
+
+@admin.register(OmrTemplateCalibration)
+class OmrTemplateCalibrationAdmin(admin.ModelAdmin):
+    list_display = ("template_id", "template_name", "school", "updated_at")
+    list_filter = ("template_id", "school")
+    search_fields = ("template_id", "template_name")
 
 
 @admin.register(OmrExamSectionB)

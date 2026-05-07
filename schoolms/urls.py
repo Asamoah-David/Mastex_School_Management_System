@@ -7,11 +7,14 @@ from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from django.views.generic import RedirectView
 from django.db import connection
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
+
+from integrations.auth_views import ThrottledTokenObtainPairView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from students.views import portal
 from schools.views import school_register
 from accounts.views import home
+from core.queue_views import queue_monitor
 
 # Minimal HTML fallbacks if template rendering fails (DB / template issues).
 _FALLBACK_404_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Not found</title></head>
@@ -65,11 +68,27 @@ def health_check(request):
     Always returns HTTP 200 so platforms (e.g. Railway) mark the process as up.
     Use the JSON body for DB status; monitor ``status`` / ``database`` in ops.
     """
-    status = {"status": "ok", "database": "ok"}
+    from django.conf import settings as dj_settings
+
+    status = {
+        "status": "ok",
+        "database": "ok",
+        "cache": "ok",
+        "debug": bool(dj_settings.DEBUG),
+    }
     try:
         connection.ensure_connection()
     except Exception:
         status["database"] = "unavailable"
+        status["status"] = "degraded"
+    try:
+        from django.core.cache import cache
+
+        cache.set("_health_ping", "1", 10)
+        if cache.get("_health_ping") != "1":
+            raise RuntimeError("cache readback failed")
+    except Exception:
+        status["cache"] = "unavailable"
         status["status"] = "degraded"
     return JsonResponse(status)
 
@@ -104,12 +123,13 @@ urlpatterns = [
     ),
     path("health/", health_check, name="health_check"),
     path("ready/", ready_check, name="ready_check"),
+    path("operations/queue-monitor/", queue_monitor, name="queue_monitor"),
     path("admin/", admin.site.urls),
     path("schools/register/", school_register, name="school_register"),
     path("schools/", include("schools.urls")),
     path("portal/", portal, name="portal"),
     # API auth
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain"),
+    path("api/token/", ThrottledTokenObtainPairView.as_view(), name="token_obtain"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/v1/", include("integrations.urls")),
 ]

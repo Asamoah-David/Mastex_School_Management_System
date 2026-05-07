@@ -28,23 +28,34 @@ DEFAULT_THRESHOLDS = {
 }
 
 BECE_60_THRESHOLDS = {
-    "min_fill_ratio": 0.10,  # Slightly more sensitive for BECE
+    "min_fill_ratio": 0.10,
     "strong_fill_ratio": 0.20,
     "min_difference_from_second": 0.05,
     "blank_threshold": 0.06,
     "adaptive_block_size": 21,
     "adaptive_c": 8,
-    "roi_shrink_percent": 0.12,  # Smaller shrink for smaller bubbles
+    "roi_shrink_percent": 0.12,
+    # Slightly more forgiving on real phone scans; blank calibration tightens signal in pipeline.
+    "min_mark_area_ratio": 0.048,
+    "strong_mark_area_ratio": 0.12,
+    "min_gap_from_second": 0.038,
+    "uncertainty_gap": 0.030,
+    "inner_zone_ratio": 0.44,
 }
 
 BASIC_30_THRESHOLDS = {
-    "min_fill_ratio": 0.15,  # Higher threshold for larger bubbles
+    "min_fill_ratio": 0.15,
     "strong_fill_ratio": 0.25,
     "min_difference_from_second": 0.08,
     "blank_threshold": 0.10,
     "adaptive_block_size": 21,
     "adaptive_c": 8,
     "roi_shrink_percent": 0.18,
+    "min_mark_area_ratio": 0.065,
+    "strong_mark_area_ratio": 0.16,
+    "min_gap_from_second": 0.050,
+    "uncertainty_gap": 0.040,
+    "inner_zone_ratio": 0.46,
 }
 
 
@@ -142,6 +153,9 @@ def _build_basic_30_ad() -> dict:
             "Use good, even lighting (avoid shadows)",
             "Make sure answer bubbles are clearly visible",
         ],
+        "sheet_design": "generated",
+        "legacy_mode": False,
+        "require_corner_markers": False,
     }
 
 
@@ -250,6 +264,9 @@ def _build_bece_60_ae() -> dict:
         # Quality requirements
         "min_coverage_ratio": 0.70,  # Require at least 70% confident detections
         "min_registration_marks": 14,  # At least 14 of 20 timing marks should be visible
+        "sheet_design": "legacy",
+        "legacy_mode": True,
+        "require_corner_markers": False,
     }
 
 
@@ -460,8 +477,9 @@ def build_template_from_calibration(
         option_gap = 7
     
     total_questions = len(col_configs) * questions_per_col
-    
-    return {
+
+    threshold_config = BECE_60_THRESHOLDS if len(options) == 5 else BASIC_30_THRESHOLDS
+    result = {
         "template_id": f"{template_id}_custom",
         "name": f"Custom {base_template['name'] if base_template else 'Template'}",
         "description": "User-calibrated custom template",
@@ -480,7 +498,5 @@ def build_template_from_calibration(
         "calibrated": True,
         "calibration_source": template_id,
     }
-    
-    # Merge threshold config based on number of options
-    threshold_config = BECE_60_THRESHOLDS if len(options) == 5 else BASIC_30_THRESHOLDS
     result.update(threshold_config)
+    return result

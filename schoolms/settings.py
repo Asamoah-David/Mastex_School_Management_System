@@ -86,6 +86,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "django_celery_beat",
+    "django_celery_results",
     # Project apps
     "core",
     "accounts",
@@ -123,6 +124,7 @@ MIDDLEWARE = [
     "schools.middleware.SchoolMiddleware",
     "accounts.middleware.ForcePasswordChangeMiddleware",
     "audit.middleware.AuditUserMiddleware",
+    "core.middleware.ExceptionLoggingMiddleware",
 ]
 
 ROOT_URLCONF = "schoolms.urls"
@@ -266,6 +268,37 @@ MEDIA_ROOT = next(
 )
 
 # ---------------------------------------------------------------------------
+# Enterprise media / OMR retention (Phase 1 hardening)
+# ---------------------------------------------------------------------------
+# Readable aliases — map to hours for cleanup tasks. Legacy OMR_* env vars still override.
+KEEP_RAW_SCANS_DAYS = env_float("KEEP_RAW_SCANS_DAYS", 1.0)
+KEEP_DEBUG_OVERLAYS_DAYS = env_float("KEEP_DEBUG_OVERLAYS_DAYS", 3.0)
+ENABLE_DEBUG_OVERLAYS = env_bool("ENABLE_DEBUG_OVERLAYS", default=DEBUG)
+ENABLE_RAW_SCAN_STORAGE = env_bool("ENABLE_RAW_SCAN_STORAGE", default=True)
+AUTO_CLEANUP_ENABLED = env_bool("AUTO_CLEANUP_ENABLED", default=True)
+
+# When False, temp scans expire quickly (still set OMR_TEMP_RETENTION_HOURS to override).
+_default_temp_hours = KEEP_RAW_SCANS_DAYS * 24.0
+if not ENABLE_RAW_SCAN_STORAGE:
+    _default_temp_hours = min(_default_temp_hours, 1.0)
+
+OMR_TEMP_RETENTION_HOURS = float(env("OMR_TEMP_RETENTION_HOURS", str(_default_temp_hours)))
+OMR_DEBUG_RETENTION_HOURS = float(
+    env("OMR_DEBUG_RETENTION_HOURS", str(KEEP_DEBUG_OVERLAYS_DAYS * 24.0))
+)
+# Minimal debug = one overlay per scan when overlays enabled (full PNG set when False and DEBUG).
+OMR_SAVE_MINIMAL_DEBUG = env_bool("OMR_SAVE_MINIMAL_DEBUG", default=not DEBUG)
+
+# Image uploads: optional JPEG recompress for large photos (staff uploads, IDs). See core.media_utils.
+MEDIA_IMAGE_MAX_DIMENSION = int(env("MEDIA_IMAGE_MAX_DIMENSION", "2400"))
+MEDIA_JPEG_QUALITY = int(env("MEDIA_JPEG_QUALITY", "85"))
+MEDIA_GENERATE_THUMBNAILS = env_bool("MEDIA_GENERATE_THUMBNAILS", default=False)
+MEDIA_THUMBNAIL_MAX = int(env("MEDIA_THUMBNAIL_MAX", "400"))
+
+# Verbose request logging in development only
+VERBOSE_HTTP_LOGS = env_bool("VERBOSE_HTTP_LOGS", default=DEBUG)
+
+# ---------------------------------------------------------------------------
 # REST Framework & JWT
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
@@ -285,6 +318,7 @@ REST_FRAMEWORK = {
         "anon": "60/minute",
         "user": "300/minute",
         "school_api": "200/minute",
+        "token_obtain": "30/minute",
     },
     "DEFAULT_RENDERER_CLASSES": (
         ["rest_framework.renderers.JSONRenderer"]
@@ -648,6 +682,11 @@ LOGGING = {
                 "audit",
             ]
         },
+        "mastex.unhandled": {
+            "handlers": _log_handlers + (["mail_admins"] if not DEBUG else []),
+            "level": "ERROR",
+            "propagate": False,
+        },
     },
 }
 
@@ -800,5 +839,10 @@ CELERY_BEAT_SCHEDULE = {
     "early-warning-flag-detection-weekly": {
         "task": "core.tasks.detect_early_warning_flags",
         "schedule": 86400 * 7,  # every 7 days
+    },
+    # OMR: prune temp uploads and debug PNGs (local MEDIA_ROOT only; use S3 lifecycle for object storage)
+    "cleanup-omr-media-daily": {
+        "task": "core.tasks.cleanup_omr_media_files",
+        "schedule": 86400,
     },
 }

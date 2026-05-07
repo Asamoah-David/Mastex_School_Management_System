@@ -19,6 +19,7 @@ ROLE_CHOICES = (
     ('accountant', 'Accountant/Bursar'),
     ('librarian', 'Librarian'),
     ('admission_officer', 'Admission Officer'),
+    ('exam_officer', 'Exam Officer'),
     ('school_nurse', 'School Nurse'),
     ('admin_assistant', 'Admin Assistant'),
     ('staff', 'Staff'),
@@ -29,7 +30,7 @@ ROLE_CHOICES = (
 
 STAFF_ROLES = (
     "school_admin", "deputy_head", "hod", "teacher",
-    "accountant", "librarian", "admission_officer",
+    "accountant", "librarian", "admission_officer", "exam_officer",
     "school_nurse", "admin_assistant", "staff",
 )
 

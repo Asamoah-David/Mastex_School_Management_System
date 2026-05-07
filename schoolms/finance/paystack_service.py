@@ -360,6 +360,28 @@ class PaystackService:
         except Exception as e:
             return {"status": False, "message": str(e)}
 
+    def initiate_refund(self, *, transaction_reference: str, amount_major: Decimal | None = None, currency: str | None = None):
+        """
+        Initiate a Paystack refund for a successful transaction.
+        If amount_major is omitted, Paystack refunds full amount.
+        """
+        body = {"transaction": transaction_reference}
+        if amount_major is not None:
+            amount_minor = int(Decimal(str(amount_major)).quantize(Decimal("0.01")) * 100)
+            body["amount"] = amount_minor
+        if currency:
+            body["currency"] = currency
+        try:
+            response = requests.post(
+                f"{self.base_url}/refund",
+                json=body,
+                headers=self._get_headers(),
+                timeout=45,
+            )
+            return response.json()
+        except Exception as e:
+            return {"status": False, "message": str(e)}
+
 
 # Singleton instance
 paystack_service = PaystackService()

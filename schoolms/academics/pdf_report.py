@@ -620,6 +620,11 @@ def generate_and_save_report_card(request, student_id):
     rc.pdf_file.save(fname, ContentFile(pdf_bytes), save=False)
     rc.save()
 
+    if publish:
+        from academics.report_card_snapshot import freeze_report_card_calculation
+
+        freeze_report_card_calculation(rc)
+
     # Stream the PDF immediately
     resp_fname = f"report_card_{student.admission_number or student_id}_{term.name if term else 'all'}.pdf"
     resp_fname = resp_fname.replace(" ", "_").replace("/", "-")

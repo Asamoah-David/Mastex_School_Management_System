@@ -4243,12 +4243,8 @@ def id_card_view(request, pk):
     if not school:
         return redirect('home')
     
-    id_card = get_object_or_404(StudentIDCard, pk=pk)
-    
-    # Check permission
-    if school and id_card.school != school:
-        return redirect('home')
-    
+    id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
+
     can_view = user_can_manage_school(request.user) or request.user.is_superuser
     can_view = can_view or (id_card.student and id_card.student.user == request.user)
     
@@ -7899,12 +7895,12 @@ def assignment_submission_grade(request, pk):
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
     
-    submission = get_object_or_404(AssignmentSubmission, pk=pk)
-    
-    # Check school permission
-    if submission.homework.subject.school != school:
-        return redirect('home')
-    
+    submission = get_object_or_404(
+        AssignmentSubmission.objects.select_related("homework__subject"),
+        pk=pk,
+        homework__subject__school=school,
+    )
+
     if request.method == 'POST':
         grade = request.POST.get('grade')
         feedback = request.POST.get('feedback', '').strip()
@@ -7967,11 +7963,8 @@ def assignment_submission_download(request, pk):
             'homework', 'homework__subject', 'student', 'student__user'
         ),
         pk=pk,
+        homework__subject__school=school,
     )
-
-    # Tenant check
-    if not sub.homework_id or not sub.homework.subject_id or sub.homework.subject.school_id != school.id:
-        raise Http404
 
     role = getattr(request.user, 'role', None)
     allowed = False

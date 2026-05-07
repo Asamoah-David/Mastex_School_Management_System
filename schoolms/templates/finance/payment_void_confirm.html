@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+{% block title %}Void Payment{% endblock %}
+{% block page_title %}Void Payment{% endblock %}
+{% block page_subtitle %}Reversal workflow for completed payments{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <p><strong>Payment:</strong> {{ payment.id }}</p>
+    <p><strong>Amount:</strong> {{ payment.amount|format_ghs }}</p>
+    <p><strong>Reference:</strong> {{ payment.paystack_reference|default:"N/A" }}</p>
+    <p class="text-danger"><strong>Warning:</strong> This action reverses the posted amount from the fee balance.</p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label for="void_reason" class="form-label">Void reason</label>
+        <textarea id="void_reason" name="void_reason" class="form-control" rows="4" required minlength="8"></textarea>
+      </div>
+      <button type="submit" class="btn btn-danger">Confirm Void</button>
+      <a href="{% url 'finance:payment_history_list' %}" class="btn btn-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

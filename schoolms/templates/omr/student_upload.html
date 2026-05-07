@@ -64,14 +64,8 @@
                         <div id="stPreviewName" style="font-size:.75rem;color:var(--text-muted);margin-top:.25rem;"></div>
                     </div>
                 </div>
-                <div style="margin-top:.75rem;padding:.6rem .75rem;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:8px;display:flex;align-items:center;gap:.6rem;">
-                    <input type="checkbox" id="autoSaveCheck" name="auto_save" value="1" checked style="width:1.1rem;height:1.1rem;cursor:pointer;">
-                    <label for="autoSaveCheck" style="cursor:pointer;font-size:.9rem;margin:0;">
-                        <strong>Fast mode</strong> — skip review &amp; save automatically if all answers detected clearly
-                    </label>
-                </div>
                 <div style="display:flex;gap:.75rem;margin-top:.75rem;">
-                    <button type="submit" id="btnProcess" class="btn btn-secondary" style="opacity:.5;cursor:not-allowed;" disabled>Process &amp; Save →</button>
+                    <button type="submit" id="btnProcess" class="btn btn-secondary" style="opacity:.5;cursor:not-allowed;" disabled>Process &amp; Review →</button>
                     <button type="button" id="btnManual" class="btn btn-secondary" onclick="switchToManual()">Enter Manually</button>
                 </div>
             </form>
@@ -94,6 +88,7 @@
                 <strong>Tips:</strong>
                 <ul style="margin:.4rem 0 0;padding-left:1.1rem;color:var(--text-muted);line-height:1.6;">
                     {% if capture_guidance %}{% for tip in capture_guidance %}<li>{{ tip }}</li>{% endfor %}{% else %}<li>Dark contrasting background</li><li>All 4 corners visible</li><li>Good lighting, no glare</li><li>Photo directly above</li>{% endif %}
+                    <li>For fewer mistakes, <a href="{% url 'omr:calibration_page' exam.template_type %}">calibrate this template</a> once with a blank sheet.</li>
                 </ul>
             </div>
         </div>

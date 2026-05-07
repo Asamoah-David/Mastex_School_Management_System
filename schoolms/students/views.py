@@ -59,7 +59,11 @@ def parent_dashboard(request):
         from academics.models import Result, ExamType, Term, ExamSchedule
 
         user_school = getattr(request.user, "school", None)
-        children = get_children_for_parent(request.user, school=user_school, active_only=False)
+        children = list(
+            get_children_for_parent(request.user, school=user_school, active_only=False).select_related(
+                "user", "school", "school_class"
+            )
+        )
         
         # Handle case with no children
         if not children:
@@ -93,33 +97,39 @@ def parent_dashboard(request):
         
         # Get fees for all children
         children_ids = [c.id for c in children]
+        school_ids = list({c.school_id for c in children if c.school_id})
         fees = (
-            Fee.objects.filter(student_id__in=children_ids, school__in=[c.school for c in children])
+            Fee.objects.filter(student_id__in=children_ids, school_id__in=school_ids)
             .select_related("student", "student__user")
             .order_by("-created_at")
         )
         
         # Group fees by child
-        fees_by_child = {}
-        for fee in fees:
+        fees_by_child = defaultdict(list)
+        fee_cap_per_child = 12
+        for fee in fees.iterator(chunk_size=250):
             child_id = fee.student_id
-            if child_id not in fees_by_child:
-                fees_by_child[child_id] = []
-            fees_by_child[child_id].append(fee)
+            if len(fees_by_child[child_id]) < fee_cap_per_child:
+                fees_by_child[child_id].append(fee)
         
         # Get results for all children
         results_by_child = {}
         results = (
             Result.objects.filter(
                 student_id__in=children_ids,
-                student__school__in=[c.school for c in children],
+                student__school_id__in=school_ids,
                 is_published=True,
-            ).select_related("student", "subject", "exam_type", "term")
+            )
+            .select_related("student", "subject", "exam_type", "term")
+            .order_by("-id")
         )
 
-        for result in results:
+        result_cap_per_child = 20
+        for result in results.iterator(chunk_size=300):
             child_id = result.student_id
-            results_by_child.setdefault(child_id, []).append(result)
+            bucket = results_by_child.setdefault(child_id, [])
+            if len(bucket) < result_cap_per_child:
+                bucket.append(result)
 
         class_positions = {}
         avg_scores = {}
@@ -191,7 +201,7 @@ def parent_dashboard(request):
         from operations.models import Announcement
         from operations.models import StudentAttendance
         from django.utils import timezone
-        schools = list({c.school for c in children})
+        schools = list({c.school for c in children if c.school_id})
         announcements = Announcement.objects.filter(
             school__in=schools,
             target_audience__in=["all", "parents"]
@@ -224,10 +234,10 @@ def parent_dashboard(request):
         )
 
         # Get recent payments for all children (last 5 payments)
-        recent_payments = (
-            FeePayment.objects.filter(fee__student_id__in=children_ids)
+        recent_payments = list(
+            FeePayment.objects.filter(fee__student_id__in=children_ids, fee__school_id__in=school_ids)
             .select_related("fee", "fee__student", "fee__school")
-            .order_by("-created_at")[:5]
+            .order_by("-created_at")[:10]
         )
 
         return render(request, "students/parent_dashboard.html", {
@@ -620,7 +630,10 @@ def parent_child_detail(request, pk):
     if getattr(request.user, "role", None) != "parent":
         return redirect("home")
 
-    child = get_object_or_404(Student.objects.select_related("user", "school", "parent"), pk=pk, parent=request.user)
+    child = get_object_or_404(Student.objects.select_related("user", "school", "parent"), pk=pk)
+    if not parent_is_guardian_of(request.user, child):
+        messages.error(request, "You do not have permission to view this child.")
+        return redirect("students:parent_dashboard")
 
     from academics.models import Result, Term, ExamType
     from finance.models import Fee

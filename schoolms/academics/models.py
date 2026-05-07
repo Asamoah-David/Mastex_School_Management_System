@@ -407,8 +407,116 @@ class HomeworkSubmission(models.Model):
         return f"{self.student} - {self.homework.title}"
 
 
+class ScoreChangeLog(models.Model):
+    """Append-only audit of numeric / remark changes on academic score records."""
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name="score_change_logs",
+    )
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="score_change_logs",
+    )
+    target_model = models.CharField(max_length=120, db_index=True)
+    target_id = models.PositiveBigIntegerField(db_index=True)
+    field_name = models.CharField(max_length=64)
+    old_value = models.CharField(max_length=500, blank=True)
+    new_value = models.CharField(max_length=500, blank=True)
+    reason = models.TextField(blank=True)
+    source = models.CharField(
+        max_length=32,
+        blank=True,
+        default="orm",
+        help_text="orm, api, omr, import, admin, …",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["school", "target_model", "target_id"],
+                name="idx_scorelog_school_tgt",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.target_model}#{self.target_id} {self.field_name}"
+
+
+class ResultQuerySet(models.QuerySet):
+    """Queryset with audit-safe bulk updates for sensitive score fields."""
+
+    _AUDITED_FIELDS = {"score", "total_score", "remarks"}
+
+    def update(self, **kwargs):
+        allow_locked_update = bool(kwargs.pop("_allow_locked_update", False))
+        touched = self._AUDITED_FIELDS.intersection(kwargs.keys())
+        if not touched:
+            return super().update(**kwargs)
+
+        if not allow_locked_update and self.filter(workflow_status="locked").exists():
+            raise ValidationError(
+                "Locked results cannot be changed via bulk update. Unlock first before editing scores."
+            )
+
+        # Preserve old values so QuerySet.update() cannot bypass score audit logs.
+        before_rows = list(self.values("id", "school_id", *sorted(touched)))
+        if not before_rows:
+            return 0
+        before_by_id = {row["id"]: row for row in before_rows}
+
+        updated = super().update(**kwargs)
+        if updated <= 0:
+            return updated
+
+        logs = []
+        for row in before_rows:
+            result_id = row["id"]
+            school_id = row["school_id"]
+            if not school_id:
+                continue
+            for field in touched:
+                old_v = before_by_id[result_id].get(field)
+                new_v = kwargs.get(field)
+                if old_v != new_v:
+                    logs.append(
+                        ScoreChangeLog(
+                            school_id=school_id,
+                            actor=None,
+                            target_model="academics.result",
+                            target_id=result_id,
+                            field_name=field,
+                            old_value="" if old_v is None else str(old_v),
+                            new_value="" if new_v is None else str(new_v),
+                            reason="",
+                            source="bulk_update",
+                        )
+                    )
+        if logs:
+            ScoreChangeLog.objects.bulk_create(logs, batch_size=500)
+        return updated
+
+
+class ResultManager(models.Manager.from_queryset(ResultQuerySet)):
+    """Default manager enabling audited queryset bulk updates."""
+
+
 class Result(models.Model):
     """Student exam/test results."""
+
+    WORKFLOW_DRAFT = "draft"
+    WORKFLOW_REVIEWED = "reviewed"
+    WORKFLOW_APPROVED = "approved"
+    WORKFLOW_PUBLISHED = "published"
+    WORKFLOW_LOCKED = "locked"
+    WORKFLOW_CHOICES = [
+        (WORKFLOW_DRAFT, "Draft"),
+        (WORKFLOW_REVIEWED, "Reviewed"),
+        (WORKFLOW_APPROVED, "Approved"),
+        (WORKFLOW_PUBLISHED, "Published"),
+        (WORKFLOW_LOCKED, "Locked"),
+    ]
+
     school = models.ForeignKey(
         School, on_delete=models.CASCADE,
         related_name="results",
@@ -424,6 +532,28 @@ class Result(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    workflow_status = models.CharField(
+        max_length=20,
+        choices=WORKFLOW_CHOICES,
+        default=WORKFLOW_DRAFT,
+        db_index=True,
+        help_text="Draft → reviewed → approved → published → locked.",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="results_reviewed",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="results_approved",
+    )
+    locked_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="results_locked",
+    )
     is_published = models.BooleanField(
         default=False,
         db_index=True,
@@ -441,6 +571,7 @@ class Result(models.Model):
         null=True, blank=True, db_index=True,
         help_text="Soft-delete: result is hidden from students/parents but not erased.",
     )
+    objects = ResultManager()
 
     class Meta:
         ordering = ['-created_at']
@@ -450,6 +581,7 @@ class Result(models.Model):
             models.Index(fields=["student", "term"], name="idx_result_student_term"),
             models.Index(fields=["student", "subject", "term"], name="idx_result_stu_subj_term"),
             models.Index(fields=["school", "term"], name="idx_result_school_term"),
+            models.Index(fields=["school", "workflow_status"], name="idx_result_school_workflow"),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -474,8 +606,44 @@ class Result(models.Model):
             raise ValidationError({"score": "Score cannot be negative."})
         if self.score > self.total_score:
             raise ValidationError({"score": "Score cannot exceed total_score."})
+        if self.pk:
+            prev = (
+                Result.objects.filter(pk=self.pk)
+                .values(
+                    "workflow_status",
+                    "score",
+                    "total_score",
+                    "remarks",
+                    "subject_id",
+                    "student_id",
+                    "term_id",
+                    "exam_type_id",
+                )
+                .first()
+            )
+            if (
+                prev
+                and prev["workflow_status"] == self.WORKFLOW_LOCKED
+                and self.workflow_status == self.WORKFLOW_LOCKED
+                and not getattr(self, "_academic_integrity_override", False)
+            ):
+                for f in (
+                    "score",
+                    "total_score",
+                    "remarks",
+                    "subject_id",
+                    "student_id",
+                    "term_id",
+                    "exam_type_id",
+                ):
+                    if getattr(self, f) != prev.get(f):
+                        raise ValidationError(
+                            "This result is locked. Unlock it (with audit) before changing scores."
+                        )
 
     def save(self, *args, **kwargs):
+        audit_user = kwargs.pop("audit_user", None)
+        audit_reason = kwargs.pop("audit_reason", "")
         if not self.school_id and self.student_id:
             try:
                 self.school_id = self.student.school_id
@@ -483,7 +651,40 @@ class Result(models.Model):
                 pass
         self.score = round(float(self.score), 2)
         self.total_score = round(float(self.total_score), 2)
+
+        if self.is_published and self.workflow_status in (
+            self.WORKFLOW_DRAFT,
+            self.WORKFLOW_REVIEWED,
+            self.WORKFLOW_APPROVED,
+        ):
+            self.workflow_status = self.WORKFLOW_PUBLISHED
+        if self.workflow_status in (self.WORKFLOW_PUBLISHED, self.WORKFLOW_LOCKED):
+            self.is_published = True
+        if self.workflow_status == self.WORKFLOW_DRAFT and not self.is_published:
+            pass
+
+        old_vals = None
+        if self.pk:
+            old_vals = Result.objects.filter(pk=self.pk).values("score", "total_score", "remarks").first()
+
         super().save(*args, **kwargs)
+
+        if old_vals and self.school_id:
+            for field in ("score", "total_score", "remarks"):
+                new_v = getattr(self, field)
+                old_v = old_vals.get(field)
+                if new_v != old_v:
+                    ScoreChangeLog.objects.create(
+                        school_id=self.school_id,
+                        actor=audit_user,
+                        target_model="academics.result",
+                        target_id=self.pk,
+                        field_name=field,
+                        old_value="" if old_v is None else str(old_v),
+                        new_value=str(new_v),
+                        reason=audit_reason or "",
+                        source="orm",
+                    )
     
     def __str__(self):
         return f"{self.student} - {self.subject}: {self.score}/{self.total_score}"
@@ -1386,6 +1587,11 @@ class ReportCard(SchoolScopedModel):
     published_at = models.DateTimeField(null=True, blank=True)
     principal_remarks = models.TextField(blank=True)
     class_teacher_remarks = models.TextField(blank=True)
+    calculation_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Immutable scheme-based breakdown at generation/publish time (StudentReportCardScore rows).",
+    )
 
     class Meta:
         verbose_name = "Report Card"

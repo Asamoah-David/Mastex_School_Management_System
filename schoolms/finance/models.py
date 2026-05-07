@@ -203,6 +203,20 @@ class FeePayment(models.Model):
         blank=True,
         help_text="Set when payer SMS/email was sent; prevents duplicate notices from webhook+callback.",
     )
+    voided_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When set, this payment is voided; fee balance is reduced (reversal workflow).",
+    )
+    voided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fee_payments_voided",
+    )
+    void_reason = models.TextField(blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -213,6 +227,16 @@ class FeePayment(models.Model):
                 fields=["paystack_reference"],
                 condition=models.Q(paystack_reference__isnull=False),
                 name="uniq_feepayment_paystack_reference_nonnull",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["school", "status", "paid_at"],
+                name="idx_feepay_school_stat_paidat",
+            ),
+            models.Index(
+                fields=["school", "created_at"],
+                name="idx_feepay_school_created",
             ),
         ]
 

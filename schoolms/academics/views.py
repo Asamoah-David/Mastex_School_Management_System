@@ -13,6 +13,9 @@ from accounts.permissions import (
     user_can_manage_school,
     has_school_wide_class_scope,
     is_teacher,
+    can_publish_academic_results,
+    can_unlock_locked_academic_results,
+    can_upload_results,
 )
 from accounts.teaching_scope import teacher_result_subject_ids
 from .models import (
@@ -800,7 +803,6 @@ def result_list(request):
     if not school:
         return redirect("home")
     
-    from accounts.permissions import can_upload_results
     if not can_upload_results(request.user):
         return redirect("home")
     
@@ -823,29 +825,108 @@ def result_list(request):
     if term_id:
         results = results.filter(term_id=term_id)
 
+    can_review_results = can_upload_results(request.user)
+    can_approve_results = can_publish_academic_results(request.user)
+    can_lock_results = can_publish_academic_results(request.user)
+    can_unlock_results = can_unlock_locked_academic_results(request.user)
+
     if request.method == "POST":
         action = request.POST.get("action")
-        if action in {"publish", "unpublish"}:
-            if action == "publish":
-                updated = results.exclude(is_published=True).update(
-                    is_published=True,
-                    published_at=timezone.now(),
-                    published_by=request.user,
-                )
-                if updated:
-                    messages.success(request, f"Published {updated} result(s).")
+        if action in {"review", "approve", "publish", "unpublish", "lock", "unlock"}:
+            now = timezone.now()
+            if action == "review":
+                if not can_review_results:
+                    messages.error(request, "You are not allowed to review results.")
                 else:
-                    messages.info(request, "No unpublished results matched the current filters.")
+                    updated = results.filter(workflow_status=Result.WORKFLOW_DRAFT).update(
+                        workflow_status=Result.WORKFLOW_REVIEWED,
+                        reviewed_at=now,
+                        reviewed_by=request.user,
+                    )
+                    if updated:
+                        messages.success(request, f"Marked {updated} result(s) as reviewed.")
+                    else:
+                        messages.info(request, "No draft results matched the current filters.")
+            elif action == "approve":
+                if not can_approve_results:
+                    messages.error(request, "Only the headteacher, deputy, or exam officer can approve results.")
+                else:
+                    updated = results.filter(
+                        workflow_status__in=[Result.WORKFLOW_REVIEWED, Result.WORKFLOW_DRAFT]
+                    ).update(
+                        workflow_status=Result.WORKFLOW_APPROVED,
+                        approved_at=now,
+                        approved_by=request.user,
+                    )
+                    if updated:
+                        messages.success(request, f"Approved {updated} result(s).")
+                    else:
+                        messages.info(request, "No review-ready results matched the current filters.")
+            elif action == "lock":
+                if not can_lock_results:
+                    messages.error(request, "Only authorized users can lock results.")
+                else:
+                    updated = results.filter(workflow_status=Result.WORKFLOW_PUBLISHED).update(
+                        workflow_status=Result.WORKFLOW_LOCKED,
+                        locked_at=now,
+                        locked_by=request.user,
+                    )
+                    if updated:
+                        messages.success(request, f"Locked {updated} published result(s).")
+                    else:
+                        messages.info(request, "No published results matched the current filters.")
+            elif action == "unlock":
+                if not can_unlock_results:
+                    messages.error(request, "Only the headteacher, deputy, or exam officer can unlock results.")
+                else:
+                    updated = results.filter(workflow_status=Result.WORKFLOW_LOCKED).update(
+                        workflow_status=Result.WORKFLOW_PUBLISHED,
+                    )
+                    if updated:
+                        messages.success(request, f"Unlocked {updated} result(s).")
+                    else:
+                        messages.info(request, "No locked results matched the current filters.")
+            elif action == "publish":
+                if not can_publish_academic_results(request.user):
+                    messages.error(
+                        request,
+                        "Only the headteacher, deputy, or exam officer can publish or unpublish results.",
+                    )
+                else:
+                    updated = results.exclude(is_published=True).filter(
+                        workflow_status__in=[
+                            Result.WORKFLOW_APPROVED,
+                            Result.WORKFLOW_REVIEWED,
+                            Result.WORKFLOW_DRAFT,
+                        ]
+                    ).update(
+                        is_published=True,
+                        published_at=now,
+                        published_by=request.user,
+                        workflow_status=Result.WORKFLOW_PUBLISHED,
+                    )
+                    if updated:
+                        messages.success(request, f"Published {updated} result(s).")
+                    else:
+                        messages.info(request, "No unpublished results matched the current filters.")
+            elif not can_publish_academic_results(request.user):
+                messages.error(
+                    request,
+                    "Only the headteacher, deputy, or exam officer can publish or unpublish results.",
+                )
             else:
-                updated = results.filter(is_published=True).update(
+                updated = results.filter(is_published=True).exclude(
+                    workflow_status=Result.WORKFLOW_LOCKED
+                ).update(
                     is_published=False,
                     published_at=None,
                     published_by=None,
+                    workflow_status=Result.WORKFLOW_DRAFT,
                 )
                 if updated:
                     messages.success(request, f"Unpublished {updated} result(s).")
                 else:
-                    messages.info(request, "No published results matched the current filters.")
+                    messages.info(request, "No published (unlocked) results matched the current filters.")
 
         params = {}
         if class_name:
@@ -879,6 +960,11 @@ def result_list(request):
         "selected_subject": subject_id,
         "selected_term": term_id,
         "page_obj": page_obj,
+        "can_review_results": can_review_results,
+        "can_approve_results": can_approve_results,
+        "can_publish_results": can_publish_academic_results(request.user),
+        "can_lock_results": can_lock_results,
+        "can_unlock_results": can_unlock_results,
     }
 
     return render(request, "academics/result_list.html", context)

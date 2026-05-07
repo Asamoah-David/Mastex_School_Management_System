@@ -5,9 +5,13 @@
 {% block content %}
 <div class="button-row mb-sm">
     <a href="{% url 'omr:results' exam.pk %}" class="btn btn-secondary">← Results</a>
+    <a href="{% url 'omr:student_upload' exam.pk %}" class="btn btn-primary">Re-mark (single upload + review)</a>
     <form method="post" action="{% url 'omr:result_delete' result.pk %}" style="display:inline;" onsubmit="return confirm('Delete this result?');">
         {% csrf_token %}<button type="submit" class="btn btn-danger">Delete Result</button>
     </form>
+</div>
+<div class="card mb-sm" style="border-left:4px solid var(--info);font-size:.88rem;padding:.65rem 1rem;">
+    Scores come from the scanner. If something looks wrong, use <strong>Re-mark</strong> with a clearer photo (or manual entry on the upload page), then delete this row if you replace it.
 </div>
 
 <div class="stats-grid mb-md">
@@ -35,6 +39,10 @@
         <div class="stat-label">Multiple</div>
         <div class="stat-value" style="color:var(--warning);">{{ result.multiple_answer_count }}</div>
     </div>
+    <div class="stat-card">
+        <div class="stat-label">Review (uncertain)</div>
+        <div class="stat-value" style="color:#ca8a04;">{{ result.uncertain_count|default:0 }}</div>
+    </div>
 </div>
 
 <div class="card">
@@ -55,6 +63,7 @@
                     {% else %}color:var(--warning);{% endif %}">
                     {% if q.student_answer == "blank" %}—
                     {% elif q.student_answer == "multiple" %}M
+                    {% elif q.student_answer == "uncertain" %}?
                     {% else %}{{ q.student_answer }}{% endif %}
                 </div>
                 {% if q.status != 'correct' %}
@@ -64,6 +73,7 @@
                     {% if q.status == 'correct' %}<span style="color:var(--success);">✓</span>
                     {% elif q.status == 'wrong' %}<span style="color:var(--danger);">✗</span>
                     {% elif q.status == 'blank' %}<span style="color:var(--text-muted);">–</span>
+                    {% elif q.status == 'uncertain' %}<span style="color:#ca8a04;">?</span>
                     {% else %}<span style="color:var(--warning);">M</span>{% endif %}
                 </div>
             </div>
@@ -74,6 +84,7 @@
             <span style="color:var(--danger);">■ Wrong ({{ result.wrong_count }})</span>
             <span style="color:var(--text-muted);">■ Blank ({{ result.blank_count }})</span>
             <span style="color:var(--warning);">■ Multiple ({{ result.multiple_answer_count }})</span>
+            <span style="color:#ca8a04;">■ Uncertain ({{ result.uncertain_count|default:0 }})</span>
         </div>
     </div>
 </div>

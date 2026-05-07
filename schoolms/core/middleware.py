@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
 import uuid
+
 from django.conf import settings
 from django.http import HttpResponsePermanentRedirect
+
+logger = logging.getLogger("mastex.unhandled")
 
 # ---------------------------------------------------------------------------
 # SEC-6 — Content Security Policy
@@ -85,3 +89,24 @@ class RequestIdMiddleware:
         except Exception:
             pass
         return response
+
+
+class ExceptionLoggingMiddleware:
+    """Log uncaught exceptions with request context; re-raises for normal Django handling."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        try:
+            return self.get_response(request)
+        except Exception:
+            uid = getattr(getattr(request, "user", None), "pk", None)
+            logger.exception(
+                "Unhandled exception method=%s path=%s user_id=%s request_id=%s",
+                request.method,
+                request.path,
+                uid,
+                getattr(request, "request_id", ""),
+            )
+            raise

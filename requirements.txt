@@ -40,6 +40,7 @@ redis>=5.0,<6.0
 # Async task queue
 celery>=5.3,<6.0
 django-celery-beat>=2.6,<3.0
+django-celery-results>=2.5,<3.0
 
 # AI integrations
 groq>=0.9,<2.0

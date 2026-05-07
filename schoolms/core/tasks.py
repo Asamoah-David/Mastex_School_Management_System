@@ -928,3 +928,27 @@ def detect_early_warning_flags(self):
     except Exception as exc:
         logger.exception("detect_early_warning_flags failed")
         raise self.retry(exc=exc)
+
+
+@shared_task
+def cleanup_omr_media_files():
+    """Remove old OMR temp/debug files from local disk (see ``cleanup_omr_images``).
+
+    Uses ``OMR_TEMP_RETENTION_HOURS`` and ``OMR_DEBUG_RETENTION_HOURS`` from settings.
+    For S3 or similar, set bucket lifecycle rules; this task only prunes ``MEDIA_ROOT/omr/*``.
+    """
+    from django.conf import settings as dj_settings
+    from django.core.management import call_command
+    from io import StringIO
+
+    if not getattr(dj_settings, "AUTO_CLEANUP_ENABLED", True):
+        logger.info("cleanup_omr_media_files skipped (AUTO_CLEANUP_ENABLED=False)")
+        return {"skipped": True}
+
+    buf = StringIO()
+    try:
+        call_command("cleanup_omr_images", stdout=buf, stderr=buf)
+        logger.info("cleanup_omr_media_files: %s", buf.getvalue().strip())
+    except Exception:
+        logger.exception("cleanup_omr_media_files failed")
+        raise

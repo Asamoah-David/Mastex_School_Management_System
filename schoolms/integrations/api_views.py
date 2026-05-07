@@ -10,14 +10,20 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.permissions import (
     can_access_staff_leave_portal,
+    can_api_list_schoolwide_published_results,
     can_manage_finance,
     can_review_staff_leave,
+    is_parent,
     is_school_leadership,
+    is_student,
     is_super_admin,
     user_can_manage_school,
 )
 from integrations.serializers import ExpenseSerializer, MeSerializer, StaffLeaveSerializer
 from operations.models import Expense, StaffLeave
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +205,12 @@ class StudentListAPIView(APIView):
         if class_filter:
             qs = qs.filter(school_class__name__icontains=class_filter)
 
+        try:
+            cap = min(int(request.query_params.get("limit", "500")), 2000)
+        except (TypeError, ValueError):
+            cap = 500
+        cap = max(1, cap)
+
         data = [
             {
                 "id": s.pk,
@@ -209,7 +221,7 @@ class StudentListAPIView(APIView):
                 "status": s.status,
                 "date_enrolled": s.date_enrolled,
             }
-            for s in qs
+            for s in qs[:cap]
         ]
         return Response({"count": len(data), "results": data})
 
@@ -226,7 +238,7 @@ class FeeStatusAPIView(APIView):
 
     def get(self, request):
         from finance.models import Fee
-        from django.db.models import Sum, F as DBF
+        from django.db.models import Sum
         user = request.user
         school = _require_school(user)
 
@@ -234,7 +246,7 @@ class FeeStatusAPIView(APIView):
             raise PermissionDenied("Finance access required.")
 
         qs = (
-            Fee.objects.filter(school=school, is_active=True)
+            Fee.objects.filter(school=school, is_active=True, deleted_at__isnull=True)
             .values("student__id", "student__user__first_name", "student__user__last_name",
                     "student__admission_number")
             .annotate(
@@ -243,6 +255,12 @@ class FeeStatusAPIView(APIView):
             )
             .order_by("student__user__last_name")
         )
+        try:
+            cap = min(int(request.query_params.get("limit", "500")), 2000)
+        except (TypeError, ValueError):
+            cap = 500
+        cap = max(1, cap)
+        rows = list(qs[:cap])
         data = [
             {
                 "student_id": r["student__id"],
@@ -252,7 +270,7 @@ class FeeStatusAPIView(APIView):
                 "total_paid": float(r["total_paid"] or 0),
                 "outstanding": float((r["total_billed"] or 0) - (r["total_paid"] or 0)),
             }
-            for r in qs
+            for r in rows
         ]
         return Response({"count": len(data), "results": data})
 
@@ -273,18 +291,41 @@ class ResultListAPIView(APIView):
     ])
     def get(self, request):
         from academics.models import Result
+        from students.models import Student
+        from students.utils import get_children_for_parent
+
         user = request.user
         school = _require_school(user)
 
-        qs = Result.objects.filter(school=school, is_published=True).select_related(
-            "student__user", "subject", "term"
-        )
+        qs = Result.objects.filter(
+            school=school, is_published=True, deleted_at__isnull=True
+        ).select_related("student__user", "subject", "term")
+
+        if can_api_list_schoolwide_published_results(user):
+            pass
+        elif is_parent(user):
+            child_ids = list(get_children_for_parent(user, school=school).values_list("id", flat=True))
+            qs = qs.filter(student_id__in=child_ids) if child_ids else qs.none()
+        elif is_student(user):
+            stu = Student.objects.filter(user=user, school=school).first()
+            if not stu:
+                raise PermissionDenied("Student profile not found for this account.")
+            qs = qs.filter(student=stu)
+        else:
+            raise PermissionDenied("You do not have permission to list published results.")
+
         term_id = request.query_params.get("term_id")
         if term_id:
             qs = qs.filter(term_id=term_id)
         class_filter = request.query_params.get("class_name")
         if class_filter:
             qs = qs.filter(student__class_name__icontains=class_filter)
+
+        try:
+            limit = min(int(request.query_params.get("limit", "500")), 1000)
+        except (TypeError, ValueError):
+            limit = 500
+        limit = max(1, limit)
 
         data = [
             {
@@ -297,7 +338,7 @@ class ResultListAPIView(APIView):
                 "grade": getattr(r, "grade", ""),
                 "remarks": getattr(r, "remarks", ""),
             }
-            for r in qs[:500]
+            for r in qs[:limit]
         ]
         return Response({"count": len(data), "results": data})
 
@@ -313,25 +354,55 @@ class TimetableAPIView(APIView):
     throttle_classes = [SchoolScopedThrottle]
 
     def get(self, request):
+        from django.db.models import Q
+
         from academics.models import Timetable
+        from students.models import Student
+        from students.utils import get_children_for_parent
+
         user = request.user
         school = _require_school(user)
 
-        qs = Timetable.objects.filter(school=school).select_related("subject", "teacher")
+        qs = Timetable.objects.filter(school=school).select_related("subject", "teacher", "school_class")
         class_filter = request.query_params.get("class_name")
         if class_filter:
             qs = qs.filter(class_name__icontains=class_filter)
+
+        if can_api_list_schoolwide_published_results(user) or is_super_admin(user):
+            pass
+        elif is_parent(user):
+            children = get_children_for_parent(user, school=school)
+            class_names = {n for n in children.values_list("class_name", flat=True) if n}
+            sc_ids = {i for i in children.values_list("school_class_id", flat=True) if i}
+            qfilt = Q()
+            if class_names:
+                qfilt |= Q(class_name__in=class_names)
+            if sc_ids:
+                qfilt |= Q(school_class_id__in=sc_ids)
+            qs = qs.filter(qfilt) if qfilt else qs.none()
+        elif is_student(user):
+            stu = Student.objects.filter(user=user, school=school).first()
+            if not stu:
+                raise PermissionDenied("Student profile not found for this account.")
+            qfilt = Q()
+            if stu.class_name:
+                qfilt |= Q(class_name=stu.class_name)
+            if stu.school_class_id:
+                qfilt |= Q(school_class_id=stu.school_class_id)
+            qs = qs.filter(qfilt) if qfilt else qs.none()
+        else:
+            raise PermissionDenied("You do not have permission to view the school timetable.")
 
         data = [
             {
                 "id": t.pk,
                 "class_name": t.class_name,
-                "day": t.day,
-                "period": t.period,
+                "day": t.day_of_week,
+                "period": "",
                 "subject": t.subject.name if t.subject_id else "",
                 "teacher": t.teacher.get_full_name() if t.teacher_id else "",
-                "start_time": str(t.start_time) if hasattr(t, "start_time") and t.start_time else "",
-                "end_time": str(t.end_time) if hasattr(t, "end_time") and t.end_time else "",
+                "start_time": str(t.start_time) if t.start_time else "",
+                "end_time": str(t.end_time) if t.end_time else "",
             }
             for t in qs[:200]
         ]
@@ -351,6 +422,8 @@ class StudentTranscriptAPIView(APIView):
     def get(self, request, student_id: int):
         from academics.models import StudentTranscript
         from students.models import Student
+        from students.utils import parent_is_guardian_of
+
         user = request.user
         school = _require_school(user)
 
@@ -358,9 +431,26 @@ class StudentTranscriptAPIView(APIView):
         if not student:
             return Response({"detail": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        staff_wide = (
+            is_super_admin(user)
+            or getattr(user, "is_superuser", False)
+            or can_api_list_schoolwide_published_results(user)
+        )
+        if not staff_wide:
+            if is_parent(user):
+                if not parent_is_guardian_of(user, student):
+                    return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+            elif is_student(user):
+                if student.user_id != user.pk:
+                    return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
         qs = StudentTranscript.objects.filter(student=student, school=school).select_related(
             "academic_year", "term"
-        ).order_by("-academic_year__start_date", "term__order")
+        ).order_by("-academic_year__start_date", "term__id")
+        if not staff_wide:
+            qs = qs.filter(is_published=True)
 
         data = [
             {
@@ -432,7 +522,17 @@ class GDPRExportRequestAPIView(APIView):
             expires_at=_tz.now() + __import__("datetime").timedelta(days=7),
         )
         from core.tasks import generate_gdpr_export
-        generate_gdpr_export.delay(export_req.pk)
+        try:
+            generate_gdpr_export.delay(export_req.pk)
+        except Exception as exc:
+            export_req.status = "failed"
+            export_req.error_message = f"Failed to queue export job: {str(exc)[:200]}"
+            export_req.save(update_fields=["status", "error_message"])
+            logger.warning("GDPR export queue failed request_id=%s", export_req.pk, exc_info=True)
+            return Response(
+                {"detail": "Export queue is currently unavailable. Please try again shortly."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         return Response(
             {"detail": "Export request created. You will be notified when ready.", "id": export_req.pk},
             status=status.HTTP_202_ACCEPTED,

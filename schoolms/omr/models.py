@@ -42,6 +42,29 @@ TEMPLATE_CHOICES = [
 ]
 
 
+class OmrTemplateCalibration(SchoolScopedModel):
+    """Per-school calibrated geometry + optional blank sheet for template subtraction."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="omr_template_calibrations")
+    template_id = models.CharField(max_length=64, db_index=True)
+    template_name = models.CharField(max_length=200, blank=True)
+    calibrated_config = models.JSONField(default=dict, blank=True)
+    blank_sheet = models.ImageField(upload_to="omr/blanks/", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "OMR template calibration"
+        verbose_name_plural = "OMR template calibrations"
+        constraints = [
+            models.UniqueConstraint(fields=["school", "template_id"], name="uniq_omr_calibration_school_template"),
+        ]
+
+    def __str__(self):
+        return f"{self.template_id} @ {self.school_id}"
+
+
 class OmrExam(SchoolScopedModel):
     """An OMR-marked exam session for a class/subject.
 
@@ -123,6 +146,8 @@ class OmrResult(SchoolScopedModel):
     template_type = models.CharField(max_length=50, blank=True)
 
     detected_answers = models.JSONField(default=dict)
+    raw_cv_answers = models.JSONField(default=dict, blank=True)
+    cv_per_question = models.JSONField(default=dict, blank=True)
     answer_key = models.JSONField(default=dict)
     per_question_result = models.JSONField(default=dict)
 
@@ -133,6 +158,7 @@ class OmrResult(SchoolScopedModel):
     wrong_count = models.IntegerField(default=0)
     blank_count = models.IntegerField(default=0)
     multiple_answer_count = models.IntegerField(default=0)
+    uncertain_count = models.IntegerField(default=0)
 
     flagged_questions = models.JSONField(default=list)
 

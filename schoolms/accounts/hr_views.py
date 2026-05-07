@@ -39,6 +39,7 @@ ALL_STAFF_ROLES = (
     "accountant",
     "librarian",
     "admission_officer",
+    "exam_officer",
     "school_nurse",
     "admin_assistant",
     "staff",

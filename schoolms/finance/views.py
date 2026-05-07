@@ -1574,6 +1574,7 @@ def parent_fee_list(request):
     )
 
 
+@login_required
 def payment_success(request):
     """Show payment success page after Paystack redirect.
 
@@ -1585,6 +1586,7 @@ def payment_success(request):
     payment = None
     fee_payment = None
 
+    denied = False
     if reference:
         try:
             from finance.models import PaymentTransaction, FeePayment
@@ -1602,9 +1604,30 @@ def payment_success(request):
                     )
                     .first()
                 )
+                if fee_payment:
+                    fee = fee_payment.fee
+                    from students.utils import parent_is_guardian_of
+
+                    is_parent_of = fee and fee.student and (
+                        (fee.student.user and fee.student.user_id == request.user.id)
+                        or parent_is_guardian_of(request.user, fee.student)
+                    )
+                    user_school = getattr(request.user, "school", None)
+                    is_school_staff = (request.user.is_superuser or user_can_manage_school(request.user)) and (
+                        request.user.is_superuser
+                        or (user_school and fee and fee.school_id == user_school.id)
+                    )
+                    if not (is_school_staff or is_parent_of):
+                        denied = True
+                else:
+                    denied = True
                 payment = tx
         except Exception:
             pass
+
+    if denied:
+        messages.error(request, "You do not have permission to view this payment.")
+        return redirect("home")
 
     ctx = {
         "reference": reference,
@@ -1888,7 +1911,7 @@ def payment_history_delete(request, pk):
 
     # Only allow deleting pending or failed payments
     if payment.status == "completed":
-        messages.error(request, "Cannot delete completed payments. Contact system administrator.")
+        messages.error(request, "Completed payments cannot be deleted. Use the void workflow.")
         return redirect("finance:payment_history_list")
     
     if request.method == "POST":
@@ -1938,7 +1961,7 @@ def payment_history_delete_multiple(request):
         non_deletable = payments_qs.filter(status="completed").count()
         
         if non_deletable > 0:
-            messages.warning(request, f"Skipped {non_deletable} completed payments (cannot be deleted).")
+            messages.warning(request, f"Skipped {non_deletable} completed payments (use void workflow).")
         
         deleted_count = deletable.count()
         deletable.delete()
@@ -1946,6 +1969,101 @@ def payment_history_delete_multiple(request):
         messages.success(request, f"Successfully deleted {deleted_count} payment record(s).")
     
     return redirect("finance:payment_history_list")
+
+
+@login_required
+def payment_history_void(request, pk):
+    """
+    Void a completed payment with audit trail and optional Paystack refund.
+    Requires leadership-level finance permissions.
+    """
+    user = request.user
+    school = getattr(user, "school", None)
+    if not school and not user.is_superuser:
+        messages.error(request, "You are not attached to any school.")
+        return redirect("accounts:dashboard")
+    if not (user.is_superuser or (can_manage_finance(user) and is_school_leadership(user))):
+        messages.error(request, "You do not have permission to void completed payments.")
+        return redirect("finance:payment_history_list")
+
+    pay_qs = FeePayment.objects.select_related("fee", "fee__school", "fee__student").filter(pk=pk)
+    if school and not user.is_superuser:
+        pay_qs = pay_qs.filter(fee__school=school)
+    payment = pay_qs.first()
+    if not payment:
+        messages.error(request, "Payment not found or not accessible.")
+        return redirect("finance:payment_history_list")
+    if payment.status != "completed":
+        messages.error(request, "Only completed payments can be voided.")
+        return redirect("finance:payment_history_list")
+    if payment.voided_at:
+        messages.info(request, "Payment has already been voided.")
+        return redirect("finance:payment_history_list")
+
+    if request.method == "POST":
+        reason = (request.POST.get("void_reason") or "").strip()
+        if len(reason) < 8:
+            messages.error(request, "Provide a clear reason (at least 8 characters).")
+            return render(request, "finance/payment_void_confirm.html", {"payment": payment})
+
+        with transaction.atomic():
+            locked = (
+                FeePayment.objects.select_for_update()
+                .select_related("fee", "fee__student", "fee__school")
+                .filter(pk=payment.pk)
+                .first()
+            )
+            if not locked or locked.voided_at:
+                messages.error(request, "Payment has already been processed.")
+                return redirect("finance:payment_history_list")
+            if locked.status != "completed":
+                messages.error(request, "Only completed payments can be voided.")
+                return redirect("finance:payment_history_list")
+
+            if locked.paystack_reference:
+                refund_resp = paystack_service.initiate_refund(
+                    transaction_reference=locked.paystack_reference,
+                    amount_major=locked.amount,
+                    currency=getattr(settings, "PAYSTACK_CURRENCY", "GHS"),
+                )
+                if not refund_resp.get("status"):
+                    messages.error(
+                        request,
+                        f"Refund request failed; payment not voided. {refund_resp.get('message', 'Unknown error')}",
+                    )
+                    return render(request, "finance/payment_void_confirm.html", {"payment": locked})
+
+            fee = locked.fee
+            current_paid = fee.amount_paid or Decimal("0")
+            reversal = locked.amount or Decimal("0")
+            fee.amount_paid = max(Decimal("0"), current_paid - reversal)
+            fee.save(update_fields=["amount_paid", "paid", "updated_at"])
+
+            locked.status = "failed"
+            locked.voided_at = timezone.now()
+            locked.voided_by = user
+            locked.void_reason = reason
+            locked.save(update_fields=["status", "voided_at", "voided_by", "void_reason"])
+
+            write_audit(
+                user=user,
+                action="void",
+                model_name="finance.FeePayment",
+                object_id=str(locked.pk),
+                school=getattr(fee, "school", None),
+                changes={
+                    "fee_id": fee.pk,
+                    "student_id": fee.student_id,
+                    "amount": str(reversal),
+                    "reason": reason,
+                    "paystack_reference": locked.paystack_reference or "",
+                },
+            )
+
+        messages.success(request, "Payment voided and fee balance restored.")
+        return redirect("finance:payment_history_list")
+
+    return render(request, "finance/payment_void_confirm.html", {"payment": payment})
 
 
 @login_required

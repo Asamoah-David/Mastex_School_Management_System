@@ -31,11 +31,12 @@ def calculate_score(
         "wrong_count": int,
         "blank_count": int,
         "multiple_answer_count": int,
+        "uncertain_count": int,
         "per_question_result": {...},
     }
     """
     per_q: dict[str, dict] = {}
-    correct = wrong = blank = multiple = 0
+    correct = wrong = blank = multiple = uncertain_n = 0
 
     for q in range(1, total_questions + 1):
         q_str = str(q)
@@ -48,7 +49,10 @@ def calculate_score(
         elif student_ans == "multiple":
             status = "multiple"
             multiple += 1
-        elif student_ans.upper() == correct_ans.upper():
+        elif student_ans == "uncertain":
+            status = "uncertain"
+            uncertain_n += 1
+        elif str(student_ans).upper() == str(correct_ans).upper():
             status = "correct"
             correct += 1
         else:
@@ -72,6 +76,7 @@ def calculate_score(
         "wrong_count": wrong,
         "blank_count": blank,
         "multiple_answer_count": multiple,
+        "uncertain_count": uncertain_n,
         "per_question_result": per_q,
     }
 

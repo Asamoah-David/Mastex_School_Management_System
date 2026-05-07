@@ -19,8 +19,12 @@
 {% if flagged %}
 <div class="card mb-sm" style="border-left:4px solid var(--warning);background:rgba(234,179,8,0.05);">
     <div style="padding:.6rem 1rem;font-size:.88rem;">
-        <strong>⚠ Flagged:</strong>
+        <strong>⚠ Flagged for review ({{ flagged|length }}):</strong>
         <span style="color:var(--warning);">{% for q in flagged %}Q{{ q }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+        <div class="text-muted" style="margin-top:.35rem;font-size:.8rem;">
+            Yellow cards need a human check — the scanner is unsure (faint mark, smudge, or alignment).
+            Tap the correct option or mark <strong>2+</strong> / <strong>?</strong> if needed. Final marks are only saved when you press Save.
+        </div>
     </div>
 </div>
 {% endif %}
@@ -33,17 +37,26 @@
             {% if perspective_corrected %}✓ Perspective corrected{% else %}⚠ No perspective correction{% endif %} |
             {{ registration_marks_found }} timing marks found |
             Coverage: {{ coverage_ratio|percentage }}
-            {% if coverage_warning %}<span class="text-warning">(Low - review recommended)</span>{% endif %}
+            {% if coverage_warning %}<span class="text-warning">(Low — compare debug overlay to the paper)</span>{% endif %}
+            {% if not manual_entry and debug_urls %}| <span class="text-muted">Debug images help explain detection.</span>{% endif %}
         </span>
     </div>
 </div>
 
 <!-- Debug Image -->
-{% if debug_image_path %}
+{% if debug_urls %}
+<div class="card mb-sm">
+    <div class="card-header" style="font-size:.9rem;"><strong>OMR debug</strong> (review before saving)</div>
+    <div style="padding:.75rem;display:flex;flex-wrap:wrap;gap:.5rem;">
+        {% if debug_urls.normalized_gray %}<div><span class="text-muted small">Normalized</span><br><img src="{{ MEDIA_URL }}{{ debug_urls.normalized_gray }}" alt="" style="max-height:180px;border:1px solid #ccc;"></div>{% endif %}
+        {% if debug_urls.difference %}<div><span class="text-muted small">Difference</span><br><img src="{{ MEDIA_URL }}{{ debug_urls.difference }}" alt="" style="max-height:180px;border:1px solid #ccc;"></div>{% endif %}
+        {% if debug_urls.overlay_inner_zones %}<div><span class="text-muted small">Inner zones</span><br><img src="{{ MEDIA_URL }}{{ debug_urls.overlay_inner_zones }}" alt="" style="max-height:180px;border:1px solid #ccc;"></div>{% endif %}
+    </div>
+</div>
+{% elif debug_image_path %}
 <div class="card mb-sm">
     <div class="card-header" style="font-size:.9rem;">
         <strong>🔍 Detection Overlay</strong>
-        <span class="text-muted" style="font-size:.75rem;">Green=detected, Orange=flagged, Red=uncertain, Gray=blank</span>
         <button type="button" class="btn btn-sm btn-secondary float-end" onclick="toggleDebugImage()">Show/Hide</button>
     </div>
     <div class="card-body text-center" id="debugImageContainer" style="display:none;">
@@ -63,7 +76,8 @@ function toggleDebugImage() {
 .omr-q-card.correct{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3)}
 .omr-q-card.wrong{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3)}
 .omr-q-card.blank{background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.18)}
-.omr-q-card.multiple{background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3)}
+.omr-q-card.multiple{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35)}
+.omr-q-card.uncertain{background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.45)}
 .omr-q-card.flagged{border-color:rgba(234,179,8,0.55)!important}
 .omr-q-num{font-size:.63rem;color:var(--text-muted);margin-bottom:.15rem;line-height:1}
 .omr-q-key{font-size:.6rem;color:var(--text-muted);margin-top:.1rem}
@@ -84,10 +98,12 @@ function toggleDebugImage() {
                 <div id="liveBar" style="height:10px;background:var(--success);transition:width .2s;width:{{ preview.percentage|floatformat:0 }}%;"></div>
             </div>
         </div>
-        <div style="font-size:.85rem;color:var(--text-muted);">
-            <span style="color:var(--success);">{{ preview.correct_count }}✓</span>
-            <span style="color:var(--danger);margin-left:.5rem;">{{ preview.wrong_count }}✗</span>
-            <span style="margin-left:.5rem;">{{ preview.blank_count }}—</span>
+        <div style="font-size:.85rem;color:var(--text-muted);" id="liveBreakdown">
+            <span style="color:var(--success);"><span id="bcorrect">{{ preview.correct_count }}</span>✓</span>
+            <span style="color:var(--danger);margin-left:.5rem;"><span id="bwrong">{{ preview.wrong_count }}</span>✗</span>
+            <span style="margin-left:.5rem;"><span id="bblank">{{ preview.blank_count }}</span> blank</span>
+            <span style="margin-left:.5rem;color:var(--warning);"><span id="bmulti">{{ preview.multiple_answer_count }}</span> multi</span>
+            <span style="margin-left:.5rem;color:#ca8a04;"><span id="bunc">{{ preview.uncertain_count }}</span> review</span>
         </div>
     </div>
 </div>
@@ -99,11 +115,11 @@ function toggleDebugImage() {
     <div class="card mb-md">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;">
             <h3 class="card-title">{{ exam.total_questions }} Questions · Tap to change</h3>
-            <div style="font-size:.75rem;display:flex;gap:.5rem;">
+            <div style="font-size:.75rem;display:flex;gap:.5rem;flex-wrap:wrap;">
                 <span style="color:var(--success);">&#9632; Correct</span>
                 <span style="color:var(--danger);">&#9632; Wrong</span>
                 <span style="color:rgba(148,163,184,0.7);">&#9632; Blank</span>
-                <span style="color:var(--warning);">&#9632; Multiple</span>
+                <span style="color:var(--warning);">&#9632; Multi / ?</span>
             </div>
         </div>
         <div style="padding:1rem;">
@@ -111,7 +127,7 @@ function toggleDebugImage() {
                 {% for q in questions_range %}
                 {% with q_str=q|stringformat:"s" %}
                 {% with sa=detected|get_item:q_str ca=answer_key|get_item:q_str %}
-                <div class="omr-q-card {% if sa == ca %}correct{% elif sa == 'blank' or sa == '' %}blank{% elif sa == 'multiple' %}multiple{% else %}wrong{% endif %}{% if q in flagged %} flagged{% endif %}" id="stcard_{{ q }}">
+                <div class="omr-q-card {% if sa == 'uncertain' %}uncertain{% elif sa == ca %}correct{% elif sa == 'blank' or sa == '' %}blank{% elif sa == 'multiple' %}multiple{% else %}wrong{% endif %}{% if q in flagged %} flagged{% endif %}" id="stcard_{{ q }}">
                     <div class="omr-q-num">Q{{ q }}{% if q in flagged %}⚠{% endif %}</div>
                     <input type="hidden" name="q_{{ q }}" id="stval_{{ q }}" value="{{ sa|default:'blank' }}">
                     <div class="omr-opt-row">
@@ -124,7 +140,15 @@ function toggleDebugImage() {
                         <span class="omr-opt blank-btn"
                               id="stbtn_{{ q }}_blank"
                               onclick="stSelect({{ q }},'blank','{{ ca }}')"
-                              title="Blank" style="font-size:.58rem;">blk</span>
+                              title="No mark / erased" style="font-size:.58rem;">blk</span>
+                        <span class="omr-opt"
+                              id="stbtn_{{ q }}_multiple"
+                              onclick="stSelect({{ q }},'multiple','{{ ca }}')"
+                              title="Two or more bubbles filled" style="font-size:.58rem;">2+</span>
+                        <span class="omr-opt"
+                              id="stbtn_{{ q }}_uncertain"
+                              onclick="stSelect({{ q }},'uncertain','{{ ca }}')"
+                              title="Unreadable — needs staff decision" style="font-size:.58rem;">?</span>
                     </div>
                     <div class="omr-q-key">✓{{ ca }}</div>
                 </div>
@@ -158,15 +182,17 @@ function stSelect(q, opt, correctAns) {
     const selBtn = document.getElementById(btnId);
     if (selBtn) {
         if (opt === 'blank') selBtn.classList.add('selected-blank');
-        else if (opt === 'multiple') selBtn.classList.add('selected-multi');
-        else if (opt === correctAns) selBtn.classList.add('selected-correct');
-        else selBtn.classList.add('selected-wrong');
+            else if (opt === 'multiple') selBtn.classList.add('selected-multi');
+            else if (opt === 'uncertain') selBtn.classList.add('selected-multi');
+            else if (opt === correctAns) selBtn.classList.add('selected-correct');
+            else selBtn.classList.add('selected-wrong');
     }
 
     /* Update card colour */
-    card.classList.remove('correct','wrong','blank','multiple');
+    card.classList.remove('correct','wrong','blank','multiple','uncertain');
     if (opt === 'blank' || opt === '') card.classList.add('blank');
     else if (opt === 'multiple') card.classList.add('multiple');
+    else if (opt === 'uncertain') card.classList.add('uncertain');
     else if (opt === correctAns) card.classList.add('correct');
     else card.classList.add('wrong');
 
@@ -174,7 +200,7 @@ function stSelect(q, opt, correctAns) {
 }
 
 function stUpdateScore() {
-    let correct = 0, wrong = 0, blank = 0, multi = 0;
+    let correct = 0, wrong = 0, blank = 0, multi = 0, unc = 0;
     for (let q = 1; q <= ST_TOTAL; q++) {
         const v = document.getElementById('stval_' + q);
         if (!v) continue;
@@ -182,14 +208,22 @@ function stUpdateScore() {
         const ca = ST_KEY[String(q)];
         if (sa === 'blank' || sa === '') blank++;
         else if (sa === 'multiple') multi++;
+        else if (sa === 'uncertain') unc++;
         else if (sa === ca) correct++;
         else wrong++;
     }
+    /* Match server scoring: percentage = correct / total (uncertain/multiple not counted as correct). */
     const pct = ST_TOTAL > 0 ? ((correct / ST_TOTAL) * 100) : 0;
     document.getElementById('liveScore').textContent = correct + '/' + ST_TOTAL;
     document.getElementById('livePct').textContent = pct.toFixed(1) + '%';
     document.getElementById('liveBar').style.width = pct.toFixed(0) + '%';
     document.getElementById('liveBar').style.background = pct >= 50 ? 'var(--success)' : 'var(--danger)';
+    const el = (id) => document.getElementById(id);
+    if (el('bcorrect')) el('bcorrect').textContent = correct;
+    if (el('bwrong')) el('bwrong').textContent = wrong;
+    if (el('bblank')) el('bblank').textContent = blank;
+    if (el('bmulti')) el('bmulti').textContent = multi;
+    if (el('bunc')) el('bunc').textContent = unc;
 }
 
 /* Initialise button states on load */
@@ -204,10 +238,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selBtn) {
             if (opt === 'blank') selBtn.classList.add('selected-blank');
             else if (opt === 'multiple') selBtn.classList.add('selected-multi');
+            else if (opt === 'uncertain') selBtn.classList.add('selected-multi');
             else if (opt === ca) selBtn.classList.add('selected-correct');
             else selBtn.classList.add('selected-wrong');
         }
     }
+    stUpdateScore();
 });
 </script>
 {% endblock %}

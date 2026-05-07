@@ -18,7 +18,12 @@ import uuid
 from decimal import Decimal, InvalidOperation
 
 from accounts.decorators import login_required, parent_required, student_required
-from accounts.permissions import user_can_manage_school
+from accounts.permissions import (
+    can_manage_finance,
+    is_school_leadership,
+    is_super_admin,
+    user_can_manage_school,
+)
 from core.pagination import paginate
 from core.academic_context import get_current_term_for_school
 
@@ -176,6 +181,11 @@ def user_can_access_student_payment(user, student):
     return False
 
 
+def _deny_unowned_payment_verify(request):
+    messages.error(request, "You do not have permission to verify this payment.")
+    return redirect("home")
+
+
 # ==================== CANTEEN PAYMENTS ====================
 
 @student_required
@@ -327,6 +337,8 @@ def canteen_payment_verify(request):
     if payment_id:
         try:
             payment = CanteenPayment.objects.get(id=payment_id)
+            if not user_can_access_student_payment(request.user, payment.student):
+                return _deny_unowned_payment_verify(request)
             if payment.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:canteen_my')
@@ -351,6 +363,8 @@ def canteen_payment_verify(request):
                 payment = CanteenPayment.objects.select_for_update().filter(payment_reference=reference).first()
 
             if payment:
+                if not user_can_access_student_payment(request.user, payment.student):
+                    return _deny_unowned_payment_verify(request)
                 if payment.payment_status == 'completed':
                     messages.info(request, "Payment already confirmed.")
                     return redirect('operations:canteen_my')
@@ -551,6 +565,8 @@ def bus_payment_verify(request):
     if payment_id:
         try:
             payment = BusPayment.objects.get(id=payment_id)
+            if not user_can_access_student_payment(request.user, payment.student):
+                return _deny_unowned_payment_verify(request)
             if payment.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:bus_my')
@@ -569,6 +585,8 @@ def bus_payment_verify(request):
                 payment = BusPayment.objects.select_for_update().filter(payment_reference=reference).first()
 
             if payment:
+                if not user_can_access_student_payment(request.user, payment.student):
+                    return _deny_unowned_payment_verify(request)
                 if payment.payment_status == 'completed':
                     messages.info(request, "Payment already confirmed.")
                     return redirect('operations:bus_my')
@@ -744,6 +762,8 @@ def textbook_payment_verify(request):
     if payment_id:
         try:
             sale = TextbookSale.objects.get(id=payment_id)
+            if not user_can_access_student_payment(request.user, sale.student):
+                return _deny_unowned_payment_verify(request)
             if sale.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:textbook_my')
@@ -762,6 +782,8 @@ def textbook_payment_verify(request):
                 sale = TextbookSale.objects.select_for_update().select_related("textbook").filter(payment_reference=reference).first()
 
             if sale:
+                if not user_can_access_student_payment(request.user, sale.student):
+                    return _deny_unowned_payment_verify(request)
                 if sale.payment_status == 'completed':
                     messages.info(request, "Payment already confirmed.")
                     return redirect('operations:textbook_my')
@@ -910,6 +932,8 @@ def hostel_payment_verify(request):
     if payment_id:
         try:
             fee = HostelFee.objects.get(id=payment_id)
+            if not user_can_access_student_payment(request.user, fee.student):
+                return _deny_unowned_payment_verify(request)
             if fee.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:hostel_my')
@@ -931,6 +955,8 @@ def hostel_payment_verify(request):
                 result = paystack_service.verify_payment(reference)
 
             if fee:
+                if not user_can_access_student_payment(request.user, fee.student):
+                    return _deny_unowned_payment_verify(request)
                 if fee.payment_status == 'completed' or fee.paid:
                     messages.info(request, "Payment already confirmed.")
                     return redirect('operations:hostel_my')
@@ -980,6 +1006,9 @@ def payment_dashboard(request):
     if not school:
         messages.error(request, "School not found")
         return redirect('accounts:dashboard')
+    if not (request.user.is_superuser or can_manage_finance(request.user)):
+        messages.error(request, "You do not have permission to view finance dashboard.")
+        return redirect("accounts:dashboard")
     
     # Get filter parameters
     date_filter = request.GET.get('date_filter', 'all')
@@ -1218,16 +1247,37 @@ def payment_dashboard(request):
 def student_payment_history(request, student_id):
     """View payment history for a specific student."""
     from finance.models import Fee, FeePayment
-    
-    student = get_object_or_404(Student, id=student_id)
-    school = getattr(request.user, 'school', None)
-    
-    if school and student.school != school:
-        messages.error(request, "Student not found")
-        return redirect('operations:payment_dashboard')
-    
-    # Get all fees for student
-    fees = Fee.objects.filter(student=student).order_by('-created_at')
+
+    school = getattr(request.user, "school", None)
+    role = getattr(request.user, "role", None)
+
+    if is_super_admin(request.user) or getattr(request.user, "is_superuser", False):
+        student = get_object_or_404(Student, pk=student_id)
+    elif role == "student" and school:
+        student = get_object_or_404(Student, user=request.user, school=school)
+        if student.pk != int(student_id):
+            messages.error(request, "You can only view your own payment history.")
+            return redirect("portal")
+    elif role == "parent" and school:
+        student = get_object_or_404(Student, pk=student_id, school=school)
+        if not parent_is_guardian_of(request.user, student):
+            messages.error(request, "You do not have access to this student's payment history.")
+            return redirect("portal")
+    elif (
+        school
+        and (
+            can_manage_finance(request.user)
+            or is_school_leadership(request.user)
+            or user_can_manage_school(request.user)
+        )
+    ):
+        student = get_object_or_404(Student, pk=student_id, school=school)
+    else:
+        messages.error(request, "You do not have permission to view this payment history.")
+        return redirect("home")
+
+    # Get all fees for student (active billing rows only)
+    fees = Fee.objects.filter(student=student, deleted_at__isnull=True).order_by("-created_at")
     
     # Get all related payments
     all_payments = []
@@ -1323,6 +1373,9 @@ def record_payment(request):
     if not school:
         messages.error(request, "School not found")
         return redirect('accounts:dashboard')
+    if not (request.user.is_superuser or can_manage_finance(request.user)):
+        messages.error(request, "You do not have permission to record payments.")
+        return redirect("accounts:dashboard")
 
     if request.method == 'POST':
         payment_type = request.POST.get('payment_type', '')

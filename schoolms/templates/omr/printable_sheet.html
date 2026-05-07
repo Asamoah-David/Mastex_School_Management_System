@@ -18,9 +18,23 @@
   .bubble { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; border: 1.5px solid #000; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 4px; }
   .instructions { font-size: 11px; background: #f5f5f5; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 14px; }
   .print-btn { margin-bottom: 12px; }
+  .corner-marker { position: fixed; width: 22px; height: 22px; background: #000; z-index: 2; }
+  .cm-tl { top: 8px; left: 8px; }
+  .cm-tr { top: 8px; right: 8px; }
+  .cm-br { bottom: 8px; right: 8px; }
+  .cm-bl { bottom: 8px; left: 8px; }
+  .qr-box { text-align: center; margin: 12px 0; }
+  @media print {
+    .corner-marker { position: absolute; }
+  }
 </style>
 </head>
 <body>
+
+<div class="corner-marker cm-tl" aria-hidden="true"></div>
+<div class="corner-marker cm-tr" aria-hidden="true"></div>
+<div class="corner-marker cm-br" aria-hidden="true"></div>
+<div class="corner-marker cm-bl" aria-hidden="true"></div>
 
 <div class="no-print print-btn">
     <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;">🖨 Print Sheet</button>
@@ -39,10 +53,18 @@
     <div class="info-field"><label>Exam / Subject:</label>&nbsp;</div>
 </div>
 
+{% if qr_b64 %}
+<div class="qr-box">
+    <img src="data:image/png;base64,{{ qr_b64 }}" alt="Exam QR" style="width:96px;height:96px;">
+    <div style="font-size:10px;color:#333;">Scan: exam / student / template</div>
+</div>
+{% endif %}
+
 <div class="instructions">
     <strong>Instructions:</strong> Shade the correct bubble completely using a dark pen or pencil.
     Shade only ONE bubble per question. Do not shade partially or use tick marks.
-    Do not write outside the boxes. Keep the sheet flat and clean when photographed.
+    Fill bubbles only inside the printed boxes; do not mark in margins. Keep the sheet flat and clean when photographed.
+    Use plain white paper; four corner squares must stay visible for scanning.
 </div>
 
 {% if tmpl.total_questions <= 30 %}

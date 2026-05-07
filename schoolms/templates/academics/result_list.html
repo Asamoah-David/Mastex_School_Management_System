@@ -41,13 +41,35 @@
     <input type="hidden" name="class" value="{{ selected_class }}">
     <input type="hidden" name="subject" value="{{ selected_subject }}">
     <input type="hidden" name="term" value="{{ selected_term }}">
+    <button type="submit" name="action" value="review" class="btn btn-secondary"
+        onclick="return confirm('Mark all filtered draft results as reviewed?')"
+        {% if not can_review_results or not page_obj.paginator.count %}disabled{% endif %}>
+        Mark filtered as reviewed
+    </button>
+    <button type="submit" name="action" value="approve" class="btn btn-secondary"
+        onclick="return confirm('Approve all filtered reviewed results?')"
+        {% if not can_approve_results or not page_obj.paginator.count %}disabled{% endif %}>
+        Approve filtered results
+    </button>
     <button type="submit" name="action" value="publish" class="btn btn-primary"
-        {% if not page_obj.paginator.count %}disabled{% endif %}>
+        onclick="return confirm('Publish all filtered approved/reviewed results?')"
+        {% if not can_publish_results or not page_obj.paginator.count %}disabled{% endif %}>
         Publish filtered results ({{ page_obj.paginator.count }})
     </button>
     <button type="submit" name="action" value="unpublish" class="btn btn-secondary"
-        {% if not page_obj.paginator.count %}disabled{% endif %}>
+        onclick="return confirm('Unpublish all filtered unlocked results?')"
+        {% if not can_publish_results or not page_obj.paginator.count %}disabled{% endif %}>
         Unpublish filtered results
+    </button>
+    <button type="submit" name="action" value="lock" class="btn btn-secondary"
+        onclick="return confirm('Lock all filtered published results? Locked results cannot be edited normally.')"
+        {% if not can_lock_results or not page_obj.paginator.count %}disabled{% endif %}>
+        Lock filtered results
+    </button>
+    <button type="submit" name="action" value="unlock" class="btn btn-secondary"
+        onclick="return confirm('Unlock all filtered locked results? This should be done only for audited corrections.')"
+        {% if not can_unlock_results or not page_obj.paginator.count %}disabled{% endif %}>
+        Unlock filtered results
     </button>
     <span style="font-size:0.85rem;color:#94a3b8;">
         Applies to every result matching the filters above.
@@ -81,8 +103,14 @@
                 <td>{{ r.term.name|default:"—" }}</td>
                 <td>{{ r.score }}</td>
                 <td>
-                    {% if r.is_published %}
+                    {% if r.workflow_status == 'locked' %}
+                    <span class="tag tag-unpaid">Locked</span>
+                    {% elif r.workflow_status == 'published' %}
                     <span class="tag tag-success">Published</span>
+                    {% elif r.workflow_status == 'approved' %}
+                    <span class="tag">Approved</span>
+                    {% elif r.workflow_status == 'reviewed' %}
+                    <span class="tag">Reviewed</span>
                     {% else %}
                     <span class="tag tag-unpaid">Draft</span>
                     {% endif %}

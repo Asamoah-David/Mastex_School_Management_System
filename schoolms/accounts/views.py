@@ -88,7 +88,7 @@ def home(request):
         if role == "teacher":
             return redirect("accounts:teacher_dashboard")
         if role in ("school_admin", "deputy_head", "hod", "accountant",
-                    "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
+                    "librarian", "admission_officer", "exam_officer", "school_nurse", "admin_assistant", "staff"):
             return redirect("accounts:school_dashboard")
         if getattr(request.user, "is_superuser", False) or role == "super_admin":
             return redirect("accounts:dashboard")
@@ -139,6 +139,7 @@ def _get_dashboard_metrics(school):
                 "librarian",
                 "admin_assistant",
                 "admission_officer",
+                "exam_officer",
                 "school_nurse",
                 "hod",
                 "deputy_head",
@@ -146,7 +147,9 @@ def _get_dashboard_metrics(school):
             total_students = Student.objects.filter(school=school).count()
             total_staff = User.objects.filter(school=school, role__in=staff_roles).count()
             total_parents = User.objects.filter(school=school, role="parent").count()
-            fee_agg = Fee.objects.filter(school=school).aggregate(
+            fee_agg = Fee.objects.filter(
+                school=school, deleted_at__isnull=True
+            ).aggregate(
                 billed=Sum("amount"),
                 collected=Sum("amount_paid"),
             )
@@ -165,7 +168,9 @@ def _get_dashboard_metrics(school):
                 "fee_billed": fee_billed,
                 "fee_collected": fee_collected,
                 "fee_outstanding": fee_outstanding,
-                "unpaid_fee_records": Fee.objects.filter(school=school, paid=False).count(),
+                "unpaid_fee_records": Fee.objects.filter(
+                    school=school, paid=False, deleted_at__isnull=True
+                ).count(),
                 "chart_male_students": gender_agg["m"] or 0,
                 "chart_female_students": gender_agg["f"] or 0,
                 "schools_active_chart": 1 if school.is_active else 0,
@@ -179,7 +184,9 @@ def _get_dashboard_metrics(school):
         total_students = Student.objects.count()
         total_staff = User.objects.filter(role__in=("school_admin", "teacher", "staff")).count()
         total_parents = User.objects.filter(role="parent").count()
-        fee_agg = Fee.objects.aggregate(billed=Sum("amount"), collected=Sum("amount_paid"))
+        fee_agg = Fee.objects.filter(deleted_at__isnull=True).aggregate(
+            billed=Sum("amount"), collected=Sum("amount_paid")
+        )
         fee_billed = fee_agg["billed"] or Decimal("0")
         fee_collected = fee_agg["collected"] or Decimal("0")
         fee_outstanding = max(Decimal("0"), fee_billed - fee_collected)
@@ -197,7 +204,9 @@ def _get_dashboard_metrics(school):
             "fee_billed": fee_billed,
             "fee_collected": fee_collected,
             "fee_outstanding": fee_outstanding,
-            "unpaid_fee_records": Fee.objects.filter(paid=False).count(),
+            "unpaid_fee_records": Fee.objects.filter(
+                paid=False, deleted_at__isnull=True
+            ).count(),
             "chart_male_students": 0,
             "chart_female_students": 0,
             "schools_active_chart": School.objects.filter(is_active=True).count(),
@@ -293,7 +302,7 @@ def login_view(request):
         if role == "teacher":
             return redirect("accounts:teacher_dashboard")
         if role in ("school_admin", "deputy_head", "hod", "accountant",
-                    "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
+                    "librarian", "admission_officer", "exam_officer", "school_nurse", "admin_assistant", "staff"):
             return redirect("accounts:school_dashboard")
         if getattr(request.user, "is_superuser", False) or role == "super_admin":
             return redirect("accounts:dashboard")
@@ -365,7 +374,7 @@ def login_view(request):
             if role == "teacher":
                 return redirect("accounts:teacher_dashboard")
             if role in ("school_admin", "deputy_head", "hod", "accountant",
-                        "librarian", "admission_officer", "school_nurse", "admin_assistant", "staff"):
+                        "librarian", "admission_officer", "exam_officer", "school_nurse", "admin_assistant", "staff"):
                 return redirect("accounts:school_dashboard")
             if user.is_superuser or role == "super_admin":
                 return redirect("accounts:dashboard")
@@ -770,7 +779,7 @@ def school_dashboard(request):
             total_staff=Count("id", filter=Q(role__in=("school_admin", "teacher", "staff"))),
             teachers_count=Count("id", filter=Q(role="teacher")),
         )
-        _fs = Fee.objects.filter(school=school).aggregate(
+        _fs = Fee.objects.filter(school=school, deleted_at__isnull=True).aggregate(
             total=Sum("amount"), total_paid=Sum("amount_paid")
         )
         return {
@@ -1196,7 +1205,7 @@ def staff_list(request):
     try:
         # Include all staff roles
         all_staff_roles = ("school_admin", "deputy_head", "hod", "teacher", 
-                          "accountant", "librarian", "admission_officer", "school_nurse", 
+                          "accountant", "librarian", "admission_officer", "exam_officer", "school_nurse", 
                           "admin_assistant", "staff")
         if school and not getattr(user, "is_super_admin", False):
             staff = User.objects.filter(school=school, role__in=all_staff_roles).order_by("role", "username")
@@ -1233,7 +1242,7 @@ def staff_detail(request, pk):
     # Include all staff roles
     all_staff_roles = (
         "school_admin", "deputy_head", "hod", "teacher",
-        "accountant", "librarian", "admission_officer", "school_nurse",
+        "accountant", "librarian", "admission_officer", "exam_officer", "school_nurse",
         "admin_assistant", "staff",
     )
     qs = User.objects.filter(role__in=all_staff_roles)
@@ -1305,7 +1314,7 @@ def staff_register(request):
         phone = request.POST.get("phone", "").strip() or None
         valid_staff_roles = (
             "school_admin", "deputy_head", "hod", "teacher",
-            "accountant", "librarian", "admission_officer",
+            "accountant", "librarian", "admission_officer", "exam_officer",
             "school_nurse", "admin_assistant", "staff",
         )
         if username and email and password and role in valid_staff_roles:
@@ -1438,7 +1447,9 @@ def parent_detail(request, pk):
 
     children_data = []
     for child in children_qs:
-        agg = Fee.objects.filter(student=child, school=school).aggregate(owed=Sum("amount"), paid=Sum("amount_paid"))
+        agg = Fee.objects.filter(
+            student=child, school=school, deleted_at__isnull=True
+        ).aggregate(owed=Sum("amount"), paid=Sum("amount_paid"))
         owed = agg["owed"] or 0
         paid_amt = agg["paid"] or 0
         g = guardian_map.get(child.pk)
@@ -1506,7 +1517,7 @@ def user_management(request):
     counts = User.objects.filter(school=school).aggregate(
         staff_count=Count("id", filter=Q(role__in=(
             "school_admin", "deputy_head", "hod", "teacher",
-            "accountant", "librarian", "admission_officer", "school_nurse",
+            "accountant", "librarian", "admission_officer", "exam_officer", "school_nurse",
             "admin_assistant", "staff",
         ))),
         parent_count=Count("id", filter=Q(role="parent")),
@@ -1624,7 +1635,7 @@ def staff_change_role(request, pk):
         school=school, 
         role__in=(
             "school_admin", "deputy_head", "hod", "teacher",
-            "accountant", "librarian", "admission_officer", "school_nurse",
+            "accountant", "librarian", "admission_officer", "exam_officer", "school_nurse",
             "admin_assistant", "staff",
         )
     )
@@ -1717,7 +1728,7 @@ def staff_manage_secondary_roles(request, pk):
         school=school, 
         role__in=(
             "school_admin", "deputy_head", "hod", "teacher",
-            "accountant", "librarian", "admission_officer", "school_nurse",
+            "accountant", "librarian", "admission_officer", "exam_officer", "school_nurse",
             "admin_assistant", "staff",
         )
     )
@@ -1729,7 +1740,7 @@ def staff_manage_secondary_roles(request, pk):
         # Validate and store roles as comma-separated string
         valid_roles = (
             "teacher", "deputy_head", "hod", "accountant", "librarian",
-            "admission_officer", "school_nurse", "admin_assistant", "staff"
+            "admission_officer", "exam_officer", "school_nurse", "admin_assistant", "staff"
         )
         
         # Filter to only valid roles and exclude primary role
@@ -2019,7 +2030,7 @@ def global_search(request):
             )
             staff_roles = (
                 "school_admin", "deputy_head", "hod", "teacher",
-                "accountant", "librarian", "admission_officer",
+                "accountant", "librarian", "admission_officer", "exam_officer",
                 "school_nurse", "admin_assistant", "staff",
             )
             results["staff"] = list(
@@ -2041,7 +2052,7 @@ def global_search(request):
                 )[:10]
             )
             results["fees"] = list(
-                Fee.objects.filter(school=school)
+                Fee.objects.filter(school=school, deleted_at__isnull=True)
                 .filter(
                     Q(student__user__first_name__icontains=q)
                     | Q(student__user__last_name__icontains=q)

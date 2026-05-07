@@ -121,6 +121,10 @@ class Student(models.Model):
         indexes = [
             models.Index(fields=["school", "class_name"], name="idx_student_school_class"),
             models.Index(fields=["school", "status"], name="idx_student_school_status"),
+            models.Index(
+                fields=["school", "school_class", "status"],
+                name="idx_stud_sch_cls_stat",
+            ),
             models.Index(fields=["parent"], name="idx_student_parent"),
         ]
 

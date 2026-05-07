@@ -1,180 +1,419 @@
 {% extends "base.html" %}
 {% block title %}Template Calibration · {{ tmpl.name }} · MastexEDU{% endblock %}
 {% block page_title %}Template Calibration{% endblock %}
-{% block page_subtitle %}{{ tmpl.name }} — Fine-tune detection coordinates{% endblock %}
+{% block page_subtitle %}{{ tmpl.name }} — drag &amp; resize answer zones on your sheet photo{% endblock %}
 {% block content %}
-<div class="button-row mb-sm">
+<div class="button-row mb-sm d-flex flex-wrap gap-2 align-items-center">
     <a href="{% url 'omr:dashboard' %}" class="btn btn-secondary">← Back to OMR Dashboard</a>
+    <a href="{% url 'omr:testing_page' %}" class="btn btn-outline-primary">OMR debug / test</a>
+    <a href="{% url 'omr:printable_sheet' tmpl.template_id %}" class="btn btn-outline-secondary" target="_blank">Print template</a>
 </div>
+
+{% if result and result.saved %}
+<div class="alert alert-success">
+    <strong>Saved.</strong> {{ result.questions }} question zones are stored for your school. Upload scans in OMR flows to verify on the debug page.
+</div>
+{% endif %}
 
 <div class="card mb-md">
     <div class="card-header bg-info text-white">
-        <i class="bi bi-rulers"></i> Calibration Guide
+        <i class="bi bi-rulers"></i> How to calibrate
     </div>
     <div class="card-body">
-        <p>This page helps you calibrate the OMR detection coordinates for your specific printer/scanner setup.</p>
-        <ol>
-            <li>Print the answer sheet template using your standard printer</li>
-            <li>Fill in a sample answer sheet with known answers</li>
-            <li>Upload a clear, well-lit photo or scan of the sheet</li>
-            <li>Mark the reference points on the image to calibrate coordinates</li>
+        <ol class="mb-0">
+            <li>Upload a <strong>blank</strong> sheet image (or a clear scan) — same paper size as real exams.</li>
+            <li>Drag each dashed rectangle so it covers only the <strong>inner fill area</strong> of each bubble (not brackets or letters).</li>
+            <li>Drag the <strong style="color:#dc3545;">red line</strong> to match the vertical spacing to the <strong>next question row</strong> (baseline).</li>
+            <li>Optional: <strong>Move whole column</strong> keeps A–E spacing while shifting a column sideways.</li>
+            <li>Save — coordinates are scaled to the template ({{ tmpl.image_width }}×{{ tmpl.image_height }} px).</li>
         </ol>
-        <div class="alert alert-warning">
-            <strong>Note:</strong> Calibration should only be needed if you're using a non-standard sheet layout or if detection is consistently misaligned.
-        </div>
     </div>
 </div>
 
+{{ template_meta_json|json_script:"omr-cal-meta" }}
+{{ initial_regions_json|json_script:"omr-cal-regions" }}
+
 <div class="row">
-    <div class="col-md-8">
+    <div class="col-lg-9">
         <div class="card">
-            <div class="card-header">
-                <i class="bi bi-upload"></i> Upload Reference Sheet
+            <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <span><i class="bi bi-bounding-box"></i> Visual grid</span>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="calMoveColumn" checked>
+                        <label class="form-check-label small" for="calMoveColumn">Move whole column together</label>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="calResetTpl">Reset from template</button>
+                </div>
             </div>
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data" id="calibrationForm">
+                <div class="mb-3">
+                    <label class="form-label">Sheet image to align (blank or sample)</label>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <input type="file" id="calImageFile" class="form-control" accept="image/*" style="max-width:320px;">
+                        {% if blank_preview_url %}
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="calLoadSavedBlank">Load saved blank</button>
+                        {% endif %}
+                    </div>
+                    <div class="form-text">Use a photo or scan at any resolution; zones are saved in template space ({{ tmpl.image_width }}×{{ tmpl.image_height }}).</div>
+                </div>
+
+                <div id="calStageWrap" class="border rounded bg-dark bg-opacity-10 p-2" style="overflow:auto;max-height:78vh;">
+                    <div id="calStage" class="position-relative d-inline-block" style="display:none;">
+                        <img id="calImg" alt="Calibration sheet" class="d-block" style="max-width:100%;height:auto;user-select:none;pointer-events:none;">
+                        <div id="calOverlay" class="position-absolute top-0 start-0" style="pointer-events:none;"></div>
+                    </div>
+                    <p id="calPlaceholder" class="text-muted mb-0 py-5 text-center">Choose an image to show the overlay.</p>
+                </div>
+
+                <form method="post" enctype="multipart/form-data" id="calibrationForm" class="mt-3">
                     {% csrf_token %}
-                    <div class="mb-3">
-                        <label class="form-label">Clear Reference Image</label>
-                        <input type="file" name="reference_image" class="form-control" accept="image/*" required>
-                        <div class="form-text">Upload a clear, well-lit photo of a filled answer sheet</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Reference Points</label>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6>Top-Left Answer Area</h6>
-                                        <div class="row g-2">
-                                            <div class="col-6">
-                                                <label class="form-label small">X</label>
-                                                <input type="number" name="tl_x" class="form-control form-control-sm" value="{{ calibration_points.top_left_answer_area.x }}">
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label small">Y</label>
-                                                <input type="number" name="tl_y" class="form-control form-control-sm" value="{{ calibration_points.top_left_answer_area.y }}">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6>Bottom-Right Answer Area</h6>
-                                        <div class="row g-2">
-                                            <div class="col-6">
-                                                <label class="form-label small">X</label>
-                                                <input type="number" name="br_x" class="form-control form-control-sm" value="{{ calibration_points.bottom_right_answer_area.x }}">
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label small">Y</label>
-                                                <input type="number" name="br_y" class="form-control form-control-sm" value="{{ calibration_points.bottom_right_answer_area.y }}">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    <input type="hidden" name="geometry_json" id="geometryJson" value="">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-6">
+                            <label class="form-label">Clean blank (subtraction)</label>
+                            <input type="file" name="blank_sheet" class="form-control" accept="image/*">
+                            {% if has_saved_blank %}
+                            <div class="form-text text-success">A blank is already stored; upload again to replace.</div>
+                            {% endif %}
                         </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Row Settings</label>
-                        <div class="row g-2">
-                            <div class="col-md-4">
-                                <label class="form-label small">First Row Y</label>
-                                <input type="number" name="first_row_y" class="form-control" value="{{ calibration_points.first_row_y }}">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small">Last Row Y</label>
-                                <input type="number" name="last_row_y" class="form-control" value="{{ calibration_points.last_row_y }}">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small">Row Height (calculated)</label>
-                                <input type="text" class="form-control" readonly value="Auto">
-                            </div>
+                        <div class="col-md-6 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" id="calSaveBtn" disabled>
+                                <i class="bi bi-save"></i> Save calibration
+                            </button>
                         </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Option Positions (X coordinates)</label>
-                        <div class="row g-2">
-                            {% for opt, x_pos in calibration_points.option_positions.items %}
-                            <div class="col">
-                                <label class="form-label small">{{ opt }}</label>
-                                <input type="number" name="opt_{{ opt }}" class="form-control form-control-sm" value="{{ x_pos }}">
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-calculator"></i> Calculate & Preview
-                        </button>
-                        <a href="{% url 'omr:printable_sheet' tmpl.template_id %}" class="btn btn-secondary" target="_blank">
-                            <i class="bi bi-printer"></i> Print Template
-                        </a>
                     </div>
                 </form>
             </div>
         </div>
+
+        <details class="card mt-3">
+            <summary class="card-header" style="cursor:pointer;">Advanced: numeric fallback</summary>
+            <div class="card-body">
+                <p class="small text-muted">If JavaScript fails, you can still submit row/option numbers (legacy).</p>
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="row g-2">
+                        <div class="col-4"><label class="small">First row Y</label><input type="number" name="first_row_y" class="form-control form-control-sm" value="{{ calibration_points.first_row_y }}"></div>
+                        <div class="col-4"><label class="small">Last row Y</label><input type="number" name="last_row_y" class="form-control form-control-sm" value="{{ calibration_points.last_row_y }}"></div>
+                        {% for opt, x_pos in calibration_points.option_positions.items %}
+                        <div class="col"><label class="small">{{ opt }} X</label><input type="number" name="opt_{{ opt }}" class="form-control form-control-sm" value="{{ x_pos }}"></div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-2"><input type="file" name="blank_sheet" class="form-control form-control-sm"></div>
+                    <button type="submit" class="btn btn-sm btn-secondary mt-2">Save (legacy)</button>
+                </form>
+            </div>
+        </details>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-lg-3">
         <div class="card">
-            <div class="card-header bg-secondary text-white">
-                <i class="bi bi-info-circle"></i> Template Info
-            </div>
-            <div class="card-body">
-                <table class="table table-sm">
-                    <tr><td><strong>ID:</strong></td><td>{{ tmpl.template_id }}</td></tr>
-                    <tr><td><strong>Name:</strong></td><td>{{ tmpl.name }}</td></tr>
-                    <tr><td><strong>Questions:</strong></td><td>{{ tmpl.total_questions }}</td></tr>
-                    <tr><td><strong>Options:</strong></td><td>{{ tmpl.options|join:", " }}</td></tr>
-                    <tr><td><strong>Columns:</strong></td><td>{{ tmpl.columns }}</td></tr>
-                    <tr><td><strong>Q/Column:</strong></td><td>{{ tmpl.questions_per_column }}</td></tr>
-                </table>
-
-                <hr>
-
-                <h6>Detection Thresholds</h6>
-                <table class="table table-sm">
-                    <tr><td>Min Fill Ratio:</td><td>{{ tmpl.min_fill_ratio|default:"0.12" }}</td></tr>
-                    <tr><td>Strong Fill Ratio:</td><td>{{ tmpl.strong_fill_ratio|default:"0.22" }}</td></tr>
-                    <tr><td>Min Difference:</td><td>{{ tmpl.min_difference_from_second|default:"0.06" }}</td></tr>
-                </table>
+            <div class="card-header bg-secondary text-white small">Template</div>
+            <div class="card-body small">
+                <div><strong>ID:</strong> {{ tmpl.template_id }}</div>
+                <div><strong>Questions:</strong> {{ tmpl.total_questions }}</div>
+                <div><strong>Options:</strong> {{ tmpl.options|join:", " }}</div>
+                <div><strong>Columns:</strong> {{ tmpl.columns }} × {{ tmpl.questions_per_column }}/col</div>
+                <div><strong>Target size:</strong> {{ tmpl.image_width }}×{{ tmpl.image_height }}</div>
             </div>
         </div>
-
-        <div class="card mt-3">
-            <div class="card-header bg-warning">
-                <i class="bi bi-exclamation-triangle"></i> Calibration Tips
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled mb-0">
-                    <li class="mb-2">✓ Use a high-quality scan or photo</li>
-                    <li class="mb-2">✓ Mark points on the actual bubble centers</li>
-                    <li class="mb-2">✓ First/last row should be the first and last questions</li>
-                    <li class="mb-2">✓ Test with multiple sheets before saving</li>
+        <div class="card mt-2">
+            <div class="card-header bg-warning small">Tips</div>
+            <div class="card-body small">
+                <ul class="ps-3 mb-0">
+                    <li>Shrink zones to the <strong>inner</strong> bubble — avoids printed brackets.</li>
+                    <li>Red line = one row height; align with the next row’s bubbles.</li>
+                    <li>Pinch-zoom on mobile may confuse drag — use desktop if possible.</li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
 
-{% if result %}
-<div class="card mt-3">
-    <div class="card-header bg-success text-white">
-        <i class="bi bi-check-circle"></i> Calibration Result
-    </div>
-    <div class="card-body">
-        <p>Calibration complete. The following grid parameters were calculated:</p>
-        <pre class="bg-light p-3 rounded"><code>{{ result|json_script:"calibrationResult" }}</code></pre>
-    </div>
-</div>
-{% endif %}
+<style>
+#calOverlay { pointer-events: none; }
+.cal-hit { pointer-events: auto !important; box-sizing: border-box; border: 2px dashed rgba(13,110,253,0.95); background: rgba(13,110,253,0.12); cursor: move; touch-action: none; }
+.cal-hit.is-resizing { cursor: nwse-resize; }
+.cal-label { position: absolute; left: 2px; top: 0; font-size: 10px; font-weight: 700; color: #0d6efd; text-shadow: 0 0 2px #fff; pointer-events: none; }
+.cal-resize { position: absolute; right: -4px; bottom: -4px; width: 14px; height: 14px; background: #0d6efd; border: 1px solid #fff; border-radius: 2px; cursor: nwse-resize; pointer-events: auto; touch-action: none; }
+#calRowLine { pointer-events: auto !important; position: absolute; left: 0; right: 0; height: 4px; background: rgba(220,53,69,0.85); cursor: ns-resize; touch-action: none; box-shadow: 0 0 0 1px #fff; }
+#calRowLine::after { content: 'Row spacing'; position: absolute; right: 4px; top: -16px; font-size: 10px; color: #dc3545; font-weight: 600; }
+</style>
 
+<script>
+(function() {
+  const META = JSON.parse(document.getElementById('omr-cal-meta').textContent);
+  const REGIONS = JSON.parse(document.getElementById('omr-cal-regions').textContent);
+  const TW = META.image_width;
+  const TH = META.image_height;
+  const OPTIONS = META.options;
+  const QPC = META.questions_per_column;
+  const NCOLS = META.columns;
+  const BOX_Y_OFF = META.box_y_offset || 2;
+
+  const stage = document.getElementById('calStage');
+  const stageWrap = document.getElementById('calStageWrap');
+  const img = document.getElementById('calImg');
+  const overlay = document.getElementById('calOverlay');
+  const fileInput = document.getElementById('calImageFile');
+  const placeholder = document.getElementById('calPlaceholder');
+  const form = document.getElementById('calibrationForm');
+  const geometryInput = document.getElementById('geometryJson');
+  const saveBtn = document.getElementById('calSaveBtn');
+  const moveColCb = document.getElementById('calMoveColumn');
+  const btnReset = document.getElementById('calResetTpl');
+  const savedBlankUrl = "{{ blank_preview_url|escapejs }}";
+
+  /** @type {{ el: HTMLElement, col: number, opt: string }[]} */
+  let zones = [];
+  let rowLineEl = null;
+  let natW = TW, natH = TH;
+  /** vertical distance (natural px) from row-0 bubble top to equivalent row-1 position */
+  let rowHeightNat = 58;
+
+  function regionForColFirstRow(col) {
+    const q = col * QPC + 1;
+    return REGIONS[q - 1];
+  }
+
+  function tplToNat(x, y, w, h) {
+    return {
+      x: x * natW / TW,
+      y: y * natH / TH,
+      w: w * natW / TW,
+      h: h * natH / TH,
+    };
+  }
+
+  function syncOverlaySize() {
+    const w = img.clientWidth;
+    const h = img.clientHeight;
+    overlay.style.width = w + 'px';
+    overlay.style.height = h + 'px';
+    zones.forEach(z => syncZoneDisplay(z));
+    syncRowLineDisplay();
+  }
+
+  function syncZoneDisplay(z) {
+    const r = z.rect;
+    const sx = img.clientWidth / natW;
+    const sy = img.clientHeight / natH;
+    z.el.style.left = (r.x * sx) + 'px';
+    z.el.style.top = (r.y * sy) + 'px';
+    z.el.style.width = (r.w * sx) + 'px';
+    z.el.style.height = (r.h * sy) + 'px';
+  }
+
+  function syncRowLineDisplay() {
+    if (!rowLineEl) return;
+    const r0 = zones.find(z => z.col === 0 && z.opt === OPTIONS[0]);
+    if (!r0) return;
+    const sy = img.clientHeight / natH;
+    const yNat = r0.rect.y + rowHeightNat;
+    rowLineEl.style.top = (yNat * sy - 2) + 'px';
+  }
+
+  function initialRowHeightNat() {
+    const r0 = REGIONS[0];
+    const r1 = REGIONS[QPC];
+    if (r0 && r1) {
+      const dyTpl = r1.boxes[OPTIONS[0]].y - r0.boxes[OPTIONS[0]].y;
+      return dyTpl * natH / TH;
+    }
+    return 58 * natH / TH;
+  }
+
+  function buildZonesFromTemplate() {
+    zones.forEach(z => z.el.remove());
+    zones = [];
+    if (rowLineEl) { rowLineEl.remove(); rowLineEl = null; }
+
+    for (let col = 0; col < NCOLS; col++) {
+      const reg = regionForColFirstRow(col);
+      if (!reg) continue;
+      for (const opt of OPTIONS) {
+        const b = reg.boxes[opt];
+        const r = tplToNat(b.x, b.y, b.w, b.h);
+        const el = document.createElement('div');
+        el.className = 'cal-hit position-absolute';
+        el.dataset.col = String(col);
+        el.dataset.opt = opt;
+        const label = document.createElement('span');
+        label.className = 'cal-label';
+        label.textContent = 'Q' + (col * QPC + 1) + ' ' + opt;
+        el.appendChild(label);
+        const handle = document.createElement('div');
+        handle.className = 'cal-resize';
+        el.appendChild(handle);
+        overlay.appendChild(el);
+        zones.push({ el, col, opt, rect: r });
+      }
+    }
+
+    rowHeightNat = Math.max(8, initialRowHeightNat());
+
+    rowLineEl = document.createElement('div');
+    rowLineEl.id = 'calRowLine';
+    overlay.appendChild(rowLineEl);
+
+    zones.forEach(z => syncZoneDisplay(z));
+    syncRowLineDisplay();
+
+    zones.forEach(z => bindZone(z));
+    bindRowLine();
+  }
+
+  function bindRowLine() {
+    let startY, startH;
+    rowLineEl.addEventListener('pointerdown', function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const r0 = zones.find(z => z.col === 0 && z.opt === OPTIONS[0]);
+      if (!r0) return;
+      startY = ev.clientY;
+      const sy = img.clientHeight / natH;
+      startH = rowHeightNat;
+      rowLineEl.setPointerCapture(ev.pointerId);
+
+      function move(e) {
+        const dy = (e.clientY - startY) / sy;
+        rowHeightNat = Math.max(8, startH + dy);
+        syncRowLineDisplay();
+      }
+      function up(e) {
+        rowLineEl.releasePointerCapture(e.pointerId);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
+  function bindZone(z) {
+    const el = z.el;
+    const handle = el.querySelector('.cal-resize');
+
+    el.addEventListener('pointerdown', function(ev) {
+      if (ev.target === handle) return;
+      ev.preventDefault();
+      el.setPointerCapture(ev.pointerId);
+      const sx = img.clientWidth / natW;
+      const sy = img.clientHeight / natH;
+      const startX = ev.clientX, startY = ev.clientY;
+      const orig = zones.filter(zz => moveColCb.checked && zz.col === z.col || zz === z).map(zz => ({ zz, rx: zz.rect.x, ry: zz.rect.y }));
+
+      function move(e) {
+        const dx = (e.clientX - startX) / sx;
+        const dy = (e.clientY - startY) / sy;
+        orig.forEach(o => {
+          o.zz.rect.x = Math.max(0, o.rx + dx);
+          o.zz.rect.y = Math.max(0, o.ry + dy);
+          syncZoneDisplay(o.zz);
+        });
+        syncRowLineDisplay();
+      }
+      function up(e) {
+        el.releasePointerCapture(e.pointerId);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+
+    handle.addEventListener('pointerdown', function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      handle.setPointerCapture(ev.pointerId);
+      el.classList.add('is-resizing');
+      const sx = img.clientWidth / natW;
+      const sy = img.clientHeight / natH;
+      const startX = ev.clientX, startY = ev.clientY;
+      const rw = z.rect.w, rh = z.rect.h;
+
+      function move(e) {
+        z.rect.w = Math.max(6, rw + (e.clientX - startX) / sx);
+        z.rect.h = Math.max(6, rh + (e.clientY - startY) / sy);
+        syncZoneDisplay(z);
+      }
+      function up(e) {
+        el.classList.remove('is-resizing');
+        handle.releasePointerCapture(e.pointerId);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
+  function onImageReady(revokeBlobUrl) {
+    img.onload = function() {
+      if (revokeBlobUrl) URL.revokeObjectURL(revokeBlobUrl);
+      natW = img.naturalWidth;
+      natH = img.naturalHeight;
+      placeholder.style.display = 'none';
+      stage.style.display = 'inline-block';
+      buildZonesFromTemplate();
+      syncOverlaySize();
+      saveBtn.disabled = false;
+    };
+  }
+
+  fileInput.addEventListener('change', function() {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    onImageReady(url);
+    img.src = url;
+  });
+
+  const btnSavedBlank = document.getElementById('calLoadSavedBlank');
+  if (btnSavedBlank && savedBlankUrl) {
+    btnSavedBlank.addEventListener('click', function() {
+      onImageReady(null);
+      img.src = savedBlankUrl;
+    });
+  }
+
+  btnReset.addEventListener('click', function() {
+    if (!img.src) return;
+    buildZonesFromTemplate();
+    syncOverlaySize();
+  });
+
+  window.addEventListener('resize', function() {
+    if (img.src) syncOverlaySize();
+  });
+
+  form.addEventListener('submit', function(ev) {
+    if (!zones.length || !img.src) {
+      ev.preventDefault();
+      alert('Load a sheet image first.');
+      return;
+    }
+    const columns = [];
+    for (let col = 0; col < NCOLS; col++) {
+      const boxes = {};
+      for (const opt of OPTIONS) {
+        const z = zones.find(zz => zz.col === col && zz.opt === opt);
+        if (!z) continue;
+        boxes[opt] = { x: z.rect.x, y: z.rect.y, w: z.rect.w, h: z.rect.h };
+      }
+      columns.push({ boxes });
+    }
+
+    const payload = {
+      image_natural_width: natW,
+      image_natural_height: natH,
+      row_height: rowHeightNat,
+      box_y_offset: BOX_Y_OFF,
+      columns: columns,
+    };
+    geometryInput.value = JSON.stringify(payload);
+  });
+})();
+</script>
 {% endblock %}

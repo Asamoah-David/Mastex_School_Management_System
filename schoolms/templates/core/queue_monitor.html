@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Queue Monitor{% endblock %}
+{% block page_title %}Queue Monitor{% endblock %}
+{% block page_subtitle %}Celery, worker, and async job health{% endblock %}
+{% block content %}
+<div class="container-fluid">
+  <div class="row mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><strong>Pending</strong><div>{{ summary.pending }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><strong>Running</strong><div>{{ summary.running }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><strong>Success</strong><div>{{ summary.success }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><strong>Failed</strong><div>{{ summary.failed }}</div></div></div></div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div><strong>Broker/Worker:</strong> {% if broker_ok %}<span class="badge bg-success">Healthy</span>{% else %}<span class="badge bg-danger">Degraded</span>{% endif %}</div>
+      {% if inspect_error %}<div class="text-danger small mt-1">{{ inspect_error }}</div>{% endif %}
+      <div class="mt-2"><strong>Task Results Backend:</strong> {% if result_backend_ok %}<span class="badge bg-success">Available</span>{% else %}<span class="badge bg-warning text-dark">Unavailable</span>{% endif %}</div>
+      {% if result_backend_ok %}
+        <div class="small text-muted mt-1">Stored result rows: {{ result_rows }}</div>
+      {% elif result_backend_error %}
+        <div class="small text-danger mt-1">{{ result_backend_error }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><strong>Recent Async Jobs</strong></div>
+    <div class="card-body table-responsive">
+      <table class="table table-sm table-striped">
+        <thead><tr><th>ID</th><th>Type</th><th>Status</th><th>School</th><th>Created</th><th>Error</th></tr></thead>
+        <tbody>
+          {% for j in jobs %}
+          <tr>
+            <td>{{ j.id }}</td>
+            <td>{{ j.job_type }}</td>
+            <td>{{ j.status }}</td>
+            <td>{{ j.school.name|default:"-" }}</td>
+            <td>{{ j.created_at|date:"Y-m-d H:i" }}</td>
+            <td class="small text-danger">{{ j.error_message|truncatechars:120 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-muted">No async jobs found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

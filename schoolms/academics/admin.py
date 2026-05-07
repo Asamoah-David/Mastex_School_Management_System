@@ -7,6 +7,7 @@ from .models import (
     QuestionBank, QuestionBankItem, EarlyWarningFlag, ReportCard,
     AssessmentScheme, AssessmentSchemeItem,
     ManualExamScore, ManualExamStudentScore, StudentReportCardScore,
+    ScoreChangeLog,
 )
 
 
@@ -265,7 +266,7 @@ class ReportCardAdmin(admin.ModelAdmin):
     list_select_related = ("student", "student__user", "school")
     list_filter = ("school", "academic_year", "term", "published", "is_latest")
     search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
-    readonly_fields = ("generated_at", "qr_token")
+    readonly_fields = ("generated_at", "qr_token", "calculation_snapshot")
     actions = ["publish_selected"]
 
     @admin.action(description="Publish selected report cards")
@@ -312,3 +313,23 @@ class StudentReportCardScoreAdmin(admin.ModelAdmin):
     list_filter = ("school", "term", "status")
     search_fields = ("student__user__first_name", "student__user__last_name", "subject__name")
     readonly_fields = ("calculated_at",)
+
+
+@admin.register(ScoreChangeLog)
+class ScoreChangeLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "school", "target_model", "target_id", "field_name", "actor")
+    list_filter = ("school", "target_model")
+    search_fields = ("target_model", "field_name", "reason")
+    readonly_fields = (
+        "school", "actor", "target_model", "target_id", "field_name",
+        "old_value", "new_value", "reason", "source", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser

@@ -44,6 +44,7 @@ urlpatterns = [
     path("receipt/<int:pk>/", views.payment_receipt, name="payment_receipt"),
     # Payment history management
     path("payment-history/", views.payment_history_list, name="payment_history_list"),
+    path("payment-history/void/<int:pk>/", views.payment_history_void, name="payment_history_void"),
     path("payment-history/delete/<int:pk>/", views.payment_history_delete, name="payment_history_delete"),
     path("payment-history/delete-multiple/", views.payment_history_delete_multiple, name="payment_history_delete_multiple"),
     

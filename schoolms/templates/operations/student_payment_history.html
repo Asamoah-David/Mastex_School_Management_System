@@ -31,7 +31,14 @@
                             <strong>Name:</strong> {{ student.user.get_full_name }}
                         </div>
                         <div class="col-md-3">
-                            <strong>Class:</strong> {{ student.current_class }}
+                            <strong>Class:</strong>
+                            {% if student.school_class %}
+                                {{ student.school_class.name }}
+                            {% elif student.class_name %}
+                                {{ student.class_name }}
+                            {% else %}
+                                -
+                            {% endif %}
                         </div>
                         <div class="col-md-3">
                             <strong>Admission No:</strong> {{ student.admission_number }}

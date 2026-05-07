@@ -119,13 +119,25 @@
       </div>
 
       <!-- Debug Image -->
-      {% if result.debug_image_path %}
+      <div class="alert alert-light border mb-2 small">
+        Blank-template subtraction:
+        {% if result.used_blank_subtraction %}<span class="text-success">enabled</span>
+        {% else %}<span class="text-warning">not configured</span> — upload a clean blank under OMR calibration{% endif %}
+      </div>
+
+      {% if result.debug_urls %}
+      <div class="card mb-3">
+        <div class="card-header bg-dark text-white"><i class="bi bi-images"></i> Pipeline debug</div>
+        <div class="card-body d-flex flex-wrap gap-2 justify-content-center">
+          {% if result.debug_urls.normalized_gray %}<div class="text-center"><div class="small text-muted">Normalized</div><img src="{{ MEDIA_URL }}{{ result.debug_urls.normalized_gray }}" class="img-fluid border" style="max-height:280px;"></div>{% endif %}
+          {% if result.debug_urls.difference %}<div class="text-center"><div class="small text-muted">Difference</div><img src="{{ MEDIA_URL }}{{ result.debug_urls.difference }}" class="img-fluid border" style="max-height:280px;"></div>{% endif %}
+          {% if result.debug_urls.overlay_inner_zones %}<div class="text-center"><div class="small text-muted">Inner zones</div><img src="{{ MEDIA_URL }}{{ result.debug_urls.overlay_inner_zones }}" class="img-fluid border" style="max-height:280px;"></div>{% endif %}
+        </div>
+      </div>
+      {% elif result.debug_image_path %}
       <div class="card mb-3">
         <div class="card-header bg-dark text-white">
           <i class="bi bi-image"></i> Detection Overlay
-          <span class="float-end">
-            <small>Green = Detected | Orange = Flagged | Red = Uncertain/Multiple | Gray = Blank</small>
-          </span>
         </div>
         <div class="card-body text-center">
           <img src="{{ MEDIA_URL }}{{ result.debug_image_path }}" class="img-fluid border" style="max-height: 600px;">
@@ -147,7 +159,8 @@
                   <th>Detected</th>
                   <th>Confidence</th>
                   <th>Option Scores</th>
-                  <th>Status</th>
+                  <th>CV status</th>
+                  <th>Flag</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,7 +178,7 @@
                     <span class="badge bg-success">{{ q.answer }}</span>
                     {% endif %}
                   </td>
-                  <td>{{ q.confidence|floatformat:3 }}</td>
+                  <td>{{ q.confidence|floatformat:3 }} <small class="text-muted">({{ q.confidence_level }})</small></td>
                   <td>
                     <small class="font-monospace">
                       {% for opt, score in q.option_scores.items %}
@@ -173,6 +186,7 @@
                       {% endfor %}
                     </small>
                   </td>
+                  <td><small class="text-muted">{{ q.status }}</small></td>
                   <td>
                     {% if q.is_flagged %}
                     <i class="bi bi-flag-fill text-warning"></i>

@@ -295,10 +295,63 @@ def notify_parent_on_fee_balance_credited_without_payment_row(sender, instance, 
     _notify_parent_fee_balance_after_credit(instance, new_paid - old_paid)
 
 
+@receiver(pre_save, sender="finance.FeePayment")
+def feepayment_track_void_transition(sender, instance, **kwargs):
+    if not instance.pk:
+        instance._voided_at_prev = None
+        return
+    from finance.models import FeePayment
+
+    instance._voided_at_prev = FeePayment.objects.filter(pk=instance.pk).values_list(
+        "voided_at", flat=True
+    ).first()
+
+
+@receiver(post_save, sender="finance.FeePayment")
+def feepayment_apply_void_to_balance(sender, instance, **kwargs):
+    """When voided_at is first set, subtract payment from Fee.amount_paid (reversal)."""
+    prev = getattr(instance, "_voided_at_prev", None)
+    if not instance.voided_at or prev is not None:
+        return
+    if instance.status != "completed":
+        return
+    from decimal import Decimal
+
+    from django.db import transaction
+
+    from audit.services import write_audit
+    from finance.models import Fee
+
+    fee = None
+    amt = instance.amount if instance.amount is not None else Decimal("0")
+    try:
+        with transaction.atomic():
+            fee = Fee.objects.select_for_update().get(pk=instance.fee_id)
+            fee.amount_paid = max(Decimal("0"), (fee.amount_paid or Decimal("0")) - amt)
+            fee.save(update_fields=["amount_paid"])
+        write_audit(
+            user=instance.voided_by,
+            action="update",
+            model_name="finance.FeePayment",
+            object_id=instance.pk,
+            object_repr=f"void payment pk={instance.pk}",
+            changes={
+                "voided_at": instance.voided_at.isoformat() if instance.voided_at else None,
+                "void_reason": instance.void_reason or "",
+                "amount": str(amt),
+            },
+            school=instance.school or (fee.school if fee else None),
+        )
+    except Exception:
+        logger.exception("feepayment_apply_void_to_balance failed for payment %s", instance.pk)
+
+
 @receiver(post_save, sender="finance.FeePayment")
 def notify_parent_fee_balance_after_payment(sender, instance, **kwargs):
     """After a completed payment row, tell the parent the remaining balance (if any)."""
     if instance.status != "completed":
+        return
+    if instance.voided_at:
         return
     _notify_parent_fee_balance_after_credit(instance.fee, instance.amount)
 
@@ -454,8 +507,20 @@ def on_term_activated(sender, instance, created, **kwargs):
     try:
         from core.tasks import generate_fees_from_structures
         generate_fees_from_structures.delay(instance.pk)
-    except Exception:
-        logger.warning("Failed to queue generate_fees_from_structures for term %s", instance.pk)
+    except Exception as exc:
+        logger.warning("Failed to queue generate_fees_from_structures for term %s", instance.pk, exc_info=True)
+        try:
+            from core.models import AsyncJob
+
+            AsyncJob.objects.create(
+                school_id=instance.school_id,
+                job_type="fee_generation",
+                status="failed",
+                payload={"term_id": instance.pk},
+                error_message=f"Queue enqueue failed: {str(exc)[:240]}",
+            )
+        except Exception:
+            logger.warning("Failed to persist AsyncJob enqueue failure for term %s", instance.pk, exc_info=True)
 
     try:
         from notifications.models import Notification

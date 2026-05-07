@@ -219,7 +219,7 @@ def can_upload_results(user):
         return False
     if is_super_admin(user):
         return True
-    if _has_any(user, "school_admin", "deputy_head", "hod"):
+    if _has_any(user, "school_admin", "deputy_head", "hod", "exam_officer"):
         return True
     if is_teacher(user):
         return (
@@ -227,6 +227,24 @@ def can_upload_results(user):
             or is_class_teacher(user)
         )
     return False
+
+
+def can_publish_academic_results(user):
+    """Publish or unpublish results to parents/students (final workflow step)."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "exam_officer")
+
+
+def can_unlock_locked_academic_results(user):
+    """Unlock results in ``locked`` workflow state (must be paired with audit logging)."""
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "exam_officer")
 
 
 def can_mark_attendance(user):
@@ -383,7 +401,7 @@ def can_manage_exam_halls(user):
         return False
     if is_super_admin(user):
         return True
-    return _has_any(user, "school_admin", "deputy_head", "hod")
+    return _has_any(user, "school_admin", "deputy_head", "hod", "exam_officer")
 
 
 def can_manage_id_cards(user):
@@ -432,6 +450,24 @@ def can_access_school_dashboard(user):
     if not getattr(user, "school_id", None):
         return False
     return _has_any(user, *ALL_STAFF_ROLES)
+
+
+# ---------------------------------------------------------------------------
+#  API / integration-specific (narrower than user_can_manage_school)
+# ---------------------------------------------------------------------------
+
+def can_api_list_schoolwide_published_results(user):
+    """
+    Users who may list *all* published subject results for a school via API.
+
+    Excludes generic staff roles (e.g. librarian, accountant) so student scores
+    are not exposed outside teaching/leadership.
+    """
+    if not _is_authenticated(user):
+        return False
+    if is_super_admin(user) or getattr(user, "is_superuser", False):
+        return True
+    return _has_any(user, "school_admin", "deputy_head", "hod", "teacher", "exam_officer")
 
 
 # ---------------------------------------------------------------------------

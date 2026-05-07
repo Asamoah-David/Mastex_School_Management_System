@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from accounts.models import User
 from schools.models import School
-from students.models import Student, StudentClearance
+from students.models import Student, StudentClearance, StudentGuardian
 
 
 class StudentClearanceExitTests(TestCase):
@@ -83,3 +83,43 @@ class StudentClearanceExitTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.student.refresh_from_db()
         self.assertEqual(self.student.status, "withdrawn")
+
+
+class ParentChildGuardianAccessTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Guardian School", subdomain="guardian-sch-01")
+        cls.parent = User.objects.create_user(
+            username="guard_parent", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.other_parent = User.objects.create_user(
+            username="guard_parent_other", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.student_user = User.objects.create_user(
+            username="guard_student", password="pw12345", school=cls.school, role="student"
+        )
+        cls.child = Student.objects.create(
+            school=cls.school,
+            user=cls.student_user,
+            admission_number="GD-001",
+            class_name="JHS 2",
+            parent=None,
+        )
+        StudentGuardian.objects.create(
+            school=cls.school,
+            student=cls.child,
+            guardian=cls.parent,
+            relationship="guardian",
+            is_primary=True,
+        )
+
+    def test_guardian_link_can_access_parent_child_detail(self):
+        self.client.login(username="guard_parent", password="pw12345")
+        resp = self.client.get(reverse("students:parent_child_detail", args=[self.child.pk]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_unrelated_parent_cannot_access_parent_child_detail(self):
+        self.client.login(username="guard_parent_other", password="pw12345")
+        resp = self.client.get(reverse("students:parent_child_detail", args=[self.child.pk]))
+        self.assertEqual(resp.status_code, 302)
+
