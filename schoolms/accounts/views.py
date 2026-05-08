@@ -1573,9 +1573,13 @@ def staff_delete(request, pk):
         )
         return redirect("accounts:staff_list")
     
-    return render(request, "accounts/confirm_delete.html", {
+    return render(request, "accounts/confirm_action.html", {
         "object": staff,
-        "type": "staff member (deactivation)",
+        "action_type": "deactivate",
+        "title_action": "Deactivation",
+        "subtitle_message": "Are you sure you want to deactivate this staff member?",
+        "warning_message": "This will block the staff member's access to the system. Their historical data will be preserved.",
+        "button_text": "Yes, Deactivate",
         "cancel_url": "accounts:staff_list"
     })
 
@@ -1604,10 +1608,14 @@ def staff_reactivate(request, pk):
 
     return render(
         request,
-        "accounts/confirm_delete.html",
+        "accounts/confirm_action.html",
         {
             "object": staff,
-            "type": "staff reactivation",
+            "action_type": "reactivate",
+            "title_action": "Reactivation",
+            "subtitle_message": f"Are you sure you want to reactivate this staff member?",
+            "warning_message": "This will restore the staff member's access to the system. They will be able to log in again.",
+            "button_text": "Yes, Reactivate",
             "cancel_url": "accounts:staff_detail",
             "cancel_url_args": {"pk": staff.pk},
         },
