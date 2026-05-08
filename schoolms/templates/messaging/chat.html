@@ -9,7 +9,7 @@
     <div class="content-card" style="overflow-y:auto;max-height:600px;">
         <h3 style="margin-bottom:.75rem;font-size:.95rem;">Conversations</h3>
         {% for conv in conversations %}
-        <a href="?conv={{ conv.id }}" style="display:flex;align-items:center;gap:.75rem;padding:.65rem .5rem;border-bottom:1px solid var(--border-color,#334155);text-decoration:none;color:var(--text-primary);{% if active_conv.id == conv.id %}background:rgba(99,102,241,.1);border-radius:.375rem;{% endif %}">
+        <a href="?conv={{ conv.id }}" style="display:flex;align-items:center;gap:.75rem;padding:.65rem .5rem;border-bottom:1px solid var(--border-color,#334155);text-decoration:none;color:#333;{% if active_conv.id == conv.id %}background:rgba(99,102,241,.1);border-radius:.375rem;{% endif %}">
             <div style="width:36px;height:36px;background:var(--primary,#6366f1);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;flex-shrink:0;">
                 {% for p in conv.participants.all %}{% if p.id != request.user.id %}{{ p.first_name|default:p.username|slice:":1"|upper }}{% endif %}{% endfor %}
             </div>
@@ -17,11 +17,11 @@
                 <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     {% for p in conv.participants.all %}{% if p.id != request.user.id %}{{ p.get_full_name|default:p.username }}{% endif %}{% endfor %}
                 </div>
-                <div style="font-size:.75rem;color:var(--text-secondary);">{{ conv.updated_at|timesince }} ago</div>
+                <div style="font-size:.75rem;color:#666;">{{ conv.updated_at|timesince }} ago</div>
             </div>
         </a>
         {% empty %}
-        <p style="text-align:center;color:var(--text-secondary);font-size:.85rem;padding:1rem;">No conversations yet.</p>
+        <p style="text-align:center;color:#666;font-size:.85rem;padding:1rem;">No conversations yet.</p>
         {% endfor %}
 
         {% if contacts %}
@@ -52,23 +52,23 @@
             {% for msg in chat_messages %}
             <div style="display:flex;justify-content:{% if msg.sender_id == request.user.id %}flex-end{% else %}flex-start{% endif %};margin-bottom:.5rem;">
                 <div style="max-width:70%;padding:.65rem .85rem;border-radius:.75rem;font-size:.875rem;
-                    {% if msg.sender_id == request.user.id %}background:var(--primary,#6366f1);color:#fff;{% else %}background:var(--bg-hover,#f3f4f6);color:var(--text-primary);{% endif %}">
+                    {% if msg.sender_id == request.user.id %}background:var(--primary,#6366f1);color:#fff;{% else %}background:var(--bg-hover,#f3f4f6);color:#333;{% endif %}">
                     <div>{{ msg.body }}</div>
                     <div style="font-size:.7rem;opacity:.7;margin-top:.2rem;">{{ msg.created_at|date:"M j, g:i A" }}</div>
                 </div>
             </div>
             {% empty %}
-            <p style="text-align:center;color:var(--text-secondary);margin-top:2rem;">No messages yet. Say hello!</p>
+            <p style="text-align:center;color:#666;margin-top:2rem;">No messages yet. Say hello!</p>
             {% endfor %}
         </div>
         <form method="post" style="margin-top:.75rem;display:flex;gap:.5rem;">
             {% csrf_token %}
-            <input type="text" name="body" placeholder="Type a message…" required autocomplete="off" style="flex:1;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.875rem;background:var(--bg-surface);color:var(--text-primary);">
+            <input type="text" name="body" placeholder="Type a message…" required autocomplete="off" style="flex:1;padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.5rem;font-size:.875rem;background:var(--bg-surface);color:#333;">
             <button type="submit" class="btn btn-primary">Send</button>
         </form>
         <script>var ca=document.getElementById('chatArea');if(ca)ca.scrollTop=ca.scrollHeight;</script>
         {% else %}
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;color:#666;">
             <div style="text-align:center;">
                 <div style="font-size:2.5rem;margin-bottom:.5rem;">💬</div>
                 <p>Select a conversation or start a new chat.</p>
