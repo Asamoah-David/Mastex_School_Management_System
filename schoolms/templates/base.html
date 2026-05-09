@@ -740,6 +740,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><span class="nav-item-icon">&#x1F464;</span><div class="nav-item-label"><span class="nav-item-title">User Management</span></div></a></li>
+                                <li><a href="{% url 'accounts:admin_reset_requests' %}" class="nav-item"><span class="nav-item-icon">&#x1F510;</span><div class="nav-item-label"><span class="nav-item-title">Password Resets</span>{% if pending_reset_requests_count %}<span class="nav-badge">{{ pending_reset_requests_count }}</span>{% endif %}</div></a></li>
                                 <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F3EB;</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
                                 <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467;</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
                                 <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>

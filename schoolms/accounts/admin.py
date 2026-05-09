@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, PasswordResetRequest
+from .models import User, PasswordResetRequest, AdminPasswordResetRequest
 from .hr_models import (
     StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment,
     LeavePolicy, LeaveBalance, PayrollRun, StaffPerformanceReview,
@@ -227,3 +227,33 @@ class StaffPerformanceReviewAdmin(admin.ModelAdmin):
     search_fields = ("staff__username", "staff__first_name", "staff__last_name", "school__name")
     raw_id_fields = ("staff", "reviewer")
     readonly_fields = ("created_at", "updated_at", "finalised_at")
+
+
+@admin.register(AdminPasswordResetRequest)
+class AdminPasswordResetRequestAdmin(admin.ModelAdmin):
+    list_display = ("user", "school", "status", "reason", "requested_at", "processed_by")
+    list_filter = ("status", "reason", "school", "requested_at")
+    search_fields = ("user__username", "user__first_name", "user__last_name", "notes")
+    raw_id_fields = ("user", "school", "processed_by")
+    readonly_fields = ("requested_at", "ip_address", "user_agent")
+    date_hierarchy = "requested_at"
+    
+    fieldsets = (
+        ("Request Information", {
+            "fields": ("user", "school", "status", "reason")
+        }),
+        ("Details", {
+            "fields": ("notes", "admin_notes")
+        }),
+        ("Tracking", {
+            "fields": ("requested_at", "processed_at", "processed_by", "ip_address", "user_agent"),
+            "classes": ("collapse",)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_super_admin:
+            return qs
+        # School admins can only see requests from their school
+        return qs.filter(school=request.user.school)

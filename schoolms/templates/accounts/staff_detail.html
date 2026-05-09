@@ -442,6 +442,9 @@
 <div class="button-row mt-sm">
     <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">Back to staff list</a>
     <a href="{% url 'accounts:reset_user_password' staff.id %}?next={% url 'accounts:staff_detail' staff.id %}" class="btn btn-warning">Reset password</a>
+    {% if not staff.email and not staff.phone %}
+        <a href="{% url 'accounts:admin_reset_request' %}" class="btn btn-info" title="Staff has no email or phone - request admin reset">Request Admin Reset</a>
+    {% endif %}
     {% if staff.is_active %}
         <a href="{% url 'accounts:staff_delete' staff.id %}" class="btn btn-danger">Deactivate</a>
     {% else %}

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Password Reset Requests{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>🔑 Password Reset Requests</h2>
+                {% if pending_count > 0 %}
+                    <span class="badge bg-warning text-dark">{{ pending_count }} pending</span>
+                {% endif %}
+            </div>
+            
+            <!-- Filter -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="status" class="form-label">Filter by Status</label>
+                            <select name="status" id="status" class="form-select">
+                                <option value="">All Requests</option>
+                                <option value="pending" {% if status_filter == "pending" %}selected{% endif %}>Pending</option>
+                                <option value="approved" {% if status_filter == "approved" %}selected{% endif %}>Approved</option>
+                                <option value="denied" {% if status_filter == "denied" %}selected{% endif %}>Denied</option>
+                                <option value="completed" {% if status_filter == "completed" %}selected{% endif %}>Completed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <button type="submit" class="btn btn-primary">Filter</button>
+                                <a href="{% url 'accounts:admin_reset_requests' %}" class="btn btn-outline-secondary">Clear</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Requests Table -->
+            <div class="card">
+                <div class="card-body">
+                    {% if requests %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Reason</th>
+                                        <th>Requested</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for req in requests %}
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold">{{ req.user.username }}</div>
+                                            <div class="text-muted small">{{ req.user.get_full_name }}</div>
+                                            <div class="text-muted small">{{ req.user.get_role_display }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ req.get_reason_display }}</span>
+                                            {% if req.notes %}
+                                                <div class="small text-muted mt-1">{{ req.notes|truncatechars:50 }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div>{{ req.requested_at|date:"M d, Y" }}</div>
+                                            <div class="small text-muted">{{ req.requested_at|time:"g:i A" }}</div>
+                                        </td>
+                                        <td>
+                                            {% if req.status == "pending" %}
+                                                <span class="badge bg-warning text-dark">Pending</span>
+                                            {% elif req.status == "approved" %}
+                                                <span class="badge bg-success">Approved</span>
+                                            {% elif req.status == "denied" %}
+                                                <span class="badge bg-danger">Denied</span>
+                                            {% else %}
+                                                <span class="badge bg-info">Completed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if req.status == "pending" %}
+                                                <a href="{% url 'accounts:admin_reset_request_approve' req.id %}" 
+                                                   class="btn btn-sm btn-primary">Review</a>
+                                            {% else %}
+                                                {% if req.processed_by %}
+                                                    <div class="small">
+                                                        by {{ req.processed_by.username }}
+                                                        <br>
+                                                        <span class="text-muted">{{ req.processed_at|date:"M d, Y g:i A" }}</span>
+                                                    </div>
+                                                {% endif %}
+                                                {% if req.admin_notes %}
+                                                    <div class="small text-muted mt-1">{{ req.admin_notes|truncatechars:30 }}</div>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        {% if page_obj.has_other_pages %}
+                            <nav aria-label="Page navigation">
+                                <ul class="pagination justify-content-center">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Previous</a>
+                                        </li>
+                                    {% endif %}
+                                    
+                                    {% for num in page_obj.paginator.page_range %}
+                                        {% if page_obj.number == num %}
+                                            <li class="page-item active">
+                                                <span class="page-link">{{ num }}</span>
+                                            </li>
+                                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Next</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <div class="text-muted">
+                                {% if status_filter %}
+                                    No {{ status_filter }} requests found.
+                                {% else %}
+                                    No password reset requests yet.
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

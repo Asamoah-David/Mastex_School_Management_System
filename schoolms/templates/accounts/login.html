@@ -46,5 +46,7 @@
 
 <div class="auth-link-row">
     <a href="{% url 'accounts:password_reset' %}">Forgot your password?</a>
+    <span style="margin: 0 0.5rem;">|</span>
+    <a href="{% url 'accounts:admin_reset_request' %}" style="font-size: 0.85rem; color: var(--text-soft);">No email or phone?</a>
 </div>
 {% endblock %}

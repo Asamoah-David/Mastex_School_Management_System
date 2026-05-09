@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.urls import reverse
 
-from accounts.models import STAFF_ROLES, User
+from accounts.models import STAFF_ROLES, User, AdminPasswordResetRequest
 from accounts.hr_utils import sync_expired_staff_contracts
 from accounts.hr_models import StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment
 from accounts.permissions import (
@@ -263,8 +263,8 @@ def sms_otp_reset_request(request):
             otp = get_random_string(length=6, allowed_chars="0123456789")
             cache.set(f"sms_otp_{phone}", otp, timeout=300)
             try:
-                from services.sms_service import send_sms
-                send_sms(phone, f"Your Mastex password reset code is: {otp}. It expires in 5 minutes.")
+                from services.sms_service import SMSService
+                SMSService.send_sms(phone, f"Your Mastex password reset code is: {otp}. It expires in 5 minutes.")
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.info(f"SMS OTP sent successfully to {phone}")
@@ -321,6 +321,69 @@ def sms_otp_reset_confirm(request):
         messages.success(request, "Password reset successful. Please log in.")
         return redirect("accounts:login")
     return render(request, "registration/sms_otp_reset_confirm.html")
+
+
+def admin_reset_request(request):
+    """Handle admin password reset requests for users without email/phone."""
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        reason = request.POST.get("reason", "no_contact")
+        notes = request.POST.get("notes", "").strip()
+        
+        # Validate username
+        if not username:
+            messages.error(request, "Username is required.")
+            return render(request, "registration/admin_reset_request.html")
+        
+        # Rate limiting - check recent requests from this IP
+        ip_address = request.META.get('REMOTE_ADDR')
+        if ip_address and AdminPasswordResetRequest.recent_count_for_ip(ip_address, 60) >= 3:
+            messages.error(request, "Too many requests. Please wait before trying again.")
+            return render(request, "registration/admin_reset_request.html")
+        
+        # Find user
+        user = User.objects.filter(username=username, is_active=True).first()
+        if not user:
+            messages.error(request, "Username not found.")
+            return render(request, "registration/admin_reset_request.html")
+        
+        # Rate limiting - check recent requests from this user
+        if AdminPasswordResetRequest.recent_count_for_user(user.id, 60) >= 2:
+            messages.error(request, "Too many requests. Please wait before trying again.")
+            return render(request, "registration/admin_reset_request.html")
+        
+        # Check if user has email or phone (they should use regular reset instead)
+        if user.email or user.phone:
+            messages.warning(request, "This account has email or phone number. Please use the regular password reset methods.")
+            return render(request, "registration/admin_reset_request.html")
+        
+        # Create the reset request
+        try:
+            reset_request = AdminPasswordResetRequest.objects.create(
+                user=user,
+                school=user.school,
+                reason=reason,
+                notes=notes,
+                ip_address=ip_address,
+                user_agent=request.META.get('HTTP_USER_AGENT', '')[:500]
+            )
+            
+            # Log the request
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Admin password reset request created: {username} ({user.school.name})")
+            
+            messages.success(request, "Your request has been submitted. A school administrator will review it and contact you.")
+            return redirect("accounts:login")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to create admin reset request for {username}: {str(e)}")
+            messages.error(request, "Failed to submit request. Please try again.")
+            return render(request, "registration/admin_reset_request.html")
+    
+    return render(request, "registration/admin_reset_request.html")
 
 
 def login_view(request):
@@ -1085,6 +1148,7 @@ def school_dashboard(request):
         "subject_perf_chart": subject_perf_chart,
         "recent_notifications": recent_notifications,
         "unread_notification_count": unread_notification_count,
+        "pending_reset_requests_count": AdminPasswordResetRequest.objects.filter(school=school, status="pending").count(),
         "quick_actions": quick_actions,
         "onboarding_checklist": onboarding_checklist,
         "show_onboarding_card": show_onboarding_card,
@@ -2137,5 +2201,117 @@ def global_search(request):
         "q": q,
         "results": results,
         "total": total,
+        "school": school,
+    })
+
+
+def admin_reset_requests(request):
+    """View for school admins to manage password reset requests."""
+    if not _user_is_school_admin(request):
+        messages.error(request, "You don't have permission to manage password reset requests.")
+        return redirect("accounts:school_dashboard")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    # Get filter parameters
+    status_filter = request.GET.get("status", "")
+    
+    # Build query
+    requests_query = AdminPasswordResetRequest.objects.filter(school=school)
+    
+    if status_filter:
+        requests_query = requests_query.filter(status=status_filter)
+    
+    # Order by most recent
+    requests_query = requests_query.order_by("-requested_at")
+    
+    # Pagination
+    from core.utils import paginate
+    page_obj = paginate(request, requests_query, per_page=20)
+    
+    context = {
+        "requests": page_obj,
+        "status_filter": status_filter,
+        "school": school,
+        "pending_count": AdminPasswordResetRequest.objects.filter(school=school, status="pending").count(),
+    }
+    
+    return render(request, "accounts/admin_reset_requests.html", context)
+
+
+def admin_reset_request_approve(request, request_id):
+    """Approve an admin password reset request."""
+    if not _user_is_school_admin(request):
+        messages.error(request, "You don't have permission to approve password reset requests.")
+        return redirect("accounts:school_dashboard")
+    
+    school = getattr(request.user, "school", None)
+    if not school:
+        return redirect("home")
+    
+    reset_request = get_object_or_404(
+        AdminPasswordResetRequest, 
+        id=request_id, 
+        school=school, 
+        status="pending"
+    )
+    
+    if request.method == "POST":
+        action = request.POST.get("action")
+        admin_notes = request.POST.get("admin_notes", "").strip()
+        
+        if action == "approve":
+            # Generate temporary password
+            import secrets
+            import string
+            temp_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
+            
+            # Set user's password
+            reset_request.user.set_password(temp_password)
+            reset_request.user.must_change_password = True
+            reset_request.user.save(update_fields=["password", "must_change_password"])
+            
+            # Update request
+            reset_request.status = "approved"
+            reset_request.processed_at = timezone.now()
+            reset_request.processed_by = request.user
+            reset_request.admin_notes = admin_notes
+            reset_request.save(update_fields=["status", "processed_at", "processed_by", "admin_notes"])
+            
+            # Log the action
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Admin password reset request approved: {reset_request.user.username} by {request.user.username}")
+            
+            messages.success(
+                request, 
+                f"Request approved. Temporary password for {reset_request.user.username}: {temp_password}. "
+                "The user must change this password on next login."
+            )
+            
+        elif action == "deny":
+            # Update request
+            reset_request.status = "denied"
+            reset_request.processed_at = timezone.now()
+            reset_request.processed_by = request.user
+            reset_request.admin_notes = admin_notes
+            reset_request.save(update_fields=["status", "processed_at", "processed_by", "admin_notes"])
+            
+            # Log the action
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Admin password reset request denied: {reset_request.user.username} by {request.user.username}")
+            
+            messages.success(request, f"Request denied for {reset_request.user.username}.")
+        
+        else:
+            messages.error(request, "Invalid action.")
+        
+        return redirect("accounts:admin_reset_requests")
+    
+    return render(request, "accounts/admin_reset_request_approve.html", {
+        "reset_request": reset_request,
         "school": school,
     })

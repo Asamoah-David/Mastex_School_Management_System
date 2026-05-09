@@ -407,5 +407,74 @@ class UserSecondaryRole(models.Model):
             raise ValidationError({"role": "Secondary role cannot duplicate the user's primary role."})
 
 
+class AdminPasswordResetRequest(models.Model):
+    """Track admin password reset requests for users without email/phone."""
+    
+    REQUEST_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('denied', 'Denied'),
+        ('completed', 'Completed'),
+    ]
+    
+    REQUEST_REASON_CHOICES = [
+        ('no_contact', 'No email or phone number'),
+        ('lost_access', 'Lost access to email/phone'),
+        ('technical_issue', 'Technical issue with reset'),
+        ('other', 'Other reason'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='admin_reset_requests')
+    school = models.ForeignKey('schools.School', on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=REQUEST_STATUS_CHOICES, default='pending')
+    reason = models.CharField(max_length=30, choices=REQUEST_REASON_CHOICES, default='no_contact')
+    notes = models.TextField(blank=True, help_text='Additional details about the reset request')
+    
+    # Tracking fields
+    requested_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    processed_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='processed_reset_requests',
+        help_text='Admin who processed this request'
+    )
+    admin_notes = models.TextField(blank=True, help_text='Admin notes about the decision')
+    
+    # Request metadata
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name = "Admin Password Reset Request"
+        verbose_name_plural = "Admin Password Reset Requests"
+        ordering = ['-requested_at']
+        indexes = [
+            models.Index(fields=['school', 'status'], name='idx_school_status'),
+            models.Index(fields=['requested_at'], name='idx_requested_at'),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.status} ({self.requested_at.date()})"
+    
+    @classmethod
+    def recent_count_for_user(cls, user_id: int, window_minutes: int = 60) -> int:
+        """How many reset requests have been made by this user in the last N minutes."""
+        from django.utils import timezone
+        from datetime import timedelta
+        since = timezone.now() - timedelta(minutes=window_minutes)
+        return cls.objects.filter(user_id=user_id, requested_at__gte=since).count()
+    
+    @classmethod
+    def recent_count_for_ip(cls, ip: str, window_minutes: int = 60) -> int:
+        """How many reset requests have been made from this IP in the last N minutes."""
+        from django.utils import timezone
+        from datetime import timedelta
+        since = timezone.now() - timedelta(minutes=window_minutes)
+        return cls.objects.filter(ip_address=ip, requested_at__gte=since).count()
+
+
 # Staff HR (contracts, role audit, teaching allocation, payroll) — see hr_models.py
 from .hr_models import StaffContract, StaffPayrollPayment, StaffRoleChangeLog, StaffTeachingAssignment  # noqa: E402,F401

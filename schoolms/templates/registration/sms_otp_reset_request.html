@@ -14,7 +14,8 @@
         <button type="submit" class="btn btn-primary" style="width:100%;">Send OTP</button>
     </form>
     <p style="margin-top:1.5rem;text-align:center;font-size:0.85rem;">
-        <a href="{% url 'accounts:password_reset' %}">Reset via email instead</a> &nbsp;|&nbsp;
+        <a href="{% url 'accounts:password_reset' %}">Reset via email</a> &nbsp;|&nbsp;
+        <a href="{% url 'accounts:admin_reset_request' %}">Request Admin Reset</a> &nbsp;|&nbsp;
         <a href="{% url 'accounts:login' %}">Back to login</a>
     </p>
 </div>

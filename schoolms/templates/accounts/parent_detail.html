@@ -9,6 +9,9 @@
 <div class="button-row mb-sm">
     <a href="{% url 'accounts:parent_edit' parent.id %}" class="btn btn-warning">✏️ Edit</a>
     <a href="{% url 'accounts:reset_user_password' parent.id %}?next={% url 'accounts:parent_detail' parent.id %}" class="btn btn-warning">🔑 Reset Password</a>
+    {% if not parent.email and not parent.phone %}
+        <a href="{% url 'accounts:admin_reset_request' %}" class="btn btn-info" title="Parent has no email or phone - request admin reset">Request Admin Reset</a>
+    {% endif %}
     {% if parent.is_active %}
         <a href="{% url 'accounts:parent_delete' parent.id %}" class="btn btn-danger">Deactivate</a>
     {% else %}

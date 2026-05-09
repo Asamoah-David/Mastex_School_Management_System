@@ -1,0 +1,60 @@
+{% extends "base_login.html" %}
+{% load static %}
+
+{% block title %}Request Admin Password Reset{% endblock %}
+
+{% block content %}
+<div class="auth-card" style="max-width:420px;margin:4rem auto;">
+    <h2 style="margin-bottom:1rem;">🔑 Request Admin Password Reset</h2>
+    {% if messages %}{% for msg in messages %}<div class="alert alert-{{ msg.tags }}">{{ msg }}</div>{% endfor %}{% endif %}
+    
+    <p style="color:var(--text-soft);margin-bottom:1.5rem;">
+        Use this option only if you don't have access to email or phone number reset. A school administrator will review your request.
+    </p>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" class="form-control" 
+                   placeholder="Enter your username" required autofocus>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="reason">Reason for Request</label>
+            <select id="reason" name="reason" class="form-control" required>
+                <option value="no_contact">No email or phone number</option>
+                <option value="lost_access">Lost access to email/phone</option>
+                <option value="technical_issue">Technical issue with reset</option>
+                <option value="other">Other reason</option>
+            </select>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1.5rem;">
+            <label for="notes">Additional Details (Optional)</label>
+            <textarea id="notes" name="notes" class="form-control" rows="3" 
+                      placeholder="Provide any additional information that might help..."></textarea>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width:100%;">Submit Request</button>
+    </form>
+    
+    <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border-light);">
+        <p style="font-size:0.85rem; color:var(--text-soft); margin-bottom:0.5rem;">
+            <strong>Important:</strong>
+        </p>
+        <ul style="font-size:0.85rem; color:var(--text-soft); margin:0; padding-left:1.2rem;">
+            <li>Requests are reviewed by school administrators</li>
+            <li>You'll be contacted when your request is processed</li>
+            <li>This should only be used when other reset methods fail</li>
+        </ul>
+    </div>
+    
+    <p style="margin-top:1.5rem;text-align:center;font-size:0.85rem;">
+        <a href="{% url 'accounts:password_reset' %}">Reset via email</a> &nbsp;|&nbsp;
+        <a href="{% url 'accounts:sms_otp_reset_request' %}">Reset via SMS</a> &nbsp;|&nbsp;
+        <a href="{% url 'accounts:login' %}">Back to login</a>
+    </p>
+</div>
+{% endblock %}

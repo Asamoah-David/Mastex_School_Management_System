@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Review Password Reset Request{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>🔑 Review Password Reset Request</h2>
+                <a href="{% url 'accounts:admin_reset_requests' %}" class="btn btn-outline-secondary">← Back to Requests</a>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-8">
+                    <!-- Request Details -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Request Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted">Username</label>
+                                        <div class="fw-bold">{{ reset_request.user.username }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted">Full Name</label>
+                                        <div>{{ reset_request.user.get_full_name|default:"Not provided" }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted">Role</label>
+                                        <div>{{ reset_request.user.get_role_display }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted">Request Reason</label>
+                                        <div><span class="badge bg-secondary">{{ reset_request.get_reason_display }}</span></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted">Requested At</label>
+                                        <div>{{ reset_request.requested_at|date:"M d, Y g:i A" }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-muted">IP Address</label>
+                                        <div>{{ reset_request.ip_address|default:"Not recorded" }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if reset_request.notes %}
+                                <div class="mb-3">
+                                    <label class="form-label text-muted">User Notes</label>
+                                    <div class="p-3 bg-light rounded">{{ reset_request.notes }}</div>
+                                </div>
+                            {% endif %}
+                            
+                            {% if reset_request.user_agent %}
+                                <div class="mb-3">
+                                    <label class="form-label text-muted">User Agent</label>
+                                    <div class="small text-muted">{{ reset_request.user_agent|truncatechars:100 }}</div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Action Form -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Take Action</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-4">
+                                    <label class="form-label">Action</label>
+                                    <div class="d-flex gap-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="action" id="approve" value="approve" required>
+                                            <label class="form-check-label" for="approve">
+                                                <strong>Approve Request</strong>
+                                                <div class="text-muted small">Generate temporary password for user</div>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="action" id="deny" value="deny" required>
+                                            <label class="form-check-label" for="deny">
+                                                <strong>Deny Request</strong>
+                                                <div class="text-muted small">Reject the password reset request</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="admin_notes" class="form-label">Admin Notes (Optional)</label>
+                                    <textarea name="admin_notes" id="admin_notes" class="form-control" rows="3" 
+                                              placeholder="Add any notes about your decision...">{{ reset_request.admin_notes }}</textarea>
+                                </div>
+                                
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">Submit Decision</button>
+                                    <a href="{% url 'accounts:admin_reset_requests' %}" class="btn btn-outline-secondary">Cancel</a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="col-md-4">
+                    <!-- User Info Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">User Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" 
+                                     style="width: 60px; height: 60px; font-size: 24px;">
+                                    {{ reset_request.user.username|first|upper }}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="small text-muted">Contact Information</div>
+                                <div>
+                                    {% if reset_request.user.email %}
+                                        📧 {{ reset_request.user.email }}
+                                    {% else %}
+                                        <span class="text-muted">No email</span>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    {% if reset_request.user.phone %}
+                                        📱 {{ reset_request.user.phone }}
+                                    {% else %}
+                                        <span class="text-muted">No phone</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="small text-muted">Account Status</div>
+                                <div>
+                                    {% if reset_request.user.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactive</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="small text-muted">Last Login</div>
+                                <div>
+                                    {% if reset_request.user.last_login %}
+                                        {{ reset_request.user.last_login|date:"M d, Y" }}
+                                    {% else %}
+                                        <span class="text-muted">Never logged in</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Important Notes -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">⚠️ Important Notes</h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="small mb-0">
+                                <li>This user has no email or phone number registered</li>
+                                <li>Approved requests will generate a temporary password</li>
+                                <li>User must change password on next login</li>
+                                <li>All actions are logged for audit purposes</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
