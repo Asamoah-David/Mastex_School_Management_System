@@ -923,6 +923,8 @@ def student_register(request):
                 messages.error(request, "That username is already taken.")
             elif email and User.objects.filter(email=email).exists():
                 messages.error(request, "That email is already in use.")
+            elif Student.objects.filter(school=school, admission_number=admission_number).exists():
+                messages.error(request, f"Student with admission number '{admission_number}' already exists in this school.")
             else:
                 chosen_class = class_name or class_selected
                 school_class_obj = SchoolClass.objects.filter(school=school, name=chosen_class).first() if chosen_class else None

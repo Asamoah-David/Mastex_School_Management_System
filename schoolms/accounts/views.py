@@ -236,6 +236,23 @@ def sms_otp_reset_request(request):
     """Step 1: user enters phone number; system sends a 6-digit OTP via SMS."""
     if request.method == "POST":
         phone = request.POST.get("phone", "").strip()
+        
+        # Validate phone number format
+        if not phone:
+            messages.error(request, "Phone number is required.")
+            return render(request, "registration/sms_otp_reset_request.html")
+        
+        # Clean phone number - remove spaces and special characters except +
+        cleaned_phone = ''.join(c for c in phone if c.isdigit() or c == '+')
+        
+        # Check if phone number has at least 10 digits
+        if len(cleaned_phone.replace('+', '')) < 10:
+            messages.error(request, "Invalid phone number format. Please use international format like +233123456789")
+            return render(request, "registration/sms_otp_reset_request.html")
+        
+        # Use cleaned phone number for further processing
+        phone = cleaned_phone
+        
         cooldown_key = f"sms_otp_cooldown_{phone}"
         if cache.get(cooldown_key):
             messages.warning(request, "Please wait 60 seconds before requesting another OTP.")
@@ -248,8 +265,21 @@ def sms_otp_reset_request(request):
             try:
                 from services.sms_service import send_sms
                 send_sms(phone, f"Your Mastex password reset code is: {otp}. It expires in 5 minutes.")
-            except Exception:
-                pass
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"SMS OTP sent successfully to {phone}")
+            except RuntimeError as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"SMS OTP failed for {phone}: {str(e)}")
+                messages.error(request, f"Failed to send SMS: {str(e)}")
+                return render(request, "registration/sms_otp_reset_request.html")
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Unexpected error sending SMS OTP to {phone}: {str(e)}")
+                messages.error(request, "Failed to send SMS. Please try again later.")
+                return render(request, "registration/sms_otp_reset_request.html")
         messages.success(request, "If that phone number is registered, you will receive an OTP shortly.")
         return redirect("accounts:sms_otp_reset_confirm")
     return render(request, "registration/sms_otp_reset_request.html")
@@ -1390,6 +1420,8 @@ def parent_register(request):
                 messages.error(request, "That username is already taken.")
             elif email and User.objects.filter(email=email).exists():
                 messages.error(request, "That email is already in use.")
+            elif phone and User.objects.filter(phone=phone).exists():
+                messages.error(request, f"Phone number '{phone}' is already registered in the system.")
             else:
                 try:
                     validate_password(
