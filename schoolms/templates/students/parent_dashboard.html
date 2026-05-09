@@ -43,7 +43,7 @@
         <div style="display:flex;align-items:center;gap:0.65rem;margin-bottom:0.5rem;">
             <div class="avatar avatar-md avatar-green">{{ child.user.first_name|truncatechars:1|upper }}</div>
             <div>
-                <div style="font-weight:600;font-size:0.9rem;color:var(--text-main);">{{ child.user.get_full_name }}</div>
+                <div style="font-weight:600;font-size:0.9rem;color:var(--text-main);">{% if child.user %}{{ child.user.get_full_name|default:child.user.username }}{% else %}Child{% endif %}</div>
                 <div class="text-xs text-muted">{{ child.class_name }} &middot; {{ child.admission_number }}</div>
             </div>
         </div>

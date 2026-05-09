@@ -43,8 +43,8 @@
             <tbody>
             {% for b in bookings %}
             <tr>
-                <td>{{ b.parent.get_full_name }}</td>
-                <td>{{ b.student.user.get_full_name }}</td>
+                <td>{% if b.parent %}{{ b.parent.get_full_name|default:b.parent.username }}{% else %}—{% endif %}</td>
+                <td>{% if b.student %}{{ b.student.user.get_full_name|default:b.student.user.username }}{% else %}—{% endif %}</td>
                 <td>{{ b.preferred_time|default:"—" }}</td>
                 <td>{{ b.topics_to_discuss|truncatechars:50 }}</td>
             </tr>

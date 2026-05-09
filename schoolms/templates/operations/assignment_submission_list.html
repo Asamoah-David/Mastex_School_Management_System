@@ -18,7 +18,7 @@
         <tbody>
         {% for sub in submissions %}
         <tr>
-            <td>{{ sub.student.user.get_full_name }}</td>
+            <td>{% if sub.student %}{{ sub.student.user.get_full_name|default:sub.student.user.username }}{% else %}—{% endif %}</td>
             <td>{{ sub.homework.title }}</td>
             <td>{% if sub.homework.subject %}{{ sub.homework.subject.name }}{% else %}N/A{% endif %}</td>
             <td>{{ sub.submitted_at|date:"M d, Y H:i" }}</td>

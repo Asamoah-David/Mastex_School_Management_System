@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="content-card">
-    <p>You are about to delete student: <strong>{{ object.user.get_full_name|default:object.user.username }}</strong></p>
+    <p>You are about to delete student: <strong>{% if object.user %}{{ object.user.get_full_name|default:object.user.username }}{% else %}Student{% endif %}</strong></p>
     <p class="text-danger">This action cannot be undone. All associated data will be permanently deleted.</p>
     
     <form method="post">

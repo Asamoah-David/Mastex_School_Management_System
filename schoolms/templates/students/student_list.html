@@ -79,7 +79,7 @@
                 <tbody>
                     {% for s in class_students %}
                     <tr>
-                        <td>{{ s.user.get_full_name|default:s.user.username }}</td>
+                        <td>{% if s %}{{ s.user.get_full_name|default:s.user.username }}{% else %}—{% endif %}</td>
                         <td>{{ s.admission_number }}</td>
                         <td>{% if s.parent %}{{ s.parent.get_full_name|default:s.parent.username }}{% else %}—{% endif %}</td>
                         <td>

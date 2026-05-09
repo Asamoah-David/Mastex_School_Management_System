@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ action }} Learning Plan · MastexEDU{% endblock %}
 {% block page_title %}{{ action }} Learning Plan{% endblock %}
-{% block page_subtitle %}{{ student.user.get_full_name }}{% endblock %}
+{% block page_subtitle %}{% if student %}{{ student.user.get_full_name|default:student.user.username }}{% else %}Student{% endif %}{% endblock %}
 {% block content %}
 <div class="card" style="max-width:640px;">
     <div class="card-header"><h3 class="card-title">{{ action }} IEP</h3></div>

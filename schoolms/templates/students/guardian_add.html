@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Link Guardian · {{ student.user.get_full_name }}{% endblock %}
+{% block title %}Link Guardian · {% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}Student{% endif %}{% endblock %}
 {% block page_title %}Link Guardian{% endblock %}
-{% block page_subtitle %}{{ student.user.get_full_name }} · {{ student.class_name|default:"—" }}{% endblock %}
+{% block page_subtitle %}{% if student.user %}{{ student.user.get_full_name|default:student.user.username }}{% else %}Student{% endif %} · {{ student.class_name|default:"—" }}{% endblock %}
 
 {% block content %}
 <div class="card" style="max-width:540px;">

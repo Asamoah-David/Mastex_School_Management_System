@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Learning Plan · {{ plan.student.user.get_full_name }}{% endblock %}
+{% block title %}Learning Plan · {% if plan.student %}{{ plan.student.user.get_full_name|default:plan.student.user.username }}{% else %}Student{% endif %}{% endblock %}
 {% block page_title %}Learning Plan{% endblock %}
-{% block page_subtitle %}{{ plan.student.user.get_full_name }} · {{ plan.get_plan_type_display }} · {{ plan.get_status_display }}{% endblock %}
+{% block page_subtitle %}{% if plan.student %}{{ plan.student.user.get_full_name|default:plan.student.user.username }}{% else %}Student{% endif %} · {{ plan.get_plan_type_display }} · {{ plan.get_status_display }}{% endblock %}
 {% block content %}
 <div class="button-row mb-sm">
     <a href="{% url 'students:learning_plan_list' %}" class="btn btn-secondary">← All Plans</a>

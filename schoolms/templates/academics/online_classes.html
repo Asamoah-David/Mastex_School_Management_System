@@ -43,7 +43,7 @@
             {% for meeting in live_meetings %}
             <tr>
                 <td><strong>{{ meeting.title }}</strong></td>
-                <td>{{ meeting.teacher.get_full_name }}</td>
+                <td>{% if meeting.teacher %}{{ meeting.teacher.get_full_name|default:meeting.teacher.username }}{% else %}N/A{% endif %}</td>
                 <td>{{ meeting.subject|default:"General" }}</td>
                 <td><a href="{% url 'academics:join_meeting' meeting.id %}" class="btn btn-success">🎥 Join Now</a></td>
             </tr>

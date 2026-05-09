@@ -20,7 +20,7 @@
             <tbody>
             {% for p in plans %}
             <tr>
-                <td><a href="{% url 'students:student_detail' p.student.id %}">{{ p.student.user.get_full_name }}</a></td>
+                <td>{% if p.student %}<a href="{% url 'students:student_detail' p.student.id %}">{{ p.student.user.get_full_name|default:p.student.user.username }}</a>{% else %}—{% endif %}</td>
                 <td>{{ p.get_plan_type_display }}</td>
                 <td>{{ p.academic_year }}</td>
                 <td><span class="badge badge-{% if p.status == 'active' %}success{% elif p.status == 'completed' %}secondary{% elif p.status == 'discontinued' %}danger{% else %}warning{% endif %}">{{ p.get_status_display }}</span></td>

@@ -13,7 +13,7 @@
             <td>{{ slot.day }}</td>
             <td>{{ slot.period_number }}</td>
             <td>{{ slot.subject.name }}</td>
-            <td>{{ slot.teacher.get_full_name|default:"N/A" }}</td>
+            <td>{% if slot.teacher %}{{ slot.teacher.get_full_name|default:slot.teacher.username }}{% else %}N/A{% endif %}</td>
             <td>{{ slot.room|default:"N/A" }}</td>
         </tr>
         {% endfor %}

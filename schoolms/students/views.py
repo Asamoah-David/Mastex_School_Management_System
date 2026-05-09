@@ -408,7 +408,7 @@ def portal(request):
                 "quiz_attempts": quiz_attempts,
             })
         except Student.DoesNotExist:
-            return render(request, "students/student_portal.html", {"student": None})
+            return render(request, "students/student_portal.html", {"student": None, "error": "Student record not found. Please contact your school administrator."})
     return redirect("home")
 
 

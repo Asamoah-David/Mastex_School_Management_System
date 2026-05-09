@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Review leave · {{ school.name }}{% endblock %}
 {% block page_title %}Review leave request{% endblock %}
-{% block page_subtitle %}{{ leave.staff.get_full_name|default:leave.staff.username }} · {{ leave.start_date|date:"M j, Y" }} – {{ leave.end_date|date:"M j, Y" }}{% endblock %}
+{% block page_subtitle %}{% if leave.staff %}{{ leave.staff.get_full_name|default:leave.staff.username }}{% else %}Staff{% endif %} · {{ leave.start_date|date:"M j, Y" }} – {{ leave.end_date|date:"M j, Y" }}{% endblock %}
 {% block content %}
 <div class="content-card" style="max-width:640px;">
     <div class="stat-row">
         <span class="stat-row-label">Staff</span>
-        <span class="stat-row-value">{{ leave.staff.get_full_name|default:leave.staff.username }}</span>
+        <span class="stat-row-value">{% if leave.staff %}{{ leave.staff.get_full_name|default:leave.staff.username }}{% else %}Staff{% endif %}</span>
     </div>
     <div class="stat-row">
         <span class="stat-row-label">Dates</span>

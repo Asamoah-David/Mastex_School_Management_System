@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Leaver clearance · {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
+{% block title %}{% if student %}Leaver clearance - {{ student.user.get_full_name|default:student.user.username }}{% else %}Leaver clearance{% endif %}{% endblock %}
 {% block page_title %}Leaver clearance{% endblock %}
-{% block page_subtitle %}{{ student.admission_number }} · {{ student.class_name|default:"—" }}{% endblock %}
+{% block page_subtitle %}{% if student %}{{ student.admission_number }} · {{ student.class_name|default:"—" }}{% else %}Student Record Not Found{% endif %}{% endblock %}
 
 {% block content %}
+{% if student %}
 <div class="content-card" style="max-width: 640px;">
     <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1rem;">
         Tick each area when cleared. <strong>Student exit</strong> is blocked until all items are checked, unless school leadership uses the override on the exit form.
@@ -46,4 +47,12 @@
     <p style="margin-top: 1rem; font-size: 0.85rem; color: #fbbf24;">Clearance incomplete — exit will redirect here until done or leadership overrides.</p>
     {% endif %}
 </div>
+{% else %}
+<div class="alert alert-warning">
+    <span class="alert-icon">&#x26A0;</span>
+    <div class="alert-body">
+        <strong>Student Record Not Found:</strong> The requested student record could not be found in the system.
+    </div>
+</div>
+{% endif %}
 {% endblock %}

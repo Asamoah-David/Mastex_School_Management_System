@@ -2,11 +2,18 @@
 {% load static %}
 {% block title %}My Portal - MastexEDU{% endblock %}
 {% block page_title %}My Portal{% endblock %}
-{% block page_subtitle %}Welcome, {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
+{% block page_subtitle %}{% if student %}Welcome, {{ student.user.get_full_name|default:student.user.username }}{% else %}Student Portal{% endif %}{% endblock %}
 
 {% block content %}
 
-{% if student %}
+{% if error %}
+<div class="alert alert-danger">
+    <span class="alert-icon">&#x26A0;</span>
+    <div class="alert-body">
+        <strong>Error:</strong> {{ error }}
+    </div>
+</div>
+{% elif student %}
 
 {% if announcements %}
 <div class="card" style="margin-bottom:1rem;">
@@ -392,4 +399,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+{% else %}
+<div class="alert alert-warning">
+    <span class="alert-icon">&#x26A0;</span>
+    <div class="alert-body">
+        <strong>Access Denied:</strong> You don't have a student record in the system. Please contact your school administrator.
+    </div>
+</div>
 {% endblock %}

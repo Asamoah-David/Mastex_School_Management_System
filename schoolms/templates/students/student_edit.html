@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Edit Student - {{ student.user.get_full_name|default:student.user.username }}{% endblock %}
-{% block page_title %}Edit Student{% endblock %}
-{% block page_subtitle %}{{ student.user.get_full_name|default:student.user.username }} ({{ student.admission_number }}){% endblock %}
+{% block title %}{% if student %}Edit Student - {{ student.user.get_full_name|default:student.user.username }}{% else %}Edit Student{% endif %}{% endblock %}
+{% block page_title %}{% if student %}Edit Student{% else %}Edit Student{% endif %}{% endblock %}
+{% block page_subtitle %}{% if student %}{{ student.user.get_full_name|default:student.user.username }} ({{ student.admission_number }}){% else %}Student Record Not Found{% endif %}{% endblock %}
 
 {% block content %}
+{% if student %}
 <div class="content-card">
     <form method="post">
         {% csrf_token %}
@@ -70,4 +71,12 @@
         </div>
     </form>
 </div>
+{% else %}
+<div class="alert alert-warning">
+    <span class="alert-icon">&#x26A0;</span>
+    <div class="alert-body">
+        <strong>Student Record Not Found:</strong> The requested student record could not be found in the system.
+    </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% load custom_filters %}
 
-{% block title %}{{ student.user.get_full_name|default:student.user.username }} · MastexEDU{% endblock %}
-{% block page_title %}{{ student.user.get_full_name|default:student.user.username }}{% endblock %}
-{% block page_subtitle %}Admission: {{ student.admission_number }} · Class: {{ student.class_name|default:"—" }} · Status: {{ student.get_status_display }}{% endblock %}
+{% block title %}{% if student %}{{ student.user.get_full_name|default:student.user.username }}{% else %}Student Details{% endif %} · MastexEDU{% endblock %}
+{% block page_title %}{% if student %}{{ student.user.get_full_name|default:student.user.username }}{% else %}Student Details{% endif %}{% endblock %}
+{% block page_subtitle %}{% if student %}Admission: {{ student.admission_number }} · Class: {{ student.class_name|default:"—" }} · Status: {{ student.get_status_display }}{% else %}Student Record Not Found{% endif %}{% endblock %}
 
 {% block content %}
+{% if student %}
 <!-- Action Bar -->
 <div class="button-row mb-sm">
     <a href="{% url 'academics:report_card' student.id %}" class="btn btn-primary">📄 Report Card</a>
@@ -91,7 +92,7 @@
                 <tbody>
                 {% for g in guardians %}
                 <tr>
-                    <td><a href="{% url 'accounts:parent_detail' g.guardian.pk %}">{{ g.guardian.get_full_name }}</a></td>
+                    <td><a href="{% url 'accounts:parent_detail' g.guardian.pk %}">{% if g.guardian %}{{ g.guardian.get_full_name|default:g.guardian.username }}{% else %}Guardian{% endif %}</a></td>
                     <td>{{ g.get_relationship_display }}</td>
                     <td>{{ g.guardian.phone|default:"—" }}</td>
                     <td>{% if g.is_primary %}<span class="tag tag-success">Primary</span>{% else %}—{% endif %}</td>
@@ -107,7 +108,7 @@
                 <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Portal</th></tr></thead>
                 <tbody>
                 <tr>
-                    <td>{{ student.parent.get_full_name }}</td>
+                    <td>{% if student.parent %}{{ student.parent.get_full_name|default:student.parent.username }}{% else %}—{% endif %}</td>
                     <td>{{ student.parent.phone|default:"—" }}</td>
                     <td>{{ student.parent.email|default:"—" }}</td>
                     <td>{% if student.parent.is_active %}<span class="tag tag-success">Active</span>{% else %}<span class="tag tag-danger">Disabled</span>{% endif %}</td>
@@ -294,7 +295,7 @@
                 <tbody>
                 {% for g in guardians %}
                 <tr>
-                    <td><a href="{% url 'accounts:parent_detail' g.guardian.id %}">{{ g.guardian.get_full_name }}</a></td>
+                    <td><a href="{% url 'accounts:parent_detail' g.guardian.id %}">{% if g.guardian %}{{ g.guardian.get_full_name|default:g.guardian.username }}{% else %}Guardian{% endif %}</a></td>
                     <td>{{ g.guardian.phone|default:"—" }}</td>
                     <td>{{ g.get_relationship_display }}</td>
                     <td>{% if g.is_primary %}<span class="badge badge-success">Primary</span>{% else %}—{% endif %}</td>
@@ -315,4 +316,12 @@
     </div>
 
 </div><!-- /tab-content -->
+{% else %}
+<div class="alert alert-warning">
+    <span class="alert-icon">&#x26A0;</span>
+    <div class="alert-body">
+        <strong>Student Record Not Found:</strong> The requested student record could not be found in the system.
+    </div>
+</div>
+{% endif %}
 {% endblock %}
