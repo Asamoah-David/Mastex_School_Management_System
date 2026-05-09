@@ -264,7 +264,7 @@ def sms_otp_reset_request(request):
             cache.set(f"sms_otp_{phone}", otp, timeout=300)
             try:
                 from services.sms_service import SMSService
-                SMSService.send_sms(phone, f"Your Mastex password reset code is: {otp}. It expires in 5 minutes.")
+                SMSService.send_sms(phone, f"Code: {otp}. Use within 5 minutes.")
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.info(f"SMS OTP sent successfully to {phone}")
