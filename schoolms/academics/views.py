@@ -3783,7 +3783,7 @@ def teacher_gradebook(request):
     from students.models import Student
 
     classes = sorted(set(
-        Student.objects.filter(school=school, is_active=True)
+        Student.objects.filter(school=school, status="active")
         .values_list("class_name", flat=True)
     ) - {""})
     terms = Term.objects.filter(school=school).order_by("-is_current", "-id")
