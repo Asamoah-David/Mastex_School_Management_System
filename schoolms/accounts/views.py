@@ -2229,7 +2229,8 @@ def admin_reset_requests(request):
     
     # Pagination
     from core.utils import paginate
-    page_obj = paginate(request, requests_query, per_page=20)
+    page_number = request.GET.get('page', 1)
+    page_obj, page_range = paginate(requests_query, page_number, per_page=20)
     
     context = {
         "requests": page_obj,
