@@ -1,0 +1,15 @@
+FORCE RAILWAY REDEPLOYMENT - ID CARD FIXES NOT VISIBLE
+
+All ID card fixes are confirmed in code but not visible in production.
+
+Fixes implemented:
+✅ Staff ID card photo upload (enctype="multipart/form-data")
+✅ Photo upload field in staff form  
+✅ Circular images in ID card print templates
+✅ Proper spacing (bottom: 15px) for text details
+✅ Photo handling in creation/edit views
+✅ Staff ID Cards in navigation menu
+
+Forcing Railway redeployment to clear all caches and static files.
+
+Timestamp: 2026-05-10T08:15:00Z
