@@ -12,7 +12,7 @@
         </div>
     </div>
     
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         <div class="form-grid-2">
             {% if not id_card %}
@@ -58,6 +58,19 @@
                 <input type="date" name="expiry_date" id="expiry_date" 
                        value="{{ id_card.expiry_date|date:'Y-m-d'|default:'' }}">
                 <small class="form-text">Leave empty for lifetime card</small>
+            </div>
+            
+            <!-- Staff Photo -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>📷 Staff Photo</label>
+                {% if id_card.photo %}
+                <div style="margin-bottom: 10px;">
+                    <img src="{{ id_card.photo.url }}" alt="Current Photo" style="max-width: 150px; border-radius: 8px;">
+                    <small class="form-text text-muted">Current photo</small>
+                </div>
+                {% endif %}
+                <input type="file" name="photo" id="photo" accept="image/*" class="form-control">
+                <small class="form-text text-muted">Upload a passport-size photo (JPG, PNG). Leave empty to keep current photo.</small>
             </div>
         </div>
         

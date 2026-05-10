@@ -4217,12 +4217,14 @@ def id_card_create(request):
             student = Student.objects.filter(id=student_id, school=school).first()
             if student:
                 try:
+                    photo = request.FILES.get('photo')
                     StudentIDCard.objects.create(
                         student=student,
                         school=school,
                         card_number=card_number,
                         issue_date=issue_date,
                         expiry_date=expiry_date,
+                        photo=photo,
                         created_by=request.user
                     )
                     messages.success(request, 'ID Card created successfully!')
@@ -4293,6 +4295,12 @@ def id_card_edit(request, pk):
             id_card.card_number = card_number
             id_card.issue_date = issue_date
             id_card.expiry_date = expiry_date
+            
+            # Handle photo upload
+            photo = request.FILES.get('photo')
+            if photo:
+                id_card.photo = photo
+            
             id_card.save()
             
             from django.contrib import messages
@@ -4881,6 +4889,7 @@ def staff_id_card_create(request):
             staff = User.objects.filter(id=staff_id, school=school).first()
             if staff:
                 try:
+                    photo = request.FILES.get('photo')
                     StaffIDCard.objects.create(
                         staff=staff,
                         school=school,
@@ -4888,6 +4897,7 @@ def staff_id_card_create(request):
                         position=position,
                         issue_date=issue_date,
                         expiry_date=expiry_date,
+                        photo=photo,
                         created_by=request.user
                     )
                     messages.success(request, 'Staff ID Card created successfully!')
@@ -4924,6 +4934,12 @@ def staff_id_card_edit(request, pk):
                 id_card.issue_date = issue_date
                 id_card.expiry_date = expiry_date
                 id_card.position = position
+                
+                # Handle photo upload
+                photo = request.FILES.get('photo')
+                if photo:
+                    id_card.photo = photo
+                
                 id_card.save()
                 
                 from django.contrib import messages
