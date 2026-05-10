@@ -1,0 +1,13 @@
+FORCE DEPLOYMENT - ID CARD FIXES
+
+This file forces a deployment refresh to ensure all ID card fixes are visible in production.
+
+All fixes have been verified in code:
+✅ Staff ID card photo upload (enctype="multipart/form-data")
+✅ Photo upload field in staff form
+✅ Circular images in ID card print templates
+✅ Proper spacing (bottom: 15px) for text details
+✅ Photo handling in creation/edit views
+✅ Staff ID Cards in navigation menu
+
+Deployment timestamp: 2026-05-10
