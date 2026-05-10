@@ -100,6 +100,40 @@ def log_activity(user, action, details="", school=None, request=None):
         logger.warning("Activity log failed: %s", e)
 
 
+def paginate(queryset, page_number=1, per_page=25):
+    """
+    Simple pagination utility for querysets.
+    Returns a tuple of (page_obj, page_range).
+    """
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+    
+    paginator = Paginator(queryset, per_page)
+    
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+    
+    # Generate page range
+    max_pages = 5
+    current_page = page_obj.number
+    total_pages = paginator.num_pages
+    
+    if total_pages <= max_pages:
+        page_range = range(1, total_pages + 1)
+    else:
+        if current_page <= 3:
+            page_range = range(1, max_pages + 1)
+        elif current_page >= total_pages - 2:
+            page_range = range(total_pages - max_pages + 1, total_pages + 1)
+        else:
+            page_range = range(current_page - 2, current_page + 3)
+    
+    return page_obj, page_range
+
+
 def log_view(user, model_name, object_id, object_repr, school=None, request=None):
     """
     Log a view/access action.
