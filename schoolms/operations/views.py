@@ -5008,7 +5008,7 @@ def id_card_pdf(request, pk):
     from reportlab.pdfgen import canvas
     from reportlab.lib.utils import ImageReader
     from io import BytesIO
-    from reportlab.lib.path import Path
+    from reportlab.lib.utils import simpleSplit
     from core.qr_utils import generate_student_qr_data, generate_qr_code_bytes
     
     school = _get_school(request)
@@ -5077,10 +5077,11 @@ def id_card_pdf(request, pk):
     
     if photo:
         c.saveState()
-        # Create circular clipping path
-        circle = Path()
-        circle.addCircle(photo_x + 27.5, photo_y + 27.5, 27.5)
-        c.clipPath(circle, stroke=0, fill=0)
+        # Create circular clipping using canvas path
+        c.beginPath()
+        c.circle(photo_x + 27.5, photo_y + 27.5, 27.5)
+        c.clipPath()
+        c.closePath()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
@@ -5161,7 +5162,6 @@ def staff_id_card_pdf(request, pk):
     from reportlab.pdfgen import canvas
     from reportlab.lib.utils import ImageReader
     from io import BytesIO
-    from reportlab.lib.path import Path
     from core.qr_utils import generate_staff_qr_data, generate_qr_code_bytes
     
     school = _get_school(request)
@@ -5233,10 +5233,11 @@ def staff_id_card_pdf(request, pk):
     
     if photo:
         c.saveState()
-        # Create circular clipping path
-        circle = Path()
-        circle.addCircle(photo_x + 27.5, photo_y + 27.5, 27.5)
-        c.clipPath(circle, stroke=0, fill=0)
+        # Create circular clipping using canvas path
+        c.beginPath()
+        c.circle(photo_x + 27.5, photo_y + 27.5, 27.5)
+        c.clipPath()
+        c.closePath()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
