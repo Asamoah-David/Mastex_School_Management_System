@@ -5008,7 +5008,6 @@ def id_card_pdf(request, pk):
     from reportlab.pdfgen import canvas
     from reportlab.lib.utils import ImageReader
     from io import BytesIO
-    from reportlab.lib.path import Path
     from core.qr_utils import generate_student_qr_data, generate_qr_code_bytes
     
     school = _get_school(request)
@@ -5077,10 +5076,7 @@ def id_card_pdf(request, pk):
     
     if photo:
         c.saveState()
-        # Create circular clipping path
-        circle = Path()
-        circle.addCircle(photo_x + 27.5, photo_y + 27.5, 27.5)
-        c.clipPath(circle, stroke=0, fill=0)
+        c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
@@ -5097,9 +5093,9 @@ def id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 11)
     c.drawString(card_x + 85, card_y + card_height - 40, "STUDENT ID CARD")
     
-    # Student info section - LEFT BOTTOM corner (moved down)
+    # Student info section - LEFT BOTTOM corner
     info_x = card_x + 15
-    info_y = card_y + 15
+    info_y = card_y + 40
     
     # Student name
     c.setFillColor(colors.black)
@@ -5161,7 +5157,6 @@ def staff_id_card_pdf(request, pk):
     from reportlab.pdfgen import canvas
     from reportlab.lib.utils import ImageReader
     from io import BytesIO
-    from reportlab.lib.path import Path
     from core.qr_utils import generate_staff_qr_data, generate_qr_code_bytes
     
     school = _get_school(request)
@@ -5233,10 +5228,7 @@ def staff_id_card_pdf(request, pk):
     
     if photo:
         c.saveState()
-        # Create circular clipping path
-        circle = Path()
-        circle.addCircle(photo_x + 27.5, photo_y + 27.5, 27.5)
-        c.clipPath(circle, stroke=0, fill=0)
+        c.ellipse(photo_x, photo_y, photo_x + photo_size, photo_y + photo_size, stroke=1, fill=0)
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
     else:
@@ -5253,9 +5245,9 @@ def staff_id_card_pdf(request, pk):
     c.setFont("Helvetica-Bold", 11)
     c.drawString(card_x + 85, card_y + card_height - 40, "STAFF ID CARD")
     
-    # Staff info section - LEFT BOTTOM corner (moved down)
+    # Staff info section - LEFT BOTTOM corner
     info_x = card_x + 15
-    info_y = card_y + 15
+    info_y = card_y + 40
     
     # Staff name
     c.setFillColor(colors.black)
