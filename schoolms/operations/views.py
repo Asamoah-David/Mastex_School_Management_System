@@ -5081,7 +5081,7 @@ def id_card_pdf(request, pk):
         path = c.beginPath()
         path.circle(photo_x + 27.5, photo_y + 27.5, 27.5)
         c.clipPath(path)
-        c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
+        c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=False, mask='auto')
         c.restoreState()
     else:
         c.setStrokeColor(colors.lightgrey)
@@ -5236,7 +5236,7 @@ def staff_id_card_pdf(request, pk):
         path = c.beginPath()
         path.circle(photo_x + 27.5, photo_y + 27.5, 27.5)
         c.clipPath(path)
-        c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
+        c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=False, mask='auto')
         c.restoreState()
     else:
         c.setStrokeColor(colors.lightgrey)
