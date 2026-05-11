@@ -5080,7 +5080,7 @@ def id_card_pdf(request, pk):
         # Create circular clipping using canvas path
         c.beginPath()
         c.circle(photo_x + 27.5, photo_y + 27.5, 27.5)
-        c.clipPath()
+        c.clipPath(c.path())
         c.closePath()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
@@ -5236,7 +5236,7 @@ def staff_id_card_pdf(request, pk):
         # Create circular clipping using canvas path
         c.beginPath()
         c.circle(photo_x + 27.5, photo_y + 27.5, 27.5)
-        c.clipPath()
+        c.clipPath(c.path())
         c.closePath()
         c.drawImage(photo, photo_x, photo_y, width=photo_size, height=photo_size, preserveAspectRatio=True, mask='auto')
         c.restoreState()
