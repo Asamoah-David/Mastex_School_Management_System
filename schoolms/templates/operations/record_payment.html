@@ -103,7 +103,7 @@
                             <select name="textbook" id="textbook" class="form-select searchable-select" data-placeholder="Search for a textbook...">
                                 <option value="">Select Textbook</option>
                                 {% for tb in textbooks %}
-                                <option value="{{ tb.id }}" data-price="{{ tb.price }}">{{ tb.title }} — GHS {{ tb.price }} ({{ tb.stock }} in stock)</option>
+                                <option value="{{ tb.id }}" data-price="{{ tb.price }}">{{ tb.title }} - GHS {{ tb.price }} ({{ tb.stock }} in stock)</option>
                                 {% empty %}
                                 <option value="" disabled>No textbooks in stock</option>
                                 {% endfor %}
@@ -125,8 +125,8 @@
                 <div id="school-fee-fields" style="display: none;">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="student_id" class="form-label">Student</label>
-                            <select name="student_id" id="student_id" class="form-select searchable-select" data-placeholder="Search for a student..." required>
+                            <label for="school-fee-student-id" class="form-label">Student</label>
+                            <select name="school_fee_student_id" id="school-fee-student-id" class="form-select searchable-select" data-placeholder="Search for a student..." required>
                                 <option value="">Select Student</option>
                                 {% for student in students %}
                                 <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
@@ -136,13 +136,13 @@
                         <div class="col-md-6 mb-3">
                             <label for="fee_id" class="form-label">Fee</label>
                             <input type="text" name="fee_id" id="fee_id" class="form-control" placeholder="Enter Fee ID" required>
-                            <small class="form-text">Enter the fee ID from the student's fee record</small>
+                            <small class="form-text">Enter the fee ID from student's fee record</small>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="school-fee-amount" class="form-label">Amount (GHS)</label>
-                            <input type="number" step="0.01" name="amount" id="school-fee-amount" class="form-control" placeholder="0.00" required>
+                            <input type="number" step="0.01" name="school_fee_amount" id="school-fee-amount" class="form-control" placeholder="0.00" required>
                         </div>
                     </div>
                 </div>

@@ -1498,9 +1498,9 @@ def record_payment(request):
 
         else:
             # ── Legacy school-fee path (fee_id + student_id via hidden fields) ──
-            student_id = request.POST.get('student_id')
+            student_id = request.POST.get('school_fee_student_id')
             fee_id = request.POST.get('fee_id')
-            amount = request.POST.get('amount')
+            amount = request.POST.get('school_fee_amount')
             try:
                 student = Student.objects.get(id=student_id, school=school)
                 fee = Fee.objects.get(id=fee_id, student=student)
