@@ -1369,6 +1369,13 @@ def record_payment(request):
     """Manually record a cash/offline payment for a student."""
     from finance.models import Fee, FeePayment
 
+    # DEBUG: Log request method and POST data
+    print(f"DEBUG: request.method = {request.method}")
+    if request.method == 'POST':
+        print(f"DEBUG: POST data = {dict(request.POST)}")
+    else:
+        print(f"DEBUG: GET request to record_payment")
+
     school = getattr(request.user, 'school', None)
     if not school:
         messages.error(request, "School not found")

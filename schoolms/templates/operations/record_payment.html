@@ -148,7 +148,7 @@
                 </div>
 
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" onclick="console.log('DEBUG: Record Payment button clicked')">
                         <i class="bi bi-check-circle"></i> Record Payment
                     </button>
                 </div>
@@ -158,6 +158,17 @@
 </div>
 
 <script>
+// DEBUG: Form submission detection
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form[method="post"]');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('DEBUG: Form submission detected');
+            console.log('DEBUG: Form data:', new FormData(form));
+        });
+    }
+});
+
 function toggleFields() {
     var type = document.getElementById('payment_type').value;
     document.getElementById('canteen-fields').style.display = 'none';
