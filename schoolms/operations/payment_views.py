@@ -1390,7 +1390,8 @@ def record_payment(request):
                 daily_units = int(request.POST.get('daily_units', '0')) if payment_frequency == 'daily' else 0
                 
                 if payment_frequency == 'daily' and daily_units <= 0:
-                    return JsonResponse({'success': False, 'error': 'Enter number of days for daily payment.'}, status=400)
+                    messages.error(request, 'Enter number of days for daily payment.')
+                    return redirect('operations:record_payment')
             elif payment_type == 'textbook':
                 amount_str = request.POST.get('textbook_amount', '0')
             else:
