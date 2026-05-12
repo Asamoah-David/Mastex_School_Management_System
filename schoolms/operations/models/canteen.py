@@ -1,4 +1,5 @@
 from django.db import models
+from decimal import Decimal
 from accounts.models import User
 from students.models import Student
 from schools.models import School
@@ -26,6 +27,13 @@ class CanteenItem(models.Model):
 
 
 class CanteenPayment(models.Model):
+    PAYMENT_FREQUENCY_CHOICES = [
+        ('single', 'Single Payment'),
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('term', 'Per Term'),
+    ]
+    
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -34,6 +42,20 @@ class CanteenPayment(models.Model):
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="canteen_payments_recorded")
     payment_reference = models.CharField(max_length=100, blank=True)  # Paystack reference
     payment_status = models.CharField(max_length=20, default='pending')  # pending, completed, failed
+    
+    # NEW FIELDS for daily/partial payments
+    payment_frequency = models.CharField(max_length=10, choices=PAYMENT_FREQUENCY_CHOICES, default='single')
+    daily_units = models.PositiveIntegerField(
+        default=0,
+        help_text="For daily frequency: number of days covered by this payment."
+    )
+    amount_paid = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=Decimal("0"),
+        help_text="Running total of partial payments credited so far."
+    )
+    payment_history = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["-payment_date"]
@@ -64,6 +86,49 @@ class CanteenPayment(models.Model):
         super().clean()
         if self.student_id and self.school_id and getattr(self.student, "school_id", None) != self.school_id:
             raise ValidationError({"student": "Student must belong to the same school as the payment."})
+
+    @property
+    def balance(self):
+        return max(self.amount - (self.amount_paid or Decimal("0")), Decimal("0"))
+
+    @property
+    def payment_status_display(self):
+        if self.paid:
+            return "Paid"
+        if (self.amount_paid or Decimal("0")) > 0:
+            return f"Partial ({self.amount_paid}/{self.amount})"
+        return "Unpaid"
+
+    def add_payment(self, amount, payment_reference=None, recorded_by=None):
+        """Atomically record a (partial) canteen payment."""
+        from django.utils import timezone
+        from decimal import Decimal
+        from django.db import transaction
+        
+        amt = Decimal(str(amount or 0))
+        if amt <= 0:
+            return False
+        with transaction.atomic():
+            cp = CanteenPayment.objects.select_for_update().get(pk=self.pk)
+            cp.amount_paid = (cp.amount_paid or Decimal("0")) + amt
+            if payment_reference and not cp.payment_reference:
+                cp.payment_reference = payment_reference
+            cp.payment_date = timezone.now().date()
+            record = {"amount": str(amt), "date": str(cp.payment_date), "reference": payment_reference or ""}
+            if cp.payment_history is None:
+                cp.payment_history = []
+            cp.payment_history.append(record)
+            
+            if cp.amount_paid >= (cp.amount or Decimal("0")):
+                cp.paid = True
+                cp.payment_status = "completed"
+            elif cp.amount_paid > 0:
+                cp.payment_status = "partial"
+            cp.save(update_fields=[
+                "amount_paid", "payment_reference", "payment_date",
+                "payment_history", "paid", "payment_status",
+            ])
+            return True
 
     def save(self, *args, **kwargs):
         self.full_clean()

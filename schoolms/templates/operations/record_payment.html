@@ -28,6 +28,7 @@
                             <option value="canteen">Canteen</option>
                             <option value="bus">Bus Fee</option>
                             <option value="textbook">Textbook</option>
+                            <option value="school_fee">School Fees</option>
                         </select>
                     </div>
 
@@ -54,11 +55,26 @@
                 <!-- Canteen Fields -->
                 <div id="canteen-fields" style="display: none;">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="amount" class="form-label">Amount (GHS)</label>
-                            <input type="number" step="0.01" name="amount" id="amount" class="form-control" placeholder="0.00">
+                        <div class="col-md-4 mb-3">
+                            <label for="canteen-amount" class="form-label">Amount (GHS)</label>
+                            <input type="number" step="0.01" name="canteen_amount" id="canteen-amount" class="form-control" placeholder="0.00">
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label for="payment-frequency" class="form-label">Payment Frequency</label>
+                            <select name="payment_frequency" id="payment-frequency" class="form-select" onchange="toggleDailyUnits()">
+                                <option value="single">Single Payment</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="term">Per Term</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3" id="daily-units-field" style="display: none;">
+                            <label for="daily_units" class="form-label">Number of Days</label>
+                            <input type="number" name="daily_units" id="daily_units" class="form-control" value="1" min="1">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
                             <label for="description" class="form-label">Description</label>
                             <input type="text" name="description" id="description" class="form-control" placeholder="e.g., Lunch, Snack">
                         </div>
@@ -100,6 +116,33 @@
                         <div class="col-md-3 mb-3">
                             <label class="form-label">Total</label>
                             <p id="textbook-total" class="form-control-plaintext fw-bold">GHS —</p>
+                            <input type="hidden" name="textbook_amount" id="textbook-amount" value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- School Fees Fields -->
+                <div id="school-fee-fields" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="student_id" class="form-label">Student</label>
+                            <select name="student_id" id="student_id" class="form-select searchable-select" data-placeholder="Search for a student..." required>
+                                <option value="">Select Student</option>
+                                {% for student in students %}
+                                <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="fee_id" class="form-label">Fee</label>
+                            <input type="text" name="fee_id" id="fee_id" class="form-control" placeholder="Enter Fee ID" required>
+                            <small class="form-text">Enter the fee ID from the student's fee record</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="school-fee-amount" class="form-label">Amount (GHS)</label>
+                            <input type="number" step="0.01" name="amount" id="school-fee-amount" class="form-control" placeholder="0.00" required>
                         </div>
                     </div>
                 </div>
@@ -120,6 +163,7 @@ function toggleFields() {
     document.getElementById('canteen-fields').style.display = 'none';
     document.getElementById('bus-fields').style.display = 'none';
     document.getElementById('textbook-fields').style.display = 'none';
+    document.getElementById('school-fee-fields').style.display = 'none';
     if (type === 'canteen') {
         document.getElementById('canteen-fields').style.display = 'block';
     } else if (type === 'bus') {
@@ -127,6 +171,8 @@ function toggleFields() {
     } else if (type === 'textbook') {
         document.getElementById('textbook-fields').style.display = 'block';
         updateTextbookTotal();
+    } else if (type === 'school_fee') {
+        document.getElementById('school-fee-fields').style.display = 'block';
     }
 }
 
@@ -136,8 +182,25 @@ function updateTextbookTotal() {
     var opt = sel && sel.options[sel.selectedIndex];
     var price = opt ? parseFloat(opt.getAttribute('data-price') || '0') : 0;
     var total = document.getElementById('textbook-total');
+    var amountField = document.getElementById('textbook-amount');
+    var totalAmount = price * qty;
     if (total) {
-        total.textContent = price > 0 ? 'GHS ' + (price * qty).toFixed(2) : 'GHS —';
+        total.textContent = price > 0 ? 'GHS ' + totalAmount.toFixed(2) : 'GHS —';
+    }
+    if (amountField) {
+        amountField.value = totalAmount.toFixed(2);
+    }
+}
+
+function toggleDailyUnits() {
+    var freq = document.getElementById('payment-frequency');
+    var dailyUnitsField = document.getElementById('daily-units-field');
+    if (freq && dailyUnitsField) {
+        if (freq.value === 'daily') {
+            dailyUnitsField.style.display = 'block';
+        } else {
+            dailyUnitsField.style.display = 'none';
+        }
     }
 }
 

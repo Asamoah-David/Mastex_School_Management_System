@@ -1384,7 +1384,17 @@ def record_payment(request):
         if payment_type in ('canteen', 'bus', 'textbook'):
             # ── Services cash recording path ─────────────────────────────────
             student_id = request.POST.get('student')
-            amount_str = request.POST.get('amount', '0')
+            if payment_type == 'canteen':
+                amount_str = request.POST.get('canteen_amount', '0')
+                payment_frequency = request.POST.get('payment_frequency', 'single')
+                daily_units = int(request.POST.get('daily_units', '0')) if payment_frequency == 'daily' else 0
+                
+                if payment_frequency == 'daily' and daily_units <= 0:
+                    return JsonResponse({'success': False, 'error': 'Enter number of days for daily payment.'}, status=400)
+            elif payment_type == 'textbook':
+                amount_str = request.POST.get('textbook_amount', '0')
+            else:
+                amount_str = request.POST.get('amount', '0')
             try:
                 student = Student.objects.get(id=student_id, school=school)
                 amount_decimal = Decimal(str(amount_str)).quantize(Decimal('0.01'))
@@ -1409,6 +1419,8 @@ def record_payment(request):
                         payment_reference=reference,
                         payment_status='completed',
                         recorded_by=request.user,
+                        payment_frequency=payment_frequency,
+                        daily_units=daily_units,
                     )
                     record_payment_transaction(
                         provider='manual',
