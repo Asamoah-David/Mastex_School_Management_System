@@ -48,6 +48,17 @@ from operations.services.portal_payments import (
 )
 from payments.services.ledger import record_payment_transaction, PaymentTypes
 
+
+def _payment_history_sort_dt(val):
+    """Coerce mixed date/datetime fields to an aware datetime for stable sorting."""
+    if val is None:
+        return timezone.now()
+    if isinstance(val, datetime):
+        return val if timezone.is_aware(val) else timezone.make_aware(val)
+    if isinstance(val, date):
+        return timezone.make_aware(datetime.combine(val, time.min))
+    return timezone.now()
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -1448,8 +1459,8 @@ def student_payment_history(request, student_id):
             'date': sale.sale_date,
         })
     
-    # Sort by date (handle None dates)
-    all_payments.sort(key=lambda x: x['date'] or timezone.now().date(), reverse=True)
+    # Sort by date (FeePayment uses datetime; canteen/bus/textbook often use date only)
+    all_payments.sort(key=lambda x: _payment_history_sort_dt(x["date"]), reverse=True)
     
     # Calculate totals
     total_paid = sum(p['amount'] for p in all_payments if p['status'] == 'completed')

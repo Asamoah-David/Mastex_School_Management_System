@@ -30,7 +30,8 @@
                         {% if user.is_superuser or school and is_school_leadership %}
                         <a href="{% url 'finance:fee_structure_edit' s.pk %}" class="btn btn-sm btn-warning">✏️ Edit</a>
                         <a href="{% url 'finance:fee_structure_delete' s.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this fee structure?');">🗑️ Delete</a>
-                        <a href="{% url 'finance:generate_fees' s.pk %}" class="btn btn-sm btn-success" onclick="return confirm('Generate fees for all students in this class?');">📋 Generate Fees</a>
+                        <a href="{% url 'finance:fee_structure_coverage' s.pk %}" class="btn btn-sm btn-secondary">Who is missing?</a>
+                        <a href="{% url 'finance:generate_fees' s.pk %}" class="btn btn-sm btn-success" onclick="return confirm('Create fee rows for active students who match this structure and do not already have this fee? (Safe to run again after late enrolments — existing rows are skipped.)');">📋 Generate Fees</a>
                         {% endif %}
                     </td>
                 </tr>

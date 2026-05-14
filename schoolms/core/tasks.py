@@ -447,13 +447,25 @@ def generate_fees_from_structures(self, term_id: int):
         from academics.models import Term
         from finance.models import Fee, FeeStructure
         from students.models import Student
+        from django.db.models import Q
+
         term = Term.objects.select_related("school").get(pk=term_id)
         school = term.school
-        structures = FeeStructure.objects.filter(school=school, is_active=True)
-        students = Student.objects.filter(school=school, status="active").only("id")
+        # Only structures for this term or not term-locked (matches manual generate behaviour).
+        structures = FeeStructure.objects.filter(
+            school=school,
+            is_active=True,
+        ).filter(Q(term_fk__isnull=True) | Q(term_fk=term))
+        base_students = Student.objects.filter(school=school, status="active")
         created = 0
         for structure in structures:
-            for student in students:
+            if structure.school_class_id:
+                student_qs = base_students.filter(school_class_id=structure.school_class_id)
+            elif structure.class_name:
+                student_qs = base_students.filter(class_name=structure.class_name)
+            else:
+                student_qs = base_students
+            for student in student_qs.only("id").iterator():
                 _, was_created = Fee.objects.get_or_create(
                     school=school,
                     student=student,

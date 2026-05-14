@@ -28,24 +28,58 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <style>
-        /* Select2 dark theme overrides */
+        /* Select2 — opaque panel + type-to-search defaults (see DOMContentLoaded init) */
+        .select2-container { z-index: 1080; }
         .select2-container--default .select2-selection--single {
-            background: var(--surface-input, rgba(15, 23, 42, 0.9));
+            background: var(--surface-input, rgba(15, 23, 42, 0.96)) !important;
             border: 1px solid var(--border-default, rgba(148, 163, 184, 0.4));
             border-radius: var(--radius-md, 0.5rem);
             padding: 0.5rem;
+            min-height: 2.65rem;
+            display: flex;
+            align-items: center;
         }
-        .select2-container--default .select2-selection__rendered { color: var(--text-main); }
+        .select2-container--default .select2-selection__rendered { color: var(--text-main); line-height: 1.35; }
+        .select2-container--default .select2-selection__arrow { height: 100%; }
         .select2-dropdown {
-            background: var(--surface-overlay, rgba(2, 6, 23, 0.98));
-            border: 1px solid var(--border-default, rgba(148, 163, 184, 0.4));
+            background-color: rgb(15, 23, 42) !important;
+            background-image: none !important;
+            border: 1px solid rgba(148, 163, 184, 0.45) !important;
+            border-radius: 0.5rem;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+            overflow: hidden;
         }
-        .select2-results__option { color: var(--text-main); }
-        .select2-results__option:hover { background: rgba(34, 197, 94, 0.15); }
-        .select2-search__field {
-            background: rgba(15, 23, 42, 0.9);
+        .select2-search--dropdown {
+            background-color: rgb(15, 23, 42) !important;
+            padding: 0.4rem 0.45rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+        }
+        .select2-container--default .select2-results > .select2-results__options {
+            background-color: rgb(15, 23, 42) !important;
+            max-height: 280px;
+        }
+        .select2-results__option {
             color: var(--text-main);
-            border: 1px solid rgba(148, 163, 184, 0.4);
+            background-color: rgb(15, 23, 42);
+        }
+        .select2-results__option--selectable { cursor: pointer; }
+        .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+            background-color: rgba(34, 197, 94, 0.22) !important;
+            color: var(--text-main);
+        }
+        .select2-container--default .select2-results__option--selected {
+            background-color: rgba(59, 130, 246, 0.18) !important;
+        }
+        .select2-search__field {
+            background: rgba(30, 41, 59, 0.95) !important;
+            color: var(--text-main) !important;
+            border: 1px solid rgba(148, 163, 184, 0.45) !important;
+            border-radius: 0.35rem;
+        }
+        .select2-container--default .select2-results__message {
+            color: var(--text-muted, #94a3b8);
+            padding: 0.65rem 0.75rem;
+            font-size: 0.88rem;
         }
         /* Design tokens: see static/css/design-system.css (:root) */
         * { box-sizing: border-box; }
@@ -1675,11 +1709,38 @@ document.addEventListener('DOMContentLoaded', function() {
         selectElements.forEach(function(select) {
             if (!select.dataset.select2Initialized) {
                 select.dataset.select2Initialized = 'true';
-                $(select).select2({
-                    placeholder: select.dataset.placeholder || 'Search or select...',
+                var raw = (select.dataset.minSearch || '').trim().toLowerCase();
+                var minLen = 1;
+                var hasExplicit = raw.length > 0;
+                if (hasExplicit) {
+                    if (raw === '0' || raw === 'false' || raw === 'off') {
+                        minLen = 0;
+                    } else if (/^\d+$/.test(raw)) {
+                        minLen = parseInt(raw, 10);
+                    }
+                } else {
+                    try {
+                        var optCount = select.querySelectorAll('option').length;
+                        if (optCount <= 15) {
+                            minLen = 0;
+                        }
+                    } catch (e) { /* noop */ }
+                }
+                var ph = select.dataset.placeholder || (minLen > 0 ? 'Type to search…' : 'Select…');
+                var s2opts = {
+                    placeholder: ph,
                     allowClear: true,
-                    width: '100%'
-                });
+                    width: '100%',
+                    minimumInputLength: minLen,
+                };
+                if (minLen > 0) {
+                    s2opts.language = {
+                        inputTooShort: function () {
+                            return 'Type at least ' + minLen + ' character' + (minLen > 1 ? 's' : '') + ' to search.';
+                        },
+                    };
+                }
+                $(select).select2(s2opts);
             }
         });
     }

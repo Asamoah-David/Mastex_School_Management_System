@@ -46,7 +46,7 @@
 
                     <div class="col-md-4 mb-3" id="student-field-wrapper">
                         <label for="student" class="form-label">Student</label>
-                        <select name="student" id="student" class="form-select searchable-select" data-placeholder="Search for a student...">
+                        <select name="student" id="student" class="form-select searchable-select" data-placeholder="Type name or admission #…">
                             <option value="">Select Student</option>
                             {% for student in students %}
                             <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
@@ -192,7 +192,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="school-fee-student-id" class="form-label">Student</label>
-                            <select name="school_fee_student_id" id="school-fee-student-id" class="form-select searchable-select" data-placeholder="Search for a student..." disabled>
+                            <select name="school_fee_student_id" id="school-fee-student-id" class="form-select searchable-select" data-placeholder="Type name or admission #…" disabled>
                                 <option value="">Select Student</option>
                                 {% for student in students %}
                                 <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>

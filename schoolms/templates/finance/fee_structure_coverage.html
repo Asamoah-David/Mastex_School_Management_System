@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+{% block title %}Fee coverage — {{ structure.name }}{% endblock %}
+{% block page_title %}Fee structure coverage{% endblock %}
+{% block page_subtitle %}{{ structure.name }} · who is in scope and who still needs a fee row{% endblock %}
+
+{% block content %}
+{% include "includes/finance_subnav.html" %}
+
+<div class="content-card" style="margin-bottom:1rem;">
+  <p style="color:#4b5563;margin:0 0 .75rem;">
+    <strong>Scope:</strong>
+    {% if structure.school_class %}
+      Class (structured): {{ structure.school_class.name }}
+    {% elif structure.class_name %}
+      Class (legacy name): {{ structure.class_name }}
+    {% else %}
+      <span style="color:#059669;">All active students in the school</span>
+    {% endif %}
+    · <strong>Amount:</strong> {{ structure.amount|format_ghs }}
+    {% if structure.term_fk %}· <strong>Term:</strong> {{ structure.term_fk }}{% endif %}
+  </p>
+  <div style="display:flex;flex-wrap:wrap;gap:.75rem;">
+    <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-secondary">← Fee structures</a>
+    <a href="{% url 'finance:generate_fees' structure.pk %}" class="btn btn-outline-secondary" onclick="return confirm('Same as below: create missing fee rows only. Continue?');">Quick generate (legacy)</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;">
+  <div class="content-card" style="padding:1rem;text-align:center;">
+    <div style="font-size:1.75rem;font-weight:700;color:#1e3a5f;">{{ total_in_scope }}</div>
+    <div style="font-size:.85rem;color:#6b7280;">Active students in scope</div>
+  </div>
+  <div class="content-card" style="padding:1rem;text-align:center;">
+    <div style="font-size:1.75rem;font-weight:700;color:#16a34a;">{{ charged_in_scope }}</div>
+    <div style="font-size:.85rem;color:#6b7280;">Already have this fee</div>
+  </div>
+  <div class="content-card" style="padding:1rem;text-align:center;border:2px solid {% if missing_count %}#f59e0b{% else %}#e5e7eb{% endif %};">
+    <div style="font-size:1.75rem;font-weight:700;color:{% if missing_count %}#d97706{% else %}#9ca3af{% endif %};">{{ missing_count }}</div>
+    <div style="font-size:.85rem;color:#6b7280;">Missing fee rows</div>
+  </div>
+</div>
+
+{% if missing_count %}
+<div class="content-card" style="margin-bottom:1.25rem;">
+  <h3 style="margin:0 0 .75rem;font-size:1.05rem;">Students without this fee (showing up to 150)</h3>
+  <div class="table-card" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.9rem;">
+      <thead>
+        <tr style="background:#f3f4f6;text-align:left;">
+          <th style="padding:.5rem .75rem;">Student</th>
+          <th style="padding:.5rem .75rem;">Admission #</th>
+          <th style="padding:.5rem .75rem;">Class</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in missing_preview %}
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:.5rem .75rem;">{{ s.user.get_full_name|default:s.user.username }}</td>
+          <td style="padding:.5rem .75rem;">{{ s.admission_number }}</td>
+          <td style="padding:.5rem .75rem;">{% if s.school_class %}{{ s.school_class.name }}{% else %}{{ s.class_name|default:"—" }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if missing_not_shown %}
+  <p class="text-muted" style="margin:.75rem 0 0;font-size:.85rem;">…and {{ missing_not_shown }} more not listed. They will still be included when you create missing fees.</p>
+  {% endif %}
+</div>
+
+<form method="post" style="margin-bottom:2rem;">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-primary" style="font-size:1rem;padding:.6rem 1.25rem;">
+    Create {{ missing_count }} missing fee record{% if missing_count != 1 %}s{% endif %}
+  </button>
+  <p style="color:#6b7280;font-size:.85rem;margin-top:.75rem;max-width:42rem;">
+    Safe to run after late enrolments: students who already have a fee for this structure are left unchanged.
+  </p>
+</form>
+{% else %}
+<div class="content-card" style="margin-bottom:1.25rem;background:#f0fdf4;border:1px solid #bbf7d0;">
+  <p style="margin:0;color:#166534;font-weight:500;">Every active student in scope already has a fee row for this structure.</p>
+</div>
+{% endif %}
+{% endblock %}

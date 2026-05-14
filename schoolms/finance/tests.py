@@ -11,7 +11,7 @@ from django.urls import reverse
 from unittest.mock import patch
 import uuid
 
-from finance.models import PaymentTransaction, Fee, FeePayment, FeeInstallmentPlan
+from finance.models import PaymentTransaction, Fee, FeePayment, FeeInstallmentPlan, FeeStructure
 from schools.models import School, SchoolFeature
 from accounts.models import User
 from students.models import Student
@@ -853,4 +853,81 @@ class FeeManagementErpFeatureGateTests(TestCase):
     def test_bulk_fee_generate_redirects_when_fee_management_disabled(self):
         self.client.login(username="fee_mgt_admin", password="pw12345")
         r = self.client.get(reverse("finance:bulk_fee_generate"))
+        self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)
+
+
+class FeeStructureCoverageTests(TestCase):
+    """Coverage page counts in-scope students and POST backfills missing Fee rows."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Cov Fee School", subdomain=f"cov-fee-{uuid.uuid4().hex[:10]}")
+        SchoolFeature.objects.update_or_create(
+            school=cls.school, key="fee_management", defaults={"enabled": True}
+        )
+        cls.admin = User.objects.create_user(
+            username="cov_fee_admin", password="pw12345", school=cls.school, role="school_admin"
+        )
+        from academics.models import Term
+
+        cls.term = Term.objects.create(school=cls.school, name="Term 1", is_current=True)
+        cls.structure = FeeStructure.objects.create(
+            school=cls.school,
+            name="Tuition",
+            amount=Decimal("100.00"),
+            class_name="JHS1",
+            term_fk=cls.term,
+        )
+        u1 = User.objects.create_user(
+            username="cov_stu1", password="pw12345", school=cls.school, role="student", first_name="A", last_name="One"
+        )
+        u2 = User.objects.create_user(
+            username="cov_stu2", password="pw12345", school=cls.school, role="student", first_name="B", last_name="Two"
+        )
+        cls.st1 = Student.objects.create(
+            school=cls.school, user=u1, admission_number="C1", class_name="JHS1"
+        )
+        cls.st2 = Student.objects.create(
+            school=cls.school, user=u2, admission_number="C2", class_name="JHS1"
+        )
+        Fee.objects.create(
+            school=cls.school,
+            student=cls.st1,
+            fee_structure=cls.structure,
+            term=cls.term,
+            amount=Decimal("100.00"),
+        )
+
+    def setUp(self):
+        self.client = Client()
+        from django.core.cache import cache
+
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="fee_management", defaults={"enabled": True}
+        )
+        cache.delete(School._feature_cache_key(self.school.pk))
+
+    def test_coverage_get_shows_one_missing(self):
+        self.client.login(username="cov_fee_admin", password="pw12345")
+        url = reverse("finance:fee_structure_coverage", args=[self.structure.pk])
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Missing fee rows")
+        self.assertContains(r, "Create 1 missing fee record")
+        self.assertContains(r, "C2")
+
+    def test_coverage_post_creates_missing_fee(self):
+        self.assertEqual(Fee.objects.filter(fee_structure=self.structure).count(), 1)
+        self.client.login(username="cov_fee_admin", password="pw12345")
+        url = reverse("finance:fee_structure_coverage", args=[self.structure.pk])
+        r = self.client.post(url, {})
+        self.assertRedirects(r, url, fetch_redirect_response=False)
+        self.assertEqual(Fee.objects.filter(fee_structure=self.structure).count(), 2)
+
+    def test_coverage_redirects_when_fee_management_disabled(self):
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="fee_management", defaults={"enabled": False}
+        )
+        self.client.login(username="cov_fee_admin", password="pw12345")
+        r = self.client.get(reverse("finance:fee_structure_coverage", args=[self.structure.pk]))
         self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)

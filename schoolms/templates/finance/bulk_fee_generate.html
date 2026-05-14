@@ -8,6 +8,10 @@
       Select a fee structure to generate fee records for all matching students in one click.
       Use <strong>Dry Run</strong> first to preview without creating records.
     </p>
+    <p style="color:#4b5563;margin-bottom:1.25rem;font-size:.9rem;border-left:3px solid #3b82f6;padding-left:.75rem;">
+      <strong>Late enrolments:</strong> generation only creates rows for students who exist at run time and match the structure’s class (or whole school if “all classes”).
+      Students registered later are <em>not</em> added automatically — run bulk generate again (or use <strong>Generate Fees</strong> on the fee structure). Existing fee rows are skipped; only missing students receive new charges.
+    </p>
 
     <form method="post">
       {% csrf_token %}

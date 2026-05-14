@@ -1673,43 +1673,28 @@ def fee_structure_delete(request, pk):
     })
 
 
-@login_required
-def generate_fees_from_structure(request, pk):
-    """Generate individual Fee records for all students in a class based on FeeStructure.
-
-    Accepts both GET (for backward compat with existing inline confirm() links) and POST.
-    POST is preferred for state mutation; GET is allowed but logged.
-    """
-    school = getattr(request.user, "school", None)
-    if not school and not request.user.is_superuser:
-        return redirect("accounts:dashboard")
-    if not school:
-        messages.error(request, "School admins only.")
-        return redirect("accounts:dashboard")
-    if not (request.user.is_superuser or is_school_leadership(request.user)):
-        return redirect("accounts:school_dashboard")
-    
+def _active_students_queryset_for_fee_structure(school, structure):
+    """Active students matching this structure's class scope (same rules as bulk / generate)."""
     from students.models import Student
-    
-    structure = get_object_or_404(FeeStructure, pk=pk, school=school)
-    
-    # Prefer the structured FK (school_class) when present; fall back to legacy class_name.
-    if structure.school_class_id:
-        students = Student.objects.filter(
-            school=school, school_class_id=structure.school_class_id, status="active",
-        )
-    elif structure.class_name:
-        students = Student.objects.filter(
-            school=school, class_name=structure.class_name, status="active",
-        )
-    else:
-        students = Student.objects.filter(school=school, status="active")
-    
-    existing_student_ids = set(
-        Fee.objects.filter(school=school, fee_structure=structure)
-        .values_list("student_id", flat=True)
-    )
 
+    qs = Student.objects.filter(school=school, status="active")
+    if structure.school_class_id:
+        return qs.filter(school_class_id=structure.school_class_id)
+    if structure.class_name:
+        return qs.filter(class_name=structure.class_name)
+    return qs
+
+
+def _apply_generate_fees_from_structure(request, school, structure):
+    """
+    Create Fee rows for in-scope students who do not yet have one for this fee structure.
+    Returns (created_count, skipped_count).
+    """
+    students_qs = _active_students_queryset_for_fee_structure(school, structure)
+    total_scope = students_qs.count()
+    existing_student_ids = set(
+        Fee.objects.filter(school=school, fee_structure=structure).values_list("student_id", flat=True)
+    )
     new_fees = [
         Fee(
             school=school,
@@ -1718,7 +1703,7 @@ def generate_fees_from_structure(request, pk):
             term=structure.term_fk,
             amount=structure.amount,
         )
-        for student in students
+        for student in students_qs.iterator()
         if student.id not in existing_student_ids
     ]
 
@@ -1727,17 +1712,15 @@ def generate_fees_from_structure(request, pk):
         for _fee in created_fees:
             try:
                 from core.signals import notify_fee_assigned
+
                 notify_fee_assigned(sender=Fee, instance=_fee, created=True)
             except Exception:
-                logger.warning("generate_fees_from_structure: parent notify failed fee=%s", _fee.pk, exc_info=True)
+                logger.warning(
+                    "generate_fees_from_structure: parent notify failed fee=%s", _fee.pk, exc_info=True
+                )
 
     created_count = len(new_fees)
-    skipped_count = max(len(students) - created_count, 0)
-
-    messages.success(
-        request,
-        f"Generated fees for {created_count} students. {skipped_count} skipped (already present).",
-    )
+    skipped_count = total_scope - created_count
     try:
         write_audit(
             user=request.user,
@@ -1753,6 +1736,97 @@ def generate_fees_from_structure(request, pk):
         )
     except Exception:
         logger.exception("generate_fees_from_structure: audit failed structure=%s", structure.pk)
+    return created_count, skipped_count
+
+
+@login_required
+def fee_structure_coverage(request, pk):
+    """
+    Show in-scope students vs those who already have a Fee for this structure, and backfill missing rows.
+    """
+    school = getattr(request.user, "school", None)
+    if not school and not request.user.is_superuser:
+        return redirect("accounts:dashboard")
+    if not school:
+        messages.error(request, "School admins only.")
+        return redirect("accounts:dashboard")
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
+    structure = get_object_or_404(
+        FeeStructure.objects.select_related("school_class", "term_fk"),
+        pk=pk,
+        school=school,
+    )
+
+    if request.method == "POST":
+        created_count, skipped_count = _apply_generate_fees_from_structure(request, school, structure)
+        messages.success(
+            request,
+            f"Created {created_count} new fee record(s). {skipped_count} student(s) already had this fee (unchanged).",
+        )
+        return redirect("finance:fee_structure_coverage", pk=structure.pk)
+
+    in_scope = _active_students_queryset_for_fee_structure(school, structure).select_related(
+        "user", "school_class"
+    )
+    total_in_scope = in_scope.count()
+    existing_ids = set(
+        Fee.objects.filter(school=school, fee_structure=structure).values_list("student_id", flat=True)
+    )
+    charged_in_scope = in_scope.filter(pk__in=existing_ids).count()
+    missing_qs = in_scope.exclude(pk__in=existing_ids).order_by(
+        "user__last_name", "user__first_name", "admission_number"
+    )
+    missing_count = missing_qs.count()
+    missing_preview = list(missing_qs[:150])
+    missing_not_shown = max(0, missing_count - len(missing_preview))
+
+    return render(
+        request,
+        "finance/fee_structure_coverage.html",
+        {
+            "school": school,
+            "structure": structure,
+            "total_in_scope": total_in_scope,
+            "charged_in_scope": charged_in_scope,
+            "missing_count": missing_count,
+            "missing_preview": missing_preview,
+            "missing_not_shown": missing_not_shown,
+        },
+    )
+
+
+@login_required
+def generate_fees_from_structure(request, pk):
+    """Generate individual Fee records for all students in a class based on FeeStructure.
+
+    GET kept for backward compatibility with existing confirm() links from the fee list.
+    """
+    school = getattr(request.user, "school", None)
+    if not school and not request.user.is_superuser:
+        return redirect("accounts:dashboard")
+    if not school:
+        messages.error(request, "School admins only.")
+        return redirect("accounts:dashboard")
+    if not (request.user.is_superuser or is_school_leadership(request.user)):
+        return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
+    structure = get_object_or_404(
+        FeeStructure.objects.select_related("school_class", "term_fk"),
+        pk=pk,
+        school=school,
+    )
+
+    created_count, skipped_count = _apply_generate_fees_from_structure(request, school, structure)
+    messages.success(
+        request,
+        f"Generated fees for {created_count} students. {skipped_count} skipped (already present).",
+    )
     return redirect("finance:fee_structure_list")
 
 

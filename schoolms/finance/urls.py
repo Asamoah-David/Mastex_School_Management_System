@@ -24,6 +24,7 @@ urlpatterns = [
     path("fee-structure/<int:pk>/edit/", views.fee_structure_edit, name="fee_structure_edit"),
     path("fee-structure/<int:pk>/delete/", views.fee_structure_delete, name="fee_structure_delete"),
     path("fee-structure/<int:pk>/generate/", views.generate_fees_from_structure, name="generate_fees"),
+    path("fee-structure/<int:pk>/coverage/", views.fee_structure_coverage, name="fee_structure_coverage"),
     
     # School-facing fee management
     path("fees/", views.fee_list, name="fee_list"),
