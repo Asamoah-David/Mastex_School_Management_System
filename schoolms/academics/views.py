@@ -13,6 +13,7 @@ from schools.models import School
 from schools.features import (
     ACADEMIC_TERM_FEATURE_KEYS,
     is_feature_enabled,
+    is_feature_enabled_for_school,
     require_any_feature,
     require_feature,
 )
@@ -24,11 +25,13 @@ from accounts.permissions import (
     can_publish_academic_results,
     can_unlock_locked_academic_results,
     can_upload_results,
+    can_bulk_promote_students,
 )
 from accounts.teaching_scope import teacher_result_subject_ids
 from .models import (
     Subject,
     ExamType,
+    AcademicYear,
     Term,
     Result,
     GradeBoundary,
@@ -3866,6 +3869,37 @@ def question_bank_delete(request, pk):
 # ===========================================================================
 # Term Management
 # ===========================================================================
+
+@login_required
+def year_start_playbook(request):
+    """Leadership checklist: new academic year / term (fees vs promotions vs timetables)."""
+    school = _get_school(request)
+    if not school:
+        return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    if (redir := require_any_feature(request, ACADEMIC_TERM_FEATURE_KEYS, "accounts:school_dashboard")):
+        return redir
+
+    current_ay = AcademicYear.objects.filter(school=school, is_current=True).first()
+    current_term = (
+        Term.objects.filter(school=school, is_current=True).select_related("academic_year").first()
+    )
+    fee_on = is_feature_enabled_for_school(school.pk, "fee_management")
+
+    return render(
+        request,
+        "academics/year_start_playbook.html",
+        {
+            "school": school,
+            "current_academic_year": current_ay,
+            "current_term": current_term,
+            "school_academic_year_label": (school.academic_year or "").strip(),
+            "fee_management_enabled": fee_on,
+            "can_bulk_promote": can_bulk_promote_students(request.user),
+        },
+    )
+
 
 @login_required
 def term_list(request):

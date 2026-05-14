@@ -132,6 +132,7 @@ urlpatterns = [
     path("question-banks/<int:pk>/delete/", views.question_bank_delete, name="question_bank_delete"),
 
     # Terms
+    path("terms/year-start/", views.year_start_playbook, name="year_start_playbook"),
     path("terms/", views.term_list, name="term_list"),
     path("terms/create/", views.term_create, name="term_create"),
     path("terms/<int:pk>/edit/", views.term_edit, name="term_edit"),

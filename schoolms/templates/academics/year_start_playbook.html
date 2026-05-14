@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}New year & term checklist — {{ school.name }}{% endblock %}
+{% block page_title %}New academic year & term{% endblock %}
+{% block page_subtitle %}What to do in Mastex when a term or year changes{% endblock %}
+
+{% block content %}
+<div class="content-card">
+  <p style="color:#4b5563;max-width:52rem;line-height:1.55;margin-bottom:1.5rem;">
+    Mastex does <strong>not</strong> auto-promote students or rebuild timetables when you change dates.
+    Marking a term as <strong>current</strong> can trigger <strong>fee generation</strong> (Celery) from your active fee structures.
+    Use this page as a checklist and jump to the right screen.
+  </p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+    <div>
+      <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;">School year label</div>
+      <div style="font-weight:600;">{{ school_academic_year_label|default:"— not set —" }}</div>
+    </div>
+    <div>
+      <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;">Current academic year (structured)</div>
+      <div style="font-weight:600;">{% if current_academic_year %}{{ current_academic_year.name }}{% else %}— none marked current —{% endif %}</div>
+    </div>
+    <div>
+      <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;">Current term</div>
+      <div style="font-weight:600;">{% if current_term %}{{ current_term.name }}{% else %}— none marked current —{% endif %}</div>
+    </div>
+  </div>
+
+  <ol style="max-width:52rem;line-height:1.6;padding-left:1.25rem;">
+    <li style="margin-bottom:1.1rem;">
+      <strong>School profile label</strong> (optional display text)<br>
+      <span style="color:#64748b;font-size:0.9rem;">Update the text year on the school record if you use it in reports or for “Add standard terms”.</span><br>
+      <a href="{% url 'schools:school_settings' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">School settings</a>
+    </li>
+    <li style="margin-bottom:1.1rem;">
+      <strong>Structured academic year</strong><br>
+      <span style="color:#64748b;font-size:0.9rem;">Create or select the real <code>AcademicYear</code> row and mark it current on the Terms page (years list).</span><br>
+      <a href="{% url 'academics:term_list' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Terms &amp; years</a>
+    </li>
+    <li style="margin-bottom:1.1rem;">
+      <strong>Terms &amp; “current” term</strong><br>
+      <span style="color:#64748b;font-size:0.9rem;">Set dates, link to the academic year, then tick <em>Current term</em> for the term you are opening. Saving a term as current queues <strong>fee rows</strong> for active students from matching fee structures (skips existing).</span><br>
+      <a href="{% url 'academics:term_list' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Manage terms</a>
+    </li>
+    {% if fee_management_enabled %}
+    <li style="margin-bottom:1.1rem;">
+      <strong>Fees &amp; backfill</strong><br>
+      <span style="color:#64748b;font-size:0.9rem;">Confirm fee structures for the new term, then use bulk generate or per-structure generate / coverage if some students were enrolled late.</span><br>
+      <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Fee structures</a>
+      <a href="{% url 'finance:bulk_fee_generate' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Bulk generate fees</a>
+    </li>
+    {% else %}
+    <li style="margin-bottom:1.1rem;color:#64748b;">
+      <strong>Fees</strong> — enable the <em>fee management</em> feature for this school to show finance shortcuts here.
+    </li>
+    {% endif %}
+    {% if can_bulk_promote %}
+    <li style="margin-bottom:1.1rem;">
+      <strong>Class promotion</strong> (manual)<br>
+      <span style="color:#64748b;font-size:0.9rem;">Nothing promotes students until you run the promotion tool.</span><br>
+      <a href="{% url 'students:promote_students' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Promote students</a>
+    </li>
+    {% endif %}
+    <li style="margin-bottom:1.1rem;">
+      <strong>Timetables &amp; exams</strong> (manual)<br>
+      <span style="color:#64748b;font-size:0.9rem;">Build or copy timetables and exam schedules for the new term.</span><br>
+      <a href="{% url 'academics:timetable_list' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Timetables</a>
+      <a href="{% url 'academics:auto_timetable' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Auto timetable</a>
+      <a href="{% url 'academics:exam_schedule_list' %}" class="btn btn-sm btn-secondary" style="margin-top:0.35rem;">Exam schedule</a>
+    </li>
+  </ol>
+
+  <p style="margin-top:1.5rem;">
+    <a href="{% url 'academics:term_list' %}" class="btn btn-primary">Back to terms</a>
+    <a href="{% url 'accounts:school_dashboard' %}" class="btn btn-secondary">School dashboard</a>
+  </p>
+</div>
+{% endblock %}
