@@ -9,10 +9,26 @@
 <div class="content-card">
     <form method="post">
         {% csrf_token %}
-        
+
+        <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+            <div class="form-group">
+                <label for="id_first_name">First name</label>
+                <input id="id_first_name" name="first_name" type="text" value="{{ student.user.first_name|default:'' }}" style="width:100%;padding:0.5rem;" />
+            </div>
+            <div class="form-group">
+                <label for="id_last_name">Last name</label>
+                <input id="id_last_name" name="last_name" type="text" value="{{ student.user.last_name|default:'' }}" style="width:100%;padding:0.5rem;" />
+            </div>
+        </div>
+
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Phone Number</label>
-            <input type="text" name="phone" value="{{ student.user.phone|default:'' }}" placeholder="+233123456789" style="width:100%;padding:0.5rem;">
+            <label for="id_email">Email</label>
+            <input id="id_email" name="email" type="email" value="{{ student.user.email|default:'' }}" style="width:100%;padding:0.5rem;" />
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label for="id_phone">Phone Number</label>
+            <input id="id_phone" type="text" name="phone" value="{{ student.user.phone|default:'' }}" placeholder="+233123456789" style="width:100%;padding:0.5rem;">
             <small style="color:#666;">Enter phone number in international format (e.g., +233123456789)</small>
         </div>
         
@@ -26,8 +42,8 @@
         </div>
         
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Admission Number</label>
-            <input type="text" name="admission_number" required value="{{ student.admission_number }}" style="width:100%;padding:0.5rem;">
+            <label for="id_admission_number">Admission Number</label>
+            <input id="id_admission_number" type="text" name="admission_number" required value="{{ student.admission_number }}" style="width:100%;padding:0.5rem;">
         </div>
         
         <div class="form-group" style="margin-bottom:1rem;">
@@ -48,7 +64,7 @@
                 <option value="">-- No Parent Linked --</option>
                 {% for parent in parents %}
                 <option value="{{ parent.pk }}" {% if student.parent_id == parent.pk %}selected{% endif %}>
-                    {{ parent.get_full_name|default:parent.username }} ({{ parent.email }})
+                    {{ parent.get_full_name|default:parent.username }}{% if parent.email %} ({{ parent.email }}){% endif %}
                 </option>
                 {% endfor %}
             </select>
@@ -56,12 +72,14 @@
         </div>
         
         <div class="form-group" style="margin-bottom:1rem;">
-            <label>Status</label>
-            <select name="status" style="width:100%;padding:0.5rem;">
+            <label for="id_status">Status</label>
+            <select id="id_status" name="status" style="width:100%;padding:0.5rem;">
                 <option value="active" {% if student.status == "active" %}selected{% endif %}>Active</option>
-                <option value="inactive" {% if student.status == "inactive" %}selected{% endif %}>Inactive</option>
-                <option value="withdrawn" {% if student.status == "withdrawn" %}selected{% endif %}>Withdrawn</option>
-                <option value="graduated" {% if student.status == "graduated" %}selected{% endif %}>Graduated</option>
+                <option value="suspended" {% if student.status == "suspended" %}selected{% endif %}>Suspended</option>
+                <option value="withdrawn" {% if student.status == "withdrawn" %}selected{% endif %}>Withdrawn / Transferred</option>
+                <option value="graduated" {% if student.status == "graduated" %}selected{% endif %}>Graduated / Alumni</option>
+                <option value="dismissed" {% if student.status == "dismissed" %}selected{% endif %}>Dismissed / Expelled</option>
+                <option value="deceased" {% if student.status == "deceased" %}selected{% endif %}>Deceased</option>
             </select>
         </div>
         
@@ -71,6 +89,45 @@
         </div>
     </form>
 </div>
+<script>
+(function() {
+  const API = "{% url 'accounts:api_check_identifier' %}";
+  const userPk = "{{ student.user.pk }}";
+  const studentPk = "{{ student.pk }}";
+  function bind(id, kind) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let t;
+    const hint = document.createElement("div");
+    hint.style.fontSize = "0.75rem";
+    hint.style.marginTop = "0.25rem";
+    el.closest(".form-group").appendChild(hint);
+    el.addEventListener("input", function() {
+      clearTimeout(t);
+      const v = el.value.trim();
+      hint.textContent = "";
+      if (!v || (kind === "email" && v.length < 3)) return;
+      if (kind !== "email" && v.length < 2) return;
+      t = setTimeout(async function() {
+        try {
+          let u = API + "?kind=" + encodeURIComponent(kind) + "&value=" + encodeURIComponent(v) + "&exclude=" + userPk;
+          if (kind === "admission_number") {
+            u = API + "?kind=admission_number&value=" + encodeURIComponent(v) + "&exclude_student=" + studentPk;
+          }
+          const r = await fetch(u, {headers: {"X-Requested-With": "XMLHttpRequest"}});
+          const d = await r.json();
+          if (d.error) { hint.style.color = "#94a3b8"; hint.textContent = ""; return; }
+          if (d.available === true) { hint.style.color = "#22c55e"; hint.textContent = d.message || "OK"; }
+          else if (d.available === false) { hint.style.color = "#f87171"; hint.textContent = d.message || "In use"; }
+        } catch (e) {}
+      }, 350);
+    });
+  }
+  bind("id_email", "email");
+  bind("id_phone", "phone");
+  bind("id_admission_number", "admission_number");
+})();
+</script>
 {% else %}
 <div class="alert alert-warning">
     <span class="alert-icon">&#x26A0;</span>

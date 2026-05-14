@@ -17,6 +17,13 @@
     </div>
 </div>
 {% endif %}
+{% if quality_marginal %}
+<div class="card mb-sm" style="border-left:4px solid #b45309;background:rgba(180,83,9,0.06);">
+    <div style="padding:.6rem 1rem;font-size:.88rem;">
+        <strong>Marginal photo:</strong> the scanner applied extra alignment and print-colour handling — verify every row before confirming the key.
+    </div>
+</div>
+{% endif %}
 
 {% if flagged %}
 <div class="card mb-sm" style="border-left:4px solid var(--warning);background:rgba(234,179,8,0.05);">

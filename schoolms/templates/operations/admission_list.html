@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Admissions - {{ school.name }}{% endblock %}
+{% block title %}{% if school %}Admissions - {{ school.name }}{% else %}Admissions · All schools{% endif %}{% endblock %}
 {% block page_title %}Admission Applications{% endblock %}
 {% block content %}
 <div class="content-card">
@@ -40,10 +40,12 @@
         {% csrf_token %}
         <div class="d-flex gap-2 align-center mb-2" style="flex-wrap:wrap;">
             <label style="font-size:0.85rem;color:var(--text-soft);">Bulk action:</label>
-            <button type="submit" name="bulk_action" value="approve" class="btn btn-sm btn-success" onclick="return confirm('Approve all selected?')">✅ Approve selected</button>
             <button type="submit" name="bulk_action" value="reject" class="btn btn-sm btn-danger" onclick="return confirm('Reject all selected?')">❌ Reject selected</button>
             <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAll()">☑ Toggle all</button>
         </div>
+        <p style="font-size:0.8rem;color:var(--text-soft);margin:0 0 0.75rem;">
+            To admit applicants with student and parent accounts, open each row and use <strong>Approve &amp; enrol</strong>. Bulk approve is not available.
+        </p>
     {% endif %}
     <table class="data-table">
         <thead>

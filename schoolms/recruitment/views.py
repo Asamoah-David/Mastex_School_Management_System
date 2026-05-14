@@ -30,6 +30,15 @@ from recruitment.models import JobPosting, JobApplication, InterviewSchedule, QU
 logger = logging.getLogger(__name__)
 paystack_service = PaystackService()
 
+# Status values school staff may set via the combined action endpoint (not applicant/system states).
+SCHOOL_APPLICATION_ACTION_STATUS_ORDER: tuple[str, ...] = (
+    "shortlisted",
+    "interview_scheduled",
+    "rejected",
+    "hired",
+)
+SCHOOL_APPLICATION_ACTION_STATUSES = frozenset(SCHOOL_APPLICATION_ACTION_STATUS_ORDER)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -338,9 +347,9 @@ def school_job_list(request):
     if not user_can_manage_school(request.user):
         messages.error(request, "Access denied.")
         return redirect("home")
-    if not is_feature_enabled(request, "job_portal"):
-        messages.error(request, "The Job Portal feature is not enabled for your school.")
-        return redirect("accounts:school_dashboard")
+    resp = _require_job_portal(request)
+    if resp:
+        return resp
     jobs = (
         JobPosting.objects.filter(school=school)
         .annotate(
@@ -512,10 +521,12 @@ def school_application_detail(request, pk):
         JobApplication.objects.select_related("job", "job__school", "interview_schedule"),
         pk=pk, job__school=school, payment_status="paid",
     )
-    allowed_statuses = [(s, l) for s, l in JobApplication.STATUS_CHOICES if s != "pending_payment"]
+    labels = dict(JobApplication.STATUS_CHOICES)
+    action_status_choices = [(key, labels[key]) for key in SCHOOL_APPLICATION_ACTION_STATUS_ORDER]
     return render(request, "recruitment/school_application_detail.html", {
         "app": app,
-        "statuses": allowed_statuses,
+        "statuses": action_status_choices,
+        "action_status_set": SCHOOL_APPLICATION_ACTION_STATUSES,
     })
 
 
@@ -718,9 +729,8 @@ def school_application_action(request, pk):
     app = get_object_or_404(JobApplication, pk=pk, job__school=school, payment_status="paid")
     new_status = request.POST.get("status", "").strip()
     reason = request.POST.get("rejection_reason", "").strip()
-    valid = [s for s, _ in JobApplication.STATUS_CHOICES]
-    if new_status not in valid:
-        messages.error(request, "Invalid status.")
+    if new_status not in SCHOOL_APPLICATION_ACTION_STATUSES:
+        messages.error(request, "Invalid status for this action.")
         return redirect("recruitment:school_application_detail", pk=pk)
     app.status = new_status
     app.rejection_reason = reason if new_status == "rejected" else app.rejection_reason

@@ -739,11 +739,11 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F465; People</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'accounts:user_management' %}" class="nav-item"><span class="nav-item-icon">&#x1F464;</span><div class="nav-item-label"><span class="nav-item-title">User Management</span></div></a></li>
-                                <li><a href="{% url 'accounts:admin_reset_requests' %}" class="nav-item"><span class="nav-item-icon">&#x1F510;</span><div class="nav-item-label"><span class="nav-item-title">Password Resets</span>{% if pending_reset_requests_count %}<span class="nav-badge">{{ pending_reset_requests_count }}</span>{% endif %}</div></a></li>
-                                <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F3EB;</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
-                                <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467;</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
-                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                                {% if feature_staff_management or feature_student_enrollment %}<li><a href="{% url 'accounts:user_management' %}" class="nav-item"><span class="nav-item-icon">&#x1F464;</span><div class="nav-item-label"><span class="nav-item-title">User Management</span></div></a></li>{% endif %}
+                                {% if feature_staff_management or feature_student_enrollment %}<li><a href="{% url 'accounts:admin_reset_requests' %}" class="nav-item"><span class="nav-item-icon">&#x1F510;</span><div class="nav-item-label"><span class="nav-item-title">Password Resets</span>{% if pending_reset_requests_count %}<span class="nav-badge">{{ pending_reset_requests_count }}</span>{% endif %}</div></a></li>{% endif %}
+                                {% if feature_staff_management %}<li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F3EB;</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>{% endif %}
+                                {% if feature_student_enrollment %}<li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467;</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>{% endif %}
+                                {% if feature_student_enrollment %}<li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>{% endif %}
                                 {% if user_can_manage_school or user.is_superuser %}<li><a href="{% url 'operations:alumni_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C1;</span><div class="nav-item-label"><span class="nav-item-title">Alumni</span><span class="nav-item-sub">Graduates directory</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'students:class_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Classes</span></div></a></li>
                                 <li><a href="{% url 'students:promote_students' %}" class="nav-item"><span class="nav-item-icon">&#x2B06;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Promote class</span><span class="nav-item-sub">Move whole class up</span></div></a></li>
@@ -873,18 +873,20 @@ background: rgba(2, 6, 23, 0.98);
                             </ul>
                         </div>
                     </div>
-                    {% if feature_leave_management or feature_staff_paystack_transfers or feature_job_portal %}
+                    {% if feature_leave_management or feature_staff_paystack_transfers or feature_job_portal or feature_staff_management or feature_staff_contracts %}
                     <div class="nav-section">
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4BC; HR &amp; Recruitment</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                {% if feature_leave_management %}<li><a href="{% url 'accounts:leave_policy_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Leave Policies</span></div></a></li>
-                                <li><a href="{% url 'accounts:leave_balance_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3D6;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Leave Balances</span></div></a></li>{% endif %}
+                                {% if feature_leave_management %}
+                                <li><a href="{% url 'accounts:leave_policy_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CB;</span><div class="nav-item-label"><span class="nav-item-title">Leave Policies</span></div></a></li>
+                                <li><a href="{% url 'accounts:leave_balance_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3D6;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Leave Balances</span></div></a></li>
+                                {% endif %}
                                 {% if feature_staff_paystack_transfers %}<li><a href="{% url 'accounts:payroll_run_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B0;</span><div class="nav-item-label"><span class="nav-item-title">Payroll Runs</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'accounts:performance_review_list' %}" class="nav-item"><span class="nav-item-icon">&#x2B50;</span><div class="nav-item-label"><span class="nav-item-title">Performance Reviews</span></div></a></li>
+                                {% if feature_staff_management %}<li><a href="{% url 'accounts:performance_review_list' %}" class="nav-item"><span class="nav-item-icon">&#x2B50;</span><div class="nav-item-label"><span class="nav-item-title">Performance Reviews</span></div></a></li>{% endif %}
                                 {% if feature_staff_contracts %}<li><a href="{% url 'accounts:staff_contract_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C4;</span><div class="nav-item-label"><span class="nav-item-title">Staff Contracts</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'accounts:teaching_assignment_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Teaching Assignments</span><span class="nav-item-sub">Subject-class allocations</span></div></a></li>
-                                <li><a href="{% url 'accounts:staff_role_change_log' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DC;</span><div class="nav-item-label"><span class="nav-item-title">Role Change Log</span><span class="nav-item-sub">Staff role audit trail</span></div></a></li>
+                                {% if feature_staff_management %}<li><a href="{% url 'accounts:teaching_assignment_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DA;</span><div class="nav-item-label"><span class="nav-item-title">Teaching Assignments</span><span class="nav-item-sub">Subject-class allocations</span></div></a></li>{% endif %}
+                                {% if feature_staff_management %}<li><a href="{% url 'accounts:staff_role_change_log' %}" class="nav-item"><span class="nav-item-icon">&#x1F4DC;</span><div class="nav-item-label"><span class="nav-item-title">Role Change Log</span><span class="nav-item-sub">Staff role audit trail</span></div></a></li>{% endif %}
                                 {% if feature_job_portal %}<li><a href="{% url 'recruitment:school_job_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BC;</span><div class="nav-item-label"><span class="nav-item-title">Job Portal</span><span class="nav-item-sub">Post jobs &amp; applications</span></div></a></li>{% endif %}
                             </ul>
                         </div>
@@ -979,10 +981,10 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4E2;</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
                                 <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">&#x1F4AC;</span><div class="nav-item-label"><span class="nav-item-title">Messages</span><span class="nav-item-sub">Chat with parents</span></div></a></li>
                                 <li><a href="{% url 'operations:my_activities' %}" class="nav-item"><span class="nav-item-icon">&#x1F3AF;</span><div class="nav-item-label"><span class="nav-item-title">My Activities</span></div></a></li>
-                                {% if can_access_staff_leave_portal %}<li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3D6;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Leave Requests</span></div></a></li>
-                                <li><a href="{% url 'accounts:my_leave_balance' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">My Leave Balance</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'accounts:staff_my_payroll' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B0;</span><div class="nav-item-label"><span class="nav-item-title">My Payslips</span></div></a></li>
-                                <li><a href="{% url 'accounts:my_performance_reviews' %}" class="nav-item"><span class="nav-item-icon">&#x2B50;</span><div class="nav-item-label"><span class="nav-item-title">My Appraisals</span><span class="nav-item-sub">View &amp; acknowledge reviews</span></div></a></li>
+                                {% if can_access_staff_leave_portal %}<li><a href="{% url 'operations:staff_leave_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3D6;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Leave Requests</span></div></a></li>{% endif %}
+                                {% if feature_leave_management %}<li><a href="{% url 'accounts:my_leave_balance' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">My Leave Balance</span></div></a></li>{% endif %}
+                                {% if feature_staff_management %}<li><a href="{% url 'accounts:staff_my_payroll' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B0;</span><div class="nav-item-label"><span class="nav-item-title">My Payslips</span></div></a></li>{% endif %}
+                                {% if feature_staff_management %}<li><a href="{% url 'accounts:my_performance_reviews' %}" class="nav-item"><span class="nav-item-icon">&#x2B50;</span><div class="nav-item-label"><span class="nav-item-title">My Appraisals</span><span class="nav-item-sub">View &amp; acknowledge reviews</span></div></a></li>{% endif %}
                                 {% if feature_class_supplies %}<li><a href="{% url 'operations:supply_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F392;</span><div class="nav-item-label"><span class="nav-item-title">Class Supplies</span><span class="nav-item-sub">Manage supply requests</span></div></a></li>{% endif %}
                                 {% if feature_ai_assistant %}<li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">&#x1F916;</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">&#x1F514;</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
@@ -1248,9 +1250,9 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>👥 Users</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                <li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>
-                                <li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>
-                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                                {% if feature_staff_management %}<li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>{% endif %}
+                                {% if feature_student_enrollment %}<li><a href="{% url 'accounts:parent_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parents</span></div></a></li>{% endif %}
+                                {% if feature_student_enrollment %}<li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>
@@ -1290,8 +1292,8 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>👥 Users</span><span class="toggle-icon">▾</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                {% if can_manage_school %}<li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>{% endif %}
-                                <li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>
+                                {% if can_manage_school and feature_staff_management %}<li><a href="{% url 'accounts:staff_list' %}" class="nav-item"><span class="nav-item-icon">👨‍🏫</span><div class="nav-item-label"><span class="nav-item-title">Staff</span></div></a></li>{% endif %}
+                                {% if feature_student_enrollment %}<li><a href="{% url 'students:student_list' %}" class="nav-item"><span class="nav-item-icon">🎓</span><div class="nav-item-label"><span class="nav-item-title">Students</span></div></a></li>{% endif %}
                             </ul>
                         </div>
                     </div>

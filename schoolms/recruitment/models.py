@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import secrets
 import uuid
+from functools import cached_property
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils import timezone
 
@@ -191,6 +193,14 @@ class JobApplication(models.Model):
                     self.reference = ref
                     break
         super().save(*args, **kwargs)
+
+    @cached_property
+    def scheduled_interview(self):
+        """Return ``InterviewSchedule`` or ``None`` (reverse OneToOne is not template-safe)."""
+        try:
+            return self.interview_schedule
+        except ObjectDoesNotExist:
+            return None
 
     def __str__(self):
         return f"{self.full_name} → {self.job.title} ({self.reference})"

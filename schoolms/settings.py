@@ -71,6 +71,14 @@ TENANT_DOMAIN_SUFFIXES = tuple(h for h in ALLOWED_HOSTS if isinstance(h, str) an
 CANONICAL_DOMAIN = env("CANONICAL_DOMAIN", "mastexedu.online")
 
 # ---------------------------------------------------------------------------
+# Locale & time (override TIME_ZONE in .env; aligns with CELERY_TIMEZONE default)
+# ---------------------------------------------------------------------------
+LANGUAGE_CODE = env("LANGUAGE_CODE", "en-gb")
+TIME_ZONE = env("TIME_ZONE", "Africa/Accra")
+USE_I18N = True
+USE_TZ = True
+
+# ---------------------------------------------------------------------------
 # Apps & Middleware
 # ---------------------------------------------------------------------------
 INSTALLED_APPS = [
@@ -288,6 +296,8 @@ OMR_DEBUG_RETENTION_HOURS = float(
 )
 # Minimal debug = one overlay per scan when overlays enabled (full PNG set when False and DEBUG).
 OMR_SAVE_MINIMAL_DEBUG = env_bool("OMR_SAVE_MINIMAL_DEBUG", default=not DEBUG)
+# With process_omr_scan(..., save_debug=True), also write small per-bubble ROI crops (capped) for QA / ML datasets.
+OMR_EXPORT_BUBBLE_ROIS = env_bool("OMR_EXPORT_BUBBLE_ROIS", default=False)
 
 # Image uploads: optional JPEG recompress for large photos (staff uploads, IDs). See core.media_utils.
 MEDIA_IMAGE_MAX_DIMENSION = int(env("MEDIA_IMAGE_MAX_DIMENSION", "2400"))
@@ -297,6 +307,8 @@ MEDIA_THUMBNAIL_MAX = int(env("MEDIA_THUMBNAIL_MAX", "400"))
 
 # Verbose request logging in development only
 VERBOSE_HTTP_LOGS = env_bool("VERBOSE_HTTP_LOGS", default=DEBUG)
+# When True, GET /health/ returns 503 if DB or cache probe fails (optional; default is JSON-only liveness).
+HEALTH_HTTP_STRICT = env_bool("HEALTH_HTTP_STRICT", False)
 
 # ---------------------------------------------------------------------------
 # REST Framework & JWT
@@ -335,6 +347,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
 }
+
+# Live username/email checks from HTML forms (accounts.api_check_identifier).
+try:
+    API_IDENTIFIER_CHECK_PER_MINUTE = max(10, int(env("API_IDENTIFIER_CHECK_PER_MINUTE", "120")))
+except ValueError:
+    API_IDENTIFIER_CHECK_PER_MINUTE = 120
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "MastexEDU API",
@@ -511,6 +529,11 @@ BEHIND_TLS_TERMINATING_PROXY = _tls_terminating_proxy
 # Number of trusted reverse proxies in front of the app (used for IP extraction).
 # Railway/Render add 1 hop; set to 2 if behind Cloudflare + platform proxy.
 NUM_PROXIES = int(env("NUM_PROXIES", "1"))
+# operations.activity.client_ip_from_request reads this name (defaults to NUM_PROXIES).
+try:
+    TRUSTED_PROXY_COUNT = int(env("TRUSTED_PROXY_COUNT", str(NUM_PROXIES)))
+except ValueError:
+    TRUSTED_PROXY_COUNT = NUM_PROXIES
 
 # Trust X-Forwarded-Host header from Railway proxy for custom domain handling
 USE_X_FORWARDED_HOST = True
@@ -540,8 +563,8 @@ if not DEBUG:
     CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com",)
     CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com",)
     CSP_IMG_SRC = ("'self'", "data:", "https:",)
-    CSP_CONNECT_SRC = ("'self'", "https://api.paystack.co",)
-    CSP_FRAME_SRC = ("'none'",)
+    CSP_CONNECT_SRC = ("'self'", "https://api.paystack.co", "https://meet.jit.si", "wss://meet.jit.si", "https://*.jitsi.net", "wss://*.jitsi.net")
+    CSP_FRAME_SRC = ("'self'", "https://meet.jit.si")
     CSP_OBJECT_SRC = ("'none'",)
     CSP_BASE_URI = ("'self'",)
     CSP_FORM_ACTION = ("'self'",)

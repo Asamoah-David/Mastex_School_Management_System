@@ -4,7 +4,19 @@
 {% block page_title %}{{ staff.get_full_name|default:staff.username }}{% endblock %}
 {% block page_subtitle %}Staff profile · Status: {% if staff.is_active %}Active{% else %}Inactive{% endif %}{% endblock %}
 {% block content %}
+<div class="button-row mb-sm" style="flex-wrap:wrap;gap:0.5rem;">
+    <a href="{% url 'accounts:staff_edit' staff.id %}" class="btn btn-warning">✏️ Edit name &amp; contact</a>
+    <a href="{% url 'accounts:reset_user_password' staff.id %}?next={% url 'accounts:staff_detail' staff.id %}" class="btn btn-secondary">🔑 Reset password</a>
+    {% if request.user.is_superuser or request.user.is_super_admin %}
+    <a href="{% url 'accounts:superuser_edit_credentials' staff.id %}?next={% url 'accounts:staff_detail' staff.id %}" class="btn btn-primary">Edit login</a>
+    {% endif %}
+    <a href="{% url 'accounts:staff_list' %}" class="btn btn-secondary">← Back</a>
+</div>
 <div class="content-grid" style="grid-template-columns: 1fr;">
+    <section class="metric">
+        <div class="metric-label">Full name</div>
+        <div class="metric-value">{{ staff.get_full_name|default:"—" }}</div>
+    </section>
     <section class="metric">
         <div class="metric-label">Username</div>
         <div class="metric-value">{{ staff.username }}</div>

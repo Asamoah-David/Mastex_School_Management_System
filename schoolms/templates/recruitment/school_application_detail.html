@@ -45,11 +45,17 @@
         <div>
             <div class="content-card" style="margin-bottom:1rem;">
                 <h4 style="margin:0 0 1rem;color:var(--text-main);">Update Status</h4>
+                <p style="font-size:0.85rem;color:var(--text-soft);margin:0 0 0.75rem;">
+                    Current status: <strong>{{ app.get_status_display }}</strong>
+                </p>
                 <form method="POST" action="{% url 'recruitment:school_application_action' app.pk %}">
                     {% csrf_token %}
                     <div class="form-group">
-                        <label class="form-label">New Status</label>
-                        <select class="form-control" name="status" title="Status">
+                        <label class="form-label">{% if app.status in action_status_set %}New status{% else %}Set status{% endif %}</label>
+                        <select class="form-control" name="status" required title="Status">
+                            {% if app.status not in action_status_set %}
+                            <option value="" disabled selected>Select decision…</option>
+                            {% endif %}
                             {% for val, label in statuses %}
                             <option value="{{ val }}" {% if app.status == val %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
@@ -66,11 +72,11 @@
             {% if app.status == 'shortlisted' or app.status == 'interview_scheduled' %}
             <div class="content-card">
                 <h4 style="margin:0 0 0.75rem;color:var(--text-main);">📅 Schedule Interview</h4>
-                {% if app.interview_schedule %}
-                <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;">Interview scheduled for {{ app.interview_schedule.interview_date|date:"d M Y" }} at {{ app.interview_schedule.interview_time|time:"g:i A" }}.</p>
+                {% if app.scheduled_interview %}
+                <p style="font-size:0.82rem;color:var(--text-soft);margin:0 0 0.75rem;">Interview scheduled for {{ app.scheduled_interview.interview_date|date:"d M Y" }} at {{ app.scheduled_interview.interview_time|time:"g:i A" }}.</p>
                 {% endif %}
                 <a href="{% url 'recruitment:school_schedule_interview' app.pk %}" class="btn btn-secondary" style="width:100%;text-align:center;">
-                    {% if app.interview_schedule %}Edit Interview{% else %}Schedule Interview{% endif %}
+                    {% if app.scheduled_interview %}Edit Interview{% else %}Schedule Interview{% endif %}
                 </a>
             </div>
             {% endif %}

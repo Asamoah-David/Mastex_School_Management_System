@@ -9,9 +9,10 @@ from finance.paystack_service import compute_paystack_gross_from_net
 from django.test import Client, TestCase
 from django.urls import reverse
 from unittest.mock import patch
+import uuid
 
-from finance.models import PaymentTransaction, Fee, FeePayment
-from schools.models import School
+from finance.models import PaymentTransaction, Fee, FeePayment, FeeInstallmentPlan
+from schools.models import School, SchoolFeature
 from accounts.models import User
 from students.models import Student
 from payments.services.ledger import PaymentTypes, record_payment_transaction
@@ -266,6 +267,68 @@ class LedgerWriterAndViewsTests(TestCase):
         self.assertIn("count", data)
 
 
+class CheckPaymentStatusScopeTests(TestCase):
+    """Reference lookup must not leak across tenants."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.s1 = School.objects.create(name="CPS School A", subdomain="cps-a")
+        cls.s2 = School.objects.create(name="CPS School B", subdomain="cps-b")
+        cls.admin_s1 = User.objects.create_user(
+            username="cps_admin_s1",
+            password="pw12345",
+            school=cls.s1,
+            role="school_admin",
+        )
+        cls.stu_user_b = User.objects.create_user(
+            username="cps_stu_b",
+            password="pw12345",
+            role="student",
+        )
+        cls.stu_b = Student.objects.create(
+            school=cls.s2,
+            user=cls.stu_user_b,
+            admission_number="ADM-B-1",
+            class_name="1A",
+        )
+        cls.fee_b = Fee.objects.create(
+            school=cls.s2,
+            student=cls.stu_b,
+            amount=Decimal("100.00"),
+            amount_paid=Decimal("0"),
+            paystack_reference="REF_SECRET_OTHER_SCHOOL",
+        )
+        FeePayment.objects.create(
+            fee=cls.fee_b,
+            amount=Decimal("10.00"),
+            paystack_reference="REF_SECRET_OTHER_SCHOOL",
+            status="completed",
+            school=cls.s2,
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_school_staff_cannot_resolve_other_school_reference(self):
+        self.client.login(username="cps_admin_s1", password="pw12345")
+        url = reverse("finance:check_payment_status")
+        r = self.client.post(url, {"reference": "REF_SECRET_OTHER_SCHOOL"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "No payment found")
+
+    def test_superuser_can_resolve_any_reference(self):
+        su = User.objects.create_superuser(
+            username="cps_su",
+            email="cps_su@example.com",
+            password="pw12345",
+        )
+        self.client.login(username="cps_su", password="pw12345")
+        url = reverse("finance:check_payment_status")
+        r = self.client.post(url, {"reference": "REF_SECRET_OTHER_SCHOOL"})
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "No payment found")
+
+
 # ---------------------------------------------------------------------------
 #  School Funds Ledger — Phase 2 tests
 # ---------------------------------------------------------------------------
@@ -465,9 +528,12 @@ class PaymentVoidWorkflowTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.client.login(username="void_admin", password="pw12345")
+        self.payment = FeePayment.objects.get(pk=self.__class__.payment.pk)
+        self.fee = Fee.objects.get(pk=self.__class__.fee.pk)
 
     @patch("finance.views.paystack_service.initiate_refund")
-    def test_void_completed_payment_restores_fee_balance(self, refund_mock):
+    def test_void_paystack_payment_queues_refund_without_reversing_fee(self, refund_mock):
+        """B4-B phase 1: refund API accepted → row stays completed until webhook."""
         refund_mock.return_value = {"status": True, "message": "ok"}
         resp = self.client.post(
             reverse("finance:payment_history_void", kwargs={"pk": self.payment.pk}),
@@ -476,10 +542,46 @@ class PaymentVoidWorkflowTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.payment.refresh_from_db()
         self.fee.refresh_from_db()
+        self.assertEqual(self.payment.refund_status, FeePayment.REFUND_STATUS_REQUESTED)
+        self.assertEqual(self.payment.status, "completed")
+        self.assertIsNone(self.payment.voided_at)
+        self.assertEqual(self.fee.amount_paid, Decimal("100.00"))
+
+    def test_void_offline_payment_reverses_immediately(self):
+        """No Paystack reference → synchronous void (legacy behaviour)."""
+        self.payment.paystack_reference = ""
+        self.payment.save(update_fields=["paystack_reference"])
+        resp = self.client.post(
+            reverse("finance:payment_history_void", kwargs={"pk": self.payment.pk}),
+            data={"void_reason": "Cash deposit was recorded twice by mistake."},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.payment.refresh_from_db()
+        self.fee.refresh_from_db()
         self.assertEqual(self.payment.status, "failed")
         self.assertIsNotNone(self.payment.voided_at)
         self.assertEqual(self.fee.amount_paid, Decimal("0.00"))
         self.assertFalse(self.fee.paid)
+
+    def test_refund_processed_webhook_reverses_fee_balance(self):
+        """B4-B phase 2: Paystack confirms refund → fee balance reversed."""
+        from finance.views import _paystack_webhook_fee_refund
+
+        self.payment.refund_status = FeePayment.REFUND_STATUS_REQUESTED
+        self.payment.void_reason = "test"
+        self.payment.voided_by = self.admin
+        self.payment.save(update_fields=["refund_status", "void_reason", "voided_by"])
+
+        _paystack_webhook_fee_refund(
+            {"data": {"transaction": {"reference": "REF_VOID_001"}}},
+            "refund.processed",
+        )
+        self.payment.refresh_from_db()
+        self.fee.refresh_from_db()
+        self.assertEqual(self.payment.refund_status, FeePayment.REFUND_STATUS_PROCESSED)
+        self.assertEqual(self.payment.status, "failed")
+        self.assertIsNotNone(self.payment.voided_at)
+        self.assertEqual(self.fee.amount_paid, Decimal("0.00"))
 
     @patch("finance.views.paystack_service.initiate_refund")
     def test_void_aborts_when_refund_fails(self, refund_mock):
@@ -495,6 +597,65 @@ class PaymentVoidWorkflowTests(TestCase):
         self.assertEqual(self.payment.status, "completed")
         self.assertIsNone(self.payment.voided_at)
         self.assertEqual(self.fee.amount_paid, Decimal("100.00"))
+
+
+class PaystackPendingFeePaymentReuseTests(TestCase):
+    """B4-A: repeated Pay clicks within the dedupe window reuse one pending row."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(
+            name="Dedupe School",
+            subdomain="dedupe-sch",
+            paystack_subaccount_code="ACCT_testdedupe",
+            paystack_subaccount_status="active",
+        )
+        cls.parent = User.objects.create_user(
+            username="dedupe_parent",
+            password="pw12345",
+            school=cls.school,
+            role="parent",
+        )
+        cls.student_user = User.objects.create_user(
+            username="dedupe_student_u",
+            password="pw12345",
+            school=cls.school,
+            role="student",
+        )
+        cls.student = Student.objects.create(
+            school=cls.school,
+            user=cls.student_user,
+            parent=cls.parent,
+            admission_number="DD-001",
+            class_name="JHS 1",
+        )
+        cls.fee = Fee.objects.create(
+            school=cls.school,
+            student=cls.student,
+            amount=Decimal("200.00"),
+            amount_paid=Decimal("0.00"),
+            paid=False,
+        )
+
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_dummy", PAYSTACK_PUBLIC_KEY="pk_test")
+    @patch("finance.views.paystack_service.initialize_payment")
+    def test_second_init_reuses_same_pending_fee_payment(self, init_mock):
+        init_mock.return_value = {
+            "status": True,
+            "data": {"authorization_url": "https://checkout.paystack.com/test"},
+        }
+        self.client.login(username="dedupe_parent", password="pw12345")
+        url = reverse("finance:pay", kwargs={"fee_id": self.fee.pk})
+        r1 = self.client.get(url)
+        self.assertEqual(r1.status_code, 302)
+        r2 = self.client.get(url)
+        self.assertEqual(r2.status_code, 302)
+        pending = list(FeePayment.objects.filter(fee=self.fee, status="pending"))
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(init_mock.call_count, 2)
+        ref1 = init_mock.call_args_list[0][1]["reference"]
+        ref2 = init_mock.call_args_list[1][1]["reference"]
+        self.assertEqual(ref1, ref2)
 
 
 class PaymentSuccessAccessTests(TestCase):
@@ -552,3 +713,144 @@ class PaymentSuccessAccessTests(TestCase):
         self.client.login(username="ps_parent_owner", password="pw12345")
         resp = self.client.get(reverse("finance:payment_success"), {"reference": self.reference})
         self.assertEqual(resp.status_code, 200)
+
+
+class FeeInstallmentMarkPaidTests(TestCase):
+    """Regression: marking an installment paid must credit the parent Fee."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import date
+
+        cls.school = School.objects.create(name="Inst School", subdomain="inst-sch-01")
+        cls.bursar = User.objects.create_user(
+            username="inst_bursar",
+            password="pw12345",
+            school=cls.school,
+            role="bursar",
+        )
+        cls.parent = User.objects.create_user(
+            username="inst_parent", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.student_user = User.objects.create_user(
+            username="inst_stu_u", password="pw12345", school=cls.school, role="student"
+        )
+        cls.student = Student.objects.create(
+            school=cls.school,
+            user=cls.student_user,
+            parent=cls.parent,
+            admission_number="INS-001",
+            class_name="JHS 1",
+        )
+        cls.fee = Fee.objects.create(
+            school=cls.school,
+            student=cls.student,
+            amount=Decimal("200.00"),
+            amount_paid=Decimal("0.00"),
+            paid=False,
+        )
+        cls.inst = FeeInstallmentPlan.objects.create(
+            school=cls.school,
+            fee=cls.fee,
+            installment_number=1,
+            due_date=date.today(),
+            amount_due=Decimal("100.00"),
+            amount_paid=Decimal("0.00"),
+            status="pending",
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_mark_paid_credits_parent_fee_balance(self):
+        self.client.login(username="inst_bursar", password="pw12345")
+        url = reverse("finance:fee_installment_mark_paid", kwargs={"pk": self.inst.pk})
+        r = self.client.post(url)
+        self.assertEqual(r.status_code, 302)
+        self.fee.refresh_from_db()
+        self.assertEqual(self.fee.amount_paid, Decimal("100.00"))
+        self.inst.refresh_from_db()
+        self.assertEqual(self.inst.status, "paid")
+        self.assertEqual(self.inst.amount_paid, Decimal("100.00"))
+
+    def test_double_post_does_not_double_credit(self):
+        self.client.login(username="inst_bursar", password="pw12345")
+        url = reverse("finance:fee_installment_mark_paid", kwargs={"pk": self.inst.pk})
+        self.client.post(url)
+        self.client.post(url)
+        self.fee.refresh_from_db()
+        self.assertEqual(self.fee.amount_paid, Decimal("100.00"))
+
+    def test_partial_installment_credits_remaining_only(self):
+        self.inst.amount_paid = Decimal("30.00")
+        self.inst.status = "partial"
+        self.inst.save(update_fields=["amount_paid", "status"])
+        self.client.login(username="inst_bursar", password="pw12345")
+        url = reverse("finance:fee_installment_mark_paid", kwargs={"pk": self.inst.pk})
+        self.client.post(url)
+        self.fee.refresh_from_db()
+        self.assertEqual(self.fee.amount_paid, Decimal("70.00"))
+
+
+class FinanceAdminErpFeatureGateTests(TestCase):
+    """Purchase orders, bank accounts, and fixed assets require SchoolFeature('finance_admin')."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Fin ERP Gate School", subdomain=f"fin-erp-{uuid.uuid4().hex[:10]}")
+        SchoolFeature.objects.update_or_create(
+            school=cls.school, key="finance_admin", defaults={"enabled": False}
+        )
+        cls.admin = User.objects.create_user(
+            username="fin_erp_admin", password="pw12345", school=cls.school, role="school_admin"
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_purchase_order_list_redirects_when_finance_admin_disabled(self):
+        self.client.login(username="fin_erp_admin", password="pw12345")
+        r = self.client.get(reverse("finance:purchase_order_list"))
+        self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)
+
+    def test_fixed_asset_list_redirects_when_finance_admin_disabled(self):
+        self.client.login(username="fin_erp_admin", password="pw12345")
+        r = self.client.get(reverse("finance:fixed_asset_list"))
+        self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)
+
+    def test_bank_account_list_redirects_when_finance_admin_disabled(self):
+        self.client.login(username="fin_erp_admin", password="pw12345")
+        r = self.client.get(reverse("finance:bank_account_list"))
+        self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)
+
+
+class FeeManagementErpFeatureGateTests(TestCase):
+    """Fee discounts, installments, and bulk fee generation require SchoolFeature('fee_management')."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Fee Mgmt Gate School", subdomain=f"fee-mgt-{uuid.uuid4().hex[:10]}")
+        SchoolFeature.objects.update_or_create(
+            school=cls.school, key="fee_management", defaults={"enabled": False}
+        )
+        cls.admin = User.objects.create_user(
+            username="fee_mgt_admin", password="pw12345", school=cls.school, role="school_admin"
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_fee_discount_list_redirects_when_fee_management_disabled(self):
+        self.client.login(username="fee_mgt_admin", password="pw12345")
+        r = self.client.get(reverse("finance:fee_discount_list"))
+        self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)
+
+    def test_fee_installment_list_redirects_when_fee_management_disabled(self):
+        self.client.login(username="fee_mgt_admin", password="pw12345")
+        r = self.client.get(reverse("finance:fee_installment_list"))
+        self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)
+
+    def test_bulk_fee_generate_redirects_when_fee_management_disabled(self):
+        self.client.login(username="fee_mgt_admin", password="pw12345")
+        r = self.client.get(reverse("finance:bulk_fee_generate"))
+        self.assertRedirects(r, reverse("accounts:dashboard"), fetch_redirect_response=False)

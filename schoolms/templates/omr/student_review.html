@@ -15,6 +15,14 @@
     </div>
 </div>
 {% endif %}
+{% if quality_marginal %}
+<div class="card mb-sm" style="border-left:4px solid #b45309;background:rgba(180,83,9,0.06);">
+    <div style="padding:.6rem 1rem;font-size:.88rem;">
+        <strong>Marginal photo:</strong> reading used stronger safeguards (colour print suppression + row alignment search).
+        Double-check flagged questions and the detection summary below.
+    </div>
+</div>
+{% endif %}
 
 {% if flagged %}
 <div class="card mb-sm" style="border-left:4px solid var(--warning);background:rgba(234,179,8,0.05);">
@@ -166,9 +174,10 @@ function toggleDebugImage() {
     </div>
 </form>
 
+{{ exam.answer_key|json_script:"omr-st-answer-key" }}
 <script>
 const ST_TOTAL = {{ exam.total_questions }};
-const ST_KEY = {{ exam.answer_key|safe }};
+const ST_KEY = JSON.parse(document.getElementById('omr-st-answer-key').textContent) || {};
 
 function stSelect(q, opt, correctAns) {
     document.getElementById('stval_' + q).value = opt;

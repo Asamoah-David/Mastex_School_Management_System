@@ -2,18 +2,43 @@
 
 {% block title %}Confirm Delete · MastexEDU{% endblock %}
 {% block page_title %}Confirm Delete{% endblock %}
-{% block page_subtitle %}Are you sure you want to delete this {{ type }}?{% endblock %}
+{% block page_subtitle %}Are you sure you want to delete this {{ type|default:"item" }}?{% endblock %}
 
 {% block content %}
 <div class="content-card">
-    <p>You are about to delete: <strong>{% if custom_name %}{{ custom_name }}{% elif type == 'quiz' or type == 'homework' %}{{ object.title }}{% elif type == 'assignment' %}{{ object.title }}{% elif type == 'exam' %}{{ object.title }}{% elif type == 'textbook' %}{{ object.title }}{% else %}{{ object.get_full_name|default:object.username }}{% endif %}</strong></p>
+    <p>
+        You are about to delete:
+        <strong>
+            {% if custom_name %}
+                {{ custom_name }}
+            {% elif object.title %}
+                {{ object.title }}
+            {% elif object.name %}
+                {{ object.name }}
+            {% elif object.get_full_name %}
+                {{ object.get_full_name }}
+            {% elif object.username %}
+                {{ object.username }}
+            {% else %}
+                {{ object }}
+            {% endif %}
+        </strong>
+    </p>
     <p class="text-danger">This action cannot be undone. All associated data will be permanently deleted.</p>
-    
+
     <form method="post">
         {% csrf_token %}
         <div class="button-row">
             <button type="submit" class="btn btn-danger">Yes, Delete</button>
-            <a href="{% if cancel_url_args %}{% url cancel_url pk=cancel_url_args.pk %}{% else %}{% url cancel_url %}{% endif %}" class="btn btn-secondary">Cancel</a>
+            {% if cancel_url %}
+                {% if cancel_url_args %}
+                    <a href="{% url cancel_url pk=cancel_url_args.pk %}" class="btn btn-secondary">Cancel</a>
+                {% else %}
+                    <a href="{% url cancel_url %}" class="btn btn-secondary">Cancel</a>
+                {% endif %}
+            {% else %}
+                <a href="javascript:history.back()" class="btn btn-secondary">Cancel</a>
+            {% endif %}
         </div>
     </form>
 </div>

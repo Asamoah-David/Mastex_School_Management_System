@@ -279,6 +279,12 @@ def omr_answer_key_upload(request, pk):
                 "More than 10% of questions are blank, multiple, or uncertain — "
                 "review carefully before saving the official answer key.",
             )
+        if result.get("quality_marginal"):
+            messages.warning(
+                request,
+                "Photo quality is marginal (blur, shadows, or framing). "
+                "Automatic reading ran with extra safeguards — review flagged questions carefully.",
+            )
         if not result.get("used_blank_subtraction"):
             messages.warning(
                 request,
@@ -303,6 +309,7 @@ def omr_answer_key_upload(request, pk):
             "debug_urls": result.get("debug_urls", {}),
             "answer_key_needs_review": result.get("answer_key_needs_review", False),
             "used_blank_subtraction": result.get("used_blank_subtraction", False),
+            "quality_marginal": result.get("quality_marginal", False),
             "manual_entry": False,
         }
         return redirect("omr:answer_key_review", pk=exam.pk)
@@ -361,6 +368,7 @@ def omr_answer_key_review(request, pk):
                 "perspective_corrected": pending.get("perspective_corrected", False),
                 "manual_entry": pending.get("manual_entry", False),
                 "answer_key_needs_review": pending.get("answer_key_needs_review", False),
+                "quality_marginal": pending.get("quality_marginal", False),
                 "debug_urls": pending.get("debug_urls", {}),
                 "debug_image_path": pending.get("debug_image_path"),
                 "questions_range": range(1, exam.total_questions + 1),
@@ -392,6 +400,7 @@ def omr_answer_key_review(request, pk):
         "perspective_corrected": pending.get("perspective_corrected", False),
         "manual_entry": pending.get("manual_entry", False),
         "answer_key_needs_review": pending.get("answer_key_needs_review", False),
+        "quality_marginal": pending.get("quality_marginal", False),
         "debug_urls": pending.get("debug_urls", {}),
         "debug_image_path": pending.get("debug_image_path"),
         "questions_range": range(1, exam.total_questions + 1),
@@ -487,6 +496,7 @@ def omr_student_upload(request, pk):
             "debug_urls": result.get("debug_urls", {}),
             "used_blank_subtraction": result.get("used_blank_subtraction", False),
             "manual_entry": False,
+            "quality_marginal": result.get("quality_marginal", False),
         }
         n_flag = len(result.get("flagged_questions") or [])
         if n_flag > 8:
@@ -499,6 +509,12 @@ def omr_student_upload(request, pk):
             messages.info(
                 request,
                 "Tip: upload a calibrated blank sheet for this template to improve accuracy (OMR → Calibrate).",
+            )
+        if result.get("quality_marginal"):
+            messages.warning(
+                request,
+                "Photo quality is marginal — answers were read with extra safeguards. "
+                "Please verify highlighted questions before saving.",
             )
         return redirect("omr:student_review", pk=exam.pk)
 
@@ -613,6 +629,7 @@ def omr_student_review(request, pk):
         "registration_marks_found": pending.get("registration_marks_found", 0),
         "coverage_ratio": pending.get("coverage_ratio", 0),
         "coverage_warning": pending.get("coverage_warning", False),
+        "quality_marginal": pending.get("quality_marginal", False),
         "debug_image_path": pending.get("debug_image_path"),
         "debug_urls": pending.get("debug_urls", {}),
         "manual_entry": pending.get("manual_entry", False),
@@ -1047,6 +1064,7 @@ def omr_testing_page(request):
                 "registration_marks_found": result.get("registration_marks_found", 0),
                 "coverage_ratio": result.get("coverage_ratio", 0),
                 "coverage_warning": result.get("coverage_warning", False),
+                "quality_marginal": result.get("quality_marginal", False),
                 "used_blank_subtraction": result.get("used_blank_subtraction", False),
                 "template_id": result["template_id"],
                 "questions": questions_detail,

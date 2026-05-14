@@ -7,18 +7,19 @@
     <form method="get">
         <div class="form-group" style="margin-bottom:.85rem;">
             <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.35rem;color:var(--text-main);">Application reference</label>
-            <input type="text" name="ref" value="{{ request.GET.ref }}" placeholder="e.g. ADM-A1B2C3D4" autocomplete="off"
+            <input type="text" name="ref" value="{{ q_ref }}" placeholder="e.g. ADM-A1B2C3D4" autocomplete="off"
                    style="width:100%;padding:.65rem .85rem;border:1px solid rgba(148,163,184,.35);border-radius:.65rem;font-size:.95rem;font-family:ui-monospace,monospace;background:rgba(15,23,42,.9);color:var(--text-main);">
             <small style="display:block;margin-top:.35rem;color:var(--text-soft);font-size:.75rem;">Best option if you saved the code from the confirmation page.</small>
         </div>
-        <p style="text-align:center;font-size:.78rem;color:var(--text-soft);margin:.5rem 0 1rem;">— or search without a reference —</p>
+        <p style="text-align:center;font-size:.78rem;color:var(--text-soft);margin:.5rem 0 1rem;">— or search without a reference (exact phone + applicant name) —</p>
         <div class="form-group" style="margin-bottom:.75rem;">
             <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">Parent/guardian phone</label>
-            <input type="text" name="phone" value="{{ request.GET.phone }}" placeholder="e.g. 0241234567" style="width:100%;padding:.5rem .75rem;border:1px solid rgba(148,163,184,.35);border-radius:.5rem;font-size:.9rem;background:rgba(15,23,42,.9);color:var(--text-main);">
+            <input type="text" name="phone" value="{{ q_phone }}" placeholder="Exact number as on the application" style="width:100%;padding:.5rem .75rem;border:1px solid rgba(148,163,184,.35);border-radius:.5rem;font-size:.9rem;background:rgba(15,23,42,.9);color:var(--text-main);">
         </div>
         <div class="form-group" style="margin-bottom:.75rem;">
             <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">Applicant name</label>
-            <input type="text" name="name" value="{{ request.GET.name }}" placeholder="First or last name" style="width:100%;padding:.5rem .75rem;border:1px solid rgba(148,163,184,.35);border-radius:.5rem;font-size:.9rem;background:rgba(15,23,42,.9);color:var(--text-main);">
+            <input type="text" name="name" value="{{ q_name }}" placeholder="e.g. Kwame Mensah (first and last)" style="width:100%;padding:.5rem .75rem;border:1px solid rgba(148,163,184,.35);border-radius:.5rem;font-size:.9rem;background:rgba(15,23,42,.9);color:var(--text-main);">
+            <small style="display:block;margin-top:.3rem;color:var(--text-soft);font-size:.72rem;">If several applications share this phone, use your ADM-… reference instead.</small>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;">Check status</button>
     </form>
@@ -32,7 +33,7 @@
             <p style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-soft);margin:0 0 .25rem;">Reference</p>
             <p style="margin:0 0 .75rem;font-family:ui-monospace,monospace;font-weight:700;color:#60a5fa;">{{ application.public_reference }}</p>
             <h3 style="margin-bottom:.5rem;color:var(--text-main);">{{ application.first_name }} {{ application.last_name }}</h3>
-            <p style="font-size:.85rem;color:var(--text-soft);margin-bottom:.75rem;">Applied to {{ application.school.name|default:"—" }} for {{ application.class_applied_for }}</p>
+            <p style="font-size:.85rem;color:var(--text-soft);margin-bottom:.75rem;">Applied to {% if application.school %}{{ application.school.name }}{% else %}—{% endif %} for {{ application.class_applied_for|default:"—" }}</p>
             <div style="display:inline-block;padding:.35rem .75rem;border-radius:.25rem;font-weight:600;font-size:.85rem;
                 {% if application.status == 'approved' %}background:rgba(34,197,94,.15);color:#4ade80;
                 {% elif application.status == 'rejected' %}background:rgba(239,68,68,.15);color:#f87171;

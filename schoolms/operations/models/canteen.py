@@ -93,7 +93,9 @@ class CanteenPayment(models.Model):
 
     @property
     def payment_status_display(self):
-        if self.paid:
+        # CanteenPayment has no `paid` boolean (unlike BusPayment / HostelFee);
+        # status is tracked via the `payment_status` string field.
+        if self.payment_status == "completed":
             return "Paid"
         if (self.amount_paid or Decimal("0")) > 0:
             return f"Partial ({self.amount_paid}/{self.amount})"
@@ -104,7 +106,7 @@ class CanteenPayment(models.Model):
         from django.utils import timezone
         from decimal import Decimal
         from django.db import transaction
-        
+
         amt = Decimal(str(amount or 0))
         if amt <= 0:
             return False
@@ -118,15 +120,14 @@ class CanteenPayment(models.Model):
             if cp.payment_history is None:
                 cp.payment_history = []
             cp.payment_history.append(record)
-            
+
             if cp.amount_paid >= (cp.amount or Decimal("0")):
-                cp.paid = True
                 cp.payment_status = "completed"
             elif cp.amount_paid > 0:
                 cp.payment_status = "partial"
             cp.save(update_fields=[
                 "amount_paid", "payment_reference", "payment_date",
-                "payment_history", "paid", "payment_status",
+                "payment_history", "payment_status",
             ])
             return True
 

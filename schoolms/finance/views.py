@@ -3,6 +3,8 @@ import json
 import requests
 from datetime import timedelta
 from decimal import Decimal
+from typing import Optional
+
 from django.conf import settings
 from django.db import models, transaction
 from django.db.models import Prefetch
@@ -44,11 +46,62 @@ from .paystack_service import compute_paystack_gross_from_net, paystack_service
 from accounts.models import User
 from messaging.utils import send_sms
 from schools.models import School
+from schools.features import is_feature_enabled, is_feature_enabled_for_school, require_feature
 from core.pagination import paginate
 from core.utils import FEE_PAYSTACK_RETURN_SESSION_KEY, safe_internal_redirect_path
 from audit.services import write_audit
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _check_payment_status_fee_payment_qs(user):
+    """Tenant scope for payment reference lookup (non-superusers)."""
+    qs = FeePayment.objects.select_related("fee", "fee__student", "fee__school")
+    if not user or not getattr(user, "is_authenticated", False):
+        return qs.none()
+    if user.is_superuser:
+        return qs
+    parts = []
+    school = getattr(user, "school", None)
+    if school is not None:
+        parts.append(models.Q(fee__school=school))
+    if getattr(user, "role", None) == "parent":
+        from students.utils import get_children_for_parent
+
+        children = get_children_for_parent(user, active_only=False)
+        if children.exists():
+            parts.append(models.Q(fee__student__in=children))
+    if not parts:
+        return qs.none()
+    combined = parts[0]
+    for p in parts[1:]:
+        combined |= p
+    return qs.filter(combined)
+
+
+def _check_payment_status_fee_qs(user):
+    """Tenant scope for Fee rows when resolving a reference (non-superusers)."""
+    qs = Fee.objects.select_related("student", "school")
+    if not user or not getattr(user, "is_authenticated", False):
+        return qs.none()
+    if user.is_superuser:
+        return qs
+    parts = []
+    school = getattr(user, "school", None)
+    if school is not None:
+        parts.append(models.Q(school=school))
+    if getattr(user, "role", None) == "parent":
+        from students.utils import get_children_for_parent
+
+        children = get_children_for_parent(user, active_only=False)
+        if children.exists():
+            parts.append(models.Q(student__in=children))
+    if not parts:
+        return qs.none()
+    combined = parts[0]
+    for p in parts[1:]:
+        combined |= p
+    return qs.filter(combined)
 
 
 def _store_fee_paystack_return(request, raw_next):
@@ -82,6 +135,65 @@ def _complete_fee_payment(fee_id, reference, paid_amount, paystack_id, channel):
 def is_paystack_configured():
     """Check if Paystack is properly configured."""
     return bool(settings.PAYSTACK_SECRET_KEY)
+
+
+# How long a pending FeePayment is considered "live" before subsequent
+# initiate clicks should mark it failed.  See Bug fix B4-A.
+PENDING_FEE_PAYMENT_DEDUPE_MINUTES = 5
+
+
+def _expire_stale_pending_fee_payments(fee_id: int) -> int:
+    """Mark abandoned pending FeePayment rows on the given fee as failed.
+
+    Called from the Paystack init views before they create a new pending
+    row, so the ledger never accumulates more than one *recent* pending
+    row per fee.  Returns the number of rows expired (for logging).
+
+    Safe to call repeatedly; will never touch a completed/failed row.
+    """
+    cutoff = timezone.now() - timedelta(minutes=PENDING_FEE_PAYMENT_DEDUPE_MINUTES)
+    expired = FeePayment.objects.filter(
+        fee_id=fee_id,
+        status="pending",
+        created_at__lt=cutoff,
+    ).update(status="failed")
+    if expired:
+        logger.info(
+            "B4-A: expired %s stale pending FeePayment(s) for fee_id=%s",
+            expired, fee_id,
+        )
+    return expired
+
+
+def _reuse_recent_pending_fee_payment(
+    fee_id: int, *, amount_net: Decimal, amount_gross: Decimal
+) -> Optional[FeePayment]:
+    """Return a pending FeePayment to re-use for Paystack init, or None.
+
+    B4-A: repeated \"Pay\" clicks within ``PENDING_FEE_PAYMENT_DEDUPE_MINUTES``
+    for the same net/gross amount should not mint a fresh pending row each
+    time (abandoned attempts used to pile up).  After ``_expire_stale_pending_fee_payments``,
+    any remaining pending row with matching amounts in the dedupe window is
+    returned so the caller can call ``initialize`` again with the same
+    Paystack reference.
+    """
+    cutoff = timezone.now() - timedelta(minutes=PENDING_FEE_PAYMENT_DEDUPE_MINUTES)
+    qs = (
+        FeePayment.objects.filter(
+            fee_id=fee_id,
+            status="pending",
+            amount=amount_net,
+            created_at__gte=cutoff,
+        )
+        .exclude(paystack_reference__isnull=True)
+        .exclude(paystack_reference="")
+        .order_by("-pk")
+    )
+    for fp in qs[:5]:
+        fp_gross = fp.gross_amount if fp.gross_amount is not None else fp.amount
+        if fp_gross == amount_gross:
+            return fp
+    return None
 
 
 def _send_fee_payment_email_notice(fee, net_amount: float, reference: str) -> None:
@@ -256,18 +368,32 @@ def pay_with_paystack(request, fee_id):
     school_subaccount = None
     if fee.school and fee.school.is_payout_setup_active:
         school_subaccount = fee.school.paystack_subaccount_code
-    
-    pending_payment = FeePayment.objects.create(
-        fee=fee,
-        amount=amount_net,
-        gross_amount=amount_gross,
-        paystack_reference=reference,
-        status='pending'
+
+    # B4-A: expire stale pendings, then reuse a recent matching pending row
+    # (same net/gross within the window) instead of creating duplicates.
+    _expire_stale_pending_fee_payments(fee.pk)
+    reuse = _reuse_recent_pending_fee_payment(
+        fee.pk, amount_net=amount_net, amount_gross=amount_gross
     )
-    logger.info(
-        "Created pending payment record: payment_id=%s, reference=%s, net=%s, gross=%s",
-        pending_payment.id, reference, amount_net, amount_gross,
-    )
+    if reuse:
+        pending_payment = reuse
+        reference = pending_payment.paystack_reference or reference
+        logger.info(
+            "B4-A: reusing pending FeePayment id=%s reference=%s net=%s gross=%s",
+            pending_payment.id, reference, amount_net, amount_gross,
+        )
+    else:
+        pending_payment = FeePayment.objects.create(
+            fee=fee,
+            amount=amount_net,
+            gross_amount=amount_gross,
+            paystack_reference=reference,
+            status="pending",
+        )
+        logger.info(
+            "Created pending payment record: payment_id=%s, reference=%s, net=%s, gross=%s",
+            pending_payment.id, reference, amount_net, amount_gross,
+        )
     
     response = paystack_service.initialize_payment(
         email=email,
@@ -350,28 +476,39 @@ def pay_with_paystack_custom_amount(request, fee_id):
             callback_url = request.build_absolute_uri(
                 reverse("finance:paystack_callback", kwargs={"fee_id": fee_id})
             )
-            
-            # Create a unique reference
+
             reference = f"SCHOOL_FEE_{fee_id}_{uuid.uuid4().hex[:8].upper()}"
-            
+
             # Get school's subaccount if configured
             school_subaccount = None
             if fee.school and fee.school.is_payout_setup_active:
                 school_subaccount = fee.school.paystack_subaccount_code
-            
-            # Create pending payment record for tracking
+
             from .models import FeePayment
-            pending_payment = FeePayment.objects.create(
-                fee=fee,
-                amount=amount_net,
-                gross_amount=amount_gross,
-                paystack_reference=reference,
-                status='pending'
+
+            _expire_stale_pending_fee_payments(fee.pk)
+            reuse = _reuse_recent_pending_fee_payment(
+                fee.pk, amount_net=amount_net, amount_gross=amount_gross
             )
-            logger.info(
-                "Created pending payment (custom): payment_id=%s, reference=%s, net=%s, gross=%s",
-                pending_payment.id, reference, amount_net, amount_gross,
-            )
+            if reuse:
+                pending_payment = reuse
+                reference = pending_payment.paystack_reference or reference
+                logger.info(
+                    "B4-A: reusing pending FeePayment (custom) id=%s reference=%s net=%s gross=%s",
+                    pending_payment.id, reference, amount_net, amount_gross,
+                )
+            else:
+                pending_payment = FeePayment.objects.create(
+                    fee=fee,
+                    amount=amount_net,
+                    gross_amount=amount_gross,
+                    paystack_reference=reference,
+                    status="pending",
+                )
+                logger.info(
+                    "Created pending payment (custom): payment_id=%s, reference=%s, net=%s, gross=%s",
+                    pending_payment.id, reference, amount_net, amount_gross,
+                )
             
             # Initialize payment
             response = paystack_service.initialize_payment(
@@ -500,16 +637,17 @@ def paystack_callback(request, fee_id):
                     f"GHS {net_credited:.2f} applied to the fee successfully.{extra}",
                 )
             else:
-                record_payment_transaction(
-                    reference=reference,
-                    school_id=fee.school_id,
-                    amount=net_credited,
-                    status="failed",
-                    payment_type="school_fee",
-                    object_id=str(fee_id),
-                    metadata={"fee_id": fee_id},
+                # Bug fix B4-C: a `was_new=False` here means the webhook (or
+                # a previous tab) raced us to completion — it is NOT a
+                # genuine failure. The fee balance is already correct; the
+                # earlier "failed" ledger row was misleading and would
+                # poison reconciliation reports. Log as completed-duplicate
+                # for observability and show a user-friendly info message.
+                logger.info(
+                    "paystack_callback duplicate completion (webhook race) reference=%s fee_id=%s",
+                    reference, fee_id,
                 )
-                messages.error(request, "Payment verification failed.")
+                messages.info(request, "This payment has already been recorded.")
 
             return _redirect_after_fee_paystack(request)
 
@@ -535,6 +673,134 @@ def paystack_callback(request, fee_id):
     return _redirect_after_fee_paystack(request)
 
 
+def _paystack_webhook_fee_refund(payload: dict, event: str) -> None:
+    """Close the two-phase refund cycle started by ``payment_history_void``.
+
+    Paystack fires ``refund.processed`` once the refund actually moves
+    money, or ``refund.failed`` if the refund could not be completed.
+    The payload's ``data.transaction.reference`` (or ``data.transaction_reference``,
+    depending on the event shape) points back to the original transaction
+    reference we used at charge time, which is what we stored on
+    ``FeePayment.paystack_reference``.
+    """
+    data = payload.get("data") or {}
+    tx = data.get("transaction") or {}
+    ref = (
+        (tx.get("reference") if isinstance(tx, dict) else None)
+        or data.get("transaction_reference")
+        or data.get("reference")
+        or ""
+    )
+    ref = str(ref).strip()
+    if not ref:
+        logger.warning("paystack refund webhook ignored: no transaction reference event=%s", event)
+        return
+
+    dedupe_key = f"paystack_refund_lock:{ref}:{event}"
+    if cache.get(dedupe_key):
+        logger.info("paystack refund webhook duplicate burst skipped reference=%s event=%s", ref, event)
+        return
+    cache.set(dedupe_key, 1, 120)
+
+    try:
+        with transaction.atomic():
+            payment = (
+                FeePayment.objects.select_for_update()
+                .select_related("fee")
+                .filter(paystack_reference=ref)
+                .order_by("-pk")
+                .first()
+            )
+            if not payment:
+                logger.warning("paystack refund webhook ignored: no FeePayment reference=%s", ref)
+                return
+
+            if payment.refund_status == FeePayment.REFUND_STATUS_PROCESSED:
+                logger.info("paystack refund webhook duplicate/already processed reference=%s", ref)
+                return
+
+            if event == "refund.processed":
+                fee = payment.fee
+                current_paid = fee.amount_paid or Decimal("0")
+                reversal = payment.amount or Decimal("0")
+                Fee.objects.filter(pk=fee.pk).update(
+                    amount_paid=models.F("amount_paid") - reversal
+                )
+                fee.refresh_from_db(fields=["amount_paid"])
+                # Clamp at zero in case multiple reversals overshoot.
+                if fee.amount_paid < Decimal("0"):
+                    Fee.objects.filter(pk=fee.pk).update(amount_paid=Decimal("0"))
+                    fee.refresh_from_db(fields=["amount_paid"])
+                fee.save()
+
+                payment.status = "failed"
+                payment.refund_status = FeePayment.REFUND_STATUS_PROCESSED
+                payment.refund_processed_at = timezone.now()
+                payment.voided_at = payment.refund_processed_at
+                payment.save(update_fields=[
+                    "status", "refund_status", "refund_processed_at", "voided_at",
+                ])
+                logger.info(
+                    "paystack refund processed: reference=%s fee_id=%s reversed=%s",
+                    ref, fee.pk, reversal,
+                )
+                try:
+                    write_audit(
+                        user=payment.voided_by,
+                        action="refund_processed",
+                        model_name="finance.FeePayment",
+                        object_id=str(payment.pk),
+                        school=getattr(fee, "school", None),
+                        changes={
+                            "fee_id": fee.pk,
+                            "student_id": fee.student_id,
+                            "amount": str(reversal),
+                            "paystack_reference": ref,
+                        },
+                    )
+                except Exception:
+                    logger.exception("paystack refund processed: audit log failed reference=%s", ref)
+                return
+
+            # refund.failed — keep the original payment intact and surface
+            # the failure reason for finance staff to retry.
+            failure_reason = ""
+            failures = data.get("failures") or data.get("reason") or data.get("status")
+            if isinstance(failures, list) and failures:
+                first = failures[0] if isinstance(failures[0], (dict, str)) else ""
+                if isinstance(first, dict):
+                    failure_reason = first.get("reason") or first.get("message") or ""
+                else:
+                    failure_reason = str(first)
+            elif isinstance(failures, str):
+                failure_reason = failures
+            failure_reason = (failure_reason or data.get("message") or "Refund failed at Paystack.")[:2000]
+
+            payment.refund_status = FeePayment.REFUND_STATUS_FAILED
+            payment.refund_failure_reason = failure_reason
+            payment.save(update_fields=["refund_status", "refund_failure_reason"])
+            logger.warning(
+                "paystack refund failed: reference=%s payment_id=%s reason=%s",
+                ref, payment.pk, failure_reason,
+            )
+            try:
+                write_audit(
+                    user=payment.voided_by,
+                    action="refund_failed",
+                    model_name="finance.FeePayment",
+                    object_id=str(payment.pk),
+                    school=getattr(payment.fee, "school", None) if payment.fee_id else None,
+                    changes={
+                        "paystack_reference": ref,
+                        "reason": failure_reason,
+                    },
+                )
+            except Exception:
+                logger.exception("paystack refund failed: audit log failed reference=%s", ref)
+    except Exception:
+        logger.exception("paystack refund webhook processing crashed reference=%s event=%s", ref, event)
+
+
 def _paystack_webhook_staff_transfer(payload: dict, event: str) -> None:
     """Update StaffPayrollPayment rows for Paystack Transfer webhooks."""
     from accounts.hr_models import StaffPayrollPayment
@@ -556,10 +822,10 @@ def _paystack_webhook_staff_transfer(payload: dict, event: str) -> None:
         logger.info("Staff payroll transfer success: ref=%s payment_id=%s", ref, pay.pk)
     elif event == "transfer.failed":
         pay.paystack_status = "failed"
-        fail = data.get("failures")
+        failures = data.get("failures")
         reason = ""
-        if isinstance(fail, list) and fail:
-            first = fail[0]
+        if isinstance(failures, list) and failures:
+            first = failures[0]
             if isinstance(first, dict):
                 reason = first.get("reason") or first.get("message") or ""
         if not reason:
@@ -670,7 +936,15 @@ def paystack_webhook(request):
         r = HttpResponse(status=200)
         r["Cache-Control"] = "no-store"
         return r
-    
+
+    # Bug fix B4-B: refund.processed / refund.failed close the two-phase
+    # void on FeePayments.  See ``payment_history_void`` for phase 1.
+    if event in ("refund.processed", "refund.failed"):
+        _paystack_webhook_fee_refund(payload, event)
+        r = HttpResponse(status=200)
+        r["Cache-Control"] = "no-store"
+        return r
+
     if event == "charge.success":
         data = payload.get("data", {})
         reference = data.get("reference")
@@ -715,6 +989,14 @@ def paystack_webhook(request):
                                     reference,
                                     fee_id,
                                     school_id,
+                                )
+                                return HttpResponse(status=200)
+
+                            if not is_feature_enabled_for_school(pending.fee.school_id, "online_payments"):
+                                logger.warning(
+                                    "paystack_webhook school_fee ignored: online_payments disabled school_id=%s reference=%s",
+                                    pending.fee.school_id,
+                                    reference,
                                 )
                                 return HttpResponse(status=200)
 
@@ -790,10 +1072,23 @@ def paystack_webhook(request):
                 if payment_id:
                     try:
                         from operations.models import CanteenPayment
-                        from django.utils import timezone
+                        # Bug fix: previously imported ``timezone`` locally here
+                        # (and again in the bus/hostel branches below), which made
+                        # ``timezone`` a function-local name everywhere in
+                        # ``paystack_webhook``. The new subscription branch at
+                        # the top of the function calls ``timezone.now()``
+                        # before any of these branches run, triggering an
+                        # ``UnboundLocalError``. The module-level
+                        # ``from django.utils import timezone`` already covers us.
                         with transaction.atomic():
                             payment = CanteenPayment.objects.select_for_update().get(id=payment_id)
-                            if payment.payment_status != 'completed':
+                            if not is_feature_enabled_for_school(payment.school_id, "canteen"):
+                                logger.info(
+                                    "paystack_webhook canteen ignored: feature disabled school_id=%s payment_id=%s",
+                                    payment.school_id,
+                                    payment_id,
+                                )
+                            elif payment.payment_status != 'completed':
                                 mark_canteen_payment_completed(payment=payment, reference=reference)
                                 logger.info(f"Canteen payment completed: payment_id={payment_id}")
                             else:
@@ -807,11 +1102,16 @@ def paystack_webhook(request):
                 if payment_id:
                     try:
                         from operations.models import BusPayment
-                        from django.utils import timezone
 
                         with transaction.atomic():
                             payment = BusPayment.objects.select_for_update().get(id=payment_id)
-                            if payment.payment_status != 'completed':
+                            if not is_feature_enabled_for_school(payment.school_id, "bus_transport"):
+                                logger.info(
+                                    "paystack_webhook bus ignored: feature disabled school_id=%s payment_id=%s",
+                                    payment.school_id,
+                                    payment_id,
+                                )
+                            elif payment.payment_status != 'completed':
                                 mark_bus_payment_completed(payment=payment, reference=reference)
                                 logger.info(f"Bus payment completed: payment_id={payment_id}")
                             else:
@@ -827,7 +1127,13 @@ def paystack_webhook(request):
                         from operations.models import TextbookSale, Textbook
                         with transaction.atomic():
                             sale = TextbookSale.objects.select_for_update().get(id=payment_id)
-                            if sale.payment_status != 'completed':
+                            if not is_feature_enabled_for_school(sale.school_id, "textbooks"):
+                                logger.info(
+                                    "paystack_webhook textbook ignored: feature disabled school_id=%s sale_id=%s",
+                                    sale.school_id,
+                                    payment_id,
+                                )
+                            elif sale.payment_status != 'completed':
                                 mark_textbook_sale_completed(sale=sale, reference=reference)
                                 if sale.textbook:
                                     updated = Textbook.objects.filter(
@@ -843,17 +1149,104 @@ def paystack_webhook(request):
                     except TextbookSale.DoesNotExist:
                         logger.error(f"Textbook sale not found: sale_id={payment_id}")
             
+            # Handle Subscription Renewals
+            # Bug fix F4-13: previously `pay_subscription` set metadata `type`
+            # instead of `payment_type`, so this branch never fired and a
+            # subscription paid for via Paystack with a dropped browser was
+            # never activated until the user re-hit the callback URL.
+            elif payment_type == "subscription":
+                try:
+                    with transaction.atomic():
+                        sp = (
+                            SubscriptionPayment.objects.select_for_update()
+                            .select_related("school")
+                            .filter(paystack_reference=reference)
+                            .order_by("-pk")
+                            .first()
+                        )
+                        if not sp:
+                            logger.warning(
+                                "paystack_webhook subscription ignored: no SubscriptionPayment reference=%s",
+                                reference,
+                            )
+                            return HttpResponse(status=200)
+                        if sp.status == "completed":
+                            logger.info(
+                                "paystack_webhook subscription duplicate/ignored reference=%s",
+                                reference,
+                            )
+                            return HttpResponse(status=200)
+
+                        school = sp.school
+                        if not school:
+                            logger.warning(
+                                "paystack_webhook subscription ignored: SubscriptionPayment %s has no school",
+                                sp.pk,
+                            )
+                            return HttpResponse(status=200)
+
+                        meta_school_id = metadata.get("school_id")
+                        try:
+                            if meta_school_id is not None and int(meta_school_id) != int(school.pk):
+                                logger.warning(
+                                    "paystack_webhook subscription ignored: reference=%s school_id mismatch meta=%s db=%s",
+                                    reference, meta_school_id, school.pk,
+                                )
+                                return HttpResponse(status=200)
+                        except (TypeError, ValueError):
+                            logger.warning(
+                                "paystack_webhook subscription ignored: invalid school_id meta=%s reference=%s",
+                                meta_school_id, reference,
+                            )
+                            return HttpResponse(status=200)
+
+                        now = timezone.now()
+                        renewal_days = 30
+                        if school.subscription_end_date and school.subscription_end_date > now:
+                            new_end = school.subscription_end_date + timezone.timedelta(days=renewal_days)
+                        else:
+                            school.subscription_start_date = now
+                            new_end = now + timezone.timedelta(days=renewal_days)
+                        school.subscription_end_date = new_end
+                        school.subscription_status = "active"
+                        school.save(update_fields=[
+                            "subscription_start_date",
+                            "subscription_end_date",
+                            "subscription_status",
+                        ])
+
+                        sp.status = "completed"
+                        sp.paystack_payment_id = data.get("id")
+                        sp.payment_method = data.get("authorization", {}).get("channel", "")
+                        sp.save(update_fields=[
+                            "status", "paystack_payment_id", "payment_method", "updated_at",
+                        ])
+                        logger.info(
+                            "paystack_webhook subscription renewed reference=%s school_id=%s new_end=%s",
+                            reference, school.pk, new_end,
+                        )
+                except Exception:
+                    logger.exception(
+                        "paystack_webhook subscription processing failed reference=%s",
+                        reference,
+                    )
+
             # Handle Hostel Payments
             elif payment_type == "hostel":
                 payment_id = metadata.get("payment_id")
                 if payment_id:
                     try:
                         from operations.models import HostelFee
-                        from django.utils import timezone
 
                         with transaction.atomic():
                             fee = HostelFee.objects.select_for_update().get(id=payment_id)
-                            if fee.payment_status != 'completed' and not fee.paid:
+                            if not is_feature_enabled_for_school(fee.school_id, "hostel"):
+                                logger.info(
+                                    "paystack_webhook hostel ignored: feature disabled school_id=%s fee_id=%s",
+                                    fee.school_id,
+                                    payment_id,
+                                )
+                            elif fee.payment_status != 'completed' and not fee.paid:
                                 try:
                                     paid_amount = Decimal(str(data.get("amount", 0))) / Decimal("100")
                                 except Exception:
@@ -898,6 +1291,9 @@ def fee_list(request):
     if not (user.is_superuser or user_can_manage_school(user)):
         messages.error(request, "You do not have permission to manage fees.")
         return redirect("accounts:dashboard")
+
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
 
     # Handle actions
     if request.method == "POST":
@@ -1018,13 +1414,22 @@ def fee_list(request):
                         if amount > remaining:
                             messages.error(request, "Amount exceeds remaining balance.")
                             return redirect("finance:fee_list")
-                        # Payment row first, then F() update so Fee post_save does not double-notify.
-                        fp = FeePayment.objects.create(
-                            fee=fee,
-                            amount=amount,
-                            payment_method="offline",
-                            status="completed",
-                        )
+                        # Atomic: FeePayment + Fee.amount_paid bump + ledger row must
+                        # either all commit or all roll back, so we never end up
+                        # with a completed payment row that doesn't credit the fee
+                        # (Bug F3-5 — previously not atomic).
+                        with transaction.atomic():
+                            fp = FeePayment.objects.create(
+                                fee=fee,
+                                amount=amount,
+                                payment_method="offline",
+                                status="completed",
+                            )
+                            Fee.objects.filter(pk=fee.pk).update(
+                                amount_paid=models.F("amount_paid") + amount
+                            )
+                            fee.refresh_from_db()
+                            fee.save()
                         try:
                             record_payment_transaction(
                                 provider="offline",
@@ -1042,12 +1447,7 @@ def fee_list(request):
                                 },
                             )
                         except Exception:
-                            pass
-                        Fee.objects.filter(pk=fee.pk).update(
-                            amount_paid=models.F("amount_paid") + amount
-                        )
-                        fee.refresh_from_db()
-                        fee.save()
+                            logger.exception("fee_list: record_payment_transaction failed for offline fee=%s fp=%s", fee.pk, fp.pk)
                         try:
                             write_audit(
                                 user=request.user,
@@ -1109,6 +1509,8 @@ def fee_structure_list(request):
     if not school:
         structures = FeeStructure.objects.all().select_related("school")[:100]
         return render(request, "finance/fee_structure_list.html", {"structures": structures, "school": None})
+    if (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
     structures = FeeStructure.objects.filter(school=school).order_by("name", "class_name")
     return render(request, "finance/fee_structure_list.html", {"structures": structures, "school": school})
 
@@ -1123,6 +1525,8 @@ def fee_structure_create(request):
         return redirect("accounts:dashboard")
     if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
     form = FeeStructureForm(request.POST or None)
     if request.method == "POST":
         if form.is_valid():
@@ -1173,9 +1577,11 @@ def fee_structure_edit(request, pk):
         return redirect("accounts:dashboard")
     if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
-    
+    if (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     structure = get_object_or_404(FeeStructure, pk=pk, school=school)
-    
+
     form = FeeStructureForm(request.POST or None, instance=structure)
 
     if request.method == "POST":
@@ -1231,9 +1637,11 @@ def fee_structure_delete(request, pk):
         return redirect("accounts:dashboard")
     if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("accounts:school_dashboard")
-    
+    if (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     structure = get_object_or_404(FeeStructure, pk=pk, school=school)
-    
+
     if request.method == "POST":
         snapshot = {
             "name": structure.name,
@@ -1267,7 +1675,11 @@ def fee_structure_delete(request, pk):
 
 @login_required
 def generate_fees_from_structure(request, pk):
-    """Generate individual Fee records for all students in a class based on FeeStructure."""
+    """Generate individual Fee records for all students in a class based on FeeStructure.
+
+    Accepts both GET (for backward compat with existing inline confirm() links) and POST.
+    POST is preferred for state mutation; GET is allowed but logged.
+    """
     school = getattr(request.user, "school", None)
     if not school and not request.user.is_superuser:
         return redirect("accounts:dashboard")
@@ -1281,9 +1693,15 @@ def generate_fees_from_structure(request, pk):
     
     structure = get_object_or_404(FeeStructure, pk=pk, school=school)
     
-    # Get students for this class (or all if no class specified)
-    if structure.class_name:
-        students = Student.objects.filter(school=school, class_name=structure.class_name, status="active")
+    # Prefer the structured FK (school_class) when present; fall back to legacy class_name.
+    if structure.school_class_id:
+        students = Student.objects.filter(
+            school=school, school_class_id=structure.school_class_id, status="active",
+        )
+    elif structure.class_name:
+        students = Student.objects.filter(
+            school=school, class_name=structure.class_name, status="active",
+        )
     else:
         students = Student.objects.filter(school=school, status="active")
     
@@ -1297,6 +1715,7 @@ def generate_fees_from_structure(request, pk):
             school=school,
             student=student,
             fee_structure=structure,
+            term=structure.term_fk,
             amount=structure.amount,
         )
         for student in students
@@ -1412,7 +1831,12 @@ def pay_subscription(request):
         metadata={
             "school_id": school.id,
             "school_name": school.name,
+            # Webhook handler reads `payment_type`, not `type`. The legacy
+            # `type` key is kept for backward-compatibility with any external
+            # tooling that already reads it, but `payment_type` is now what
+            # routes the webhook into the subscription branch (Bug F4-13).
             "type": "subscription",
+            "payment_type": "subscription",
             "amount_net": float(amount_net),
             "amount_gross": float(amount_gross),
         },
@@ -1629,6 +2053,12 @@ def payment_success(request):
         messages.error(request, "You do not have permission to view this payment.")
         return redirect("home")
 
+    if fee_payment and getattr(fee_payment, "fee", None):
+        _fee = fee_payment.fee
+        if not is_feature_enabled_for_school(_fee.school_id, "fee_management"):
+            messages.error(request, "Fee management is disabled for this school.")
+            return redirect("home")
+
     ctx = {
         "reference": reference,
         "payment": payment,
@@ -1659,6 +2089,10 @@ def payment_receipt(request, pk):
     )
     if not (is_school_staff or is_parent_of):
         messages.error(request, "You do not have permission to view this receipt.")
+        return redirect("home")
+
+    if not is_feature_enabled_for_school(fee.school_id, "fee_management"):
+        messages.error(request, "Fee management is disabled for this school.")
         return redirect("home")
 
     from io import BytesIO
@@ -1726,6 +2160,9 @@ def payment_ledger_health(request):
         messages.error(request, "You do not have permission to view the payment ledger.")
         return redirect("accounts:dashboard")
 
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
     if school and not user.is_superuser:
         qs = qs.filter(school=school)
@@ -1788,29 +2225,30 @@ def check_payment_status(request):
         if not reference:
             error = "Please enter a payment reference."
         else:
-            # Search in FeePayment by paystack_reference
-            payment = FeePayment.objects.filter(
+            payment = _check_payment_status_fee_payment_qs(request.user).filter(
                 paystack_reference=reference
-            ).select_related("fee", "fee__student", "fee__school").first()
-            
+            ).first()
+
             if not payment:
-                # Also check Fee model directly for the reference
-                from .models import Fee
-                fee_with_ref = Fee.objects.filter(
+                fee_with_ref = _check_payment_status_fee_qs(request.user).filter(
                     paystack_reference=reference
-                ).select_related("student", "school").first()
+                ).first()
                 
-                if fee_with_ref and fee_with_ref.amount_paid > 0:
-                    # Create a virtual payment object for display
-                    class VirtualPayment:
-                        def __init__(self, fee):
-                            self.amount = fee.amount_paid
-                            self.paystack_reference = fee.paystack_reference
-                            self.status = "completed"
-                            self.created_at = fee.updated_at
-                            self.fee = fee
-                    
-                    payment = VirtualPayment(fee_with_ref)
+                if fee_with_ref is not None:
+                    paid = getattr(fee_with_ref, "amount_paid", None) or Decimal("0")
+                    if paid > 0:
+                        # Create a virtual payment object for display
+                        class VirtualPayment:
+                            def __init__(self, fee):
+                                self.amount = getattr(fee, "amount_paid", None) or Decimal("0")
+                                self.paystack_reference = getattr(fee, "paystack_reference", None) or ""
+                                self.status = "completed"
+                                self.created_at = getattr(fee, "updated_at", None) or getattr(
+                                    fee, "created_at", None
+                                )
+                                self.fee = fee
+
+                        payment = VirtualPayment(fee_with_ref)
             
             if not payment:
                 error = f"No payment found with reference '{reference}'. Please check and try again."
@@ -1837,6 +2275,13 @@ def payment_history_list(request):
         messages.error(request, "You are not attached to any school.")
         return redirect("accounts:dashboard")
 
+    if not (user.is_superuser or user_can_manage_school(user) or can_manage_finance(user)):
+        messages.error(request, "You do not have permission to view payment history.")
+        return redirect("accounts:dashboard")
+
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     # Get all payments for this school
     payments_qs = FeePayment.objects.select_related(
         "fee", "fee__student", "fee__school"
@@ -1854,14 +2299,19 @@ def payment_history_list(request):
     elif filter_status == "failed":
         payments_qs = payments_qs.filter(status="failed")
     
-    # Search by student name or payment reference
-    search = request.GET.get("search")
+    # Search by student name (on the linked User) or payment reference.
+    # Bug fix: previously filtered ``fee__student__first_name`` but Student
+    # has no first_name/last_name fields (they live on User). The old query
+    # raised ``FieldError`` whenever a user typed in the search box.
+    search = (request.GET.get("search") or "").strip()
     if search:
         payments_qs = payments_qs.filter(
-            models.Q(fee__student__first_name__icontains=search) |
-            models.Q(fee__student__last_name__icontains=search) |
+            models.Q(fee__student__user__first_name__icontains=search) |
+            models.Q(fee__student__user__last_name__icontains=search) |
+            models.Q(fee__student__user__username__icontains=search) |
             models.Q(fee__student__admission_number__icontains=search) |
-            models.Q(paystack_reference__icontains=search)
+            models.Q(paystack_reference__icontains=search) |
+            models.Q(receipt_no__icontains=search)
         )
     
     payments_qs = payments_qs.order_by("-created_at")
@@ -1901,6 +2351,9 @@ def payment_history_delete(request, pk):
         messages.error(request, "You do not have permission to manage payment records.")
         return redirect("accounts:dashboard")
 
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     pay_qs = FeePayment.objects.select_related("fee", "fee__school").filter(pk=pk)
     if school and not user.is_superuser:
         pay_qs = pay_qs.filter(fee__school=school)
@@ -1909,13 +2362,39 @@ def payment_history_delete(request, pk):
         messages.error(request, "Payment not found or you do not have permission.")
         return redirect("finance:payment_history_list")
 
+    fee_school_id = getattr(getattr(payment, "fee", None), "school_id", None)
+    if fee_school_id and not is_feature_enabled_for_school(fee_school_id, "fee_management"):
+        messages.error(request, "Fee management is disabled for the school that owns this payment.")
+        return redirect("finance:payment_history_list")
+
     # Only allow deleting pending or failed payments
     if payment.status == "completed":
         messages.error(request, "Completed payments cannot be deleted. Use the void workflow.")
         return redirect("finance:payment_history_list")
     
     if request.method == "POST":
+        # Snapshot before delete so we can write an audit row.
+        snapshot = {
+            "fee_id": payment.fee_id,
+            "amount": str(payment.amount or Decimal("0")),
+            "status": payment.status,
+            "payment_method": payment.payment_method,
+            "paystack_reference": payment.paystack_reference or "",
+        }
         payment.delete()
+        try:
+            from audit.services import write_audit
+            write_audit(
+                user=user,
+                action="delete",
+                model_name="finance.FeePayment",
+                object_id=str(pk),
+                school=school or getattr(payment.fee, "school", None),
+                request=request,
+                changes=snapshot,
+            )
+        except Exception:
+            logger.exception("payment_history_delete: audit log failed for payment=%s", pk)
         messages.success(request, "Payment record deleted successfully.")
         return redirect("finance:payment_history_list")
     
@@ -1943,6 +2422,9 @@ def payment_history_delete_multiple(request):
         messages.error(request, "You do not have permission to manage payment records.")
         return redirect("accounts:dashboard")
 
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     if request.method == "POST":
         payment_ids = request.POST.getlist("payment_ids")
         
@@ -1955,7 +2437,15 @@ def payment_history_delete_multiple(request):
         
         if not user.is_superuser and school:
             payments_qs = payments_qs.filter(fee__school=school)
-        
+
+        from schools.models import SchoolFeature
+
+        payments_qs = payments_qs.exclude(
+            fee__school_id__in=SchoolFeature.objects.filter(key="fee_management", enabled=False).values_list(
+                "school_id", flat=True
+            )
+        )
+
         # Separate deletable from non-deletable
         deletable = payments_qs.filter(status__in=["pending", "failed"])
         non_deletable = payments_qs.filter(status="completed").count()
@@ -1963,8 +2453,26 @@ def payment_history_delete_multiple(request):
         if non_deletable > 0:
             messages.warning(request, f"Skipped {non_deletable} completed payments (use void workflow).")
         
+        # Snapshot deletable rows so we can audit individual deletions.
+        snapshots = list(deletable.values(
+            "pk", "fee_id", "amount", "status", "payment_method", "paystack_reference",
+        ))
         deleted_count = deletable.count()
         deletable.delete()
+        try:
+            from audit.services import write_audit
+            for snap in snapshots:
+                write_audit(
+                    user=user,
+                    action="delete",
+                    model_name="finance.FeePayment",
+                    object_id=str(snap["pk"]),
+                    school=school,
+                    request=request,
+                    changes={k: (str(v) if k == "amount" else v) for k, v in snap.items() if k != "pk"},
+                )
+        except Exception:
+            logger.exception("payment_history_delete_multiple: audit log failed (count=%s)", deleted_count)
         
         messages.success(request, f"Successfully deleted {deleted_count} payment record(s).")
     
@@ -1986,6 +2494,9 @@ def payment_history_void(request, pk):
         messages.error(request, "You do not have permission to void completed payments.")
         return redirect("finance:payment_history_list")
 
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     pay_qs = FeePayment.objects.select_related("fee", "fee__school", "fee__student").filter(pk=pk)
     if school and not user.is_superuser:
         pay_qs = pay_qs.filter(fee__school=school)
@@ -1993,11 +2504,21 @@ def payment_history_void(request, pk):
     if not payment:
         messages.error(request, "Payment not found or not accessible.")
         return redirect("finance:payment_history_list")
+    fee_school_id = getattr(getattr(payment, "fee", None), "school_id", None)
+    if fee_school_id and not is_feature_enabled_for_school(fee_school_id, "fee_management"):
+        messages.error(request, "Fee management is disabled for the school that owns this payment.")
+        return redirect("finance:payment_history_list")
     if payment.status != "completed":
         messages.error(request, "Only completed payments can be voided.")
         return redirect("finance:payment_history_list")
     if payment.voided_at:
         messages.info(request, "Payment has already been voided.")
+        return redirect("finance:payment_history_list")
+    if payment.refund_status == FeePayment.REFUND_STATUS_REQUESTED:
+        messages.info(
+            request,
+            "A refund is already in progress for this payment. The fee balance will adjust when Paystack confirms.",
+        )
         return redirect("finance:payment_history_list")
 
     if request.method == "POST":
@@ -2019,7 +2540,28 @@ def payment_history_void(request, pk):
             if locked.status != "completed":
                 messages.error(request, "Only completed payments can be voided.")
                 return redirect("finance:payment_history_list")
+            if locked.refund_status == FeePayment.REFUND_STATUS_REQUESTED:
+                messages.info(
+                    request,
+                    "A refund has already been requested for this payment. Waiting for Paystack confirmation.",
+                )
+                return redirect("finance:payment_history_list")
 
+            # Bug fix B4-B: two-phase refund commit.
+            #
+            # Paystack refunds are *queued*, not synchronous — Paystack's
+            # ``/refund`` endpoint returns ``status:true`` once it accepts
+            # the request, but the actual money movement is confirmed
+            # later via ``refund.processed`` / ``refund.failed`` webhooks.
+            #
+            # Previously we eagerly reversed ``fee.amount_paid`` and marked
+            # the payment failed at request time.  If Paystack subsequently
+            # rejected the refund (insufficient merchant balance, no card
+            # on file, etc.) the ledger ended up under-counted forever.
+            #
+            # Now: we only mark the payment as "refund requested" and
+            # record the audit trail.  The fee balance is reversed by the
+            # webhook handler when Paystack confirms the refund.
             if locked.paystack_reference:
                 refund_resp = paystack_service.initiate_refund(
                     transaction_reference=locked.paystack_reference,
@@ -2033,6 +2575,39 @@ def payment_history_void(request, pk):
                     )
                     return render(request, "finance/payment_void_confirm.html", {"payment": locked})
 
+                fee = locked.fee
+                locked.refund_status = FeePayment.REFUND_STATUS_REQUESTED
+                locked.refund_requested_at = timezone.now()
+                locked.voided_by = user
+                locked.void_reason = reason
+                locked.save(update_fields=[
+                    "refund_status", "refund_requested_at",
+                    "voided_by", "void_reason",
+                ])
+
+                write_audit(
+                    user=user,
+                    action="refund_requested",
+                    model_name="finance.FeePayment",
+                    object_id=str(locked.pk),
+                    school=getattr(fee, "school", None),
+                    changes={
+                        "fee_id": fee.pk,
+                        "student_id": fee.student_id,
+                        "amount": str(locked.amount or Decimal("0")),
+                        "reason": reason,
+                        "paystack_reference": locked.paystack_reference or "",
+                    },
+                )
+                messages.success(
+                    request,
+                    "Refund requested. The fee balance will be reversed once "
+                    "Paystack confirms the refund (typically within a few minutes).",
+                )
+                return redirect("finance:payment_history_list")
+
+            # Offline / non-Paystack payment — no provider to wait on, so
+            # this stays a synchronous void (legacy behaviour preserved).
             fee = locked.fee
             current_paid = fee.amount_paid or Decimal("0")
             reversal = locked.amount or Decimal("0")
@@ -2078,6 +2653,9 @@ def payment_ledger_list(request):
     if not (user.is_superuser or user_can_manage_school(user)):
         messages.error(request, "You do not have permission to view the payment ledger.")
         return redirect("accounts:dashboard")
+
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
 
     qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
     if school and not user.is_superuser:
@@ -2185,6 +2763,9 @@ def payment_ledger_queue(request):
         messages.error(request, "You do not have permission to view the payment ledger.")
         return redirect("accounts:dashboard")
 
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     try:
         days = int(request.GET.get("days") or 30)
     except Exception:
@@ -2226,6 +2807,9 @@ def payment_ledger_queue_page(request):
     if not (user.is_superuser or user_can_manage_school(user)):
         messages.error(request, "You do not have permission to view the payment ledger.")
         return redirect("accounts:dashboard")
+
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
 
     try:
         days = int(request.GET.get("days") or 30)
@@ -2365,6 +2949,9 @@ def payment_ledger_detail(request, pk):
         messages.error(request, "You do not have permission to view the payment ledger.")
         return redirect("accounts:dashboard")
 
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     qs = PaymentTransaction.objects.select_related("school", "reviewed_by").filter(pk=pk)
     if school and not user.is_superuser:
         qs = qs.filter(school=school)
@@ -2398,6 +2985,9 @@ def payment_ledger_toggle_review(request, pk):
     if not (user.is_superuser or user_can_manage_school(user)):
         messages.error(request, "You do not have permission to update ledger review status.")
         return redirect("accounts:dashboard")
+
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
 
     qs = PaymentTransaction.objects.select_related("school").filter(pk=pk)
     if school and not user.is_superuser:
@@ -2458,6 +3048,9 @@ def payment_ledger_bulk_review(request):
     if not (user.is_superuser or user_can_manage_school(user)):
         messages.error(request, "You do not have permission to update ledger review status.")
         return redirect("accounts:dashboard")
+
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
 
     desired = (request.POST.get("review") or "").strip().lower()
     scope = (request.POST.get("scope") or "selected").strip().lower()
@@ -2589,6 +3182,9 @@ def payment_ledger_export_csv(request):
     if not (user.is_superuser or user_can_manage_school(user)):
         messages.error(request, "You do not have permission to export the payment ledger.")
         return redirect("accounts:dashboard")
+
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
 
     qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
     if school and not user.is_superuser:
@@ -2730,6 +3326,9 @@ def payment_ledger_queue_export_csv(request):
         messages.error(request, "You do not have permission to export the payment ledger.")
         return redirect("accounts:dashboard")
 
+    if school and (redir := require_feature(request, "fee_management", "accounts:dashboard")):
+        return redir
+
     qs = PaymentTransaction.objects.all().select_related("school", "reviewed_by")
     if school and not user.is_superuser:
         qs = qs.filter(school=school)
@@ -2855,6 +3454,9 @@ def payment_ledger_bulk_review_preview(request):
 
     if not (user.is_superuser or user_can_manage_school(user)):
         return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    if school and not is_feature_enabled(request, "fee_management"):
+        return JsonResponse({"ok": False, "error": "feature_disabled"}, status=403)
 
     qs = PaymentTransaction.objects.all()
     if school and not user.is_superuser:
@@ -3253,6 +3855,10 @@ def fixed_asset_list(request):
     if not can_manage_finance(request.user):
         messages.error(request, "Finance access required.")
         return redirect("accounts:dashboard")
+    if school:
+        redir = require_feature(request, "finance_admin", "accounts:dashboard")
+        if redir:
+            return redir
     from finance.models import FixedAsset
     assets = FixedAsset.objects.filter(school=school).order_by("category", "name")
     category_filter = request.GET.get("category", "")
@@ -3278,6 +3884,9 @@ def fixed_asset_create(request):
     school = getattr(request.user, "school", None)
     if not school or not can_manage_finance(request.user):
         return redirect("accounts:dashboard")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     from finance.models import FixedAsset, PurchaseOrder
     error = None
     if request.method == "POST":
@@ -3320,6 +3929,9 @@ def fixed_asset_detail(request, pk):
     school = getattr(request.user, "school", None)
     if not school or not can_manage_finance(request.user):
         return redirect("accounts:dashboard")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     from finance.models import FixedAsset
     asset = get_object_or_404(FixedAsset, pk=pk, school=school)
     return render(request, "finance/fixed_asset_detail.html", {"asset": asset, "school": school})
@@ -3330,6 +3942,9 @@ def fixed_asset_edit(request, pk):
     school = getattr(request.user, "school", None)
     if not school or not can_manage_finance(request.user):
         return redirect("accounts:dashboard")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     from finance.models import FixedAsset
     asset = get_object_or_404(FixedAsset, pk=pk, school=school)
     error = None
@@ -3364,6 +3979,9 @@ def fixed_asset_dispose(request, pk):
     school = getattr(request.user, "school", None)
     if not school or not can_manage_finance(request.user):
         return redirect("accounts:dashboard")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     from finance.models import FixedAsset
     asset = get_object_or_404(FixedAsset, pk=pk, school=school)
     if request.method == "POST":

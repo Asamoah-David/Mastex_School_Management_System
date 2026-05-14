@@ -7,7 +7,7 @@ Contains business logic for grading calculations, GPA computation, and student r
 from django.db.models import Avg, Sum, Count
 from .models import (
     AssessmentScore, ExamScore, StudentResultSummary,
-    GradingPolicy, GradePoint, Subject, Term, get_grade_for_score, get_grade_point_value
+    GradingPolicy, GradePoint, Subject, Term, get_grade_for_score, get_grade_point_value,
 )
 from students.models import Student
 
@@ -257,17 +257,16 @@ class GradingService:
     @staticmethod
     def update_student_result_summary(student, subject, term):
         """
-        Update or create the result summary for a student/subject/term.
-        
-        This is the main method to recalculate and store all computed values.
-        
-        Args:
-            student: Student instance
-            subject: Subject instance
-            term: Term instance
-            
-        Returns:
-            StudentResultSummary: Updated or created summary
+        Update or create the ``StudentResultSummary`` for one student/subject/term.
+
+        Reads live ``AssessmentScore`` (CA average) and ``ExamScore``, applies
+        ``GradingPolicy`` weights, writes ``ca_score`` / ``exam_score`` /
+        ``final_score`` / ``grade`` / ``grade_point``, then refreshes term
+        rankings on all summaries for that student/term.
+
+        Typically invoked from ``generate_result_summary`` (batch per class/term),
+        from ``reconcile_student_subject_term_summary`` after CA/exam/legacy saves,
+        or from ``academics.signals`` after score changes.
         """
         school = student.school
         policy = GradingPolicy.get_active_policy(school)
@@ -300,9 +299,180 @@ class GradingService:
         
         # Update rankings
         GradingService.update_rankings(student, term)
-        
+
         return summary
-    
+
+    @staticmethod
+    def sync_student_result_summary_from_legacy_results(student, subject, term):
+        """Build or clear ``StudentResultSummary`` from ``Result`` rows (legacy path).
+
+        Used when there are no ``AssessmentScore`` / ``ExamScore`` rows for the
+        triple. Averages normalized percentages across all non-deleted ``Result``
+        rows (same student, subject, term, multiple ``exam_type`` values allowed).
+
+        When no legacy rows remain, deletes the summary and refreshes rankings.
+        """
+        from .models import Result
+
+        qs = Result.objects.filter(
+            student=student,
+            subject=subject,
+            term=term,
+            deleted_at__isnull=True,
+        )
+        if not qs.exists():
+            deleted, _ = StudentResultSummary.objects.filter(
+                student=student, subject=subject, term=term
+            ).delete()
+            if deleted:
+                GradingService.update_rankings(student, term)
+            return None
+
+        pcts = [float(r.percentage) for r in qs]
+        avg = round(sum(pcts) / len(pcts), 2)
+        grade, grade_point = GradingService.get_grade_and_point(student, avg)
+        gpa = GradingService.calculate_term_gpa(student, term)
+
+        summary, _ = StudentResultSummary.objects.update_or_create(
+            student=student,
+            subject=subject,
+            term=term,
+            defaults={
+                "school_id": student.school_id,
+                "ca_score": 0.0,
+                "exam_score": avg,
+                "final_score": avg,
+                "grade": grade,
+                "grade_point": grade_point,
+                "gpa": gpa,
+            },
+        )
+        GradingService.update_rankings(student, term)
+        return summary
+
+    @staticmethod
+    def reconcile_student_subject_term_summary(student, subject, term):
+        """Single entry point: CA+exam summaries, else legacy ``Result`` summaries.
+
+        Enhanced report cards and PDFs prefer ``StudentResultSummary``. When
+        modern CA/exam data exists it always wins. Otherwise one summary row is
+        derived from published-style ``Result`` averages (see
+        :meth:`sync_student_result_summary_from_legacy_results`).
+        """
+        has_modern = (
+            AssessmentScore.objects.filter(student=student, subject=subject, term=term).exists()
+            or ExamScore.objects.filter(student=student, subject=subject, term=term).exists()
+        )
+        if has_modern:
+            return GradingService.update_student_result_summary(student, subject, term)
+        return GradingService.sync_student_result_summary_from_legacy_results(student, subject, term)
+
+    @staticmethod
+    def refresh_student_result_summary_if_scores_exist(student, subject, term):
+        """Compatibility alias for :meth:`reconcile_student_subject_term_summary`."""
+        return GradingService.reconcile_student_subject_term_summary(student, subject, term)
+
+    @staticmethod
+    def collect_triples_for_class_term(school, term, class_name=None, student_id=None, subject_id=None):
+        """Distinct (student_id, subject_id, term_id) tuples that have score or summary data.
+
+        Pass either ``class_name`` (all students in that class at ``school``) or
+        ``student_id`` (a single student at ``school``). If ``student_id`` is set,
+        ``class_name`` is ignored for selecting students.
+
+        If ``subject_id`` is set, only triples for that subject (same school) are
+        returned.
+
+        Sources: ``AssessmentScore``, ``ExamScore``, ``Result`` (non-deleted),
+        ``StudentResultSummary`` for the given ``term``.
+        """
+        from .models import AssessmentScore, ExamScore, Result, StudentResultSummary, Subject
+
+        if subject_id is not None and not Subject.objects.filter(pk=subject_id, school=school).exists():
+            return set()
+
+        if student_id is not None:
+            student_ids = list(
+                Student.objects.filter(pk=student_id, school=school).values_list("pk", flat=True)
+            )
+        else:
+            cn = (class_name or "").strip()
+            if not cn:
+                return set()
+            student_ids = list(
+                Student.objects.filter(school=school, class_name=cn).values_list("pk", flat=True)
+            )
+        if not student_ids:
+            return set()
+        tid = term.id
+        keys = set()
+        for sid, subid in (
+            AssessmentScore.objects.filter(term=term, student_id__in=student_ids)
+            .values_list("student_id", "subject_id")
+            .distinct()
+        ):
+            if sid and subid:
+                keys.add((sid, subid, tid))
+        for sid, subid in (
+            ExamScore.objects.filter(term=term, student_id__in=student_ids)
+            .values_list("student_id", "subject_id")
+            .distinct()
+        ):
+            if sid and subid:
+                keys.add((sid, subid, tid))
+        for sid, subid in (
+            Result.objects.filter(
+                term=term, student_id__in=student_ids, deleted_at__isnull=True
+            )
+            .values_list("student_id", "subject_id")
+            .distinct()
+        ):
+            if sid and subid:
+                keys.add((sid, subid, tid))
+        for sid, subid in (
+            StudentResultSummary.objects.filter(term=term, student_id__in=student_ids)
+            .values_list("student_id", "subject_id")
+            .distinct()
+        ):
+            if sid and subid:
+                keys.add((sid, subid, tid))
+        if subject_id is not None:
+            keys = {(s, sub, t) for (s, sub, t) in keys if sub == subject_id}
+        return keys
+
+    @staticmethod
+    def reconcile_triples(triples):
+        """Run :meth:`reconcile_student_subject_term_summary` for each triple.
+
+        Args:
+            triples: iterable of ``(student_id, subject_id, term_id)`` int tuples
+
+        Returns:
+            tuple: ``(success_count, error_count)``
+        """
+        import logging
+
+        from .models import Subject, Term
+
+        log = logging.getLogger(__name__)
+        ok = err = 0
+        for sid, subid, tid in triples:
+            try:
+                stu = Student.objects.get(pk=sid)
+                subj = Subject.objects.get(pk=subid)
+                trm = Term.objects.get(pk=tid)
+                GradingService.reconcile_student_subject_term_summary(stu, subj, trm)
+                ok += 1
+            except Exception:
+                log.exception(
+                    "reconcile_triples failed student=%s subject=%s term=%s",
+                    sid,
+                    subid,
+                    tid,
+                )
+                err += 1
+        return ok, err
+
     @staticmethod
     def update_rankings(student, term):
         """

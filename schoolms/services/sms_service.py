@@ -32,13 +32,18 @@ class SMSService:
         # Validate recipient phone number
         if not to or to.strip() == "":
             raise RuntimeError("Recipient phone number is required.")
-        
-        # Clean phone number - remove any spaces or special characters
-        phone = ''.join(c for c in str(to) if c.isdigit() or c == '+')
-        
-        # Check if phone number has at least 10 digits (basic validation)
-        if len(phone) < 10:
-            raise RuntimeError(f"Invalid phone number format: {to}. Please use international format like +233123456789")
+
+        from core.phone_utils import normalize_phone_for_sms
+
+        phone = normalize_phone_for_sms(to)
+        if not phone:
+            raise RuntimeError(f"Invalid phone number format: {to!r}.")
+        digit_count = len(phone)
+        if digit_count < 9:
+            raise RuntimeError(
+                f"Invalid phone number format: {to!r}. "
+                "Use international format (e.g. +233XXXXXXXXX or 0XXXXXXXXX)."
+            )
         
         url = "https://api.mnotify.com/api/sms/quick"
         
@@ -74,5 +79,6 @@ class SMSService:
 
 
 # Convenience function for backward compatibility
-def send_sms(to, message):
-    """Send SMS to a recipient."""
+def send_sms(to, message, school_name=None):
+    """Send SMS to a recipient (optionally prefixed with school name for MNotify)."""
+    return SMSService.send_sms(to, message, school_name=school_name)

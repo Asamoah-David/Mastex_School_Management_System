@@ -9,7 +9,13 @@
     <p><strong>Payment:</strong> {{ payment.id }}</p>
     <p><strong>Amount:</strong> {{ payment.amount|format_ghs }}</p>
     <p><strong>Reference:</strong> {{ payment.paystack_reference|default:"N/A" }}</p>
-    <p class="text-danger"><strong>Warning:</strong> This action reverses the posted amount from the fee balance.</p>
+    <p class="text-danger"><strong>Warning:</strong>
+      {% if payment.paystack_reference %}
+      For online (Paystack) payments, confirming requests a refund from Paystack. Your fee balance is adjusted only after Paystack confirms the refund (usually within a few minutes).
+      {% else %}
+      This action immediately reverses the posted amount from the fee balance.
+      {% endif %}
+    </p>
     <form method="post">
       {% csrf_token %}
       <div class="mb-3">

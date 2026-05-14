@@ -101,15 +101,19 @@
         </div>
         
         <script>
-            // Countdown to meeting start
-            const scheduledTime = new Date("{{ meeting.scheduled_time|date:'Y-m-d' }}T{{ meeting.scheduled_time|time:'H:i:s' }}").getTime();
+            // Countdown using server ISO timestamp (timezone-safe)
+            const scheduledTime = {% if scheduled_iso %}Date.parse("{{ scheduled_iso|escapejs }}"){% else %}NaN{% endif %};
             
             function updateCountdown() {
-                const now = new Date().getTime();
+                const el = document.getElementById('countdown');
+                if (!el || Number.isNaN(scheduledTime)) {
+                    return;
+                }
+                const now = Date.now();
                 const distance = scheduledTime - now;
                 
                 if (distance < 0) {
-                    document.getElementById('countdown').innerHTML = "Meeting is starting...";
+                    el.innerHTML = "Meeting is starting...";
                     setTimeout(() => window.location.reload(), 2000);
                     return;
                 }
@@ -118,7 +122,7 @@
                 const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
                 const seconds = Math.floor((distance % (1000 * 60)) / 1000);
                 
-                document.getElementById('countdown').innerHTML = 
+                el.innerHTML = 
                     hours + "h " + minutes + "m " + seconds + "s ";
             }
             
@@ -127,12 +131,16 @@
         </script>
         
         {% else %}
-        <!-- Jitsi Meet Embed -->
+        <p style="margin:0 0 .75rem;font-size:.9rem;color:var(--text-soft);">
+            If the room does not load below (browser security), use <strong>Open in New Tab</strong> — that always works.
+        </p>
+        <!-- Jitsi Meet Embed (requires CSP frame-src + Permissions-Policy for meet.jit.si) -->
         <div style="background: #000; border-radius: 0.5rem; overflow: hidden;">
             <iframe 
                 class="jitsi-container"
                 src="{{ join_url }}{% if is_host %}#config.startWithVideoMuted=false&config.prejoinPageEnabled=false{% else %}#config.prejoinPageEnabled=false{% endif %}"
-                allow="camera; microphone; display-capture; fullscreen"
+                allow="camera; microphone; display-capture; fullscreen; autoplay"
+                referrerpolicy="no-referrer-when-downgrade"
                 frameborder="0"
             ></iframe>
         </div>

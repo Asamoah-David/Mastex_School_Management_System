@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.db.models import Count, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -46,6 +47,17 @@ ALL_STAFF_ROLES = (
 )
 
 
+def _hr_require(request, *feature_keys: str):
+    """Redirect to school dashboard when any listed school feature is disabled."""
+    from schools.features import require_feature
+
+    for key in feature_keys:
+        resp = require_feature(request, key, "accounts:school_dashboard")
+        if resp is not None:
+            return resp
+    return None
+
+
 def _get_staff(request, pk: int) -> User:
     school = getattr(request.user, "school", None)
     qs = User.objects.filter(role__in=ALL_STAFF_ROLES)
@@ -70,6 +82,9 @@ def _require_leadership(request):
 
 @login_required
 def staff_hr_contract_add(request, pk: int):
+    redir = _hr_require(request, "staff_management", "staff_contracts")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not _require_leadership(request):
@@ -115,6 +130,9 @@ def staff_hr_contract_add(request, pk: int):
 
 @login_required
 def staff_hr_contract_set_status(request, pk: int, contract_id: int):
+    redir = _hr_require(request, "staff_management", "staff_contracts")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not _require_leadership(request):
@@ -138,6 +156,9 @@ def staff_hr_contract_set_status(request, pk: int, contract_id: int):
 
 @login_required
 def staff_hr_teaching_add(request, pk: int):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not _require_leadership(request):
@@ -185,6 +206,9 @@ def staff_hr_teaching_add(request, pk: int):
 
 @login_required
 def staff_hr_teaching_end(request, pk: int, assignment_id: int):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not _require_leadership(request):
@@ -205,6 +229,9 @@ def staff_hr_teaching_end(request, pk: int, assignment_id: int):
 
 @login_required
 def staff_hr_payroll_add(request, pk: int):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not can_manage_finance(request.user):
@@ -257,6 +284,9 @@ def staff_hr_payroll_add(request, pk: int):
 
 @login_required
 def staff_assign_subjects_save(request, pk: int):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not _require_leadership(request):
@@ -284,6 +314,9 @@ def staff_assign_subjects_save(request, pk: int):
 
 @login_required
 def staff_assign_homeroom_save(request, pk: int):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not _require_leadership(request):
@@ -319,6 +352,9 @@ def staff_assign_homeroom_save(request, pk: int):
 @login_required
 def staff_payout_profile_save(request, pk: int):
     """Save staff MoMo / bank details used for Paystack salary payouts."""
+    redir = _hr_require(request, "staff_management", "staff_paystack_transfers")
+    if redir:
+        return redir
     if not _require_manage(request):
         return redirect("home")
     if not can_manage_finance(request.user):
@@ -361,6 +397,9 @@ def staff_payroll_disburse(request, pk: int):
     Pay a staff member through the platform: offline methods (cash, bank, MoMo record, etc.)
     or Paystack Transfer (merchant balance → staff MoMo or bank).
     """
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not can_manage_finance(request.user):
         messages.error(request, "Only finance-authorised users can run payroll.")
         return redirect("accounts:school_dashboard")
@@ -510,6 +549,9 @@ def staff_payroll_register(request):
     School-wide staff salary/stipend lines (not student fees).
     Filter by paid date range; optional CSV export. Leadership sees contracts ending soon.
     """
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not can_manage_finance(request.user):
         messages.error(request, "You do not have permission to view the staff payroll register.")
         return redirect("accounts:school_dashboard")
@@ -633,6 +675,9 @@ def staff_payroll_bulk_record(request):
     """
     Record the same payroll period for many staff at once (offline methods only).
     """
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not can_manage_finance(request.user):
         messages.error(request, "You do not have permission to record bulk payroll.")
         return redirect("accounts:school_dashboard")
@@ -727,6 +772,9 @@ def staff_payroll_bulk_record(request):
 
 @login_required
 def staff_payroll_payslip(request, payment_id: int):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     pay = get_object_or_404(
         StaffPayrollPayment.objects.select_related("school", "user", "recorded_by"),
         pk=payment_id,
@@ -753,6 +801,9 @@ def staff_payroll_payslip(request, payment_id: int):
 @login_required
 def staff_my_payroll(request):
     """Staff: view own payroll lines and open printable payslips."""
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if getattr(request.user, "role", None) not in ALL_STAFF_ROLES:
         return redirect("home")
     payments = (
@@ -770,6 +821,9 @@ def staff_my_payroll(request):
 @login_required
 def staff_payroll_export_user(request, pk: int):
     """CSV of all payroll lines for one staff member (finance)."""
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     if not can_manage_finance(request.user):
         messages.error(request, "You do not have permission to export payroll.")
         return redirect("accounts:school_dashboard")
@@ -832,6 +886,9 @@ def _is_hr_admin(request):
 @login_required
 def leave_policy_list(request):
     """Admin: list and create leave policies for the school."""
+    redir = _hr_require(request, "leave_management")
+    if redir:
+        return redir
     from accounts.hr_models import LeavePolicy
     school = getattr(request.user, "school", None)
     if not school:
@@ -870,6 +927,9 @@ def leave_policy_list(request):
 @login_required
 def leave_balance_list(request):
     """Admin: view all staff leave balances for the school."""
+    redir = _hr_require(request, "leave_management")
+    if redir:
+        return redir
     from accounts.hr_models import LeaveBalance
     school = getattr(request.user, "school", None)
     if not school:
@@ -894,6 +954,9 @@ def leave_balance_list(request):
 @login_required
 def my_leave_balance(request):
     """Staff self-service: view own leave balances."""
+    redir = _hr_require(request, "leave_management")
+    if redir:
+        return redir
     from accounts.hr_models import LeaveBalance
     from operations.models import StaffLeave
     school = getattr(request.user, "school", None)
@@ -913,6 +976,9 @@ def my_leave_balance(request):
 
 @login_required
 def payroll_run_list(request):
+    redir = _hr_require(request, "staff_paystack_transfers")
+    if redir:
+        return redir
     from accounts.hr_models import PayrollRun
     school = getattr(request.user, "school", None)
     if not school:
@@ -926,6 +992,9 @@ def payroll_run_list(request):
 
 @login_required
 def payroll_run_create(request):
+    redir = _hr_require(request, "staff_paystack_transfers")
+    if redir:
+        return redir
     from accounts.hr_models import PayrollRun
     school = getattr(request.user, "school", None)
     if not school:
@@ -958,6 +1027,9 @@ def payroll_run_create(request):
 
 @login_required
 def payroll_run_detail(request, pk):
+    redir = _hr_require(request, "staff_paystack_transfers")
+    if redir:
+        return redir
     from accounts.hr_models import PayrollRun, StaffPayrollPayment
     school = getattr(request.user, "school", None)
     if not school:
@@ -1004,6 +1076,9 @@ def payroll_run_detail(request, pk):
 
 @login_required
 def performance_review_list(request):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     from accounts.hr_models import StaffPerformanceReview
     school = getattr(request.user, "school", None)
     if not school:
@@ -1027,6 +1102,9 @@ def performance_review_list(request):
 
 @login_required
 def performance_review_create(request):
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     from accounts.hr_models import StaffPerformanceReview
     school = getattr(request.user, "school", None)
     if not school:
@@ -1083,7 +1161,10 @@ def staff_contract_list(request):
     """School-wide list of all staff contracts with status and type filters."""
     from accounts.hr_models import StaffContract
     from accounts.permissions import user_can_manage_school
-    from schools.features import is_feature_enabled
+
+    redir = _hr_require(request, "staff_contracts")
+    if redir:
+        return redir
 
     if not user_can_manage_school(request.user):
         from django.contrib import messages as _msg
@@ -1132,6 +1213,9 @@ def staff_contract_list(request):
 @login_required
 def teaching_assignment_list(request):
     """List (and create) formal subject-class teaching assignments."""
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     from accounts.hr_models import StaffTeachingAssignment
     school = getattr(request.user, "school", None)
     if not school:
@@ -1200,6 +1284,9 @@ def teaching_assignment_list(request):
 @login_required
 def teaching_assignment_deactivate(request, pk):
     """Mark a teaching assignment as ended."""
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     from accounts.hr_models import StaffTeachingAssignment
     school = getattr(request.user, "school", None)
     if not school or not _require_manage(request):
@@ -1222,6 +1309,9 @@ def teaching_assignment_deactivate(request, pk):
 @login_required
 def staff_role_change_log(request):
     """Read-only audit trail of staff role changes."""
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     from accounts.hr_models import StaffRoleChangeLog
     school = getattr(request.user, "school", None)
     if not school:
@@ -1258,6 +1348,9 @@ def staff_role_change_log(request):
 @login_required
 def my_performance_reviews(request):
     """Staff: view own finalised performance reviews and acknowledge them."""
+    redir = _hr_require(request, "staff_management")
+    if redir:
+        return redir
     from accounts.hr_models import StaffPerformanceReview
     school = getattr(request.user, "school", None)
     if not school:

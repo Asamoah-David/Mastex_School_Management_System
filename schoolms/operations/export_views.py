@@ -29,6 +29,7 @@ from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook,
 
 
 from core.utils import get_school as _get_school
+from schools.features import require_feature
 
 
 def _require_school(request):
@@ -212,7 +213,10 @@ def export_attendance(request):
     school = _require_school(request)
     if not school:
         return redirect("home")
-    
+    redir = require_feature(request, "attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     from datetime import datetime, timedelta
     from django.utils.dateparse import parse_date
     
@@ -605,7 +609,10 @@ def export_discipline(request):
     school = _require_school(request)
     if not school:
         return redirect("home")
-    
+    redir = require_feature(request, "discipline", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     incidents = StudentDiscipline.objects.filter(school=school).select_related("student", "student__user", "reported_by").order_by("-incident_date")
     
     fields = [
@@ -657,7 +664,10 @@ def export_announcements(request):
     school = _require_school(request)
     if not school:
         return redirect("home")
-    
+    redir = require_feature(request, "announcements", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     announcements = Announcement.objects.filter(school=school).select_related("created_by").order_by("-created_at")
     
     fields = [
@@ -679,13 +689,22 @@ def export_announcements(request):
 @permission_required(can_export_data)
 def export_admissions(request):
     """Export admission applications to CSV/Excel."""
+    from accounts.permissions import can_manage_admissions
+
+    if not can_manage_admissions(request.user):
+        from django.contrib import messages
+
+        messages.error(request, "You do not have permission to export admission data.")
+        return redirect("accounts:school_dashboard")
+
     school = _require_school(request)
     if not school:
         return redirect("home")
-    
-    apps = AdmissionApplication.objects.all()
-    if school:
-        apps = apps.filter(school=school)
+    redir = require_feature(request, "admission", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    apps = AdmissionApplication.objects.filter(school=school)
     
     apps = apps.select_related("school", "reviewed_by").order_by("-applied_at")
     
@@ -765,7 +784,11 @@ def export_online_exams(request):
     school = _require_school(request)
     if not school:
         return redirect("home")
-    
+
+    redir = require_feature(request, "online_exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     exams = OnlineExam.objects.filter(school=school).select_related("subject", "created_by").order_by("-created_at")
     
     fields = [

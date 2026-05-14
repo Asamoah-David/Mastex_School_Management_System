@@ -14,6 +14,8 @@ from django.http import JsonResponse
 from django.utils import timezone
 import random
 
+from accounts.permissions import user_can_manage_school
+from schools.features import is_feature_enabled
 from students.models import Student
 from schools.models import School
 from academics.models import Subject, Homework, Quiz
@@ -23,32 +25,52 @@ from academics.models import Subject, Homework, Quiz
 
 @login_required
 def auto_timetable_generator(request):
-    """Generate class timetable automatically."""
+    """Draft timetable preview (randomized placement). Does not persist rows — use Academics → Timetable."""
     school = getattr(request.user, 'school', None)
     if request.user.is_superuser:
         school_id = request.session.get('current_school_id')
         if school_id:
             school = get_object_or_404(School, id=school_id)
-    
+
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
-    
+
+    if not request.user.is_superuser:
+        if not user_can_manage_school(request.user):
+            messages.error(request, 'You do not have permission to use the auto timetable tool.')
+            return redirect('home')
+        if not is_feature_enabled(request, 'timetable'):
+            messages.error(request, 'Timetable tools are disabled for your school.')
+            return redirect('home')
+
+    timetable_preview = None
+    preview_class = None
+
     if request.method == 'POST':
-        class_name = request.POST.get('class_name')
-        subjects = Subject.objects.filter(school=school)
-        
-        # Generate timetable
-        timetable = generate_timetable(class_name, subjects)
-        
-        messages.success(request, f'Timetable generated for {class_name}!')
-        return redirect('operations:timetable_view', class_name=class_name)
-    
-    classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
-    
+        preview_class = (request.POST.get('class_name') or '').strip()
+        if not preview_class:
+            messages.error(request, 'Please select a class.')
+        else:
+            subjects = Subject.objects.filter(school=school)
+            timetable_preview = generate_timetable(preview_class, subjects)
+            messages.success(
+                request,
+                f'Draft preview for {preview_class}. Nothing is saved yet — add real slots under Academics → Timetable.',
+            )
+
+    classes = (
+        Student.objects.filter(school=school, status='active')
+        .exclude(class_name='')
+        .values_list('class_name', flat=True)
+        .distinct()
+    )
+
     context = {
         'school': school,
         'classes': [c for c in classes if c],
+        'timetable_preview': timetable_preview,
+        'preview_class': preview_class,
     }
     return render(request, 'operations/auto_timetable.html', context)
 

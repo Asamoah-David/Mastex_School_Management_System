@@ -57,11 +57,14 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ matrix|json_script:"subject-heatmap-matrix" }}
+{{ subjects|json_script:"subject-heatmap-subjects" }}
+{{ terms|json_script:"subject-heatmap-terms" }}
 <script>
 (function () {
-  const matrix = {{ matrix|safe }};
-  const subjects = {{ subjects|safe }};
-  const terms = {{ terms|safe }};
+  const matrix = JSON.parse(document.getElementById('subject-heatmap-matrix').textContent);
+  const subjects = JSON.parse(document.getElementById('subject-heatmap-subjects').textContent);
+  const terms = JSON.parse(document.getElementById('subject-heatmap-terms').textContent);
 
   function scoreColor(score) {
     if (score === null || score === undefined) return "#f8f9fa";

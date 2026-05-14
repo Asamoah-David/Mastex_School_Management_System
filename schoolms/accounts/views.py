@@ -14,6 +14,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.urls import reverse
+from urllib.parse import urlencode
 
 from accounts.models import STAFF_ROLES, User, AdminPasswordResetRequest
 from accounts.hr_utils import sync_expired_staff_contracts
@@ -29,12 +30,14 @@ from accounts.permissions import (
 )
 from academics.models import Subject, Timetable, Term
 from schools.models import School
+from schools.features import is_feature_enabled, is_feature_enabled_for_school, require_feature
 from students.models import Student, SchoolClass
 from finance.models import Fee, FeePayment, FeeStructure
 from finance.staff_payroll_paystack import school_staff_paystack_allowed
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
-from operations.activity import recent_activities_for_dashboard
+from operations.activity import client_ip_from_request, recent_activities_for_dashboard
 from core.pagination import paginate
+from core.phone_utils import phone_search_q
 from core.utils import safe_internal_redirect_path
 from accounts.dashboard_insights import (
     build_academic_insights,
@@ -455,8 +458,8 @@ def login_view(request):
                 from accounts.totp_views import SESSION_KEY_2FA_USER, SESSION_KEY_2FA_TS
                 request.session[SESSION_KEY_2FA_USER] = user.pk
                 request.session[SESSION_KEY_2FA_TS] = _time.time()
-                next_url = request.GET.get("next", "/")
-                return redirect(f"/accounts/2fa/challenge/?next={next_url}")
+                safe_next = safe_internal_redirect_path(request.GET.get("next")) or "/"
+                return redirect(f"/accounts/2fa/challenge/?{urlencode({'next': safe_next})}")
 
             login(request, user)
             if getattr(user, "must_change_password", False):
@@ -563,7 +566,7 @@ def edit_profile(request):
         # Handle profile photo upload
         profile_photo = request.FILES.get("profile_photo")
 
-        if email and User.objects.exclude(pk=user.pk).filter(email=email).exists():
+        if email and User.objects.exclude(pk=user.pk).filter(email__iexact=email).exists():
             messages.error(request, "That email is already in use.")
         else:
             # Handle photo removal
@@ -895,16 +898,19 @@ def school_dashboard(request):
     total_staff = user_stats["total_staff"]
     teachers_count = user_stats["teachers_count"]
 
-    attendance_stats = _cached_dashboard_data(
-        "attendance", school,
-        lambda: StudentAttendance.objects.filter(school=school, date=today).aggregate(
-            present=Count("id", filter=Q(status="present")),
-            absent=Count("id", filter=Q(status="absent")),
-            late=Count("id", filter=Q(status="late")),
-            excused=Count("id", filter=Q(status="excused")),
-        ),
-        extra=str(today),
-    )
+    if is_feature_enabled(request, "attendance"):
+        attendance_stats = _cached_dashboard_data(
+            "attendance", school,
+            lambda: StudentAttendance.objects.filter(school=school, date=today).aggregate(
+                present=Count("id", filter=Q(status="present")),
+                absent=Count("id", filter=Q(status="absent")),
+                late=Count("id", filter=Q(status="late")),
+                excused=Count("id", filter=Q(status="excused")),
+            ),
+            extra=str(today),
+        )
+    else:
+        attendance_stats = {"present": 0, "absent": 0, "late": 0, "excused": 0}
     present_today = attendance_stats["present"]
     late_today = attendance_stats["late"]
     excused_today = attendance_stats["excused"]
@@ -1012,9 +1018,18 @@ def school_dashboard(request):
             .annotate(total=Sum("amount"))
         )
 
-    attendance_trend_chart = _cached_dashboard_data(
-        "attendance_trend", school, lambda: build_attendance_trend(school, days=14), extra="14"
-    )
+    if is_feature_enabled(request, "attendance"):
+        attendance_trend_chart = _cached_dashboard_data(
+            "attendance_trend", school, lambda: build_attendance_trend(school, days=14), extra="14"
+        )
+    else:
+        attendance_trend_chart = {
+            "labels": [],
+            "rates": [],
+            "present": [],
+            "absent": [],
+            "has_data": False,
+        }
     academic_insights = _cached_dashboard_data(
         "academic_insights", school, lambda: build_academic_insights(school)
     )
@@ -1184,20 +1199,24 @@ def teacher_dashboard(request):
     from django.db.models.functions import Coalesce
 
     class_names = list(markable_classes.values_list("name", flat=True))
-    student_counts = dict(
-        Student.objects.filter(school=school, class_name__in=class_names)
-        .values("class_name")
-        .annotate(cnt=Count("id"))
-        .values_list("class_name", "cnt")
-    )
-    marked_counts = dict(
-        StudentAttendance.objects.filter(
-            school=school, date=today, student__class_name__in=class_names
+    if is_feature_enabled(request, "attendance"):
+        student_counts = dict(
+            Student.objects.filter(school=school, class_name__in=class_names)
+            .values("class_name")
+            .annotate(cnt=Count("id"))
+            .values_list("class_name", "cnt")
         )
-        .values("student__class_name")
-        .annotate(cnt=Count("id"))
-        .values_list("student__class_name", "cnt")
-    )
+        marked_counts = dict(
+            StudentAttendance.objects.filter(
+                school=school, date=today, student__class_name__in=class_names
+            )
+            .values("student__class_name")
+            .annotate(cnt=Count("id"))
+            .values_list("student__class_name", "cnt")
+        )
+    else:
+        student_counts = {}
+        marked_counts = {}
     classes_attendance = []
     for cls in markable_classes:
         sc = student_counts.get(cls.name, 0)
@@ -1226,7 +1245,11 @@ def teacher_dashboard(request):
         "labels": [r["name"] for r in teacher_academic.get("subject_avgs", [])],
         "values": [r["avg_pct"] for r in teacher_academic.get("subject_avgs", [])],
     }
-    teacher_attendance_trend = build_teacher_attendance_trend(school, request.user, days=14)
+    teacher_attendance_trend = (
+        build_teacher_attendance_trend(school, request.user, days=14)
+        if is_feature_enabled(request, "attendance")
+        else {"labels": [], "rates": [], "present": [], "absent": [], "has_data": False}
+    )
     teacher_class_strength = build_teacher_students_by_class_chart(school, request.user)
     teacher_class_chart = {
         "labels": teacher_class_strength["labels"],
@@ -1266,6 +1289,24 @@ def _user_can_manage_school(request):
     return user_can_manage_school(request.user)
 
 
+def _require_staff_management_or_leadership(request):
+    """Gate staff directory on the feature flag, but always allow school leadership."""
+    from accounts.permissions import is_school_leadership
+
+    if is_school_leadership(request.user) or getattr(request.user, "is_superuser", False):
+        return None
+    return require_feature(request, "staff_management", "accounts:school_dashboard")
+
+
+def _require_student_enrollment_or_leadership(request):
+    """Gate parent/student directory flows on the flag; school leadership may always access."""
+    from accounts.permissions import is_school_leadership
+
+    if is_school_leadership(request.user) or getattr(request.user, "is_superuser", False):
+        return None
+    return require_feature(request, "student_enrollment", "accounts:school_dashboard")
+
+
 def _user_is_school_admin(request):
     """School leadership (head, deputy, HOD) or platform super-admins."""
     from accounts.permissions import is_school_leadership
@@ -1278,6 +1319,17 @@ def _user_is_school_admin(request):
     return is_school_leadership(user)
 
 
+def _require_any_people_module(request):
+    """School-led password reset / user ops need at least one people module enabled."""
+    if is_feature_enabled(request, "staff_management") or is_feature_enabled(request, "student_enrollment"):
+        return None
+    messages.error(
+        request,
+        "People management is disabled for your school (staff and/or parent modules).",
+    )
+    return redirect("accounts:school_dashboard")
+
+
 @login_required
 def staff_list(request):
     """
@@ -1288,6 +1340,10 @@ def staff_list(request):
     """
     user = request.user
     has_manage_permission = _user_can_manage_school(request) or getattr(user, "is_super_admin", False)
+    if has_manage_permission:
+        redir = _require_staff_management_or_leadership(request)
+        if redir:
+            return redir
     if not has_manage_permission:
         return render(
             request,
@@ -1332,6 +1388,9 @@ def staff_list(request):
 def staff_detail(request, pk):
     if not _user_can_manage_school(request):
         return redirect("home")
+    redir = _require_staff_management_or_leadership(request)
+    if redir:
+        return redir
     school = getattr(request.user, "school", None)
     # Include all staff roles
     all_staff_roles = (
@@ -1391,6 +1450,155 @@ def staff_detail(request, pk):
 
 
 @login_required
+def staff_edit(request, pk):
+    """School admin: correct staff member display name and contact fields."""
+    if not _user_can_manage_school(request):
+        return redirect("home")
+    redir = _require_staff_management_or_leadership(request)
+    if redir:
+        return redir
+    school = getattr(request.user, "school", None)
+    all_staff_roles = (
+        "school_admin", "deputy_head", "hod", "teacher",
+        "accountant", "librarian", "admission_officer", "exam_officer", "school_nurse",
+        "admin_assistant", "staff",
+    )
+    qs = User.objects.filter(role__in=all_staff_roles)
+    if school and not getattr(request.user, "is_super_admin", False):
+        qs = qs.filter(school=school)
+    staff = get_object_or_404(qs.select_related("school"), pk=pk)
+
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        email = request.POST.get("email", "").strip()
+        phone = request.POST.get("phone", "").strip() or ""
+
+        if email and User.objects.exclude(pk=staff.pk).filter(email__iexact=email).exists():
+            messages.error(request, "That email is already in use by another account.")
+        elif phone and User.objects.exclude(pk=staff.pk).filter(phone=phone).exists():
+            messages.error(request, "That phone number is already registered to another user.")
+        else:
+            staff.first_name = first_name
+            staff.last_name = last_name
+            staff.email = email
+            staff.phone = phone or None
+            staff.save()
+            messages.success(request, "Staff details updated.")
+            return redirect("accounts:staff_detail", pk=staff.pk)
+
+    return render(request, "accounts/staff_edit.html", {"staff": staff})
+
+
+def _identifier_api_rate_limited(request) -> bool:
+    """Return True if this client exceeded the per-minute identifier check budget."""
+    from time import time
+
+    cap = int(getattr(settings, "API_IDENTIFIER_CHECK_PER_MINUTE", 120))
+    window = int(time()) // 60
+    if request.user.is_authenticated:
+        bucket = f"u{request.user.pk}"
+    else:
+        bucket = client_ip_from_request(request) or request.META.get("REMOTE_ADDR") or "unknown"
+    key = f"api_id_chk:{window}:{bucket}"
+    try:
+        n = cache.incr(key)
+    except ValueError:
+        cache.add(key, 1, timeout=130)
+        n = 1
+    return n > cap
+
+
+def api_check_identifier(request):
+    """JSON: whether username / email / phone / admission_number is available (for registration forms).
+
+    Username, email, and phone checks work for anonymous users (e.g. school signup).
+    Admission number is scoped to the logged-in user's school.
+    """
+    from django.http import JsonResponse
+
+    if request.method != "GET":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    if _identifier_api_rate_limited(request):
+        return JsonResponse(
+            {"error": "Too many requests", "available": None, "retry_after": 60},
+            status=429,
+        )
+
+    kind = (request.GET.get("kind") or "").strip().lower()
+    value = (request.GET.get("value") or "").strip()
+    exclude_raw = (request.GET.get("exclude") or "").strip()
+    exclude_pk = int(exclude_raw) if exclude_raw.isdigit() else None
+    exclude_student_raw = (request.GET.get("exclude_student") or "").strip()
+    exclude_student_pk = int(exclude_student_raw) if exclude_student_raw.isdigit() else None
+
+    if kind not in ("username", "email", "phone", "admission_number"):
+        return JsonResponse({"available": None, "message": "Invalid kind."}, status=400)
+
+    if kind == "admission_number" and not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=403)
+
+    if kind == "email" and not value:
+        return JsonResponse({"available": True, "message": ""})
+
+    if not value or len(value) < 2:
+        return JsonResponse({"available": None, "message": ""})
+
+    if kind == "username":
+        qs = User.objects.filter(username__iexact=value)
+        if exclude_pk:
+            qs = qs.exclude(pk=exclude_pk)
+        taken = qs.exists()
+        return JsonResponse(
+            {
+                "available": not taken,
+                "message": "This username is already taken." if taken else "Username is available.",
+            }
+        )
+
+    if kind == "email":
+        qs = User.objects.filter(email__iexact=value)
+        if exclude_pk:
+            qs = qs.exclude(pk=exclude_pk)
+        taken = qs.exists()
+        return JsonResponse(
+            {
+                "available": not taken,
+                "message": "This email is already in use." if taken else "Email is available.",
+            }
+        )
+
+    if kind == "phone":
+        qs = User.objects.filter(phone=value)
+        if exclude_pk:
+            qs = qs.exclude(pk=exclude_pk)
+        taken = qs.exists()
+        return JsonResponse(
+            {
+                "available": not taken,
+                "message": "This phone is already registered." if taken else "Phone is available.",
+            }
+        )
+
+    school = getattr(request.user, "school", None)
+    if not school:
+        return JsonResponse({"error": "No school context"}, status=403)
+    from students.models import Student
+
+    qs = Student.objects.filter(school=school, admission_number__iexact=value)
+    if exclude_student_pk:
+        qs = qs.exclude(pk=exclude_student_pk)
+    taken = qs.exists()
+    return JsonResponse(
+        {
+            "available": not taken,
+            "message": "This admission number is already used at your school." if taken else "Admission number is available.",
+        }
+    )
+
+
+@login_required
 def staff_register(request):
     # Only school admins (or platform admins) can create staff accounts
     if not _user_is_school_admin(request):
@@ -1398,6 +1606,9 @@ def staff_register(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "staff_management", "accounts:school_dashboard")
+    if redir:
+        return redir
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         email = request.POST.get("email", "").strip()
@@ -1414,7 +1625,7 @@ def staff_register(request):
         if username and email and password and role in valid_staff_roles:
             if User.objects.filter(username=username).exists():
                 messages.error(request, "That username is already taken.")
-            elif User.objects.filter(email=email).exists():
+            elif User.objects.filter(email__iexact=email).exists():
                 messages.error(request, "That email is already in use.")
             else:
                 try:
@@ -1457,6 +1668,9 @@ def parent_list(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = _require_student_enrollment_or_leadership(request)
+    if redir:
+        return redir
     parents = User.objects.filter(school=school, role="parent").order_by("username")
     page_obj = paginate(request, parents, per_page=30)
     return render(request, "accounts/parent_list.html", {"parents": page_obj, "school": school, "page_obj": page_obj})
@@ -1470,6 +1684,9 @@ def parent_register(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = _require_student_enrollment_or_leadership(request)
+    if redir:
+        return redir
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         email = request.POST.get("email", "").strip()
@@ -1482,7 +1699,7 @@ def parent_register(request):
         if username and password:
             if User.objects.filter(username=username).exists():
                 messages.error(request, "That username is already taken.")
-            elif email and User.objects.filter(email=email).exists():
+            elif email and User.objects.filter(email__iexact=email).exists():
                 messages.error(request, "That email is already in use.")
             elif phone and User.objects.filter(phone=phone).exists():
                 messages.error(request, f"Phone number '{phone}' is already registered in the system.")
@@ -1527,6 +1744,9 @@ def parent_detail(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = _require_student_enrollment_or_leadership(request)
+    if redir:
+        return redir
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
 
     from students.models import StudentGuardian
@@ -1574,6 +1794,9 @@ def parent_edit(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = _require_student_enrollment_or_leadership(request)
+    if redir:
+        return redir
     
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
     
@@ -1585,7 +1808,7 @@ def parent_edit(request, pk):
         parent_type = request.POST.get("parent_type", "").strip() or None
         
         # Check for email conflicts (excluding self)
-        if email and User.objects.exclude(pk=parent.pk).filter(email=email).exists():
+        if email and User.objects.exclude(pk=parent.pk).filter(email__iexact=email).exists():
             messages.error(request, "That email is already in use.")
         else:
             parent.first_name = first_name
@@ -1608,7 +1831,10 @@ def user_management(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    
+    block = _require_any_people_module(request)
+    if block:
+        return block
+
     from django.db.models import Count, Q
     counts = User.objects.filter(school=school).aggregate(
         staff_count=Count("id", filter=Q(role__in=(
@@ -1642,7 +1868,10 @@ def staff_delete(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    
+    redir = require_feature(request, "staff_management", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     staff = get_object_or_404(User, pk=pk, school=school, role__in=STAFF_ROLES)
 
     if staff.pk == request.user.pk:
@@ -1690,6 +1919,9 @@ def staff_reactivate(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "staff_management", "accounts:school_dashboard")
+    if redir:
+        return redir
 
     staff = get_object_or_404(User, pk=pk, school=school, role__in=STAFF_ROLES)
 
@@ -1732,6 +1964,9 @@ def staff_change_role(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "staff_management", "accounts:school_dashboard")
+    if redir:
+        return redir
 
     # Get the staff member (include all non-parent/student roles)
     staff = get_object_or_404(
@@ -1825,6 +2060,9 @@ def staff_manage_secondary_roles(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "staff_management", "accounts:school_dashboard")
+    if redir:
+        return redir
 
     # Get the staff member (include all non-parent/student roles)
     staff = get_object_or_404(
@@ -1893,6 +2131,9 @@ def parent_delete(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = _require_student_enrollment_or_leadership(request)
+    if redir:
+        return redir
     
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
     
@@ -1922,6 +2163,9 @@ def parent_reactivate(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    redir = _require_student_enrollment_or_leadership(request)
+    if redir:
+        return redir
 
     parent = get_object_or_404(User, pk=pk, school=school, role="parent")
 
@@ -1968,6 +2212,17 @@ def reset_user_password(request, pk):
     if not (is_platform_admin or is_school_level_admin):
         messages.error(request, "You do not have permission to reset this user's password.")
         return redirect("accounts:school_dashboard")
+
+    if not is_platform_admin and is_school_level_admin:
+        role = getattr(target_user, "role", None)
+        if role in STAFF_ROLES:
+            redir = _require_staff_management_or_leadership(request)
+        elif role in ("parent", "student"):
+            redir = _require_student_enrollment_or_leadership(request)
+        else:
+            redir = None
+        if redir:
+            return redir
 
     if request.method == "POST":
         if getattr(target_user, "email", ""):
@@ -2032,10 +2287,9 @@ def reset_user_password(request, pk):
         except Exception:
             pass
 
-        # Only allow internal redirects to prevent open redirect attacks
-        next_url = request.GET.get("next", "")
-        if next_url and next_url.startswith("/") and not next_url.startswith("//"):
-            return redirect(next_url)
+        nxt = safe_internal_redirect_path(request.GET.get("next"))
+        if nxt:
+            return redirect(nxt)
 
         if target_user.role in STAFF_ROLES:
             return redirect("accounts:staff_detail", pk=target_user.pk)
@@ -2091,9 +2345,9 @@ def superuser_edit_credentials(request, pk):
         target_user.save()
         messages.success(request, f"Login credentials for '{target_user.username}' have been updated.")
 
-        next_url = request.GET.get("next", "")
-        if next_url and next_url.startswith("/") and not next_url.startswith("//"):
-            return redirect(next_url)
+        nxt = safe_internal_redirect_path(request.GET.get("next"))
+        if nxt:
+            return redirect(nxt)
 
         if target_user.role in STAFF_ROLES:
             return redirect("accounts:staff_detail", pk=target_user.pk)
@@ -2132,38 +2386,50 @@ def global_search(request):
                     | Q(admission_number__icontains=q)
                 )
                 .select_related("user")[:10]
-            )
+            ) if is_feature_enabled(request, "student_enrollment") else []
             staff_roles = (
                 "school_admin", "deputy_head", "hod", "teacher",
                 "accountant", "librarian", "admission_officer", "exam_officer",
                 "school_nurse", "admin_assistant", "staff",
             )
-            results["staff"] = list(
-                User.objects.filter(school=school, role__in=staff_roles)
-                .filter(
-                    Q(first_name__icontains=q)
-                    | Q(last_name__icontains=q)
-                    | Q(username__icontains=q)
-                    | Q(phone__icontains=q)
-                    | Q(email__icontains=q)
-                )[:10]
-            )
-            results["parents"] = list(
-                User.objects.filter(school=school, role="parent")
-                .filter(
-                    Q(first_name__icontains=q)
-                    | Q(last_name__icontains=q)
-                    | Q(phone__icontains=q)
-                )[:10]
-            )
-            results["fees"] = list(
-                Fee.objects.filter(school=school, deleted_at__isnull=True)
-                .filter(
-                    Q(student__user__first_name__icontains=q)
-                    | Q(student__user__last_name__icontains=q)
-                    | Q(student__admission_number__icontains=q)
+            results["staff"] = (
+                list(
+                    User.objects.filter(school=school, role__in=staff_roles)
+                    .filter(
+                        Q(first_name__icontains=q)
+                        | Q(last_name__icontains=q)
+                        | Q(username__icontains=q)
+                        | Q(email__icontains=q)
+                        | phone_search_q("phone", q)
+                    )[:10]
                 )
-                .select_related("student", "student__user")[:10]
+                if is_feature_enabled(request, "staff_management")
+                else []
+            )
+            results["parents"] = (
+                list(
+                    User.objects.filter(school=school, role="parent")
+                    .filter(
+                        Q(first_name__icontains=q)
+                        | Q(last_name__icontains=q)
+                        | phone_search_q("phone", q)
+                    )[:10]
+                )
+                if is_feature_enabled(request, "student_enrollment")
+                else []
+            )
+            results["fees"] = (
+                list(
+                    Fee.objects.filter(school=school, deleted_at__isnull=True)
+                    .filter(
+                        Q(student__user__first_name__icontains=q)
+                        | Q(student__user__last_name__icontains=q)
+                        | Q(student__admission_number__icontains=q)
+                    )
+                    .select_related("student", "student__user")[:10]
+                )
+                if is_feature_enabled(request, "fee_management")
+                else []
             )
         elif request.user.is_superuser:
             results["students"] = list(
@@ -2174,14 +2440,27 @@ def global_search(request):
                 )
                 .select_related("user", "school")[:10]
             )
+            su_staff_roles = (
+                "school_admin",
+                "deputy_head",
+                "hod",
+                "teacher",
+                "accountant",
+                "librarian",
+                "admission_officer",
+                "exam_officer",
+                "school_nurse",
+                "admin_assistant",
+                "staff",
+            )
             results["staff"] = list(
-                User.objects.filter(role__in=("school_admin", "teacher", "staff"))
+                User.objects.filter(role__in=su_staff_roles)
                 .filter(
                     Q(first_name__icontains=q)
                     | Q(last_name__icontains=q)
                     | Q(username__icontains=q)
-                    | Q(phone__icontains=q)
                     | Q(email__icontains=q)
+                    | phone_search_q("phone", q)
                 )
                 .select_related("school")[:10]
             )
@@ -2190,10 +2469,21 @@ def global_search(request):
                 .filter(
                     Q(first_name__icontains=q)
                     | Q(last_name__icontains=q)
-                    | Q(phone__icontains=q)
+                    | phone_search_q("phone", q)
                 )
                 .select_related("school")[:10]
             )
+            sess_id = request.session.get("current_school_id")
+            if sess_id and is_feature_enabled_for_school(sess_id, "fee_management"):
+                results["fees"] = list(
+                    Fee.objects.filter(school_id=sess_id, deleted_at__isnull=True)
+                    .filter(
+                        Q(student__user__first_name__icontains=q)
+                        | Q(student__user__last_name__icontains=q)
+                        | Q(student__admission_number__icontains=q)
+                    )
+                    .select_related("student", "student__user")[:10]
+                )
 
         total = sum(len(v) for v in results.values())
 
@@ -2205,6 +2495,7 @@ def global_search(request):
     })
 
 
+@login_required
 def admin_reset_requests(request):
     """View for school admins to manage password reset requests."""
     if not _user_is_school_admin(request):
@@ -2214,6 +2505,10 @@ def admin_reset_requests(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+
+    block = _require_any_people_module(request)
+    if block:
+        return block
     
     # Get filter parameters
     status_filter = request.GET.get("status", "")
@@ -2242,6 +2537,7 @@ def admin_reset_requests(request):
     return render(request, "accounts/admin_reset_requests.html", context)
 
 
+@login_required
 def admin_reset_request_approve(request, request_id):
     """Approve an admin password reset request."""
     if not _user_is_school_admin(request):
@@ -2251,6 +2547,10 @@ def admin_reset_request_approve(request, request_id):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+
+    block = _require_any_people_module(request)
+    if block:
+        return block
     
     reset_request = get_object_or_404(
         AdminPasswordResetRequest, 

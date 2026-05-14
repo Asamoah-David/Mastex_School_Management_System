@@ -1,5 +1,4 @@
 """Super-admin platform-wide metrics & charts."""
-import json
 import csv
 import logging
 from datetime import date, timedelta
@@ -121,10 +120,10 @@ def superadmin_metrics(request):
         "school": None,
         "schools": schools_data,
         "kpis": kpis,
-        "chart_months": json.dumps(months),
-        "chart_subs": json.dumps(chart_subs),
-        "chart_revenue": json.dumps(chart_revenue),
-        "plan_labels": json.dumps(plan_labels),
-        "plan_values": json.dumps(plan_values),
-        "status_values": json.dumps(status_values),
+        "chart_months": months,
+        "chart_subs": chart_subs,
+        "chart_revenue": chart_revenue,
+        "plan_labels": plan_labels,
+        "plan_values": plan_values,
+        "status_values": status_values,
     })

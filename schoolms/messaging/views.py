@@ -6,11 +6,12 @@ from accounts.models import User
 from accounts.permissions import user_can_manage_school
 from students.models import Student, SchoolClass
 from schools.models import School
-from .utils import send_sms
+from .utils import resolve_messaging_school, send_sms
 from .models import OutboundCommLog
 
 
-from core.utils import can_manage as _user_can_manage_school, get_school
+from core.utils import can_manage as _user_can_manage_school
+from schools.features import require_feature
 from core.pagination import paginate
 
 
@@ -64,13 +65,11 @@ def send_message(request):
         logger.debug("send_message: user not authorized: %s", request.user)
         return redirect("home")
 
-    school = get_school(request)
-    if not school and request.user.is_superuser:
-        sid = request.session.get("current_school_id")
-        if sid:
-            school = School.objects.filter(pk=sid).first()
+    school = resolve_messaging_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "messaging", "accounts:dashboard", school=school)):
+        return redir
     # Get recipient counts for preview
     parents_count = User.objects.filter(school=school, role="parent").count()
     parents_with_phone = User.objects.filter(school=school, role="parent").exclude(phone__isnull=True).exclude(phone="").count()
@@ -359,13 +358,11 @@ def message_history(request):
     if not _user_can_manage_school(request):
         return redirect("home")
 
-    school = get_school(request)
-    if not school and request.user.is_superuser:
-        sid = request.session.get("current_school_id")
-        if sid:
-            school = School.objects.filter(pk=sid).first()
+    school = resolve_messaging_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "messaging", "accounts:dashboard", school=school)):
+        return redir
 
     qs = (
         OutboundCommLog.objects.filter(school=school)
@@ -386,13 +383,11 @@ def chat_view(request):
     from .models import Conversation, Message as ChatMessage
 
     user = request.user
-    school = get_school(request)
-    if not school and user.is_superuser:
-        sid = request.session.get("current_school_id")
-        if sid:
-            school = School.objects.filter(pk=sid).first()
+    school = resolve_messaging_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "messaging", "accounts:dashboard", school=school)):
+        return redir
 
     conversations = Conversation.objects.filter(participants=user).prefetch_related("participants")
     active_conv_id = request.GET.get("conv")
@@ -468,14 +463,19 @@ def get_messages(request, contact_id):
     """Get messages with a contact as JSON for AJAX."""
     from django.http import JsonResponse
     from .models import Conversation, Message as ChatMessage
+    from schools.features import is_feature_enabled_for_school
 
     user = request.user
+    school = resolve_messaging_school(request)
     try:
         target = User.objects.get(id=contact_id)
     except User.DoesNotExist:
         return JsonResponse({"messages": []})
 
     conv = Conversation.objects.filter(participants=user).filter(participants=target).first()
+    scope_id = (school.pk if school else None) or (conv.school_id if conv else None)
+    if scope_id and not is_feature_enabled_for_school(scope_id, "messaging"):
+        return JsonResponse({"messages": [], "error": "feature_disabled"}, status=403)
     if not conv:
         return JsonResponse({"messages": []})
 
@@ -488,7 +488,10 @@ def get_messages(request, contact_id):
 
 @login_required
 def superuser_send_message(request):
-    """Superuser can send SMS or Email to school admins across all schools or a specific school."""
+    """Superuser can send SMS or Email to school admins across all schools or a specific school.
+
+    Intentionally not gated by per-school ``SchoolFeature('messaging')`` — platform operators only.
+    """
     import logging
     from accounts.permissions import is_super_admin
 

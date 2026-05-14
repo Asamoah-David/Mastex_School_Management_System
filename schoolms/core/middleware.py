@@ -18,7 +18,10 @@ _CSP_DEFAULT = (
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
     "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
     "img-src 'self' data: blob: https:; "
-    "connect-src 'self'; "
+    "connect-src 'self' https://api.paystack.co "
+    "https://meet.jit.si wss://meet.jit.si "
+    "https://*.jitsi.net wss://*.jitsi.net; "
+    "frame-src 'self' https://meet.jit.si; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "
     "form-action 'self';"
@@ -43,7 +46,11 @@ class CspMiddleware:
             content_type = response.get("Content-Type", "")
             if "text/html" in content_type:
                 response.setdefault("Content-Security-Policy", self.policy)
-                response.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+                # Allow Jitsi (meet.jit.si) iframes to use camera/mic; keep geolocation off.
+                response.setdefault(
+                    "Permissions-Policy",
+                    'geolocation=(), camera=(self "https://meet.jit.si"), microphone=(self "https://meet.jit.si")',
+                )
                 response.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         return response
 

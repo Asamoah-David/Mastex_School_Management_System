@@ -41,6 +41,7 @@ from core.utils import log_activity
 from schools.models import School
 from core.pagination import paginate
 from collections import defaultdict
+from schools.features import is_feature_enabled_for_school, require_feature
 
 
 def _user_can_manage_school(request):
@@ -68,17 +69,23 @@ def parent_dashboard(request):
         # Handle case with no children
         if not children:
             from operations.models import Announcement
+            from schools.features import is_feature_enabled_for_school
+
             fallback_school = getattr(request.user, "school", None)
-            announcements = (
-                Announcement.objects.filter(
-                    school=fallback_school,
-                    target_audience__in=["all", "parents"],
+            if (
+                fallback_school
+                and is_feature_enabled_for_school(fallback_school.pk, "announcements")
+            ):
+                announcements = (
+                    Announcement.objects.filter(
+                        school=fallback_school,
+                        target_audience__in=["all", "parents"],
+                    )
+                    .select_related("school", "created_by")
+                    .order_by("-is_pinned", "-created_at")[:10]
                 )
-                .select_related("school", "created_by")
-                .order_by("-is_pinned", "-created_at")[:10]
-                if fallback_school
-                else []
-            )
+            else:
+                announcements = []
             return render(request, "students/parent_dashboard.html", {
                 "children": [],
                 "fees_by_child": {},
@@ -200,12 +207,20 @@ def parent_dashboard(request):
         # Announcements for parents (from children's schools)
         from operations.models import Announcement
         from operations.models import StudentAttendance
+        from schools.features import is_feature_enabled_for_school
         from django.utils import timezone
         schools = list({c.school for c in children if c.school_id})
-        announcements = Announcement.objects.filter(
-            school__in=schools,
-            target_audience__in=["all", "parents"]
-        ).select_related("school", "created_by").order_by("-is_pinned", "-created_at")[:10] if schools else []
+        enabled_schools = [s for s in schools if is_feature_enabled_for_school(s.pk, "announcements")]
+        announcements = (
+            Announcement.objects.filter(
+                school__in=enabled_schools,
+                target_audience__in=["all", "parents"],
+            )
+            .select_related("school", "created_by")
+            .order_by("-is_pinned", "-created_at")[:10]
+            if enabled_schools
+            else []
+        )
 
         # Attendance summary per child (recent 14 days) — single query
         attendance_by_child = {}
@@ -327,11 +342,15 @@ def portal(request):
             # Announcements for students
             from operations.models import Announcement
             from operations.models import StudentAttendance
+            from schools.features import is_feature_enabled_for_school
             from django.utils import timezone
-            announcements = Announcement.objects.filter(
-                school=student.school,
-                target_audience__in=["all", "students"]
-            ).select_related("created_by").order_by("-is_pinned", "-created_at")[:10]
+            if is_feature_enabled_for_school(student.school_id, "announcements"):
+                announcements = Announcement.objects.filter(
+                    school=student.school,
+                    target_audience__in=["all", "students"],
+                ).select_related("created_by").order_by("-is_pinned", "-created_at")[:10]
+            else:
+                announcements = []
 
             # Recent attendance
             recent_attendance = list(
@@ -418,6 +437,7 @@ def announcements_list(request):
     Parent/student view: browse announcements relevant to them.
     """
     from operations.models import Announcement
+    from schools.features import is_feature_enabled_for_school
 
     role = getattr(request.user, "role", None)
     if role == "student":
@@ -426,6 +446,9 @@ def announcements_list(request):
         except Student.DoesNotExist:
             messages.error(request, "No student record is linked to this account.")
             return redirect("home")
+        if not is_feature_enabled_for_school(student.school_id, "announcements"):
+            messages.info(request, "Announcements are disabled for your school.")
+            return redirect("accounts:dashboard")
         qs = Announcement.objects.filter(
             school=student.school,
             target_audience__in=["all", "students"],
@@ -444,8 +467,12 @@ def announcements_list(request):
             schools.append(fallback_school)
         if not schools:
             return render(request, "students/announcements_list.html", {"announcements": []})
+        enabled_schools = [s for s in schools if is_feature_enabled_for_school(s.pk, "announcements")]
+        if not enabled_schools:
+            messages.info(request, "Announcements are disabled for your school.")
+            return redirect("accounts:dashboard")
         qs = Announcement.objects.filter(
-            school__in=schools,
+            school__in=enabled_schools,
             target_audience__in=["all", "parents"],
         )
         return render(
@@ -818,54 +845,86 @@ def student_detail(request, pk):
 
 @login_required
 def student_edit(request, pk):
-    """Edit an existing student - including linking to a parent."""
+    """Edit an existing student - including display name, contact, class, and parent link."""
     if not _user_can_manage_school(request):
         return redirect("home")
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    
-    student = get_object_or_404(Student, pk=pk, school=school)
-    
-    if request.method == "POST":
-        student.admission_number = request.POST.get("admission_number", "").strip()
-        student.class_name = request.POST.get("class_name", "").strip()
-        
-        phone = request.POST.get("phone", "").strip()
-        gender = request.POST.get("gender", "").strip()
-        
-        user = student.user
-        user.phone = phone if phone else ""
-        if gender in ["male", "female"]:
-            user.gender = gender
-        user.save()
-        
-        student.status = request.POST.get("status", "active")
-        
-        # Update parent link
-        parent_id = request.POST.get("parent")
-        if parent_id:
-            try:
-                parent = User.objects.get(pk=parent_id, school=school, role="parent")
-                student.parent = parent
-            except User.DoesNotExist:
-                messages.error(request, "Selected parent not found.")
-        else:
-            student.parent = None
-        
-        student.save()
-        messages.success(request, "Student updated successfully.")
-        return redirect("students:student_detail", pk=student.pk)
-    
-    # Get all parents in this school for the dropdown
+
+    student = get_object_or_404(Student.objects.select_related("user"), pk=pk, school=school)
+    user = student.user
+    valid_statuses = {c[0] for c in Student.STATUS_CHOICES}
+
     parents = User.objects.filter(school=school, role="parent").order_by("first_name", "last_name")
     classes = SchoolClass.objects.filter(school=school).order_by("name")
-    
-    return render(request, "students/student_edit.html", {
-        "student": student,
-        "parents": parents,
-        "classes": classes,
-    })
+
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        email = request.POST.get("email", "").strip()
+        admission_number = request.POST.get("admission_number", "").strip()
+        phone = request.POST.get("phone", "").strip()
+        gender = request.POST.get("gender", "").strip()
+        class_name = request.POST.get("class_name", "").strip()
+        status = request.POST.get("status", "active")
+        if status not in valid_statuses:
+            status = "active"
+
+        if email and User.objects.exclude(pk=user.pk).filter(email__iexact=email).exists():
+            messages.error(request, "That email is already in use by another account.")
+        elif phone and User.objects.exclude(pk=user.pk).filter(phone=phone).exists():
+            messages.error(request, "That phone number is already registered to another user.")
+        elif (
+            admission_number
+            and Student.objects.filter(school=school, admission_number__iexact=admission_number)
+            .exclude(pk=student.pk)
+            .exists()
+        ):
+            messages.error(
+                request,
+                "That admission number is already used by another student at this school.",
+            )
+        else:
+            user.first_name = first_name
+            user.last_name = last_name
+            user.email = email
+            user.phone = phone or None
+            if gender in ("male", "female"):
+                user.gender = gender
+            user.save()
+
+            student.admission_number = admission_number
+            student.class_name = class_name
+            student.school_class = (
+                SchoolClass.objects.filter(school=school, name=class_name).first() if class_name else None
+            )
+            student.status = status
+
+            parent_id = request.POST.get("parent")
+            if parent_id:
+                try:
+                    parent = User.objects.get(pk=parent_id, school=school, role="parent")
+                    student.parent = parent
+                except User.DoesNotExist:
+                    messages.error(request, "Selected parent not found.")
+                    return render(
+                        request,
+                        "students/student_edit.html",
+                        {"student": student, "parents": parents, "classes": classes},
+                    )
+            else:
+                student.parent = None
+
+            student.save()
+            messages.success(request, "Student updated successfully.")
+            return redirect("students:student_detail", pk=student.pk)
+
+    return render(
+        request,
+        "students/student_edit.html",
+        {"student": student, "parents": parents, "classes": classes},
+    )
 
 
 @login_required
@@ -921,7 +980,7 @@ def student_register(request):
         if username and admission_number and password:
             if User.objects.filter(username=username).exists():
                 messages.error(request, "That username is already taken.")
-            elif email and User.objects.filter(email=email).exists():
+            elif email and User.objects.filter(email__iexact=email).exists():
                 messages.error(request, "That email is already in use.")
             elif Student.objects.filter(school=school, admission_number=admission_number).exists():
                 messages.error(request, f"Student with admission number '{admission_number}' already exists in this school.")
@@ -1375,6 +1434,10 @@ def absence_request_create(request):
         messages.error(request, "No student record is linked to this account.")
         return redirect("home")
 
+    if not is_feature_enabled_for_school(student.school_id, "attendance"):
+        messages.info(request, "Absence requests are disabled for your school.")
+        return redirect("accounts:dashboard")
+
     if not student.is_active_student:
         messages.error(request, "Inactive or exited students cannot request absence.")
         return redirect("home")
@@ -1448,6 +1511,10 @@ def my_absence_requests(request):
             {"student": None, "requests": []},
         )
 
+    if not is_feature_enabled_for_school(student.school_id, "attendance"):
+        messages.info(request, "Absence requests are disabled for your school.")
+        return redirect("accounts:dashboard")
+
     requests = student.absence_requests.select_related("decided_by").all()
     return render(
         request,
@@ -1469,6 +1536,10 @@ def parent_absence_request_create(request):
         messages.error(request, "No children are linked to this parent account yet.")
         return redirect("portal")
 
+    if not any(is_feature_enabled_for_school(c.school_id, "attendance") for c in children):
+        messages.info(request, "Absence requests are disabled for your school.")
+        return redirect("accounts:dashboard")
+
     if request.method == "POST":
         student_id = (request.POST.get("student_id") or "").strip()
         date_str = (request.POST.get("date") or "").strip()
@@ -1487,6 +1558,8 @@ def parent_absence_request_create(request):
             else:
                 if not child.is_active_student:
                     messages.error(request, "Inactive or exited students cannot request absence.")
+                elif not is_feature_enabled_for_school(child.school_id, "attendance"):
+                    messages.error(request, "Absence requests are disabled for this child's school.")
                 else:
                     try:
                         absence_date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -1534,9 +1607,10 @@ def parent_absence_requests(request):
     if getattr(request.user, "role", None) != "parent":
         return redirect("home")
 
-    child_ids = list(get_children_for_parent(request.user, active_only=False).values_list("id", flat=True))
+    children = list(get_children_for_parent(request.user, active_only=False))
+    enabled_ids = [c.id for c in children if is_feature_enabled_for_school(c.school_id, "attendance")]
     qs = (
-        AbsenceRequest.objects.filter(student_id__in=child_ids)
+        AbsenceRequest.objects.filter(student_id__in=enabled_ids)
         .select_related("student", "student__user", "decided_by")
         .order_by("-created_at")
     )
@@ -1552,6 +1626,11 @@ def absence_requests_review(request):
         return redirect("home")
 
     school = getattr(request.user, "school", None)
+
+    if school:
+        redir = require_feature(request, "attendance", "accounts:school_dashboard")
+        if redir:
+            return redir
 
     if school:
         qs = AbsenceRequest.objects.filter(school=school)
@@ -1581,6 +1660,11 @@ def absence_request_decide(request, pk):
         return redirect("home")
 
     school = getattr(request.user, "school", None)
+    if school:
+        redir = require_feature(request, "attendance", "accounts:school_dashboard")
+        if redir:
+            return redir
+
     decision = (request.POST.get("decision") or "").strip().lower()
 
     if school:
@@ -1900,6 +1984,8 @@ def learning_plan_list(request):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "learning_plans", "accounts:school_dashboard")):
+        return redir
     status_filter = request.GET.get("status", "")
     qs = (
         LearningPlan.objects.filter(school=school)
@@ -1923,6 +2009,8 @@ def learning_plan_create(request, student_pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "learning_plans", "accounts:school_dashboard")):
+        return redir
     student = get_object_or_404(Student, pk=student_pk, school=school)
 
     if request.method == "POST":
@@ -1966,29 +2054,63 @@ def learning_plan_create(request, student_pk):
 
 @login_required
 def learning_plan_detail(request, pk):
+    """View a learning plan (IEP/SEN). Staff may manage; parents/guardians and the student may view."""
+    from accounts.permissions import user_can_manage_school
     from students.models import LearningPlan
+    from students.utils import parent_is_guardian_of
+
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
-    plan = get_object_or_404(LearningPlan, pk=pk, school=school)
+    if (redir := require_feature(request, "learning_plans", "accounts:school_dashboard")):
+        return redir
+    plan = get_object_or_404(
+        LearningPlan.objects.select_related("student", "student__user"),
+        pk=pk,
+        school=school,
+    )
+    student = plan.student
+
+    can_manage = bool(
+        getattr(request.user, "is_superuser", False) or user_can_manage_school(request.user)
+    )
+    is_student_self = (
+        getattr(request.user, "role", None) == "student" and student.user_id == request.user.id
+    )
+    is_legacy_parent = student.parent_id == request.user.id
+    is_guardian = parent_is_guardian_of(request.user, student)
+    can_view_as_family = is_student_self or is_legacy_parent or is_guardian
+
+    if not (can_manage or can_view_as_family):
+        messages.error(request, "Access denied.")
+        return redirect("home")
 
     if request.method == "POST":
         action = request.POST.get("action", "")
-        if action == "activate" and plan.status == "draft":
-            plan.status = "active"
-            plan.save(update_fields=["status", "updated_at"])
-            messages.success(request, "Plan activated.")
+        if action == "activate":
+            if not can_manage:
+                messages.error(request, "Only school staff can activate a learning plan.")
+            elif plan.status == "draft":
+                plan.status = "active"
+                plan.save(update_fields=["status", "updated_at"])
+                messages.success(request, "Plan activated.")
         elif action == "acknowledge":
-            plan.parent_acknowledged = True
-            plan.parent_acknowledged_at = timezone.now()
-            plan.save(update_fields=["parent_acknowledged", "parent_acknowledged_at", "updated_at"])
-            messages.success(request, "Parent acknowledgement recorded.")
+            if is_student_self or not (is_legacy_parent or is_guardian):
+                messages.error(request, "Only a parent or guardian can record acknowledgement.")
+            else:
+                plan.parent_acknowledged = True
+                plan.parent_acknowledged_at = timezone.now()
+                plan.save(update_fields=["parent_acknowledged", "parent_acknowledged_at", "updated_at"])
+                messages.success(request, "Parent acknowledgement recorded.")
         elif action == "progress":
-            notes = request.POST.get("progress_notes", "")
-            plan.progress_notes = notes
-            plan.last_updated_by = request.user
-            plan.save(update_fields=["progress_notes", "last_updated_by", "updated_at"])
-            messages.success(request, "Progress notes saved.")
+            if not can_manage:
+                messages.error(request, "Only staff can update progress notes.")
+            else:
+                notes = request.POST.get("progress_notes", "")
+                plan.progress_notes = notes
+                plan.last_updated_by = request.user
+                plan.save(update_fields=["progress_notes", "last_updated_by", "updated_at"])
+                messages.success(request, "Progress notes saved.")
         return redirect("students:learning_plan_detail", pk=pk)
 
     return render(request, "students/learning_plan_detail.html", {"plan": plan})
@@ -2003,6 +2125,8 @@ def learning_plan_delete(request, pk):
     school = getattr(request.user, "school", None)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "learning_plans", "accounts:school_dashboard")):
+        return redir
     plan = get_object_or_404(LearningPlan, pk=pk, school=school)
     student_name = plan.student.user.get_full_name()
     plan.delete()

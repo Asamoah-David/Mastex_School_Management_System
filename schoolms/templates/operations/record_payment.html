@@ -3,7 +3,7 @@
 
 {% block title %}Record payment · MastexEDU{% endblock %}
 {% block page_title %}Record payment{% endblock %}
-{% block page_subtitle %}Record cash, mobile money, or bank transfer collections for canteen, bus, or textbooks{% endblock %}
+{% block page_subtitle %}Record cash, mobile money, or bank transfer collections for canteen, bus, textbooks{% if show_hostel_payment %}, or hostel{% endif %}{% endblock %}
 
 {% block content %}
 {% include "includes/finance_subnav.html" %}
@@ -28,6 +28,9 @@
                             <option value="canteen">Canteen</option>
                             <option value="bus">Bus Fee</option>
                             <option value="textbook">Textbook</option>
+                            {% if show_hostel_payment %}
+                            <option value="hostel">Hostel</option>
+                            {% endif %}
                             <option value="school_fee">School Fees</option>
                         </select>
                     </div>
@@ -41,7 +44,7 @@
                         </select>
                     </div>
 
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-4 mb-3" id="student-field-wrapper">
                         <label for="student" class="form-label">Student</label>
                         <select name="student" id="student" class="form-select searchable-select" data-placeholder="Search for a student...">
                             <option value="">Select Student</option>
@@ -84,16 +87,62 @@
                 <!-- Bus Fields -->
                 <div id="bus-fields" style="display: none;">
                     <div class="row">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-6 mb-3">
+                            <label for="bus-route" class="form-label">Route</label>
+                            <select name="bus_route_id" id="bus-route" class="form-select" onchange="syncBusDailyUnitsField()">
+                                <option value="">Select route</option>
+                                {% for r in bus_routes %}
+                                <option value="{{ r.id }}" data-frequency="{{ r.payment_frequency }}">{{ r.name }} — {{ r.get_payment_frequency_display }} (GHS {{ r.fee_per_term }})</option>
+                                {% empty %}
+                                <option value="" disabled>No routes configured</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
                             <label for="amount" class="form-label">Amount (GHS)</label>
                             <input type="number" step="0.01" name="amount" id="bus-amount" class="form-control" placeholder="0.00">
+                            <small id="bus-amount-hint" class="form-text text-muted">Select a route to see pricing rules.</small>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="term" class="form-label">Term</label>
                             <input type="text" name="term" id="term" class="form-control" placeholder="e.g., Term 1 2025">
                         </div>
                     </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3" id="bus-daily-units-wrap" style="display: none;">
+                            <label for="bus-daily-units" class="form-label">Days covered</label>
+                            <input type="number" name="bus_daily_units" id="bus-daily-units" class="form-control" value="1" min="1">
+                            <small class="form-text text-muted">Required when the route is priced per day.</small>
+                        </div>
+                    </div>
                 </div>
+
+                {% if show_hostel_payment %}
+                <!-- Hostel Fields -->
+                <div id="hostel-fields" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="hostel-fee" class="form-label">Hostel fee</label>
+                            <select name="hostel_fee_id" id="hostel-fee" class="form-select searchable-select" data-placeholder="Search hostel fee…">
+                                <option value="">Select fee record</option>
+                                {% for hf in hostel_fees %}
+                                <option value="{{ hf.id }}" data-student-id="{{ hf.student_id }}">
+                                    {{ hf.student.user.get_full_name }} — {{ hf.hostel.name }} — {{ hf.term }}
+                                    (balance GHS {{ hf.balance }})
+                                </option>
+                                {% empty %}
+                                <option value="" disabled>No outstanding hostel fees</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text">Must match the student selected above.</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="hostel-amount" class="form-label">Amount (GHS)</label>
+                            <input type="number" step="0.01" name="hostel_amount" id="hostel-amount" class="form-control" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- Textbook Fields -->
                 <div id="textbook-fields" style="display: none;">
@@ -123,10 +172,27 @@
 
                 <!-- School Fees Fields -->
                 <div id="school-fee-fields" style="display: none;">
+                    {% if unpaid_school_fees %}
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="school-fee-pick" class="form-label">Pick outstanding fee (optional)</label>
+                            <select id="school-fee-pick" class="form-select">
+                                <option value="">— Choose to fill fee ID and student —</option>
+                                {% for f in unpaid_school_fees %}
+                                <option value="{{ f.id }}" data-student-id="{{ f.student_id }}">
+                                    #{{ f.id }} — {{ f.student.user.get_full_name }} — {% if f.description %}{{ f.description }}{% elif f.fee_structure %}{{ f.fee_structure.name }}{% else %}School fee{% endif %}
+                                    (balance GHS {{ f.remaining_balance }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Or enter fee ID manually below. Amount cannot exceed the fee balance.</small>
+                        </div>
+                    </div>
+                    {% endif %}
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="school-fee-student-id" class="form-label">Student</label>
-                            <select name="school_fee_student_id" id="school-fee-student-id" class="form-select searchable-select" data-placeholder="Search for a student..." required>
+                            <select name="school_fee_student_id" id="school-fee-student-id" class="form-select searchable-select" data-placeholder="Search for a student..." disabled>
                                 <option value="">Select Student</option>
                                 {% for student in students %}
                                 <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
@@ -135,20 +201,23 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="fee_id" class="form-label">Fee</label>
-                            <input type="text" name="fee_id" id="fee_id" class="form-control" placeholder="Enter Fee ID" required>
-                            <small class="form-text">Enter the fee ID from student's fee record</small>
+                            <input type="text" name="fee_id" id="fee_id" class="form-control" placeholder="Enter Fee ID" disabled>
+                            <small class="form-text">Fee ID (from finance / student fee list). Must be active and not archived.</small>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="school-fee-amount" class="form-label">Amount (GHS)</label>
-                            <input type="number" step="0.01" name="school_fee_amount" id="school-fee-amount" class="form-control" placeholder="0.00" required>
+                            <input type="number" step="0.01" name="school_fee_amount" id="school-fee-amount" class="form-control" placeholder="0.00" disabled>
                         </div>
                     </div>
                 </div>
 
+                <!-- Visible validation feedback so submit never appears to "do nothing" -->
+                <div id="payment-form-error" class="alert alert-danger mt-3" style="display:none;" role="alert"></div>
+
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary" onclick="console.log('DEBUG: Record Payment button clicked')">
+                    <button type="submit" class="btn btn-primary">
                         <i class="bi bi-check-circle"></i> Record Payment
                     </button>
                 </div>
@@ -158,34 +227,181 @@
 </div>
 
 <script>
-// DEBUG: Form submission detection
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('form[method="post"]');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            console.log('DEBUG: Form submission detected');
-            console.log('DEBUG: Form data:', new FormData(form));
-        });
+function syncSchoolFeePick() {
+    var pick = document.getElementById('school-fee-pick');
+    var fid = document.getElementById('fee_id');
+    var stud = document.getElementById('school-fee-student-id');
+    if (!pick || !fid || !stud) return;
+    var opt = pick.options[pick.selectedIndex];
+    if (!opt || !opt.value) return;
+    fid.value = opt.value;
+    var sid = opt.getAttribute('data-student-id');
+    if (sid) {
+        stud.value = sid;
+        if (window.jQuery && jQuery.fn.select2) {
+            try { jQuery(stud).val(sid).trigger('change'); } catch (e) { /* noop */ }
+        }
     }
-});
+}
+
+// Map: payment_type -> the *visible* field group's required field IDs.
+// Fields not in the active group are disabled so the browser does NOT
+// validate hidden `required` inputs (which would silently block submit).
+var PAYMENT_REQUIRED_FIELDS = {
+    canteen:    ['student', 'canteen-amount'],
+    bus:        ['student', 'bus-amount', 'bus-route'],
+    textbook:   ['student', 'textbook', 'quantity'],
+    school_fee: ['school-fee-student-id', 'fee_id', 'school-fee-amount'],
+    hostel:     ['student', 'hostel-fee', 'hostel-amount']
+};
+
+// All inputs that are inside type-specific groups. When a group is hidden
+// we mark them disabled so they neither validate nor submit.
+var PAYMENT_GROUP_FIELDS = {
+    'canteen-fields':    ['canteen-amount', 'payment-frequency', 'daily_units', 'description'],
+    'bus-fields':        ['bus-amount', 'term', 'bus-route', 'bus-daily-units'],
+    'textbook-fields':   ['textbook', 'quantity', 'textbook-amount'],
+    'school-fee-fields': ['school-fee-pick', 'school-fee-student-id', 'fee_id', 'school-fee-amount'],
+    'hostel-fields':     ['hostel-fee', 'hostel-amount']
+};
+
+function _setFieldState(id, opts) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (typeof opts.disabled === 'boolean') el.disabled = opts.disabled;
+    if (typeof opts.required === 'boolean') {
+        if (opts.required) el.setAttribute('required', '');
+        else el.removeAttribute('required');
+    }
+    // Re-sync Select2 (if used) so the disabled state shows in the UI.
+    if (window.jQuery && jQuery.fn.select2 && el.classList.contains('searchable-select')) {
+        try { jQuery(el).trigger('change.select2'); } catch (e) { /* noop */ }
+    }
+}
+
+function syncBusDailyUnitsField() {
+    var sel = document.getElementById('bus-route');
+    var wrap = document.getElementById('bus-daily-units-wrap');
+    var units = document.getElementById('bus-daily-units');
+    if (!sel || !wrap || !units) return;
+    var opt = sel.options[sel.selectedIndex];
+    var freq = opt ? opt.getAttribute('data-frequency') : '';
+    if (freq === 'daily') {
+        wrap.style.display = 'block';
+        units.disabled = false;
+        units.setAttribute('required', '');
+    } else {
+        wrap.style.display = 'none';
+        units.value = '1';
+        units.disabled = true;
+        units.removeAttribute('required');
+    }
+    updateBusAmountHint();
+}
+
+function updateBusAmountHint() {
+    var hint = document.getElementById('bus-amount-hint');
+    var sel = document.getElementById('bus-route');
+    if (!hint || !sel) return;
+    var opt = sel.options[sel.selectedIndex];
+    var freq = opt ? opt.getAttribute('data-frequency') : '';
+    if (!sel.value || !freq) {
+        hint.textContent = 'Select a route. The amount must match the route rate; for per-day routes, amount = daily rate × days covered.';
+        return;
+    }
+    if (freq === 'daily') {
+        hint.textContent = 'Per day: amount = (daily rate in the route name) × (days covered). Example: GHS 5 × 5 days = GHS 25.';
+    } else {
+        hint.textContent = 'Enter exactly the route amount shown (one payment per posting).';
+    }
+}
 
 function toggleFields() {
     var type = document.getElementById('payment_type').value;
-    document.getElementById('canteen-fields').style.display = 'none';
-    document.getElementById('bus-fields').style.display = 'none';
-    document.getElementById('textbook-fields').style.display = 'none';
-    document.getElementById('school-fee-fields').style.display = 'none';
-    if (type === 'canteen') {
-        document.getElementById('canteen-fields').style.display = 'block';
-    } else if (type === 'bus') {
-        document.getElementById('bus-fields').style.display = 'block';
-    } else if (type === 'textbook') {
-        document.getElementById('textbook-fields').style.display = 'block';
-        updateTextbookTotal();
-    } else if (type === 'school_fee') {
-        document.getElementById('school-fee-fields').style.display = 'block';
+    var groups = ['canteen-fields', 'bus-fields', 'textbook-fields', 'school-fee-fields'];
+    if (document.getElementById('hostel-fields')) {
+        groups.push('hostel-fields');
+    }
+
+    // Hide all groups and disable every field in them so the browser will
+    // ignore them for HTML5 validation AND not include them in the POST.
+    groups.forEach(function (gid) {
+        var g = document.getElementById(gid);
+        if (g) g.style.display = 'none';
+        (PAYMENT_GROUP_FIELDS[gid] || []).forEach(function (fid) {
+            _setFieldState(fid, { disabled: true, required: false });
+        });
+    });
+
+    // Always-visible top "student" select: only required for the cash flows
+    // (canteen / bus / textbook). For school_fee the dedicated school-fee
+    // student select is used instead.
+    _setFieldState('student', { disabled: false, required: false });
+
+    var activeGroup = null;
+    if (type === 'canteen')    activeGroup = 'canteen-fields';
+    else if (type === 'bus')   activeGroup = 'bus-fields';
+    else if (type === 'textbook') activeGroup = 'textbook-fields';
+    else if (type === 'school_fee') activeGroup = 'school-fee-fields';
+    else if (type === 'hostel') activeGroup = 'hostel-fields';
+
+    if (activeGroup) {
+        var g = document.getElementById(activeGroup);
+        if (g) g.style.display = 'block';
+        // Re-enable all inputs inside the visible group.
+        (PAYMENT_GROUP_FIELDS[activeGroup] || []).forEach(function (fid) {
+            _setFieldState(fid, { disabled: false });
+        });
+        // Mark just the truly required ones.
+        (PAYMENT_REQUIRED_FIELDS[type] || []).forEach(function (fid) {
+            _setFieldState(fid, { disabled: false, required: true });
+        });
+        if (type === 'textbook') updateTextbookTotal();
+        if (type === 'canteen') toggleDailyUnits();
+        if (type === 'bus') {
+            syncBusDailyUnitsField();
+            updateBusAmountHint();
+        }
+        if (type === 'school_fee') {
+            var sfp = document.getElementById('school-fee-pick');
+            if (sfp) sfp.selectedIndex = 0;
+        }
     }
 }
+
+// Surface any silent HTML5 validation failure so the submit button never
+// appears to "do nothing" — the previous bug.
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.querySelector('form[method="post"]');
+    var errBox = document.getElementById('payment-form-error');
+    if (!form) return;
+
+    form.addEventListener('invalid', function (e) {
+        var field = e.target;
+        if (errBox) {
+            var label = '';
+            if (field && field.id) {
+                var lab = document.querySelector('label[for="' + field.id + '"]');
+                if (lab) label = lab.textContent.trim();
+            }
+            errBox.style.display = 'block';
+            errBox.textContent = 'Please complete the required field' +
+                (label ? ': "' + label + '"' : '') + ' before submitting.';
+        }
+    }, true);
+
+    form.addEventListener('submit', function () {
+        if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+    });
+
+    // Run once on load to sync state with the (empty) initial selection.
+    toggleFields();
+
+    var busRoute = document.getElementById('bus-route');
+    if (busRoute) busRoute.addEventListener('change', syncBusDailyUnitsField);
+    var schoolFeePick = document.getElementById('school-fee-pick');
+    if (schoolFeePick) schoolFeePick.addEventListener('change', syncSchoolFeePick);
+});
 
 function updateTextbookTotal() {
     var sel = document.getElementById('textbook');

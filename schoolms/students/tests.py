@@ -4,8 +4,11 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from accounts.models import User
-from schools.models import School
-from students.models import Student, StudentClearance, StudentGuardian
+from operations.models import Announcement
+from schools.models import School, SchoolFeature
+from datetime import date
+
+from students.models import LearningPlan, Student, StudentClearance, StudentGuardian
 
 
 class StudentClearanceExitTests(TestCase):
@@ -123,3 +126,191 @@ class ParentChildGuardianAccessTests(TestCase):
         resp = self.client.get(reverse("students:parent_child_detail", args=[self.child.pk]))
         self.assertEqual(resp.status_code, 302)
 
+
+class LearningPlanAccessTests(TestCase):
+    """IEP / learning plans: only staff, linked guardians, legacy parent, or the student may open a plan."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="LP School", subdomain="lp-sch-01")
+        cls.admin = User.objects.create_user(
+            username="lp_admin", password="pw12345", school=cls.school, role="school_admin"
+        )
+        cls.parent = User.objects.create_user(
+            username="lp_parent", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.other_parent = User.objects.create_user(
+            username="lp_parent_other", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.student_user = User.objects.create_user(
+            username="lp_student", password="pw12345", school=cls.school, role="student"
+        )
+        cls.student = Student.objects.create(
+            school=cls.school,
+            user=cls.student_user,
+            admission_number="LP-001",
+            class_name="1A",
+            parent=None,
+        )
+        StudentGuardian.objects.create(
+            school=cls.school,
+            student=cls.student,
+            guardian=cls.parent,
+            relationship="guardian",
+            is_primary=True,
+        )
+        cls.plan = LearningPlan.objects.create(
+            school=cls.school,
+            student=cls.student,
+            plan_type="sen",
+            status="draft",
+            academic_year="2025/2026",
+            start_date=date.today(),
+            goals="Test goals for access control.",
+            created_by=cls.admin,
+            last_updated_by=cls.admin,
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_guardian_can_view_plan(self):
+        self.client.login(username="lp_parent", password="pw12345")
+        r = self.client.get(reverse("students:learning_plan_detail", args=[self.plan.pk]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_unrelated_parent_cannot_view_plan(self):
+        self.client.login(username="lp_parent_other", password="pw12345")
+        r = self.client.get(reverse("students:learning_plan_detail", args=[self.plan.pk]))
+        self.assertEqual(r.status_code, 302)
+
+    def test_guardian_cannot_activate_plan(self):
+        self.client.login(username="lp_parent", password="pw12345")
+        r = self.client.post(
+            reverse("students:learning_plan_detail", args=[self.plan.pk]),
+            {"action": "activate"},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.status, "draft")
+
+    def test_admin_can_activate_plan(self):
+        self.client.login(username="lp_admin", password="pw12345")
+        r = self.client.post(
+            reverse("students:learning_plan_detail", args=[self.plan.pk]),
+            {"action": "activate"},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.status, "active")
+
+    def test_learning_plans_feature_disabled_redirects_staff(self):
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="learning_plans", defaults={"enabled": False}
+        )
+        self.client.login(username="lp_admin", password="pw12345")
+        r = self.client.get(reverse("students:learning_plan_list"))
+        self.assertRedirects(r, reverse("accounts:school_dashboard"), fetch_redirect_response=False)
+
+
+class AnnouncementsListFeatureGateTests(TestCase):
+    """Parent/student announcements list respects per-school announcements feature."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Ann List Sch", subdomain="ann-list-sch-01")
+        SchoolFeature.objects.update_or_create(
+            school=cls.school, key="announcements", defaults={"enabled": False}
+        )
+        cls.stu_user = User.objects.create_user(
+            username="ann_list_stu", password="pw12345", school=cls.school, role="student"
+        )
+        cls.student = Student.objects.create(
+            school=cls.school,
+            user=cls.stu_user,
+            admission_number="AL-01",
+            class_name="1A",
+        )
+        cls.parent = User.objects.create_user(
+            username="ann_list_parent", password="pw12345", school=cls.school, role="parent"
+        )
+        cls.student.parent = cls.parent
+        cls.student.save(update_fields=["parent"])
+        cls.hidden_ann = Announcement.objects.create(
+            school=cls.school,
+            title="HiddenDashAnn",
+            content="x",
+            target_audience="parents",
+            created_by=cls.parent,
+        )
+        cls.hidden_stu_ann = Announcement.objects.create(
+            school=cls.school,
+            title="HiddenStuAnn",
+            content="y",
+            target_audience="students",
+            created_by=cls.parent,
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_student_redirected_when_announcements_disabled(self):
+        self.client.login(username="ann_list_stu", password="pw12345")
+        r = self.client.get(reverse("students:announcements_list"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("dashboard", r.url)
+
+    def test_parent_redirected_when_announcements_disabled(self):
+        self.client.login(username="ann_list_parent", password="pw12345")
+        r = self.client.get(reverse("students:announcements_list"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("dashboard", r.url)
+
+    def test_parent_dashboard_omits_announcements_when_disabled(self):
+        self.client.login(username="ann_list_parent", password="pw12345")
+        r = self.client.get(reverse("students:parent_dashboard"))
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "HiddenDashAnn")
+
+    def test_student_portal_omits_announcements_when_disabled(self):
+        self.client.login(username="ann_list_stu", password="pw12345")
+        r = self.client.get(reverse("portal"))
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "HiddenStuAnn")
+
+
+class AbsenceAttendanceGateTests(TestCase):
+    """Student absence flows respect SchoolFeature('attendance')."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Abs Gate Sch", subdomain="abs-gate-01")
+        SchoolFeature.objects.update_or_create(
+            school=cls.school, key="attendance", defaults={"enabled": False}
+        )
+        cls.stu_user = User.objects.create_user(
+            username="abs_gate_stu", password="pw12345", school=cls.school, role="student"
+        )
+        cls.student = Student.objects.create(
+            school=cls.school,
+            user=cls.stu_user,
+            admission_number="ABS-G1",
+            class_name="1A",
+        )
+        cls.admin = User.objects.create_user(
+            username="abs_gate_admin", password="pw12345", school=cls.school, role="school_admin"
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_student_absence_create_redirects_when_attendance_disabled(self):
+        self.client.login(username="abs_gate_stu", password="pw12345")
+        r = self.client.get(reverse("students:absence_request_create"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("dashboard", r.url)
+
+    def test_staff_absence_review_redirects_when_attendance_disabled(self):
+        self.client.login(username="abs_gate_admin", password="pw12345")
+        r = self.client.get(reverse("students:absence_requests_review"))
+        self.assertEqual(r.status_code, 302)

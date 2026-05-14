@@ -5,10 +5,18 @@ from django.db.models import Q, Avg, Count
 from django.http import HttpResponse
 from django.urls import reverse
 from django.utils import timezone
+from typing import Optional
 from urllib.parse import urlencode
 
 from students.models import Student, SchoolClass
 from schools.models import School
+from schools.features import (
+    ACADEMIC_TERM_FEATURE_KEYS,
+    is_feature_enabled,
+    require_any_feature,
+    require_feature,
+)
+from accounts.models import User
 from accounts.permissions import (
     user_can_manage_school,
     has_school_wide_class_scope,
@@ -477,11 +485,49 @@ def _get_school_classes(school):
     return sorted(from_school_class | from_students, key=str.lower)
 
 
+def _homework_target_q_for_student(student) -> Optional[Q]:
+    """Match Homework rows for a student's structured class and/or legacy class_name."""
+    parts: list[Q] = []
+    if getattr(student, "school_class_id", None):
+        parts.append(Q(school_class_id=student.school_class_id))
+    cn = (getattr(student, "class_name", None) or "").strip()
+    if cn:
+        parts.append(Q(class_name__iexact=cn))
+    if not parts:
+        return None
+    q = parts[0]
+    for p in parts[1:]:
+        q |= p
+    return q
+
+
+def _resolve_homework_class_from_post(request, school):
+    """
+    Return (resolved_class_name, school_class_or_None, error_message).
+    Caller must show error_message when non-empty.
+    """
+    school_class_id = (request.POST.get("school_class_id") or "").strip()
+    class_name = (request.POST.get("class_name") or "").strip()
+    if school_class_id:
+        try:
+            sc = SchoolClass.objects.get(pk=int(school_class_id), school=school)
+            return sc.name, sc, ""
+        except (ValueError, TypeError, SchoolClass.DoesNotExist):
+            return None, None, "Invalid class selection."
+    if class_name:
+        return class_name, None, ""
+    return None, None, "Please select a structured class or enter a free-text class name."
+
+
 @login_required
 def results_management(request):
     """Results Management Hub - consolidated results entry page."""
     school = _get_school(request)
     user = request.user
+
+    if school:
+        if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+            return redir
 
     from academics.models import Result
 
@@ -565,6 +611,9 @@ def result_upload(request):
             },
         )
     
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
+    
     # Get query parameters
     class_name = request.GET.get("class")
     subject_id = request.GET.get("subject")
@@ -639,6 +688,7 @@ def result_upload(request):
                         else:
                             to_create.append(
                                 Result(
+                                    school=school,
                                     student=student,
                                     subject=subject,
                                     exam_type=exam_type,
@@ -649,6 +699,28 @@ def result_upload(request):
                         saved_count += 1
                     if to_create:
                         Result.objects.bulk_create(to_create)
+
+                created_student_ids = [r.student_id for r in to_create]
+                if created_student_ids:
+                    def _reconcile_bulk_created_summaries():
+                        import logging
+
+                        from academics.services import GradingService
+
+                        _log = logging.getLogger(__name__)
+                        for sid in created_student_ids:
+                            try:
+                                stu = Student.objects.get(pk=sid, school=school)
+                                GradingService.reconcile_student_subject_term_summary(
+                                    stu, subject, term
+                                )
+                            except Exception:
+                                _log.exception(
+                                    "result_upload: summary reconcile failed student_id=%s",
+                                    sid,
+                                )
+
+                    transaction.on_commit(_reconcile_bulk_created_summaries)
 
                 try:
                     from audit.models import AuditLog
@@ -749,6 +821,8 @@ def result_autosave(request):
     from accounts.permissions import can_upload_results
     if not can_upload_results(request.user):
         return JsonResponse({"error": "Permission denied"}, status=403)
+    if not is_feature_enabled(request, "results"):
+        return JsonResponse({"error": "feature_disabled"}, status=403)
 
     student_id = request.POST.get("student_id")
     subject_id = request.POST.get("subject_id")
@@ -805,6 +879,9 @@ def result_list(request):
     
     if not can_upload_results(request.user):
         return redirect("home")
+    
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     # Get filter parameters (support POST actions retaining filters)
     filter_source = request.POST if request.method == "POST" else request.GET
@@ -978,6 +1055,8 @@ def result_edit(request, pk):
     from accounts.permissions import can_upload_results
     if not can_upload_results(request.user):
         return redirect("home")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     result = get_object_or_404(
         Result.objects.select_related(
             "student", "student__user", "subject", "exam_type", "term"
@@ -1022,6 +1101,8 @@ def result_delete(request, pk):
     from accounts.permissions import can_upload_results
     if not can_upload_results(request.user):
         return redirect("home")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     result = get_object_or_404(
         Result.objects.select_related("student", "student__user", "subject", "exam_type", "term"),
         pk=pk,
@@ -1066,6 +1147,8 @@ def report_card_generator(request):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "report_cards", "accounts:school_dashboard")):
+        return redir
 
     _ensure_core_academics_for_school(school)
 
@@ -1114,6 +1197,8 @@ def grade_boundary_list(request):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     boundaries = GradeBoundary.objects.filter(school=school).order_by("-min_score")
     return render(request, "academics/grade_boundary_list.html", {"boundaries": boundaries, "school": school})
 
@@ -1125,6 +1210,8 @@ def grade_boundary_create(request):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     if request.method == "POST":
         grade = request.POST.get("grade", "").strip()
         try:
@@ -1147,23 +1234,38 @@ def homework_list(request):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if (redir := require_feature(request, "homework", "accounts:school_dashboard")):
+        return redir
     role = getattr(request.user, "role", None)
     can_manage = _user_can_manage_school(request)
     class_filter = (request.GET.get("class") or "").strip()
 
-    qs = Homework.objects.filter(school=school).select_related("subject", "created_by").order_by("-due_date")
+    qs = Homework.objects.filter(school=school).select_related(
+        "subject", "created_by", "school_class"
+    ).order_by("-due_date")
 
     # Students and parents get a read-only view scoped to relevant classes.
     if not can_manage:
         if role == "student":
-            student = Student.objects.filter(user=request.user).only("class_name", "school_id").first()
+            student = Student.objects.filter(user=request.user, school=school).first()
             if not student:
                 return redirect("home")
-            if student.class_name:
-                qs = qs.filter(class_name=student.class_name)
-            else:
+            hq = _homework_target_q_for_student(student)
+            if hq is None:
                 qs = qs.none()
-            classes = [student.class_name] if student.class_name else []
+            else:
+                qs = qs.filter(hq)
+            classes = []
+            if student.class_name:
+                classes.append(student.class_name)
+            elif student.school_class_id:
+                scn = (
+                    SchoolClass.objects.filter(pk=student.school_class_id, school=school)
+                    .values_list("name", flat=True)
+                    .first()
+                )
+                if scn:
+                    classes.append(scn)
             return render(
                 request,
                 "academics/homework_list.html",
@@ -1171,10 +1273,34 @@ def homework_list(request):
             )
         if role == "parent":
             children = list(get_children_for_parent(request.user, school=school, active_only=False))
-            class_names = sorted({c.class_name for c in children if c.class_name})
-            qs = qs.filter(class_name__in=class_names) if class_names else qs.none()
+            q_agg: Optional[Q] = None
+            for child in children:
+                hq = _homework_target_q_for_student(child)
+                if hq is None:
+                    continue
+                q_agg = hq if q_agg is None else (q_agg | hq)
+            if q_agg is None:
+                qs = qs.none()
+            else:
+                qs = qs.filter(q_agg).distinct()
+            class_names_set = set()
+            for c in children:
+                if (c.class_name or "").strip():
+                    class_names_set.add(c.class_name.strip())
+                if c.school_class_id:
+                    scn = (
+                        SchoolClass.objects.filter(pk=c.school_class_id, school=school)
+                        .values_list("name", flat=True)
+                        .first()
+                    )
+                    if scn:
+                        class_names_set.add(scn)
+            class_names = sorted(class_names_set, key=str.lower)
             if class_filter and class_filter in class_names:
-                qs = qs.filter(class_name=class_filter)
+                qs = qs.filter(
+                    Q(class_name=class_filter)
+                    | Q(school_class__name__iexact=class_filter)
+                )
             return render(
                 request,
                 "academics/homework_list.html",
@@ -1194,15 +1320,20 @@ def homework_create(request):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if (redir := require_feature(request, "homework", "accounts:school_dashboard")):
+        return redir
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
         desc = request.POST.get("description", "").strip()
-        class_name = request.POST.get("class_name", "").strip()
         subject_id = request.POST.get("subject")
         due = request.POST.get("due_date")
-        if title and class_name and subject_id and due:
+        attachment = request.FILES.get("attachment")
+        class_name_resolved, school_class, class_err = _resolve_homework_class_from_post(request, school)
+        if class_err:
+            messages.error(request, class_err)
+        elif title and subject_id and due and class_name_resolved:
             try:
                 subject = Subject.objects.get(id=subject_id, school=school)
                 from datetime import datetime, time as time_cls
@@ -1214,11 +1345,13 @@ def homework_create(request):
                 Homework.objects.create(
                     school=school,
                     subject=subject,
-                    class_name=class_name,
+                    class_name=class_name_resolved,
+                    school_class=school_class,
                     title=title,
                     description=desc,
                     due_date=due_dt,
                     created_by=request.user,
+                    attachment=attachment,
                 )
                 messages.success(request, "Homework added.")
                 return redirect("academics:homework_list")
@@ -1226,9 +1359,24 @@ def homework_create(request):
                 messages.error(request, "Invalid subject selection.")
             except ValueError:
                 messages.error(request, "Invalid due date format.")
+        else:
+            messages.error(
+                request,
+                "Please fill in all required fields (title, subject, due date, and class).",
+            )
     subjects = Subject.objects.filter(school=school).order_by("name")
     classes = _get_school_classes(school)
-    return render(request, "academics/homework_form.html", {"school": school, "subjects": subjects, "classes": classes})
+    structured_classes = SchoolClass.objects.filter(school=school).order_by("name")
+    return render(
+        request,
+        "academics/homework_form.html",
+        {
+            "school": school,
+            "subjects": subjects,
+            "classes": classes,
+            "structured_classes": structured_classes,
+        },
+    )
 
 
 @login_required
@@ -1236,25 +1384,39 @@ def homework_edit(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if (redir := require_feature(request, "homework", "accounts:school_dashboard")):
+        return redir
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
     homework = get_object_or_404(Homework, pk=pk, school=school)
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
         desc = request.POST.get("description", "").strip()
-        class_name = request.POST.get("class_name", "").strip()
         subject_id = request.POST.get("subject")
         due = request.POST.get("due_date")
-        if title and class_name and subject_id and due:
+        attachment = request.FILES.get("attachment")
+        class_name_resolved, school_class, class_err = _resolve_homework_class_from_post(request, school)
+        if class_err:
+            messages.error(request, class_err)
+        elif title and subject_id and due and class_name_resolved:
             try:
                 subject = Subject.objects.get(id=subject_id, school=school)
-                from datetime import datetime
+                from datetime import datetime, time as time_cls
                 due_d = datetime.strptime(due, "%Y-%m-%d").date()
+                # Homework.due_date is a DateTimeField — coerce to an aware
+                # datetime end-of-day to avoid naive-datetime warnings and
+                # off-by-one comparisons.
+                due_dt = timezone.make_aware(
+                    datetime.combine(due_d, time_cls(hour=23, minute=59))
+                )
                 homework.title = title
                 homework.description = desc
-                homework.class_name = class_name
+                homework.class_name = class_name_resolved
+                homework.school_class = school_class
                 homework.subject = subject
-                homework.due_date = due_d
+                homework.due_date = due_dt
+                if attachment:
+                    homework.attachment = attachment
                 homework.save()
                 messages.success(request, "Homework updated.")
                 return redirect("academics:homework_list")
@@ -1262,9 +1424,25 @@ def homework_edit(request, pk):
                 messages.error(request, "Invalid subject selection.")
             except ValueError:
                 messages.error(request, "Invalid due date format.")
+        else:
+            messages.error(
+                request,
+                "Please fill in all required fields (title, subject, due date, and class).",
+            )
     subjects = Subject.objects.filter(school=school).order_by("name")
     classes = _get_school_classes(school)
-    return render(request, "academics/homework_form.html", {"school": school, "subjects": subjects, "classes": classes, "homework": homework})
+    structured_classes = SchoolClass.objects.filter(school=school).order_by("name")
+    return render(
+        request,
+        "academics/homework_form.html",
+        {
+            "school": school,
+            "subjects": subjects,
+            "classes": classes,
+            "structured_classes": structured_classes,
+            "homework": homework,
+        },
+    )
 
 
 @login_required
@@ -1272,6 +1450,8 @@ def homework_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if (redir := require_feature(request, "homework", "accounts:school_dashboard")):
+        return redir
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
     homework = get_object_or_404(Homework, pk=pk, school=school)
@@ -1279,7 +1459,11 @@ def homework_delete(request, pk):
         homework.delete()
         messages.success(request, "Homework deleted.")
         return redirect("academics:homework_list")
-    return render(request, "accounts/confirm_delete.html", {"object": homework, "type": "homework"})
+    return render(request, "accounts/confirm_delete.html", {
+        "object": homework,
+        "type": "homework",
+        "cancel_url": "academics:homework_list",
+    })
 
 
 @login_required
@@ -1287,6 +1471,8 @@ def exam_schedule_list(request):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if (redir := require_feature(request, "exams", "accounts:school_dashboard")):
+        return redir
     role = getattr(request.user, "role", None)
     can_manage = _user_can_manage_school(request)
     # Ensure common terms and subjects exist so filters are useful.
@@ -1337,6 +1523,8 @@ def exam_schedule_create(request):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "exams", "accounts:school_dashboard")):
+        return redir
     if request.method == "POST":
         term_id = request.POST.get("term")
         subject_id = request.POST.get("subject")
@@ -1394,6 +1582,8 @@ def exam_schedule_edit(request, pk):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "exams", "accounts:school_dashboard")):
+        return redir
     exam = get_object_or_404(ExamSchedule, pk=pk, school=school)
     if request.method == "POST":
         term_id = request.POST.get("term")
@@ -1449,12 +1639,18 @@ def exam_schedule_delete(request, pk):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "exams", "accounts:school_dashboard")):
+        return redir
     exam = get_object_or_404(ExamSchedule, pk=pk, school=school)
     if request.method == "POST":
         exam.delete()
         messages.success(request, "Exam schedule deleted.")
         return redirect("academics:exam_schedule_list")
-    return render(request, "accounts/confirm_delete.html", {"object": exam, "type": "exam schedule"})
+    return render(request, "accounts/confirm_delete.html", {
+        "object": exam,
+        "type": "exam schedule",
+        "cancel_url": "academics:exam_schedule_list",
+    })
 
 
 @login_required
@@ -1462,6 +1658,8 @@ def report_card_view(request, student_id):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if (redir := require_feature(request, "report_cards", "accounts:school_dashboard")):
+        return redir
     student = get_object_or_404(
         Student.objects.select_related("user"), id=student_id, school=school
     )
@@ -1520,6 +1718,8 @@ def report_card_pdf(request, student_id):
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
+    if (redir := require_feature(request, "report_cards", "accounts:school_dashboard")):
+        return redir
     student = get_object_or_404(
         Student.objects.select_related("user"), id=student_id, school=school
     )
@@ -1576,6 +1776,8 @@ def report_cards_export_zip(request):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "report_cards", "accounts:school_dashboard")):
+        return redir
 
     class_name = (request.GET.get("class") or "").strip()
     term_id = (request.GET.get("term") or "").strip()
@@ -1625,7 +1827,7 @@ def _timetable_times_overlap(st_a, en_a, st_b, en_b) -> bool:
 
 def _timetable_class_slot_conflicts(school, class_name, day_of_week, start_time, end_time, *, exclude_pk=None):
     """Same class cannot have two lessons overlapping on the same day."""
-    qs = Timetable.objects.filter(school=school, class_name=class_name, day_of_week=day_of_week)
+    qs = Timetable.objects.filter(school=school, class_name=class_name, day_of_week__iexact=day_of_week)
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
     return [
@@ -1646,7 +1848,7 @@ def _timetable_teacher_or_room_conflicts(
     exclude_pk=None,
 ):
     """Find overlapping slots for the same teacher and/or room on a day."""
-    qs = Timetable.objects.filter(school=school, day_of_week=day_of_week)
+    qs = Timetable.objects.filter(school=school, day_of_week__iexact=day_of_week)
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
     overlaps = [
@@ -1676,6 +1878,8 @@ def timetable_list(request):
         return redirect("home")
     if not (request.user.is_superuser or _user_can_manage_school(request)):
         return redirect("home")
+    if (redir := require_feature(request, "timetable", "accounts:school_dashboard")):
+        return redir
 
     class_name = (request.GET.get("class_name") or "").strip()
     day = (request.GET.get("day") or "").strip()
@@ -1706,6 +1910,8 @@ def timetable_create(request):
         return redirect("home")
     if not (request.user.is_superuser or _user_can_manage_school(request)):
         return redirect("home")
+    if (redir := require_feature(request, "timetable", "accounts:school_dashboard")):
+        return redir
 
     subjects = Subject.objects.filter(school=school).order_by("name")
     suggested_classes = (
@@ -1731,8 +1937,25 @@ def timetable_create(request):
         subject = Subject.objects.filter(id=subject_id, school=school).first()
         teacher = None
         if teacher_id:
-            teacher = User.objects.filter(id=teacher_id).first()
-        if not (class_name and subject and day and start_time and end_time):
+            teacher = (
+                User.objects.filter(
+                    id=teacher_id,
+                    school=school,
+                    is_active=True,
+                )
+                .filter(
+                    Q(role__in=("teacher", "hod", "deputy_head", "school_admin", "admin"))
+                    | Q(secondary_role_entries__role="teacher")
+                )
+                .distinct()
+                .first()
+            )
+            if not teacher:
+                messages.error(request, "Selected teacher is not valid for this school.")
+        invalid_teacher = bool(teacher_id) and teacher is None
+        if invalid_teacher:
+            pass
+        elif not (class_name and subject and day and start_time and end_time):
             messages.error(request, "Please fill all required fields.")
         else:
             try:
@@ -1810,12 +2033,18 @@ def timetable_delete(request, pk):
         return redirect("home")
     if not (request.user.is_superuser or _user_can_manage_school(request)):
         return redirect("home")
+    if (redir := require_feature(request, "timetable", "accounts:school_dashboard")):
+        return redir
     item = get_object_or_404(Timetable, pk=pk, school=school)
     if request.method == "POST":
         item.delete()
         messages.success(request, "Deleted.")
         return redirect("academics:timetable_list")
-    return render(request, "accounts/confirm_delete.html", {"object": item})
+    return render(request, "accounts/confirm_delete.html", {
+        "object": item,
+        "type": "timetable entry",
+        "cancel_url": "academics:timetable_list",
+    })
 
 
 @login_required
@@ -1826,6 +2055,8 @@ def timetable_my(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "timetable", "accounts:school_dashboard")):
+        return redir
 
     role = getattr(request.user, "role", None)
     if role == "student":
@@ -1878,7 +2109,11 @@ def performance_analytics(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("home")
-    
+
+    block = require_feature(request, "performance_analytics", "accounts:school_dashboard")
+    if block:
+        return block
+
     class_name = request.GET.get("class")
     term_id = request.GET.get("term")
     
@@ -1950,6 +2185,8 @@ def quiz_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
     
     role = getattr(request.user, "role", None)
     can_manage = _user_can_manage_school(request)
@@ -2023,6 +2260,8 @@ def quiz_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
     if not _user_can_manage_school(request):
         return redirect("home")
     
@@ -2051,6 +2290,11 @@ def quiz_create(request):
                     try:
                         from django.utils.dateparse import parse_datetime
                         start_time = parse_datetime(start_time_raw)
+                        # `<input type="datetime-local">` returns a naive
+                        # datetime; make it aware to avoid runtime warnings
+                        # and incorrect now() comparisons later in quiz_take.
+                        if start_time and timezone.is_naive(start_time):
+                            start_time = timezone.make_aware(start_time)
                     except Exception:
                         start_time = None
                 quiz = Quiz.objects.create(
@@ -2071,7 +2315,12 @@ def quiz_create(request):
                 return redirect("academics:quiz_detail", pk=quiz.pk)
             except Exception as e:
                 messages.error(request, f"Error creating quiz: {str(e)}")
-    
+        else:
+            messages.error(
+                request,
+                "Please fill in all required fields (title, subject, class).",
+            )
+
     return render(request, "academics/quiz_form.html", {
         "school": school,
         "subjects": subjects,
@@ -2087,6 +2336,8 @@ def quiz_detail(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
     
     quiz = get_object_or_404(Quiz, pk=pk, school=school)
     questions = quiz.questions.all().order_by('order')
@@ -2110,6 +2361,8 @@ def quiz_add_question(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
     if not _user_can_manage_school(request):
         return redirect("home")
     
@@ -2175,6 +2428,8 @@ def quiz_take(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
     
     role = getattr(request.user, "role", None)
     if role != "student":
@@ -2305,6 +2560,8 @@ def quiz_result(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
 
     attempt = get_object_or_404(
         QuizAttempt.objects.select_related("quiz", "student", "student__user"),
@@ -2351,6 +2608,8 @@ def quiz_edit(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
 
     quiz = get_object_or_404(Quiz, pk=pk, school=school)
     subjects = Subject.objects.filter(school=school).order_by("name")
@@ -2412,6 +2671,8 @@ def quiz_delete(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect("home")
+    if (redir := require_feature(request, "quiz", "accounts:school_dashboard")):
+        return redir
 
     quiz = get_object_or_404(Quiz, pk=pk, school=school)
 
@@ -2421,7 +2682,11 @@ def quiz_delete(request, pk):
         messages.success(request, "Quiz deleted!")
         return redirect("academics:quiz_list")
 
-    return render(request, "accounts/confirm_delete.html", {"object": quiz, "type": "quiz"})
+    return render(request, "accounts/confirm_delete.html", {
+        "object": quiz,
+        "type": "quiz",
+        "cancel_url": "academics:quiz_list",
+    })
 
 
 @login_required
@@ -2436,6 +2701,8 @@ def quiz_tab_event(request, attempt_id):
     school = _get_school(request)
     if not school:
         return JsonResponse({"ok": False}, status=400)
+    if not is_feature_enabled(request, "quiz"):
+        return JsonResponse({"ok": False, "error": "feature_disabled"}, status=403)
     attempt = get_object_or_404(
         QuizAttempt,
         pk=attempt_id,
@@ -2462,6 +2729,8 @@ def grading_policy_view(request):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import GradingPolicy, GradePoint, AssessmentType
     from .services import ensure_default_grading_setup
@@ -2504,6 +2773,8 @@ def grading_policy_update(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import GradingPolicy
     
@@ -2549,6 +2820,8 @@ def assessment_type_list(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import AssessmentType
     
@@ -2568,6 +2841,8 @@ def assessment_type_create(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import AssessmentType
     
@@ -2594,6 +2869,8 @@ def assessment_score_list(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("home")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import AssessmentScore
     
@@ -2636,6 +2913,8 @@ def assessment_score_upload(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import AssessmentScore, AssessmentType
     from datetime import datetime
@@ -2695,7 +2974,7 @@ def assessment_score_upload(request):
                                 saved_count += 1
                         except (Student.DoesNotExist, ValueError):
                             continue
-                
+
                 if saved_count > 0:
                     messages.success(request, f"Successfully saved {saved_count} assessment score(s)")
                 
@@ -2727,6 +3006,8 @@ def exam_score_list(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("home")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import ExamScore
     
@@ -2769,6 +3050,8 @@ def exam_score_upload(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import ExamScore, ExamType
     from datetime import datetime
@@ -2830,7 +3113,7 @@ def exam_score_upload(request):
                                 saved_count += 1
                         except (Student.DoesNotExist, ValueError):
                             continue
-                
+
                 if saved_count > 0:
                     messages.success(request, f"Successfully saved {saved_count} exam score(s)")
                 
@@ -2862,6 +3145,8 @@ def class_rankings(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("home")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
     
     from .models import StudentResultSummary
     from .services import GradingService
@@ -2915,58 +3200,113 @@ def class_rankings(request):
 
 @login_required
 def generate_result_summary(request):
-    """Generate result summaries for students."""
+    """Batch-build ``StudentResultSummary`` rows from CA + exam scores (per class/term).
+
+    Data flow: ``AssessmentScore`` / ``ExamScore`` (raw entry) → POST ``action=generate``
+    → ``GradingService.update_student_result_summary`` → stored summaries.
+
+    POST ``action=reconcile`` runs ``collect_triples_for_class_term`` +
+    ``reconcile_triples`` for the same class/term (optional subject filter),
+    repairing summaries after bulk updates that skipped signals.
+
+    Legacy ``Result`` rows participate in reconcile when no CA/exam exists for a triple.
+    """
     school = _get_school(request)
     if not school:
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
-    
-    from .models import StudentResultSummary
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
+
     from .services import GradingService
     
     if request.method == "POST":
-        class_name = request.POST.get("class")
+        action = (request.POST.get("action") or "generate").strip().lower()
+        class_name = (request.POST.get("class") or "").strip()
         term_id = request.POST.get("term")
-        
-        if class_name and term_id:
-            term = Term.objects.filter(id=term_id, school=school).first()
-            if term:
-                students = Student.objects.filter(school=school, class_name=class_name)
-                subjects = Subject.objects.filter(school=school)
-                
-                generated_count = 0
-                for student in students:
-                    for subject in subjects:
-                        # Check if there are any scores for this student/subject/term
-                        has_assessments = AssessmentScore.objects.filter(
-                            student=student, subject=subject, term=term
-                        ).exists()
-                        has_exam = ExamScore.objects.filter(
-                            student=student, subject=subject, term=term
-                        ).exists()
-                        
-                        if has_assessments or has_exam:
-                            GradingService.update_student_result_summary(student, subject, term)
-                            generated_count += 1
-                
-                messages.success(request, f"Generated {generated_count} result summaries")
-            else:
-                messages.error(request, "Invalid term selected")
-        else:
+        subject_raw = (request.POST.get("subject") or "").strip()
+
+        if not class_name or not term_id:
             messages.error(request, "Please select class and term")
+        else:
+            term = Term.objects.filter(id=term_id, school=school).first()
+            if not term:
+                messages.error(request, "Invalid term selected")
+            else:
+                subject_id = None
+                subject_invalid = False
+                if subject_raw:
+                    if subject_raw.isdigit():
+                        cand = int(subject_raw)
+                        if Subject.objects.filter(pk=cand, school=school).exists():
+                            subject_id = cand
+                        else:
+                            messages.error(request, "Invalid subject selected")
+                            subject_invalid = True
+                    else:
+                        messages.error(request, "Invalid subject selected")
+                        subject_invalid = True
+
+                if not subject_invalid:
+                    if action == "reconcile":
+                        triples = GradingService.collect_triples_for_class_term(
+                            school, term, class_name=class_name, subject_id=subject_id
+                        )
+                        ok, err = GradingService.reconcile_triples(triples)
+                        if err:
+                            messages.warning(
+                                request,
+                                f"Reconciled {ok} summary row(s); {err} error(s). Check logs.",
+                            )
+                        else:
+                            messages.success(
+                                request,
+                                f"Reconciled {ok} student/subject/term summary row(s) from current scores.",
+                            )
+                    else:
+                        students = Student.objects.filter(school=school, class_name=class_name)
+                        subjects = Subject.objects.filter(school=school)
+                        if subject_id is not None:
+                            subjects = subjects.filter(pk=subject_id)
+                        generated_count = 0
+                        for student in students:
+                            for subject in subjects:
+                                has_assessments = AssessmentScore.objects.filter(
+                                    student=student, subject=subject, term=term
+                                ).exists()
+                                has_exam = ExamScore.objects.filter(
+                                    student=student, subject=subject, term=term
+                                ).exists()
+                                if has_assessments or has_exam:
+                                    GradingService.update_student_result_summary(
+                                        student, subject, term
+                                    )
+                                    generated_count += 1
+                        messages.success(
+                            request, f"Generated {generated_count} result summaries"
+                        )
     
     classes = [c for c in Student.objects.filter(school=school).values_list('class_name', flat=True).distinct() if c]
     terms = Term.objects.filter(school=school).order_by('-is_current', '-id')
-    
-    return render(request, "academics/generate_result_summary.html", {
-        'school': school,
-        'classes': classes,
-        'terms': terms,
-    })
+    subjects = Subject.objects.filter(school=school).order_by("name")
 
+    from .models import GradingPolicy
 
-@login_required
+    policy = GradingPolicy.get_active_policy(school)
+
+    return render(
+        request,
+        "academics/generate_result_summary.html",
+        {
+            "school": school,
+            "classes": classes,
+            "terms": terms,
+            "subjects": subjects,
+            "policy": policy,
+        },
+    )
+
 
 # ── enhanced_report_card (rewritten to fix 500 errors) ───────────────────────
 @login_required
@@ -2996,6 +3336,8 @@ def enhanced_report_card(request, student_id):
     if not school:
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden("No school found.")
+    if (redir := require_feature(request, "report_cards", "accounts:school_dashboard")):
+        return redir
 
     student = get_object_or_404(Student, pk=student_id, school=school)
 
@@ -3004,9 +3346,8 @@ def enhanced_report_card(request, student_id):
     can_manage = user.is_superuser or role in (
         "school_admin", "admin", "teacher", "hod", "deputy_head", "accountant"
     )
-    is_own = role == "student" and student.user_id == user.id
-    is_parent_of = role == "parent" and getattr(student, "parent_id", None) == user.id
-    if not (can_manage or is_own or is_parent_of):
+    # Include linked guardians (StudentGuardian), not only legacy ``student.parent``.
+    if not (can_manage or _can_view_student_record(user, student)):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden("Access denied.")
 
@@ -3196,9 +3537,15 @@ def enhanced_report_card_pdf(request, student_id):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "report_cards", "accounts:school_dashboard")):
+        return redir
     
     student = get_object_or_404(Student, id=student_id, school=school)
-    if not _can_view_student_record(request.user, student):
+    role = getattr(request.user, "role", None)
+    can_manage = request.user.is_superuser or role in (
+        "school_admin", "admin", "teacher", "hod", "deputy_head", "accountant"
+    )
+    if not (can_manage or _can_view_student_record(request.user, student)):
         return redirect("home")
     
     from .models import StudentResultSummary, GradingPolicy
@@ -3387,6 +3734,8 @@ def question_bank_list(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "question_bank", "accounts:school_dashboard")):
+        return redir
     from academics.models import QuestionBank
     qs = (
         QuestionBank.objects.filter(school=school)
@@ -3410,6 +3759,8 @@ def question_bank_create(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "question_bank", "accounts:school_dashboard")):
+        return redir
     if not _user_can_manage_school(request):
         return redirect("home")
     from academics.models import QuestionBank
@@ -3441,6 +3792,8 @@ def question_bank_detail(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "question_bank", "accounts:school_dashboard")):
+        return redir
     from academics.models import QuestionBank, QuestionBankItem
     bank = get_object_or_404(QuestionBank, pk=pk, school=school)
     items = bank.items.order_by("difficulty", "question_type")
@@ -3457,6 +3810,8 @@ def question_bank_add_item(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "question_bank", "accounts:school_dashboard")):
+        return redir
     from academics.models import QuestionBank, QuestionBankItem
     bank = get_object_or_404(QuestionBank, pk=pk, school=school)
     if request.method == "POST":
@@ -3497,6 +3852,8 @@ def question_bank_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "question_bank", "accounts:school_dashboard")):
+        return redir
     if not _user_can_manage_school(request):
         return redirect("home")
     from academics.models import QuestionBank
@@ -3518,6 +3875,8 @@ def term_list(request):
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_any_feature(request, ACADEMIC_TERM_FEATURE_KEYS, "accounts:school_dashboard")):
+        return redir
 
     terms = Term.objects.filter(school=school).select_related("academic_year").order_by("-is_current", "-id")
 
@@ -3576,6 +3935,8 @@ def term_create(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_any_feature(request, ACADEMIC_TERM_FEATURE_KEYS, "accounts:school_dashboard")):
+        return redir
 
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
@@ -3635,6 +3996,8 @@ def term_edit(request, pk):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_any_feature(request, ACADEMIC_TERM_FEATURE_KEYS, "accounts:school_dashboard")):
+        return redir
 
     term = get_object_or_404(Term, pk=pk, school=school)
 
@@ -3687,6 +4050,8 @@ def term_generate(request):
         return redirect("home")
     if not _user_can_manage_school(request):
         return redirect("accounts:school_dashboard")
+    if (redir := require_any_feature(request, ACADEMIC_TERM_FEATURE_KEYS, "accounts:school_dashboard")):
+        return redir
 
     if request.method != "POST":
         return redirect("academics:term_list")
@@ -3773,6 +4138,8 @@ def teacher_gradebook(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
 
     role = getattr(request.user, "role", "")
     allowed_roles = {"teacher", "hod", "school_admin", "deputy_head", "headteacher"}
@@ -3864,6 +4231,8 @@ def student_transcript(request, student_id):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+        return redir
 
     student = get_object_or_404(Student, pk=student_id, school=school)
 
@@ -3937,6 +4306,11 @@ def student_transcript(request, student_id):
 def my_transcript(request):
     """Self-service redirect: student sees own transcript; parent sees list of children."""
     from students.models import Student, StudentGuardian
+
+    school = getattr(request.user, "school", None)
+    if school:
+        if (redir := require_feature(request, "results", "accounts:school_dashboard")):
+            return redir
 
     role = getattr(request.user, "role", "")
 

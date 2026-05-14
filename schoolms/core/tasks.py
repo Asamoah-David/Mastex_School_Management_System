@@ -641,6 +641,8 @@ def flag_attendance_early_warnings(self):
     Checks the last 5 school days per school. Only fires one notification per
     student per day to avoid spam (dedup by cache key).
     Scheduled: daily via CELERY_BEAT_SCHEDULE.
+
+    Skips schools where ``attendance`` or ``early_warning`` is disabled.
     """
     lock = "flag_attendance_early_warnings"
     if not _acquire_task_lock(lock, timeout=82800):  # 23h — won't re-fire same day
@@ -658,7 +660,13 @@ def flag_attendance_early_warnings(self):
         today = _tz.localdate()
         notified = 0
 
+        from schools.features import is_feature_enabled_for_school
+
         for school in School.objects.filter(is_active=True).iterator(chunk_size=50):
+            if not is_feature_enabled_for_school(school.pk, "attendance"):
+                continue
+            if not is_feature_enabled_for_school(school.pk, "early_warning"):
+                continue
             # Collect last 5 attendance dates for this school
             recent_dates = list(
                 StudentAttendance.objects.filter(school=school, date__lte=today)
@@ -784,10 +792,13 @@ _EW_DISCIPLINE_THRESHOLD = 3       # incidents in current term that trigger a fl
 def detect_early_warning_flags(self):
     """Scan active students and raise EarlyWarningFlag rows for at-risk cases.
 
-    Checks three independent signals:
+    Checks three independent signals (when the corresponding school feature is on):
     1. Attendance rate < threshold (default 75 %).
     2. Average score dropped by >= threshold vs. prior term.
     3. Three or more discipline incidents this term.
+
+    Schools with ``early_warning`` disabled are skipped entirely. Attendance,
+    ``results``, and ``discipline`` segments run only when those features are enabled.
 
     Only creates a NEW flag if no open/acknowledged flag already exists for the
     student in the current academic year.
@@ -808,10 +819,15 @@ def detect_early_warning_flags(self):
         created_count = 0
         scanned = 0
 
+        from schools.features import is_feature_enabled_for_school
+
         for school in __import__("schools.models", fromlist=["School"]).School.objects.filter(
             subscription_status__in=["active", "trial"]
         ).iterator(chunk_size=50):
             try:
+                if not is_feature_enabled_for_school(school.pk, "early_warning"):
+                    continue
+
                 acad_year = AcademicYear.objects.filter(school=school, is_current=True).first()
                 if not acad_year:
                     continue
@@ -834,27 +850,31 @@ def detect_early_warning_flags(self):
                     details = {}
 
                     # --- 1. Attendance rate --------------------------------
-                    total_days = StudentAttendance.objects.filter(
-                        school=school, student=student,
-                        date__gte=term_start, date__lte=term_end,
-                    ).count()
-                    if total_days >= 10:
-                        present_days = StudentAttendance.objects.filter(
+                    if is_feature_enabled_for_school(school.pk, "attendance"):
+                        total_days = StudentAttendance.objects.filter(
                             school=school, student=student,
                             date__gte=term_start, date__lte=term_end,
-                            status__in=["present", "late"],
                         ).count()
-                        att_rate = round(present_days / total_days * 100, 1)
-                        if att_rate < _EW_ATTENDANCE_THRESHOLD:
-                            risk_triggers.append("attendance")
-                            details["attendance_rate"] = att_rate
+                        if total_days >= 10:
+                            present_days = StudentAttendance.objects.filter(
+                                school=school, student=student,
+                                date__gte=term_start, date__lte=term_end,
+                                status__in=["present", "late"],
+                            ).count()
+                            att_rate = round(present_days / total_days * 100, 1)
+                            if att_rate < _EW_ATTENDANCE_THRESHOLD:
+                                risk_triggers.append("attendance")
+                                details["attendance_rate"] = att_rate
 
                     # --- 2. Score drop vs. prior term ----------------------
-                    current_avg = Result.objects.filter(
-                        school=school, student=student,
-                        academic_year=acad_year,
-                        term=current_term,
-                    ).aggregate(avg=Avg("score"))["avg"]
+                    if not is_feature_enabled_for_school(school.pk, "results"):
+                        current_avg = None
+                    else:
+                        current_avg = Result.objects.filter(
+                            school=school, student=student,
+                            academic_year=acad_year,
+                            term=current_term,
+                        ).aggregate(avg=Avg("score"))["avg"]
                     if current_avg is not None:
                         prior_results = Result.objects.filter(
                             school=school, student=student,
@@ -870,13 +890,14 @@ def detect_early_warning_flags(self):
                                 details["current_avg"] = round(float(current_avg), 1)
 
                     # --- 3. Discipline incidents ---------------------------
-                    incident_count = _StudentDiscipline.objects.filter(
-                        school=school, student=student,
-                        incident_date__gte=term_start, incident_date__lte=term_end,
-                    ).count()
-                    if incident_count >= _EW_DISCIPLINE_THRESHOLD:
-                        risk_triggers.append("discipline")
-                        details["discipline_count"] = incident_count
+                    if is_feature_enabled_for_school(school.pk, "discipline"):
+                        incident_count = _StudentDiscipline.objects.filter(
+                            school=school, student=student,
+                            incident_date__gte=term_start, incident_date__lte=term_end,
+                        ).count()
+                        if incident_count >= _EW_DISCIPLINE_THRESHOLD:
+                            risk_triggers.append("discipline")
+                            details["discipline_count"] = incident_count
 
                     if not risk_triggers:
                         continue

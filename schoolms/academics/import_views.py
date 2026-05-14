@@ -10,6 +10,7 @@ from django.shortcuts import render, redirect
 
 from accounts.decorators import role_required
 from core.utils import get_school as _get_school
+from schools.features import require_feature
 from students.models import Student
 from .models import Subject, ExamType, Term, Result
 
@@ -54,6 +55,17 @@ COMMON_SCORE_HEADERS = {"score", "mark", "marks", "total", "grade", "result", "t
 COMMON_REMARKS_HEADERS = {"remark", "remarks", "comment", "comments"}
 
 
+def _school_and_results_feature(request):
+    """Return (school, redirect_response). *redirect_response* is set when access is denied."""
+    school = _get_school(request)
+    if not school:
+        return None, redirect("home")
+    redir = require_feature(request, "results", "accounts:school_dashboard")
+    if redir:
+        return None, redir
+    return school, None
+
+
 def _auto_map(headers):
     """Return best-guess column mapping dict."""
     mapping = {"name_col": "", "admno_col": "", "score_col": "", "remarks_col": ""}
@@ -73,9 +85,9 @@ def _auto_map(headers):
 @role_required("school_admin", "teacher", "deputy_head", "hod")
 def result_import_upload(request):
     """Step 1: Upload file + select class/subject/exam/term."""
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
+    school, redir = _school_and_results_feature(request)
+    if redir:
+        return redir
 
     classes = list(Student.objects.filter(school=school).values_list("class_name", flat=True).distinct())
     classes = sorted(c for c in classes if c)
@@ -123,9 +135,9 @@ def result_import_upload(request):
 @role_required("school_admin", "teacher", "deputy_head", "hod")
 def result_import_map(request):
     """Step 2: Map file columns to student/score fields."""
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
+    school, redir = _school_and_results_feature(request)
+    if redir:
+        return redir
 
     headers = request.session.get("import_headers")
     rows = request.session.get("import_rows")
@@ -162,9 +174,9 @@ def result_import_map(request):
 @role_required("school_admin", "teacher", "deputy_head", "hod")
 def result_import_preview(request):
     """Step 3: Preview matched rows + validate."""
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
+    school, redir = _school_and_results_feature(request)
+    if redir:
+        return redir
 
     headers = request.session.get("import_headers")
     rows = request.session.get("import_rows")
@@ -234,9 +246,9 @@ def result_import_preview(request):
 @role_required("school_admin", "teacher", "deputy_head", "hod")
 def result_import_confirm(request):
     """Step 4: Execute the import."""
-    school = _get_school(request)
-    if not school:
-        return redirect("home")
+    school, redir = _school_and_results_feature(request)
+    if redir:
+        return redir
 
     headers = request.session.get("import_headers")
     rows = request.session.get("import_rows")

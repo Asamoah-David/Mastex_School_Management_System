@@ -3,32 +3,28 @@ Bulk SMS Views for Mastex SchoolOS
 Send SMS to multiple recipients at once
 """
 
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.utils import timezone
 
 from students.models import Student
-from schools.models import School
 from services.sms_service import send_sms
 from accounts.permissions import user_can_manage_school
 
 from .models import OutboundCommLog
+from .utils import resolve_messaging_school
 
 from core.pagination import paginate
+from schools.features import is_feature_enabled_for_school, require_feature
 
 
 @login_required
 def bulk_sms_page(request):
     """Bulk SMS page for sending messages to parents."""
-    school = getattr(request.user, 'school', None)
-    
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
-    
+    school = resolve_messaging_school(request)
+
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
@@ -36,6 +32,9 @@ def bulk_sms_page(request):
     if not request.user.is_superuser and not user_can_manage_school(request.user):
         messages.error(request, 'You do not have permission to use bulk SMS.')
         return redirect('home')
+
+    if (redir := require_feature(request, "messaging", "accounts:dashboard", school=school)):
+        return redir
     
     # Get classes for filtering
     classes = Student.objects.filter(school=school).values_list('class_name', flat=True).distinct()
@@ -56,18 +55,16 @@ def bulk_sms_page(request):
 @login_required
 def get_recipients(request):
     """Get list of recipients based on filter."""
-    school = getattr(request.user, 'school', None)
-    
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
-    
+    school = resolve_messaging_school(request)
+
     if not school:
         return JsonResponse({'error': 'No school found'}, status=400)
 
     if not request.user.is_superuser and not user_can_manage_school(request.user):
         return JsonResponse({'error': 'Not permitted'}, status=403)
+
+    if not is_feature_enabled_for_school(school.pk, "messaging"):
+        return JsonResponse({'error': 'feature_disabled'}, status=403)
     
     recipient_type = request.GET.get('type')  # 'all_parents', 'class_parents', 'all_students', 'class_students'
     class_name = request.GET.get('class')
@@ -134,18 +131,16 @@ def send_bulk_sms(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid method'}, status=400)
     
-    school = getattr(request.user, 'school', None)
-    
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
-    
+    school = resolve_messaging_school(request)
+
     if not school:
         return JsonResponse({'success': False, 'error': 'No school found'}, status=400)
 
     if not request.user.is_superuser and not user_can_manage_school(request.user):
         return JsonResponse({'success': False, 'error': 'Not permitted'}, status=403)
+
+    if not is_feature_enabled_for_school(school.pk, "messaging"):
+        return JsonResponse({'success': False, 'error': 'feature_disabled'}, status=403)
     
     import json
     try:
@@ -211,13 +206,8 @@ def send_bulk_sms(request):
 @login_required
 def sms_history(request):
     """View SMS history for the school."""
-    school = getattr(request.user, 'school', None)
-    
-    if request.user.is_superuser:
-        school_id = request.session.get('current_school_id')
-        if school_id:
-            school = get_object_or_404(School, id=school_id)
-    
+    school = resolve_messaging_school(request)
+
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
@@ -225,6 +215,9 @@ def sms_history(request):
     if not request.user.is_superuser and not user_can_manage_school(request.user):
         messages.error(request, 'You do not have permission to view SMS history.')
         return redirect('home')
+
+    if (redir := require_feature(request, "messaging", "accounts:dashboard", school=school)):
+        return redir
 
     qs = (
         OutboundCommLog.objects.filter(school=school, channel="sms")

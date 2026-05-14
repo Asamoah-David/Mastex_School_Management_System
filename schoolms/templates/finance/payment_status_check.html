@@ -58,11 +58,11 @@
             {% if payment.fee %}
             <tr>
                 <td style="padding: 0.5rem 0; font-weight: bold;">Student:</td>
-                <td style="padding: 0.5rem 0;">{{ payment.fee.student }}</td>
+                <td style="padding: 0.5rem 0;">{{ payment.fee.student|default:"—" }}</td>
             </tr>
             <tr>
                 <td style="padding: 0.5rem 0; font-weight: bold;">School:</td>
-                <td style="padding: 0.5rem 0;">{{ payment.fee.school.name|default:"N/A" }}</td>
+                <td style="padding: 0.5rem 0;">{% if payment.fee.school %}{{ payment.fee.school.name }}{% else %}—{% endif %}</td>
             </tr>
             {% endif %}
         </table>

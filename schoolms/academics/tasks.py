@@ -26,9 +26,9 @@ DISCIPLINE_RISK_COUNT = 3             # incidents this term → flag
 def detect_early_warning_flags(self):
     """Scan all schools for at-risk students and create/update EarlyWarningFlags.
 
-    Logic:
-    1. Poor attendance (< 80% present this term) → trigger=attendance
-    2. Multiple discipline incidents this term → trigger=discipline
+    Logic (per school; requires ``early_warning`` — see ``detect_early_warning_flags``):
+    1. Poor attendance (< 80% present this term) → trigger=attendance (only if ``attendance`` feature on)
+    2. Multiple discipline incidents this term → trigger=discipline (only if ``discipline`` feature on)
     3. Composite (both signals) → trigger=composite, risk elevated one level
 
     Idempotent: if an open flag already exists for the student with the same
@@ -37,22 +37,20 @@ def detect_early_warning_flags(self):
     Scheduled: weekly (every Monday 06:00 school time via celery-beat).
     """
     try:
-        from django.db.models import Count, Q
         from schools.models import School
-        from academics.models import EarlyWarningFlag
-        from operations.models import StudentAttendance, StudentDiscipline
+        from schools.features import is_feature_enabled_for_school
 
         schools = School.objects.filter(is_active=True).values_list("pk", flat=True)
         total_created = 0
         total_updated = 0
 
         for school_pk in schools:
+            if not is_feature_enabled_for_school(school_pk, "early_warning"):
+                continue
             try:
-                _process_school_early_warnings(
-                    school_pk,
-                    total_created,
-                    total_updated,
-                )
+                c, u = _process_school_early_warnings(school_pk)
+                total_created += c
+                total_updated += u
             except Exception as exc:
                 logger.warning("EarlyWarning: school %s failed — %s", school_pk, exc)
 
@@ -64,18 +62,22 @@ def detect_early_warning_flags(self):
         raise self.retry(exc=exc)
 
 
-def _process_school_early_warnings(school_pk, created_counter, updated_counter):
-    """Run the early-warning scan for a single school."""
-    from django.db.models import Count, Q
+def _process_school_early_warnings(school_pk):
+    """Run the early-warning scan for a single school. Returns (created_count, updated_count)."""
     from academics.models import EarlyWarningFlag
-    from operations.models import StudentAttendance, StudentDiscipline
-    from students.models import Student
+    from operations.models import StudentAttendance
+    from schools.features import is_feature_enabled_for_school
+    from students.models import Student, StudentDiscipline
+
+    att_on = is_feature_enabled_for_school(school_pk, "attendance")
+    disc_on = is_feature_enabled_for_school(school_pk, "discipline")
 
     school_students = Student.objects.filter(school_id=school_pk).select_related("user")
     if not school_students.exists():
-        return
+        return 0, 0
 
-    now = timezone.now()
+    created = 0
+    updated = 0
 
     for student in school_students:
         triggers = []
@@ -83,28 +85,30 @@ def _process_school_early_warnings(school_pk, created_counter, updated_counter):
         details = {}
 
         # 1. Attendance check
-        att_qs = StudentAttendance.objects.filter(school_id=school_pk, student=student)
-        total_att = att_qs.count()
-        if total_att >= 10:  # only flag when meaningful sample
-            present_count = att_qs.filter(status__in=["present", "late"]).count()
-            attendance_rate = round((present_count / total_att) * 100, 1)
-            details["attendance_rate"] = attendance_rate
-            if attendance_rate < ATTENDANCE_CRITICAL_THRESHOLD:
-                triggers.append("attendance")
-                risk_level = "critical"
-            elif attendance_rate < ATTENDANCE_RISK_THRESHOLD:
-                triggers.append("attendance")
-                risk_level = "high" if risk_level != "critical" else risk_level
+        if att_on:
+            att_qs = StudentAttendance.objects.filter(school_id=school_pk, student=student)
+            total_att = att_qs.count()
+            if total_att >= 10:  # only flag when meaningful sample
+                present_count = att_qs.filter(status__in=["present", "late"]).count()
+                attendance_rate = round((present_count / total_att) * 100, 1)
+                details["attendance_rate"] = attendance_rate
+                if attendance_rate < ATTENDANCE_CRITICAL_THRESHOLD:
+                    triggers.append("attendance")
+                    risk_level = "critical"
+                elif attendance_rate < ATTENDANCE_RISK_THRESHOLD:
+                    triggers.append("attendance")
+                    risk_level = "high" if risk_level != "critical" else risk_level
 
         # 2. Discipline check (current year)
-        disc_count = StudentDiscipline.objects.filter(
-            school_id=school_pk, student=student
-        ).count()
-        if disc_count >= DISCIPLINE_RISK_COUNT:
-            triggers.append("discipline")
-            details["discipline_count"] = disc_count
-            if risk_level == "low":
-                risk_level = "medium"
+        if disc_on:
+            disc_count = StudentDiscipline.objects.filter(
+                school_id=school_pk, student=student
+            ).count()
+            if disc_count >= DISCIPLINE_RISK_COUNT:
+                triggers.append("discipline")
+                details["discipline_count"] = disc_count
+                if risk_level == "low":
+                    risk_level = "medium"
 
         if not triggers:
             continue
@@ -123,7 +127,7 @@ def _process_school_early_warnings(school_pk, created_counter, updated_counter):
                 existing.risk_level = risk_level
                 existing.details = details
                 existing.save(update_fields=["risk_level", "details"])
-                updated_counter += 1
+                updated += 1
             else:
                 EarlyWarningFlag.objects.create(
                     school_id=school_pk,
@@ -133,7 +137,9 @@ def _process_school_early_warnings(school_pk, created_counter, updated_counter):
                     status="open",
                     details=details,
                 )
-                created_counter += 1
+                created += 1
+
+    return created, updated
 
 
 @shared_task(bind=True, max_retries=1)

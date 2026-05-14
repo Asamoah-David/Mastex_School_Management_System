@@ -31,10 +31,9 @@
                 <div class="info-box" style="margin: 1rem 0;">
                     <strong>ℹ️ How it works:</strong>
                     <ul style="margin: 0.5rem 0 0 1.25rem;">
-                        <li>Select a class to generate timetable</li>
-                        <li>The system will create a balanced schedule</li>
-                        <li>Core subjects get more periods</li>
-                        <li>Breaks are automatically included</li>
+                        <li>Staff only — builds a <strong>draft preview</strong> for one class</li>
+                        <li>Subject placement is randomized (demo layout)</li>
+                        <li>Nothing is written to the live timetable until you use <em>Academics → Timetable</em></li>
                     </ul>
                 </div>
                 
@@ -70,5 +69,35 @@
             </div>
         </div>
     </div>
+
+    {% if timetable_preview %}
+    <div class="content-card" style="margin-top: 1.5rem;">
+        <h3 style="margin-top: 0;">👁️ Draft preview{% if preview_class %} — {{ preview_class }}{% endif %}</h3>
+        <p class="page-subtitle" style="margin-bottom: 1rem;">
+            Randomized placeholder assignments only. <strong>Not saved.</strong> Create real entries under <em>Academics → Timetable</em>.
+        </p>
+        <div class="form-grid-2">
+            {% for day, rows in timetable_preview.items %}
+            <div class="content-card" style="margin: 0;">
+                <h4 style="margin-top: 0;">{{ day }}</h4>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead><tr><th>Period</th><th>Subject</th><th>Teacher</th></tr></thead>
+                        <tbody>
+                            {% for row in rows %}
+                            <tr>
+                                <td>{{ row.period }}</td>
+                                <td>{{ row.subject }}</td>
+                                <td>{{ row.teacher }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

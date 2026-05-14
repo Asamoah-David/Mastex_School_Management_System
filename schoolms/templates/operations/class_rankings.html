@@ -26,14 +26,18 @@
                     <td>{{ row.student.user.get_full_name|default:row.student.user.username }}</td>
                     <td class="text-end">{{ row.avg_score }}</td>
                     <td class="text-end">{{ row.subjects_taken }}</td>
-                    <td class="text-end">{{ row.attendance_rate }}</td>
+                    <td class="text-end">{% if row.attendance_rate is not None %}{{ row.attendance_rate }}{% else %}—{% endif %}</td>
                     <td class="text-end"><strong>{{ row.overall_score }}</strong></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% if include_attendance %}
     <p class="small text-muted mb-0">Overall score blends academics (70%) and attendance (30%) for ranking purposes.</p>
+    {% else %}
+    <p class="small text-muted mb-0">Attendance is disabled for this school. Rankings use average scores only.</p>
+    {% endif %}
     {% else %}
     <p class="text-muted mb-0">No students found for this school.</p>
     {% endif %}

@@ -28,6 +28,49 @@
     </div>
   </div>
 
+  {% if outstanding_rows %}
+  <div style="margin-bottom:1.5rem;">
+    <h4 style="color:#1e3a5f;margin-bottom:.5rem;">Outstanding {{ fee_type_label }} Items</h4>
+    <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+      <thead>
+        <tr style="background:#f0f4f8;">
+          <th style="padding:6px 8px;text-align:left;">Item</th>
+          <th style="padding:6px 8px;text-align:right;">Amount</th>
+          <th style="padding:6px 8px;text-align:right;">Paid</th>
+          <th style="padding:6px 8px;text-align:right;">Balance</th>
+          <th style="padding:6px 8px;text-align:center;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in outstanding_rows %}
+        <tr>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;">{{ r.label }}{% if r.term %} <span style="color:#6b7280;">({{ r.term }})</span>{% endif %}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">{{ currency }} {{ r.amount|floatformat:2 }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#16a34a;">{{ currency }} {{ r.paid|floatformat:2 }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;{% if r.balance > 0 %}color:#dc2626;{% else %}color:#16a34a;{% endif %}">{{ currency }} {{ r.balance|floatformat:2 }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;">
+            {% if r.balance > 0 and r.id %}
+              <form method="post" action="{% url 'operations:partial_payment_initiate' fee_type=fee_type item_id=r.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="student_id" value="{{ student.id }}">
+                <button type="submit" class="btn btn-sm btn-primary">{{ r.action_label }}</button>
+              </form>
+              {% if r.status == 'partial' %}
+              <div style="font-size:.75rem;color:#d97706;margin-top:.25rem;">Partial — finish on portal</div>
+              {% endif %}
+            {% elif r.balance <= 0 %}
+              <span style="color:#16a34a;">&#10004; Paid</span>
+            {% else %}
+              <span style="color:#6b7280;">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
   {% if balance > 0 %}
   <!-- Quick amount buttons -->
   <div style="margin-bottom:1rem;">

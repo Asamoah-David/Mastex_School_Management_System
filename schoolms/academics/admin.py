@@ -2,13 +2,34 @@ from django.contrib import admin
 from .models import (
     AcademicYear, Subject, Result, Timetable, ExamType, Term, GradeBoundary,
     Homework, HomeworkSubmission, ExamSchedule, Quiz, QuizAttempt,
-    AssessmentType, AssessmentScore, ExamScore, GradingPolicy,
+    AssessmentType, AssessmentScore, ExamScore, GradingPolicy, StudentResultSummary,
     OnlineMeeting, AIStudentComment, StudentTranscript,
     QuestionBank, QuestionBankItem, EarlyWarningFlag, ReportCard,
     AssessmentScheme, AssessmentSchemeItem,
     ManualExamScore, ManualExamStudentScore, StudentReportCardScore,
     ScoreChangeLog,
 )
+
+
+class ReconcileStudentResultSummaryMixin:
+    """Admin list action: recompute summaries for distinct student/subject/term in selection."""
+
+    @admin.action(description="Reconcile StudentResultSummary for selected rows (per student/subject/term)")
+    def reconcile_student_result_summaries(self, request, queryset):
+        from academics.services import GradingService
+
+        keys = set()
+        for obj in queryset.iterator(chunk_size=512):
+            sid = getattr(obj, "student_id", None)
+            subid = getattr(obj, "subject_id", None)
+            tid = getattr(obj, "term_id", None)
+            if sid and subid and tid:
+                keys.add((sid, subid, tid))
+        ok, err = GradingService.reconcile_triples(keys)
+        self.message_user(
+            request,
+            f"Reconciled {ok} student/subject/term combination(s). Errors: {err}.",
+        )
 
 
 class TermInline(admin.TabularInline):
@@ -60,7 +81,7 @@ class TermAdmin(admin.ModelAdmin):
 
 
 @admin.register(Result)
-class ResultAdmin(admin.ModelAdmin):
+class ResultAdmin(ReconcileStudentResultSummaryMixin, admin.ModelAdmin):
     list_display = ("student", "subject", "exam_type", "term", "score", "grade", "created_at")
     list_select_related = (
         "student",
@@ -74,6 +95,7 @@ class ResultAdmin(admin.ModelAdmin):
     search_fields = ("student__user__first_name", "student__user__last_name", "student__admission_number")
     raw_id_fields = ("student", "created_by")
     date_hierarchy = "created_at"
+    actions = ("delete_selected", "reconcile_student_result_summaries")
 
 
 @admin.register(Timetable)
@@ -144,7 +166,7 @@ class AssessmentTypeAdmin(admin.ModelAdmin):
 
 
 @admin.register(AssessmentScore)
-class AssessmentScoreAdmin(admin.ModelAdmin):
+class AssessmentScoreAdmin(ReconcileStudentResultSummaryMixin, admin.ModelAdmin):
     list_display = ("student", "subject", "assessment_type", "score", "max_score", "term", "date")
     list_select_related = (
         "student",
@@ -155,20 +177,49 @@ class AssessmentScoreAdmin(admin.ModelAdmin):
     )
     list_filter = ("assessment_type", "term")
     raw_id_fields = ("student",)
+    actions = ("delete_selected", "reconcile_student_result_summaries")
 
 
 @admin.register(ExamScore)
-class ExamScoreAdmin(admin.ModelAdmin):
+class ExamScoreAdmin(ReconcileStudentResultSummaryMixin, admin.ModelAdmin):
     list_display = ("student", "subject", "score", "max_score", "term")
     list_select_related = ("student", "student__user", "subject", "term")
     list_filter = ("term",)
     raw_id_fields = ("student",)
+    actions = ("delete_selected", "reconcile_student_result_summaries")
 
 
 @admin.register(GradingPolicy)
 class GradingPolicyAdmin(admin.ModelAdmin):
     list_display = ("school", "pass_mark", "use_custom_grades", "use_weighted_averages")
     list_select_related = ("school",)
+
+
+@admin.register(StudentResultSummary)
+class StudentResultSummaryAdmin(ReconcileStudentResultSummaryMixin, admin.ModelAdmin):
+    list_display = (
+        "student",
+        "subject",
+        "term",
+        "ca_score",
+        "exam_score",
+        "final_score",
+        "grade",
+        "gpa",
+        "calculated_at",
+    )
+    list_select_related = ("student", "student__user", "subject", "term", "school")
+    list_filter = ("term", "subject__school")
+    search_fields = (
+        "student__user__first_name",
+        "student__user__last_name",
+        "student__admission_number",
+        "subject__name",
+    )
+    raw_id_fields = ("student", "subject", "term")
+    readonly_fields = ("calculated_at", "school")
+    date_hierarchy = "calculated_at"
+    actions = ("delete_selected", "reconcile_student_result_summaries")
 
 
 @admin.register(OnlineMeeting)

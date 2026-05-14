@@ -408,11 +408,65 @@ def is_feature_enabled(request, key: str) -> bool:
     return True if enabled is None else bool(enabled)
 
 
-def require_feature(request, key: str, fallback_url_name: str = "home"):
-    if is_feature_enabled(request, key):
+def is_feature_enabled_for_school(school_id: int | None, key: str) -> bool:
+    """
+    Feature check for a concrete school without relying on request context.
+    Missing SchoolFeature row for `key` → treated as enabled (same as is_feature_enabled).
+    """
+    if not school_id:
+        return True
+    row = SchoolFeature.objects.filter(school_id=school_id, key=key).values_list("enabled", flat=True).first()
+    return True if row is None else bool(row)
+
+
+def require_feature(request, key: str, fallback_url_name: str = "home", *, school=None):
+    """
+    If ``school`` is given, gate on that tenant (e.g. superuser with ``current_school_id`` in session).
+    Otherwise use ``get_effective_school(request)`` via ``is_feature_enabled``.
+    """
+    if school is not None:
+        allowed = is_feature_enabled_for_school(school.pk, key)
+    else:
+        allowed = is_feature_enabled(request, key)
+    if allowed:
         return None
     try:
         messages.error(request, "This feature is disabled for your school. Please contact the platform administrator.")
+    except Exception:
+        pass
+    return redirect(fallback_url_name)
+
+
+# Keys used when gating shared academic setup (e.g. terms) that feed multiple modules.
+ACADEMIC_TERM_FEATURE_KEYS: tuple[str, ...] = ("results", "exams", "timetable")
+
+
+def require_any_feature(
+    request,
+    keys: tuple[str, ...],
+    fallback_url_name: str = "home",
+    *,
+    school=None,
+):
+    """
+    Redirect unless at least one of ``keys`` is enabled for the tenant.
+
+    Use for cross-cutting school setup (such as terms) that supports more than one
+    product area, so disabling every host module blocks access with one message.
+    """
+    for key in keys:
+        if school is not None:
+            if is_feature_enabled_for_school(school.pk, key):
+                return None
+        else:
+            if is_feature_enabled(request, key):
+                return None
+    try:
+        messages.error(
+            request,
+            "Terms need at least one of: Results, Exams, or Timetable enabled. "
+            "Please contact the platform administrator.",
+        )
     except Exception:
         pass
     return redirect(fallback_url_name)

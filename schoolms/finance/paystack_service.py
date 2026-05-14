@@ -84,10 +84,16 @@ class PaystackService:
         
         # Use provided currency or fall back to default
         currency_code = currency if currency else self.currency
-        
+
+        # Convert to minor units (pesewas/kobo) via Decimal — using float
+        # arithmetic loses sub-pesewa rounding on values like 100.50 because
+        # 100.50 * 100 == 10049.999999999998, which int() truncates to 10049.
+        # Bug fix F4-1: always convert via Decimal so 1 pesewa is never lost.
+        amount_minor = int(Decimal(str(amount)).quantize(Decimal("0.01")) * 100)
+
         data = {
             "email": email,
-            "amount": int(amount * 100),  # Convert to kobo
+            "amount": amount_minor,
             "reference": reference,
             "callback_url": callback_url,
             "currency": currency_code,
@@ -197,9 +203,11 @@ class PaystackService:
             import uuid
             reference = f"CHARGE_{uuid.uuid4().hex[:12].upper()}"
         
+        # Bug fix F4-2: Decimal-safe kobo conversion (see initialize_payment).
+        amount_minor = int(Decimal(str(amount)).quantize(Decimal("0.01")) * 100)
         data = {
             "email": email,
-            "amount": int(amount * 100),
+            "amount": amount_minor,
             "authorization_code": authorization_code,
             "reference": reference,
             "currency": self.currency
@@ -229,12 +237,19 @@ class PaystackService:
         Returns:
             bool indicating if signature is valid
         """
-        expected_signature = hmac.HMAC(
-            secret_key.encode('utf-8'),
-            request_body,
-            hashlib.sha512
-        ).hexdigest()
-        return hmac.compare_digest(expected_signature, signature)
+        # Bug fix F4-3: be defensive — never feed None / empty / non-bytes to
+        # hmac.HMAC or hmac.compare_digest (the latter raises TypeError on None).
+        if not request_body or not signature or not secret_key:
+            return False
+        try:
+            expected_signature = hmac.HMAC(
+                secret_key.encode("utf-8"),
+                request_body if isinstance(request_body, (bytes, bytearray)) else str(request_body).encode("utf-8"),
+                hashlib.sha512,
+            ).hexdigest()
+            return hmac.compare_digest(expected_signature, str(signature))
+        except (TypeError, ValueError, AttributeError):
+            return False
 
     def list_banks(self, *, country: str = "ghana", currency: str | None = None):
         """List Paystack-supported banks (for building the bank-code dropdown)."""

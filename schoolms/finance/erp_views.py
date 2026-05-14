@@ -11,6 +11,8 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from schools.features import require_feature
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +41,9 @@ def fee_discount_list(request):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "fee_management", "accounts:dashboard")
+    if redir:
+        return redir
     discounts = (
         FeeDiscount.objects.filter(school=school)
         .select_related("fee", "fee__student", "fee__student__user", "approved_by")
@@ -56,6 +61,9 @@ def fee_discount_create(request, fee_id):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "fee_management", "accounts:dashboard")
+    if redir:
+        return redir
     fee = get_object_or_404(Fee, pk=fee_id, school=school)
 
     if request.method == "POST":
@@ -109,6 +117,9 @@ def fee_discount_deactivate(request, pk):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "fee_management", "accounts:dashboard")
+    if redir:
+        return redir
     discount = get_object_or_404(FeeDiscount, pk=pk, school=school)
     discount.is_active = False
     discount.save(update_fields=["is_active"])
@@ -128,6 +139,9 @@ def fee_installment_list(request):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "fee_management", "accounts:dashboard")
+    if redir:
+        return redir
     student_id = request.GET.get("student")
     status_filter = request.GET.get("status")
     qs = (
@@ -154,6 +168,9 @@ def fee_installment_create(request, fee_id):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "fee_management", "accounts:dashboard")
+    if redir:
+        return redir
     fee = get_object_or_404(Fee, pk=fee_id, school=school)
 
     if request.method == "POST":
@@ -201,6 +218,8 @@ def fee_installment_create(request, fee_id):
 @login_required
 @require_POST
 def fee_installment_mark_paid(request, pk):
+    from django.db import transaction
+
     from finance.models import FeeInstallmentPlan, Fee
     import django.db.models as _m
     school = _school(request)
@@ -208,14 +227,35 @@ def fee_installment_mark_paid(request, pk):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "fee_management", "accounts:dashboard")
+    if redir:
+        return redir
     installment = get_object_or_404(FeeInstallmentPlan, pk=pk, school=school)
-    installment.amount_paid = installment.amount_due
-    installment.status = "paid"
-    installment.save(update_fields=["amount_paid", "status", "updated_at"])
+    if installment.status == "paid":
+        messages.info(request, "This installment is already marked paid.")
+        return redirect("finance:fee_installment_list")
+    # Credit applied to the parent Fee must be the unpaid slice *before* we
+    # zero the installment balance.  (Previously we set amount_paid first,
+    # then read ``installment.balance``, which was always 0 — so the fee
+    # ledger never moved.)
+    credit = installment.balance
+    if credit <= Decimal("0"):
+        messages.warning(request, "Nothing to credit for this installment.")
+        return redirect("finance:fee_installment_list")
     fee = installment.fee
-    Fee.objects.filter(pk=fee.pk).update(
-        amount_paid=_m.F("amount_paid") + installment.balance
-    )
+    with transaction.atomic():
+        inst = FeeInstallmentPlan.objects.select_for_update().get(pk=installment.pk)
+        if inst.status == "paid":
+            messages.info(request, "This installment is already marked paid.")
+            return redirect("finance:fee_installment_list")
+        credit = inst.balance
+        if credit <= Decimal("0"):
+            messages.warning(request, "Nothing to credit for this installment.")
+            return redirect("finance:fee_installment_list")
+        inst.amount_paid = inst.amount_due
+        inst.status = "paid"
+        inst.save(update_fields=["amount_paid", "status", "updated_at"])
+        Fee.objects.filter(pk=fee.pk).update(amount_paid=_m.F("amount_paid") + credit)
     fee.refresh_from_db()
     fee.save()
     messages.success(request, f"Installment #{installment.installment_number} marked paid.")
@@ -234,6 +274,9 @@ def purchase_order_list(request):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     status_filter = request.GET.get("status", "")
     qs = PurchaseOrder.objects.filter(school=school).order_by("-created_at")
     if status_filter:
@@ -253,6 +296,9 @@ def purchase_order_create(request):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
 
     if request.method == "POST":
         supplier_name = request.POST.get("supplier_name", "").strip()
@@ -285,6 +331,9 @@ def purchase_order_detail(request, pk):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     po = get_object_or_404(PurchaseOrder, pk=pk, school=school)
     items = po.items.all().order_by("id")
 
@@ -340,6 +389,9 @@ def bank_account_list(request):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     accounts = BankAccount.objects.filter(school=school).order_by("-is_primary", "bank_name")
     return render(request, "finance/bank_account_list.html", {"accounts": accounts})
 
@@ -352,6 +404,9 @@ def bank_account_create(request):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
 
     if request.method == "POST":
         bank_name = request.POST.get("bank_name", "").strip()
@@ -393,6 +448,9 @@ def bank_account_toggle(request, pk):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "finance_admin", "accounts:dashboard")
+    if redir:
+        return redir
     account = get_object_or_404(BankAccount, pk=pk, school=school)
     account.is_active = not account.is_active
     account.save(update_fields=["is_active"])
@@ -421,6 +479,9 @@ def bulk_fee_generate(request):
         return redirect("home")
     if not _is_finance_admin(request):
         return HttpResponseForbidden("Access denied.")
+    redir = require_feature(request, "fee_management", "accounts:dashboard")
+    if redir:
+        return redir
 
     structures = FeeStructure.objects.filter(school=school, is_active=True).order_by("name")
 
@@ -432,11 +493,13 @@ def bulk_fee_generate(request):
 
         structure = get_object_or_404(FeeStructure, pk=structure_pk, school=school)
 
-        student_qs = Student.objects.filter(school=school, is_active=True)
-        if structure.class_name:
-            student_qs = student_qs.filter(class_name__iexact=structure.class_name)
-        elif structure.school_class_id:
+        # Student model uses a `status` CharField, not `is_active` boolean.
+        # Bug fix: previously filtered `is_active=True` -> FieldError 500 on every POST.
+        student_qs = Student.objects.filter(school=school, status="active")
+        if structure.school_class_id:
             student_qs = student_qs.filter(school_class_id=structure.school_class_id)
+        elif structure.class_name:
+            student_qs = student_qs.filter(class_name__iexact=structure.class_name)
 
         created, skipped = 0, 0
         with transaction.atomic():

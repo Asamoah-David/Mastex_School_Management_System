@@ -34,7 +34,7 @@
                     <td>{{ h.title }}</td>
                     <td>{{ h.description|default:"—"|truncatechars:50 }}</td>
                     <td>{{ h.subject.name }}</td>
-                    <td>{{ h.class_name }}</td>
+                    <td>{% if h.school_class %}{{ h.school_class.name }}{% else %}{{ h.class_name }}{% endif %}</td>
                     <td>{{ h.due_date|date:"M d, Y" }}</td>
                     {% if not read_only %}
                     <td style="display:flex;gap:.35rem;flex-wrap:wrap;">

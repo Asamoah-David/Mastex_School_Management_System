@@ -26,10 +26,12 @@ from accounts.permissions import (
 )
 from core.pagination import paginate
 from core.academic_context import get_current_term_for_school
+from schools.features import is_feature_enabled_for_school, require_feature
 
 from students.models import Student
 from students.utils import parent_is_guardian_of
 from schools.models import School
+from schools.features import is_feature_enabled_for_school
 from .models import CanteenItem, CanteenPayment, BusRoute, BusPayment, Textbook, TextbookSale, HostelFee
 from finance.paystack_service import paystack_service
 from finance.models import Fee, FeePayment
@@ -186,6 +188,35 @@ def _deny_unowned_payment_verify(request):
     return redirect("home")
 
 
+def _reference_matches_payment(reference, payment) -> bool:
+    """
+    Bug fix F4-14: prevent reference-forgery attacks against verify endpoints.
+
+    The initiate views store ``payment.payment_reference`` at the moment we
+    talk to Paystack. The verify endpoints then accept a ``reference`` query
+    param so the browser-return URL can be linked back to the row. Without
+    binding, an attacker can pass *any* successful Paystack reference (e.g.
+    from a different student's transaction) and have it credited to a row
+    they own.
+
+    This helper enforces that the URL-supplied reference must equal the
+    canonical reference we stored on the row.  Empty/blank values are
+    treated as "no reference supplied" and the caller is expected to fall
+    back to the stored reference.
+    """
+    if payment is None:
+        return False
+    stored = (getattr(payment, "payment_reference", None) or "").strip()
+    incoming = (reference or "").strip()
+    if not incoming:
+        # caller will fall back to stored reference; nothing to validate yet
+        return True
+    if not stored:
+        # row was never initiated against Paystack; refuse marking completed
+        return False
+    return incoming == stored
+
+
 # ==================== CANTEEN PAYMENTS ====================
 
 @student_required
@@ -197,6 +228,9 @@ def canteen_my(request):
         return redirect("home")
 
     school = student.school
+    if not is_feature_enabled_for_school(school.pk, "canteen"):
+        messages.info(request, "Canteen is not enabled for your school.")
+        return redirect("accounts:dashboard")
 
     # Get available canteen items
     items = CanteenItem.objects.filter(school=school, is_available=True)
@@ -237,7 +271,10 @@ def canteen_initiate_payment(request):
     student, err = authorized_student_for_payment_post(request)
     if err:
         return err
-    
+
+    if not is_feature_enabled_for_school(student.school_id, "canteen"):
+        return JsonResponse({"success": False, "error": "Canteen is not enabled for your school."}, status=403)
+
     item_id = request.POST.get('item_id')
     try:
         quantity = int(request.POST.get('quantity', 1))
@@ -339,6 +376,9 @@ def canteen_payment_verify(request):
             payment = CanteenPayment.objects.get(id=payment_id)
             if not user_can_access_student_payment(request.user, payment.student):
                 return _deny_unowned_payment_verify(request)
+            if not is_feature_enabled_for_school(payment.school_id, "canteen"):
+                messages.info(request, "Canteen is not enabled for your school.")
+                return redirect('operations:canteen_my')
             if payment.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:canteen_my')
@@ -365,9 +405,27 @@ def canteen_payment_verify(request):
             if payment:
                 if not user_can_access_student_payment(request.user, payment.student):
                     return _deny_unowned_payment_verify(request)
+                if not is_feature_enabled_for_school(payment.school_id, "canteen"):
+                    messages.info(request, "Canteen is not enabled for your school.")
+                    return redirect('operations:canteen_my')
                 if payment.payment_status == 'completed':
                     messages.info(request, "Payment already confirmed.")
                     return redirect('operations:canteen_my')
+
+                # Bug fix F4-14: reject reference-forgery attempts before
+                # marking completed. ``reference`` either matches the row's
+                # stored reference or is empty (in which case use stored).
+                if not _reference_matches_payment(reference, payment):
+                    logger.warning(
+                        "canteen_payment_verify reference mismatch payment_id=%s url_ref=%s stored_ref=%s",
+                        payment.id, reference, payment.payment_reference,
+                    )
+                    messages.error(request, "Payment verification failed: reference mismatch.")
+                    return redirect('operations:canteen_my')
+                if not reference and payment.payment_reference:
+                    reference = payment.payment_reference
+                    if not result:
+                        result = paystack_service.verify_payment(reference)
 
                 if result and result.get('status') and result['data']['status'] == 'success':
                     mark_canteen_payment_completed(payment=payment, reference=reference)
@@ -395,6 +453,9 @@ def bus_my(request):
         return redirect("home")
 
     school = student.school
+    if not is_feature_enabled_for_school(school.pk, "bus_transport"):
+        messages.info(request, "Bus transport is not enabled for your school.")
+        return redirect("accounts:dashboard")
     current_term = request.GET.get("term") or f"Term {timezone.now().year}"
 
     # Get all bus routes with fees
@@ -440,7 +501,10 @@ def bus_initiate_payment(request):
     student, err = authorized_student_for_payment_post(request)
     if err:
         return err
-    
+
+    if not is_feature_enabled_for_school(student.school_id, "bus_transport"):
+        return JsonResponse({"success": False, "error": "Bus transport is not enabled for your school."}, status=403)
+
     route_id = request.POST.get('route_id')
     term = request.POST.get('term', f'Term {timezone.now().year}')
     payment_method = request.POST.get('payment_method', 'card')
@@ -497,9 +561,6 @@ def bus_initiate_payment(request):
     if not parent_email and request.user.email:
         parent_email = request.user.email
     
-    # Build callback URL
-    callback_url = request.build_absolute_uri(reverse('operations:bus_payment_verify'))
-    
     metadata = {
         'payment_type': 'bus',
         'payment_id': str(payment.id),
@@ -515,11 +576,10 @@ def bus_initiate_payment(request):
     if school and getattr(school, 'is_payout_setup_active', False):
         school_subaccount = school.paystack_subaccount_code
     
-    # Get currency from settings
     from django.conf import settings
     currency = getattr(settings, 'PAYSTACK_CURRENCY', 'GHS')
     
-    # Build callback URL with payment_id as query parameter for reliable lookup
+    # Callback URL with payment_id as query parameter for reliable lookup on return.
     callback_url = request.build_absolute_uri(
         reverse('operations:bus_payment_verify') + f"?payment_id={payment.id}"
     )
@@ -567,6 +627,9 @@ def bus_payment_verify(request):
             payment = BusPayment.objects.get(id=payment_id)
             if not user_can_access_student_payment(request.user, payment.student):
                 return _deny_unowned_payment_verify(request)
+            if not is_feature_enabled_for_school(payment.school_id, "bus_transport"):
+                messages.info(request, "Bus transport is not enabled for your school.")
+                return redirect('operations:bus_my')
             if payment.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:bus_my')
@@ -587,9 +650,25 @@ def bus_payment_verify(request):
             if payment:
                 if not user_can_access_student_payment(request.user, payment.student):
                     return _deny_unowned_payment_verify(request)
+                if not is_feature_enabled_for_school(payment.school_id, "bus_transport"):
+                    messages.info(request, "Bus transport is not enabled for your school.")
+                    return redirect('operations:bus_my')
                 if payment.payment_status == 'completed':
                     messages.info(request, "Payment already confirmed.")
                     return redirect('operations:bus_my')
+
+                # Bug fix F4-14: reject reference-forgery attempts.
+                if not _reference_matches_payment(reference, payment):
+                    logger.warning(
+                        "bus_payment_verify reference mismatch payment_id=%s url_ref=%s stored_ref=%s",
+                        payment.id, reference, payment.payment_reference,
+                    )
+                    messages.error(request, "Payment verification failed: reference mismatch.")
+                    return redirect('operations:bus_my')
+                if not reference and payment.payment_reference:
+                    reference = payment.payment_reference
+                    if not result:
+                        result = paystack_service.verify_payment(reference)
 
                 if result and result.get('status') and result['data']['status'] == 'success':
                     mark_bus_payment_completed(payment=payment, reference=reference)
@@ -616,6 +695,9 @@ def textbook_my(request):
         return redirect("home")
 
     school = student.school
+    if not is_feature_enabled_for_school(school.pk, "textbooks"):
+        messages.info(request, "Textbooks are not enabled for your school.")
+        return redirect("accounts:dashboard")
 
     # Get available textbooks
     textbooks = Textbook.objects.filter(school=school, stock__gt=0)
@@ -665,7 +747,10 @@ def textbook_initiate_payment(request):
     student, err = authorized_student_for_payment_post(request)
     if err:
         return err
-    
+
+    if not is_feature_enabled_for_school(student.school_id, "textbooks"):
+        return JsonResponse({"success": False, "error": "Textbooks are not enabled for your school."}, status=403)
+
     textbook_id = request.POST.get('textbook_id')
     quantity = int(request.POST.get('quantity', 1))
 
@@ -764,6 +849,9 @@ def textbook_payment_verify(request):
             sale = TextbookSale.objects.get(id=payment_id)
             if not user_can_access_student_payment(request.user, sale.student):
                 return _deny_unowned_payment_verify(request)
+            if not is_feature_enabled_for_school(sale.school_id, "textbooks"):
+                messages.info(request, "Textbooks are not enabled for your school.")
+                return redirect('operations:textbook_my')
             if sale.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:textbook_my')
@@ -784,9 +872,25 @@ def textbook_payment_verify(request):
             if sale:
                 if not user_can_access_student_payment(request.user, sale.student):
                     return _deny_unowned_payment_verify(request)
+                if not is_feature_enabled_for_school(sale.school_id, "textbooks"):
+                    messages.info(request, "Textbooks are not enabled for your school.")
+                    return redirect('operations:textbook_my')
                 if sale.payment_status == 'completed':
                     messages.info(request, "Payment already confirmed.")
                     return redirect('operations:textbook_my')
+
+                # Bug fix F4-14: reject reference-forgery attempts.
+                if not _reference_matches_payment(reference, sale):
+                    logger.warning(
+                        "textbook_payment_verify reference mismatch sale_id=%s url_ref=%s stored_ref=%s",
+                        sale.id, reference, sale.payment_reference,
+                    )
+                    messages.error(request, "Payment verification failed: reference mismatch.")
+                    return redirect('operations:textbook_my')
+                if not reference and sale.payment_reference:
+                    reference = sale.payment_reference
+                    if not result:
+                        result = paystack_service.verify_payment(reference)
 
                 if result and result.get('status') and result['data']['status'] == 'success':
                     mark_textbook_sale_completed(sale=sale, reference=reference)
@@ -834,6 +938,9 @@ def hostel_initiate_payment(request):
             return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
     else:
         return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
+
+    if not is_feature_enabled_for_school(fee.school_id, "hostel"):
+        return JsonResponse({"success": False, "error": "Hostel is not enabled for your school."}, status=403)
 
     if fee.payment_status == 'completed' or fee.paid:
         return JsonResponse({'success': False, 'error': 'Already paid'}, status=400)
@@ -934,6 +1041,9 @@ def hostel_payment_verify(request):
             fee = HostelFee.objects.get(id=payment_id)
             if not user_can_access_student_payment(request.user, fee.student):
                 return _deny_unowned_payment_verify(request)
+            if not is_feature_enabled_for_school(fee.school_id, "hostel"):
+                messages.info(request, "Hostel is not enabled for your school.")
+                return redirect('operations:hostel_my')
             if fee.payment_status == 'completed':
                 messages.info(request, "Payment already confirmed.")
                 return redirect('operations:hostel_my')
@@ -957,8 +1067,20 @@ def hostel_payment_verify(request):
             if fee:
                 if not user_can_access_student_payment(request.user, fee.student):
                     return _deny_unowned_payment_verify(request)
+                if not is_feature_enabled_for_school(fee.school_id, "hostel"):
+                    messages.info(request, "Hostel is not enabled for your school.")
+                    return redirect('operations:hostel_my')
                 if fee.payment_status == 'completed' or fee.paid:
                     messages.info(request, "Payment already confirmed.")
+                    return redirect('operations:hostel_my')
+
+                # Bug fix F4-14: reject reference-forgery attempts.
+                if not _reference_matches_payment(reference, fee):
+                    logger.warning(
+                        "hostel_payment_verify reference mismatch fee_id=%s url_ref=%s stored_ref=%s",
+                        fee.id, reference, fee.payment_reference,
+                    )
+                    messages.error(request, "Payment verification failed: reference mismatch.")
                     return redirect('operations:hostel_my')
 
                 if result and result.get('status') and result['data']['status'] == 'success':
@@ -1369,12 +1491,8 @@ def record_payment(request):
     """Manually record a cash/offline payment for a student."""
     from finance.models import Fee, FeePayment
 
-    # DEBUG: Log request method and POST data
-    print(f"DEBUG: request.method = {request.method}")
     if request.method == 'POST':
-        print(f"DEBUG: POST data = {dict(request.POST)}")
-    else:
-        print(f"DEBUG: GET request to record_payment")
+        logger.debug("record_payment POST keys=%s", list(request.POST.keys()))
 
     school = getattr(request.user, 'school', None)
     if not school:
@@ -1384,11 +1502,29 @@ def record_payment(request):
         messages.error(request, "You do not have permission to record payments.")
         return redirect("accounts:dashboard")
 
+    if not any(
+        is_feature_enabled_for_school(school.pk, k)
+        for k in ("fee_management", "canteen", "bus_transport", "textbooks", "hostel")
+    ):
+        messages.error(
+            request,
+            "No payment recording modules are enabled for your school (fees, canteen, transport, textbooks, or hostel).",
+        )
+        return redirect("accounts:dashboard")
+
     if request.method == 'POST':
         payment_type = request.POST.get('payment_type', '')
         payment_method = request.POST.get('payment_method', 'cash')
 
-        if payment_type in ('canteen', 'bus', 'textbook'):
+        if payment_type in ('canteen', 'bus', 'textbook', 'hostel'):
+            feat_key = {
+                "canteen": "canteen",
+                "bus": "bus_transport",
+                "textbook": "textbooks",
+                "hostel": "hostel",
+            }[payment_type]
+            if (redir := require_feature(request, feat_key, "accounts:dashboard", school=school)):
+                return redir
             # ── Services cash recording path ─────────────────────────────────
             student_id = request.POST.get('student')
             if payment_type == 'canteen':
@@ -1401,6 +1537,8 @@ def record_payment(request):
                     return redirect('operations:record_payment')
             elif payment_type == 'textbook':
                 amount_str = request.POST.get('textbook_amount', '0')
+            elif payment_type == 'hostel':
+                amount_str = request.POST.get('hostel_amount', '0')
             else:
                 amount_str = request.POST.get('amount', '0')
             try:
@@ -1416,19 +1554,30 @@ def record_payment(request):
                 return redirect('operations:record_payment')
 
             reference = f"CASH_{payment_type.upper()}_{uuid.uuid4().hex[:10].upper()}"
+            success_amount = amount_decimal
             try:
                 if payment_type == 'canteen':
                     description = request.POST.get('description', '').strip()
+                    today = timezone.localdate()
+                    hist = [
+                        {
+                            "amount": str(amount_decimal),
+                            "date": str(today),
+                            "reference": reference,
+                        }
+                    ]
                     obj = CanteenPayment.objects.create(
                         school=school,
                         student=student,
                         amount=amount_decimal,
+                        amount_paid=amount_decimal,
                         description=description,
                         payment_reference=reference,
                         payment_status='completed',
                         recorded_by=request.user,
                         payment_frequency=payment_frequency,
                         daily_units=daily_units,
+                        payment_history=hist,
                     )
                     record_payment_transaction(
                         provider='manual',
@@ -1443,17 +1592,63 @@ def record_payment(request):
 
                 elif payment_type == 'bus':
                     term = request.POST.get('term', '').strip()
-                    obj = BusPayment.objects.create(
-                        school=school,
-                        student=student,
-                        amount=amount_decimal,
-                        amount_paid=amount_decimal,
-                        term_period=term,
-                        payment_date=timezone.localdate(),
-                        payment_reference=reference,
-                        payment_status='completed',
-                        paid=True,
-                    )
+                    route_id = (request.POST.get('bus_route_id') or '').strip()
+                    if not route_id:
+                        messages.error(request, "Select a bus route for this payment.")
+                        return redirect('operations:record_payment')
+                    route = BusRoute.objects.filter(pk=route_id, school=school).first()
+                    if not route:
+                        messages.error(request, "Bus route not found.")
+                        return redirect('operations:record_payment')
+                    try:
+                        bus_daily_units = int(request.POST.get('bus_daily_units', '0'))
+                    except (TypeError, ValueError):
+                        bus_daily_units = 0
+                    if route.payment_frequency == 'daily':
+                        if bus_daily_units <= 0:
+                            messages.error(request, "Enter how many days this daily bus payment covers.")
+                            return redirect('operations:record_payment')
+                        expected = (
+                            Decimal(str(route.fee_per_term or 0)) * bus_daily_units
+                        ).quantize(Decimal('0.01'))
+                        if amount_decimal != expected:
+                            messages.error(
+                                request,
+                                f"For this daily route, amount must be GHS {expected} "
+                                f"(GHS {route.fee_per_term} × {bus_daily_units} days).",
+                            )
+                            return redirect('operations:record_payment')
+                    else:
+                        bus_daily_units = 0
+                        expected_period = Decimal(str(route.fee_per_term or 0)).quantize(Decimal('0.01'))
+                        if amount_decimal != expected_period:
+                            freq_label = str(route.get_payment_frequency_display())
+                            messages.error(
+                                request,
+                                f"For this {freq_label.lower()} route, the amount must be GHS {expected_period}.",
+                            )
+                            return redirect('operations:record_payment')
+
+                    with transaction.atomic():
+                        obj = BusPayment.objects.create(
+                            school=school,
+                            student=student,
+                            route=route,
+                            amount=amount_decimal,
+                            amount_paid=Decimal('0'),
+                            term_period=term,
+                            daily_units=bus_daily_units,
+                            payment_date=timezone.localdate(),
+                            payment_reference=reference,
+                            payment_status='pending',
+                            paid=False,
+                        )
+                        if not obj.add_payment(
+                            amount_decimal,
+                            payment_reference=reference,
+                            recorded_by=request.user,
+                        ):
+                            raise ValueError("Could not apply bus payment.")
                     record_payment_transaction(
                         provider='manual',
                         reference=reference,
@@ -1462,7 +1657,12 @@ def record_payment(request):
                         status='completed',
                         payment_type=PaymentTypes.BUS,
                         object_id=str(obj.pk),
-                        metadata={'payment_method': payment_method, 'term': term},
+                        metadata={
+                            'payment_method': payment_method,
+                            'term': term,
+                            'route_id': route.pk,
+                            'daily_units': bus_daily_units,
+                        },
                     )
 
                 elif payment_type == 'textbook':
@@ -1471,18 +1671,34 @@ def record_payment(request):
                         qty = max(1, int(request.POST.get('quantity', 1)))
                     except (TypeError, ValueError):
                         qty = 1
-                    textbook = Textbook.objects.get(id=textbook_id, school=school)
-                    sale_amount = (Decimal(str(textbook.price)) * qty).quantize(Decimal('0.01'))
-                    obj = TextbookSale.objects.create(
-                        school=school,
-                        student=student,
-                        textbook=textbook,
-                        quantity=qty,
-                        amount=sale_amount,
-                        payment_reference=reference,
-                        payment_status='completed',
-                        recorded_by=request.user,
-                    )
+                    # Atomic stock check + decrement + sale creation: prevents
+                    # overselling when two cashiers ring up the last copy at
+                    # once. Mirrors the Paystack textbook verify flow above.
+                    with transaction.atomic():
+                        textbook = Textbook.objects.select_for_update().get(id=textbook_id, school=school)
+                        if textbook.stock < qty:
+                            raise ValueError(
+                                f"Only {textbook.stock} copies of '{textbook.title}' remain in stock."
+                            )
+                        sale_amount = (Decimal(str(textbook.price)) * qty).quantize(Decimal('0.01'))
+                        obj = TextbookSale.objects.create(
+                            school=school,
+                            student=student,
+                            textbook=textbook,
+                            quantity=qty,
+                            amount=sale_amount,
+                            payment_reference=reference,
+                            payment_status='completed',
+                            recorded_by=request.user,
+                        )
+                        # Conditional decrement guards against race conditions
+                        # outside the select_for_update window (e.g. webhook).
+                        updated = Textbook.objects.filter(
+                            pk=textbook.pk, stock__gte=qty,
+                        ).update(stock=F('stock') - qty)
+                        if not updated:
+                            raise ValueError("Textbook stock changed concurrently — please retry.")
+                    success_amount = sale_amount
                     record_payment_transaction(
                         provider='manual',
                         reference=reference,
@@ -1494,34 +1710,100 @@ def record_payment(request):
                         metadata={'payment_method': payment_method, 'textbook': textbook.title, 'quantity': qty},
                     )
 
-                messages.success(request, f"{payment_type.title()} payment of GHS {amount_decimal} recorded.")
+                elif payment_type == 'hostel':
+                    hostel_fee_id = (request.POST.get('hostel_fee_id') or '').strip()
+                    if not hostel_fee_id:
+                        messages.error(request, "Select a hostel fee to pay.")
+                        return redirect('operations:record_payment')
+                    with transaction.atomic():
+                        fee = HostelFee.objects.select_for_update().get(pk=hostel_fee_id, school=school)
+                        if fee.student_id != student.pk:
+                            messages.error(
+                                request,
+                                "The selected hostel fee does not belong to the selected student.",
+                            )
+                            return redirect('operations:record_payment')
+                        if fee.paid:
+                            messages.error(request, "This hostel fee is already fully paid.")
+                            return redirect('operations:record_payment')
+                        balance = ((fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))).quantize(
+                            Decimal("0.01")
+                        )
+                        if amount_decimal > balance:
+                            messages.error(
+                                request,
+                                f"Amount exceeds remaining hostel balance (GHS {balance}).",
+                            )
+                            return redirect('operations:record_payment')
+                        applied = mark_hostel_fee_completed(
+                            fee=fee,
+                            reference=reference,
+                            paid_amount=amount_decimal,
+                            recorded_by=request.user,
+                            provider="manual",
+                        )
+                    if applied <= 0:
+                        messages.error(request, "Could not record hostel payment.")
+                        return redirect('operations:record_payment')
+
+                messages.success(request, f"{payment_type.title()} payment of GHS {success_amount} recorded.")
                 return redirect('operations:payment_dashboard')
 
             except Textbook.DoesNotExist:
                 messages.error(request, "Textbook not found.")
+            except HostelFee.DoesNotExist:
+                messages.error(request, "Hostel fee not found.")
             except Exception as exc:
                 logger.exception("record_payment: failed to record %s cash payment: %s", payment_type, exc)
                 messages.error(request, f"Failed to record payment: {exc}")
 
-        else:
+        elif payment_type == 'school_fee':
+            if (redir := require_feature(request, "fee_management", "accounts:dashboard", school=school)):
+                return redir
             # ── Legacy school-fee path (fee_id + student_id via hidden fields) ──
             student_id = request.POST.get('school_fee_student_id')
             fee_id = request.POST.get('fee_id')
             amount = request.POST.get('school_fee_amount')
+            if not (student_id and fee_id and amount):
+                messages.error(request, "Please select a student, enter a fee ID, and enter an amount.")
+                return redirect('operations:record_payment')
             try:
                 student = Student.objects.get(id=student_id, school=school)
-                fee = Fee.objects.get(id=fee_id, student=student)
                 amount_decimal = Decimal(str(amount)).quantize(Decimal('0.01'))
                 if amount_decimal <= 0:
                     messages.error(request, "Amount must be positive")
                     return redirect('operations:record_payment')
-                fp = FeePayment.objects.create(
-                    fee=fee,
-                    amount=amount_decimal,
-                    payment_method=payment_method,
-                    status="completed",
-                )
-                Fee.objects.filter(pk=fee.pk).update(amount_paid=F("amount_paid") + amount_decimal)
+                with transaction.atomic():
+                    fee = (
+                        Fee.objects.select_for_update()
+                        .filter(
+                            id=fee_id,
+                            student=student,
+                            school=school,
+                            deleted_at__isnull=True,
+                            is_active=True,
+                        )
+                        .first()
+                    )
+                    if not fee:
+                        messages.error(request, "Fee not found, or it is inactive/archived.")
+                        return redirect('operations:record_payment')
+                    balance = (
+                        (fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))
+                    ).quantize(Decimal("0.01"))
+                    if amount_decimal > balance:
+                        messages.error(
+                            request,
+                            f"Amount exceeds remaining fee balance (GHS {balance}).",
+                        )
+                        return redirect('operations:record_payment')
+                    fp = FeePayment.objects.create(
+                        fee=fee,
+                        amount=amount_decimal,
+                        payment_method=payment_method,
+                        status="completed",
+                    )
+                    Fee.objects.filter(pk=fee.pk).update(amount_paid=F("amount_paid") + amount_decimal)
                 fee.refresh_from_db()
                 fee.save()
                 ref = f"CASH_FEE_{fee.pk}_{fp.pk}"
@@ -1535,18 +1817,64 @@ def record_payment(request):
                     object_id=str(fee.pk),
                     metadata={'payment_method': payment_method, 'fee_payment_id': fp.pk},
                 )
+                try:
+                    from finance.services.school_funds import record_fee_collected
+
+                    record_fee_collected(
+                        school_id=school.pk,
+                        amount=amount_decimal,
+                        reference=ref,
+                        description=f"Manual school fee (fee #{fee.pk})",
+                        currency=getattr(settings, "PAYSTACK_CURRENCY", "GHS"),
+                        metadata={
+                            "fee_id": fee.pk,
+                            "fee_payment_id": fp.pk,
+                            "manual": True,
+                            "payment_method": payment_method,
+                        },
+                    )
+                except Exception:
+                    logger.exception(
+                        "record_payment: school_funds ledger failed for manual fee ref=%s (non-fatal)",
+                        ref,
+                    )
                 messages.success(request, f"Payment of GHS {amount} recorded successfully")
                 return redirect('operations:student_payment_history', student_id=student.id)
-            except (Student.DoesNotExist, Fee.DoesNotExist):
-                messages.error(request, "Student or fee not found")
-            except (ValueError, InvalidOperation):
+            except Student.DoesNotExist:
+                messages.error(request, "Student not found")
+            except (ValueError, InvalidOperation, TypeError):
                 messages.error(request, "Invalid amount")
+        else:
+            messages.error(request, "Please select a payment type before submitting.")
+            return redirect('operations:record_payment')
 
     students = Student.objects.filter(school=school, status='active').select_related('user').order_by('user__first_name')
     textbooks = Textbook.objects.filter(school=school, stock__gt=0).order_by('title')
+    bus_routes = BusRoute.objects.filter(school=school).order_by('name')
+    hostel_fees = (
+        HostelFee.objects.filter(school=school, paid=False)
+        .select_related('student__user', 'hostel')
+        .order_by('-id')[:400]
+    )
+    unpaid_school_fees = []
+    if is_feature_enabled_for_school(school.pk, "fee_management"):
+        unpaid_school_fees = list(
+            Fee.objects.filter(
+                school=school,
+                deleted_at__isnull=True,
+                is_active=True,
+            )
+            .filter(amount__gt=F("amount_paid"))
+            .select_related("student__user", "term", "fee_structure")
+            .order_by("-created_at")[:400]
+        )
     context = {
         'students': students,
         'textbooks': textbooks,
+        'bus_routes': bus_routes,
+        'hostel_fees': hostel_fees,
+        'unpaid_school_fees': unpaid_school_fees,
+        'show_hostel_payment': is_feature_enabled_for_school(school.pk, 'hostel'),
         'page_title': 'Record Payment',
     }
     return render(request, 'operations/record_payment.html', context)
@@ -1687,6 +2015,17 @@ def generate_receipt(request, payment_type, payment_id):
         messages.error(request, "Invalid payment type")
         return redirect('operations:payment_dashboard')
     
+    sid = student.school_id
+    _receipt_feat = {
+        "school_fee": "fee_management",
+        "canteen": "canteen",
+        "bus": "bus_transport",
+        "textbook": "textbooks",
+    }.get(payment_type)
+    if _receipt_feat and not is_feature_enabled_for_school(sid, _receipt_feat):
+        messages.error(request, "This feature is disabled for your school.")
+        return redirect("operations:payment_dashboard")
+
     if not user_can_access_student_payment(request.user, student):
         messages.error(request, "Access denied")
         return redirect("operations:my_payments")
@@ -1749,6 +2088,14 @@ def initiate_online_payment(request):
     fee = fee_qs.first()
     if not fee:
         return JsonResponse({"success": False, "error": "Fee not found"}, status=404)
+    if fee.school_id and (
+        not is_feature_enabled_for_school(fee.school_id, "online_payments")
+        or not is_feature_enabled_for_school(fee.school_id, "fee_management")
+    ):
+        return JsonResponse(
+            {"success": False, "error": "Online school fee payments are not enabled for this school."},
+            status=403,
+        )
     if not user_can_access_student_payment(request.user, fee.student):
         return JsonResponse({"success": False, "error": "Forbidden"}, status=403)
 
@@ -1878,6 +2225,11 @@ def send_payment_reminder(request):
     if not school:
         messages.error(request, "School not found")
         return redirect('accounts:dashboard')
+
+    if (redir := require_feature(request, "fee_management", "accounts:dashboard", school=school)):
+        return redir
+    if (redir := require_feature(request, "messaging", "accounts:dashboard", school=school)):
+        return redir
     
     if request.method == 'POST':
         student_ids = request.POST.getlist('student_ids')

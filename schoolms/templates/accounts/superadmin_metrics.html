@@ -99,14 +99,25 @@
   </div>
 </div>
 
+{{ chart_months|json_script:"sa-metrics-months" }}
+{{ chart_subs|json_script:"sa-metrics-subs" }}
+{{ chart_revenue|json_script:"sa-metrics-revenue" }}
+{{ plan_labels|json_script:"sa-metrics-plan-labels" }}
+{{ plan_values|json_script:"sa-metrics-plan-values" }}
+{{ status_values|json_script:"sa-metrics-status-values" }}
+
 <script>
-const months = {{ chart_months|safe }};
-const subData = {{ chart_subs|safe }};
-const revData = {{ chart_revenue|safe }};
-const planLabels = {{ plan_labels|safe }};
-const planValues = {{ plan_values|safe }};
+function _saJson(id) {
+  const el = document.getElementById(id);
+  return el ? JSON.parse(el.textContent) : null;
+}
+const months = _saJson('sa-metrics-months');
+const subData = _saJson('sa-metrics-subs');
+const revData = _saJson('sa-metrics-revenue');
+const planLabels = _saJson('sa-metrics-plan-labels');
+const planValues = _saJson('sa-metrics-plan-values');
 const statusLabels = ['Active', 'Expired', 'Trial'];
-const statusValues = {{ status_values|safe }};
+const statusValues = _saJson('sa-metrics-status-values');
 
 new Chart(document.getElementById('subChart'), {
   type: 'line',

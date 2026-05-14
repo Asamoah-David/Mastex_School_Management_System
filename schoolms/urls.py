@@ -65,8 +65,12 @@ def custom_500(request):
 def health_check(request):
     """Lightweight health probe for load balancers and uptime monitors.
 
-    Always returns HTTP 200 so platforms (e.g. Railway) mark the process as up.
-    Use the JSON body for DB status; monitor ``status`` / ``database`` in ops.
+    By default returns HTTP 200 with JSON describing DB/cache (``status`` may be
+    ``"degraded"`` while the process is still up). Alert on ``status != "ok"`` in
+    the body, or use ``GET /ready/`` for a 503 when the database is unavailable.
+
+    Set ``HEALTH_HTTP_STRICT=1`` to return HTTP 503 from this endpoint when DB or
+    cache checks fail (for monitors that only look at status codes).
     """
     from django.conf import settings as dj_settings
 
@@ -90,14 +94,20 @@ def health_check(request):
     except Exception:
         status["cache"] = "unavailable"
         status["status"] = "degraded"
-    return JsonResponse(status)
+    http_status = 200
+    if getattr(dj_settings, "HEALTH_HTTP_STRICT", False) and status["status"] != "ok":
+        http_status = 503
+    r = JsonResponse(status, status=http_status)
+    r["Cache-Control"] = "no-store"
+    return r
 
 
 def ready_check(request):
-    """Readiness probe.
+    """Readiness probe for load balancers.
 
-    Returns non-200 when the database is unavailable so load balancers can stop
-    routing traffic to an unhealthy instance.
+    Returns 503 when the database is unavailable so traffic can drain from bad
+    instances. Pair with ``GET /health/`` for liveness (process up) vs readiness
+    (can serve requests that need the DB).
     """
     status = {"status": "ok", "database": "ok"}
     http_status = 200

@@ -19,6 +19,19 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from accounts import totp_service
+from core.utils import safe_internal_redirect_path
+
+
+def _two_fa_next_for_get(request):
+    return safe_internal_redirect_path(request.GET.get("next")) or "/"
+
+
+def _two_fa_next_after_success(request):
+    return (
+        safe_internal_redirect_path(request.POST.get("next"))
+        or safe_internal_redirect_path(request.GET.get("next"))
+        or "/"
+    )
 
 
 SESSION_KEY_2FA_USER = "_2fa_pending_user_pk"
@@ -112,12 +125,12 @@ def login_challenge(request):
         if totp_service.verify_token(user, token):
             del request.session[SESSION_KEY_2FA_USER]
             auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-            return redirect(request.POST.get("next", "/"))
+            return redirect(_two_fa_next_after_success(request))
         else:
             messages.error(request, "Invalid code. Try again or use a backup code.")
 
     return render(request, "accounts/2fa_challenge.html", {
-        "next": request.GET.get("next", "/"),
+        "next": _two_fa_next_for_get(request),
     })
 
 
@@ -149,12 +162,12 @@ def use_backup_code(request):
             del request.session[SESSION_KEY_2FA_USER]
             auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             messages.warning(request, f"Backup code used. {user.totp_backup_codes.count(chr(10))+1 if user.totp_backup_codes else 0} code(s) remaining.")
-            return redirect(request.POST.get("next", "/"))
+            return redirect(_two_fa_next_after_success(request))
         else:
             messages.error(request, "Invalid or already-used backup code.")
 
     return render(request, "accounts/2fa_backup.html", {
-        "next": request.GET.get("next", "/"),
+        "next": _two_fa_next_for_get(request),
     })
 
 

@@ -119,7 +119,9 @@
                                 </td>
                                 <td>{{ payment.amount|format_ghs }}</td>
                                 <td>
-                                    {% if payment.status == 'completed' %}
+                                    {% if payment.status == 'completed' and payment.refund_status == 'requested' %}
+                                    <span class="badge bg-warning text-dark">Refund pending</span>
+                                    {% elif payment.status == 'completed' %}
                                     <span class="badge bg-success">Completed</span>
                                     {% elif payment.status == 'pending' %}
                                     <span class="badge bg-warning">Pending</span>
@@ -139,6 +141,8 @@
                                     {% else %}
                                     {% if payment.voided_at %}
                                     <span class="badge bg-secondary">Voided</span>
+                                    {% elif payment.refund_status == 'requested' %}
+                                    <span class="text-muted small">Refund in progress</span>
                                     {% else %}
                                     <a href="{% url 'finance:payment_history_void' payment.id %}" class="btn btn-sm btn-outline-warning" title="Void payment">
                                         <i class="fas fa-undo"></i>

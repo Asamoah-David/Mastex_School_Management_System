@@ -21,30 +21,70 @@ def _get_school(request):
 
 
 def _get_payment(pk, user, school):
-    """Find payment across ALL payment types: fees, bus, canteen, textbook, hostel."""
+    """Find payment across the live payment models: FeePayment, BusPayment,
+    CanteenPayment, TextbookSale, HostelFee.
+
+    Other model names that used to exist (StudentPayment / Payment) were
+    removed; we no longer try them to avoid silent dead lookups.
+    """
     from django.apps import apps
-    
-    # First check standard finance payment models
-    for model_name in ("FeePayment", "StudentPayment", "Payment"):
+
+    candidates = (
+        ("finance", "FeePayment"),
+        ("operations", "CanteenPayment"),
+        ("operations", "BusPayment"),
+        ("operations", "TextbookSale"),
+        ("operations", "HostelFee"),
+    )
+    for app_label, model_name in candidates:
         try:
-            Model = apps.get_model("finance", model_name)
-            obj = Model.objects.filter(pk=pk).first()
-            if obj:
-                return obj
+            Model = apps.get_model(app_label, model_name)
         except Exception:
-            pass
-    
-    # Check operations module payment models
-    for model_name in ("BusPayment", "CanteenPayment", "TextbookSale", "HostelFee", "FeePayment", "StudentPayment", "Payment"):
-        try:
-            Model = apps.get_model("operations", model_name)
-            obj = Model.objects.filter(pk=pk).first()
-            if obj:
-                return obj
-        except Exception:
-            pass
-    
+            continue
+        obj = Model.objects.filter(pk=pk).first()
+        if obj:
+            return obj
     return None
+
+
+def _user_can_view_receipt(user, payment) -> bool:
+    """Authorise receipt access. Prevents IDOR — any logged-in user could
+    previously fetch any other school's receipts by enumerating IDs.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser or getattr(user, "is_super_admin", False):
+        return True
+
+    # Locate the student tied to the payment (varies per model).
+    student = getattr(payment, "student", None)
+    if student is None:
+        # FeePayment links via .fee.student
+        fee = getattr(payment, "fee", None)
+        student = getattr(fee, "student", None)
+
+    # Lazy-import to avoid circular at module load.
+    try:
+        from operations.payment_views import user_can_access_student_payment
+        if student and user_can_access_student_payment(user, student):
+            return True
+    except Exception:
+        pass
+
+    # Fallback: school staff with finance permission viewing their own school.
+    payment_school_id = getattr(payment, "school_id", None)
+    if payment_school_id is None:
+        fee = getattr(payment, "fee", None)
+        payment_school_id = getattr(fee, "school_id", None)
+    user_school_id = getattr(getattr(user, "school", None), "id", None)
+    if payment_school_id and user_school_id and payment_school_id == user_school_id:
+        try:
+            from accounts.permissions import can_manage_finance, user_can_manage_school
+            if can_manage_finance(user) or user_can_manage_school(user):
+                return True
+        except Exception:
+            pass
+    return False
 
 
 @login_required
@@ -55,6 +95,8 @@ def receipt_view(request, payment_id):
     if not payment:
         from django.http import Http404
         raise Http404("Payment not found")
+    if not _user_can_view_receipt(request.user, payment):
+        return HttpResponse("Forbidden", status=403)
     return render(request, "operations/receipt.html", {"payment": payment, "school": school})
 
 
@@ -65,6 +107,8 @@ def receipt_pdf_view(request, payment_id):
     payment = _get_payment(payment_id, request.user, school)
     if not payment:
         return HttpResponse("Payment not found", status=404)
+    if not _user_can_view_receipt(request.user, payment):
+        return HttpResponse("Forbidden", status=403)
 
     try:
         pdf_bytes = _build_receipt_pdf(payment, school)

@@ -1,6 +1,6 @@
 from django.urls import path
 from operations.receipt_views import receipt_view, receipt_pdf_view
-from operations.partial_payment_views import partial_payment_page
+from operations.partial_payment_views import partial_payment_page, partial_payment_dispatch
 from operations import supply_views
 from operations import library_fine_views
 
@@ -409,6 +409,7 @@ urlpatterns = [
     path('receipt/<int:payment_id>/pdf/', receipt_pdf_view, name='receipt_pdf'),
     path('pay/<str:fee_type>/', partial_payment_page, name='partial_payment'),
     path('pay/', partial_payment_page, name='partial_payment_default'),
+    path('pay/<str:fee_type>/<int:item_id>/initiate/', partial_payment_dispatch, name='partial_payment_initiate'),
 
     # Early Warning Flags (F9)
     path("early-warning/", erp_views.early_warning_list, name="early_warning_list"),

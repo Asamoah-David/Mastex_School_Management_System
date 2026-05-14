@@ -218,6 +218,36 @@ class FeePayment(models.Model):
     )
     void_reason = models.TextField(blank=True)
 
+    # B4-B: two-phase refund tracking.
+    # Paystack refunds are asynchronous — initiate_refund only *queues* the
+    # refund; the final outcome arrives later via a ``refund.processed`` /
+    # ``refund.failed`` webhook.  These fields let us record that we asked
+    # for a refund without immediately reversing the fee balance, which
+    # used to leave the ledger inconsistent if Paystack later rejected the
+    # refund.  The fee balance is only adjusted when the webhook confirms
+    # the refund actually moved money.
+    REFUND_STATUS_NONE = ""
+    REFUND_STATUS_REQUESTED = "requested"
+    REFUND_STATUS_PROCESSED = "processed"
+    REFUND_STATUS_FAILED = "failed"
+    REFUND_STATUS_CHOICES = [
+        (REFUND_STATUS_NONE, "—"),
+        (REFUND_STATUS_REQUESTED, "Refund requested"),
+        (REFUND_STATUS_PROCESSED, "Refund processed"),
+        (REFUND_STATUS_FAILED, "Refund failed"),
+    ]
+    refund_status = models.CharField(
+        max_length=20,
+        choices=REFUND_STATUS_CHOICES,
+        default=REFUND_STATUS_NONE,
+        blank=True,
+        db_index=True,
+        help_text="Two-phase refund state. Empty until a refund is requested.",
+    )
+    refund_requested_at = models.DateTimeField(null=True, blank=True)
+    refund_processed_at = models.DateTimeField(null=True, blank=True)
+    refund_failure_reason = models.TextField(blank=True)
+
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "Fee Payment"

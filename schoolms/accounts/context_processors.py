@@ -112,13 +112,56 @@ def _cached_pending_essay_attempt_count(school_pk):
     return int(n)
 
 
+def _anonymous_role_permissions_context():
+    """Defaults for unauthenticated requests so ``base.html`` never resolves missing keys."""
+    return {
+        "is_super_admin": False,
+        "is_school_admin": False,
+        "is_hod": False,
+        "is_school_leadership": False,
+        "is_staff_member": False,
+        "can_manage_school": False,
+        "can_create_academic_content": False,
+        "can_upload_results": False,
+        "can_mark_attendance": False,
+        "can_view_reports": False,
+        "can_manage_finance": False,
+        "can_manage_school_expense_records": False,
+        "can_manage_library": False,
+        "can_manage_admissions": False,
+        "can_manage_health": False,
+        "can_manage_inventory": False,
+        "can_manage_hostel": False,
+        "can_manage_transport": False,
+        "can_manage_sports": False,
+        "can_manage_clubs": False,
+        "can_manage_exam_halls": False,
+        "can_manage_id_cards": False,
+        "can_view_all_departments": False,
+        "can_approve_admissions": False,
+        "can_export_data": False,
+        "can_access_services_hub": False,
+        "user_can_manage_school": False,
+        "can_review_absence_requests": False,
+        "can_review_staff_leave": False,
+        "can_access_staff_leave_portal": False,
+        "can_manage_school_programming": False,
+        "pending_essay_queue_count": 0,
+        "pending_reset_requests_count": 0,
+        "nav_staff_profile": None,
+        "nav_portal_profile": None,
+        "subscription_banner": None,
+        "show_setup_checklist": False,
+    }
+
+
 def role_permissions(request):
     """Add permission booleans to the template context."""
     from datetime import timedelta
 
     user = getattr(request, "user", None)
     if not user or not getattr(user, "is_authenticated", False):
-        return {}
+        return _anonymous_role_permissions_context()
 
     from core.utils import get_school
 
@@ -127,6 +170,23 @@ def role_permissions(request):
     if user_can_manage_school(user):
         if school:
             pending_essay_queue_count = _cached_pending_essay_attempt_count(school.pk)
+
+    pending_reset_requests_count = 0
+    if school and (
+        is_school_leadership(user)
+        or getattr(user, "is_superuser", False)
+        or getattr(user, "is_super_admin", False)
+    ):
+        from schools.features import is_feature_enabled
+
+        if is_feature_enabled(request, "staff_management") or is_feature_enabled(
+            request, "student_enrollment"
+        ):
+            from accounts.models import AdminPasswordResetRequest
+
+            pending_reset_requests_count = AdminPasswordResetRequest.objects.filter(
+                school=school, status="pending"
+            ).count()
 
     nav_staff_profile = _nav_staff_profile(user)
     nav_portal_profile = _nav_portal_profile(user, nav_staff_profile)
@@ -188,6 +248,7 @@ def role_permissions(request):
         "can_access_staff_leave_portal": can_access_staff_leave_portal(user),
         "can_manage_school_programming": can_manage_school_programming(user),
         "pending_essay_queue_count": pending_essay_queue_count,
+        "pending_reset_requests_count": pending_reset_requests_count,
         "nav_staff_profile": nav_staff_profile,
         "nav_portal_profile": nav_portal_profile,
         "subscription_banner": subscription_banner,

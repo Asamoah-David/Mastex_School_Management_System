@@ -12,6 +12,12 @@ from datetime import timedelta
 
 from students.models import Student
 from schools.models import School
+from schools.features import (
+    require_feature,
+    require_any_feature,
+    is_feature_enabled,
+    is_feature_enabled_for_school,
+)
 from operations.models import (
     StudentAttendance, Expense, Budget, CanteenItem, CanteenPayment,
     BusPayment, TextbookSale, HostelFee,
@@ -341,6 +347,11 @@ def financial_reports_dashboard(request):
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
 
+    if (redir := require_any_feature(
+        request, ("expenses", "budgets", "finance_admin"), "home", school=school
+    )):
+        return redir
+
     sync_expired_staff_contracts(school=school)
     
     # Get current year
@@ -471,6 +482,12 @@ def get_financial_data(request):
     if not school:
         return JsonResponse({'error': 'No school found'}, status=400)
 
+    if not any(
+        is_feature_enabled_for_school(school.pk, k)
+        for k in ("expenses", "budgets", "finance_admin")
+    ):
+        return JsonResponse({"error": "This feature is disabled for your school."}, status=403)
+
     sync_expired_staff_contracts(school=school)
     
     year = int(request.GET.get('year', timezone.now().year))
@@ -549,7 +566,13 @@ def class_rankings_page(request):
     if not school:
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
-    
+
+    redir = require_feature(request, "performance_analytics", "accounts:school_dashboard")
+    if redir:
+        return redir
+
+    include_attendance = is_feature_enabled(request, "attendance")
+
     from academics.models import Result, Term
     from django.db.models import Avg
     
@@ -569,20 +592,22 @@ def class_rankings_page(request):
         # Count subjects taken
         subjects_taken = results.values('subject').distinct().count()
         
-        # Attendance rate
-        attendance_records = StudentAttendance.objects.filter(student=student)
-        total_days = attendance_records.count()
-        present_days = attendance_records.filter(status='present').count()
-        attendance_rate = (present_days / total_days * 100) if total_days > 0 else 0
-        
-        # Calculate overall score (70% academics, 30% attendance)
-        overall_score = (avg_score * 0.7) + (attendance_rate * 0.3)
-        
+        if include_attendance:
+            attendance_records = StudentAttendance.objects.filter(student=student)
+            total_days = attendance_records.count()
+            present_days = attendance_records.filter(status='present').count()
+            attendance_rate = (present_days / total_days * 100) if total_days > 0 else 0
+            overall_score = (avg_score * 0.7) + (attendance_rate * 0.3)
+            attendance_rate = round(attendance_rate, 1)
+        else:
+            attendance_rate = None
+            overall_score = avg_score
+
         rankings.append({
             'student': student,
             'avg_score': round(avg_score, 1),
             'subjects_taken': subjects_taken,
-            'attendance_rate': round(attendance_rate, 1),
+            'attendance_rate': attendance_rate,
             'overall_score': round(overall_score, 1),
         })
     
@@ -593,6 +618,7 @@ def class_rankings_page(request):
         'school': school,
         'rankings': rankings,
         'current_term': current_term,
+        'include_attendance': include_attendance,
     }
     return render(request, 'operations/class_rankings.html', context)
 
@@ -617,14 +643,23 @@ def generate_timetable(request):
 @login_required
 def auto_seating_plan_page(request):
     """Wrapper for auto seating plan page."""
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
     from academics.timetable_generator import auto_seating_plan
+
     return auto_seating_plan(request)
 
 
+@login_required
 def generate_seating_plan(request):
-    """Wrapper for generate seating plan."""
-    from academics.timetable_generator import generate_seating_plan
-    return generate_seating_plan(request)
+    """POST/GET entry for auto seating (same handler as auto_seating_plan_page)."""
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+    from academics.timetable_generator import auto_seating_plan
+
+    return auto_seating_plan(request)
 
 
 @login_required
@@ -660,19 +695,22 @@ def budget_vs_actual(request):
 @login_required
 def attendance_analytics(request):
     """Chronic absenteeism report: per-student and per-class attendance rates."""
-    from django.db.models import Avg, Count, F, Q
+    from django.db.models import Count, F, Q
     from accounts.permissions import user_can_manage_school
     from core.utils import get_school
-    from schools.features import is_feature_enabled
+    from schools.features import require_feature
     from operations.models import StudentAttendance
 
     school = get_school(request)
     if not school:
         return redirect("home")
-    if not is_feature_enabled(request, "attendance_analytics"):
-        from django.contrib import messages as _m
-        _m.error(request, "Attendance Analytics is not enabled for your school.")
-        return redirect("home")
+
+    redir = require_feature(request, "attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
+    redir = require_feature(request, "attendance_analytics", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not user_can_manage_school(request.user):
         from django.contrib import messages as _m
         _m.error(request, "Access denied.")

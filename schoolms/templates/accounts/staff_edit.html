@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Edit staff · MastexEDU{% endblock %}
+{% block page_title %}Edit staff{% endblock %}
+{% block page_subtitle %}{{ staff.get_full_name|default:staff.username }}{% endblock %}
+
+{% block content %}
+<form method="post">
+    {% csrf_token %}
+    <div class="content-card">
+        <p style="font-size:0.85rem;color:var(--text-soft);margin:0 0 1rem;">
+            Update the staff member’s display name and contact details. To change <strong>login username</strong> or email used for sign-in at platform level, use
+            {% if request.user.is_superuser or request.user.is_super_admin %}
+            <a href="{% url 'accounts:superuser_edit_credentials' staff.pk %}?next={% url 'accounts:staff_detail' staff.pk %}">Edit credentials (super admin)</a>.
+            {% else %}
+            the platform super administrator.
+            {% endif %}
+        </p>
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label for="id_first_name">First name</label>
+                <input id="id_first_name" name="first_name" type="text" value="{{ staff.first_name|default:'' }}" required />
+            </div>
+            <div class="form-group">
+                <label for="id_last_name">Last name</label>
+                <input id="id_last_name" name="last_name" type="text" value="{{ staff.last_name|default:'' }}" required />
+            </div>
+        </div>
+        <div class="form-group mt-1">
+            <label for="id_email">Email</label>
+            <input id="id_email" name="email" type="email" value="{{ staff.email|default:'' }}" />
+        </div>
+        <div class="form-group mt-1">
+            <label for="id_phone">Phone</label>
+            <input id="id_phone" name="phone" type="text" value="{{ staff.phone|default:'' }}" />
+        </div>
+    </div>
+    <div class="button-row mt-sm">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{% url 'accounts:staff_detail' staff.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+<script>
+(function() {
+  const API = "{% url 'accounts:api_check_identifier' %}";
+  const ex = "{{ staff.pk }}";
+  function bind(id, kind) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let t;
+    const hint = document.createElement("div");
+    hint.style.fontSize = "0.75rem";
+    hint.style.marginTop = "0.25rem";
+    el.closest(".form-group").appendChild(hint);
+    el.addEventListener("input", function() {
+      clearTimeout(t);
+      const v = el.value.trim();
+      hint.textContent = "";
+      if (!v || (kind === "email" && v.length < 3)) return;
+      t = setTimeout(async function() {
+        try {
+          let u = API + "?kind=" + encodeURIComponent(kind) + "&value=" + encodeURIComponent(v) + "&exclude=" + ex;
+          const r = await fetch(u, {headers: {"X-Requested-With": "XMLHttpRequest"}});
+          const d = await r.json();
+          if (d.available === true) { hint.style.color = "#22c55e"; hint.textContent = d.message || "OK"; }
+          else if (d.available === false) { hint.style.color = "#f87171"; hint.textContent = d.message || "In use"; }
+        } catch (e) {}
+      }, 350);
+    });
+  }
+  bind("id_email", "email");
+  bind("id_phone", "phone");
+})();
+</script>
+{% endblock %}

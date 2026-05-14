@@ -14,12 +14,17 @@
             </p>
         </div>
         {% if school_academic_year %}
-        <form method="post" action="{% url 'academics:term_generate' %}" style="margin: 0;">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-secondary" onclick="return confirm('Generate Term 1, Term 2, Term 3 for {{ school_academic_year }}?')">
-                ⚡ Generate for {{ school_academic_year }}
-            </button>
-        </form>
+        <div style="text-align: right; max-width: 22rem;">
+            <form method="post" action="{% url 'academics:term_generate' %}" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary" onclick="return confirm('Create Term 1, Term 2, and Term 3 (with default dates) for {{ school_academic_year }}? Existing terms with the same names are skipped.')">
+                    ⚡ Add standard terms ({{ school_academic_year }})
+                </button>
+            </form>
+            <p style="margin: 0.4rem 0 0; color: #6b7280; font-size: 0.75rem; line-height: 1.35;">
+                One-click setup: creates the three usual terms for your school’s academic year label and links them to the matching academic year record. Adjust dates afterward if needed.
+            </p>
+        </div>
         {% endif %}
     </div>
 

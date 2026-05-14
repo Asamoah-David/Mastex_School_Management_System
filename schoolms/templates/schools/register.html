@@ -90,4 +90,36 @@
     
     <button type="submit" class="btn btn-primary">Register School</button>
 </form>
+<script>
+(function() {
+  const API = "{% url 'accounts:api_check_identifier' %}";
+  function bind(id, kind, minLen) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let t;
+    const hint = document.createElement("div");
+    hint.style.fontSize = "0.75rem";
+    hint.style.marginTop = "0.25rem";
+    el.closest(".form-group").appendChild(hint);
+    el.addEventListener("input", function() {
+      clearTimeout(t);
+      const v = el.value.trim();
+      hint.textContent = "";
+      if (!v || v.length < (minLen || 2)) return;
+      if (kind === "email" && v.length < 3) return;
+      t = setTimeout(async function() {
+        try {
+          const u = API + "?kind=" + encodeURIComponent(kind) + "&value=" + encodeURIComponent(v);
+          const r = await fetch(u, {headers: {"X-Requested-With": "XMLHttpRequest"}});
+          const d = await r.json();
+          if (d.available === true) { hint.style.color = "#22c55e"; hint.textContent = d.message || "OK"; }
+          else if (d.available === false) { hint.style.color = "#f87171"; hint.textContent = d.message || "In use"; }
+        } catch (e) {}
+      }, 350);
+    });
+  }
+  bind("id_username", "username", 2);
+  bind("id_admin_email", "email", 3);
+})();
+</script>
 {% endblock %}

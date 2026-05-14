@@ -87,9 +87,10 @@ from students.absence_utils import ranges_overlap
 from students.utils import get_children_for_parent, parent_is_guardian_of
 from accounts.permissions import (
     can_access_staff_leave_portal,
+    can_manage_admissions,
     can_review_staff_leave,
 )
-from schools.features import is_feature_enabled, require_feature
+from schools.features import is_feature_enabled, is_feature_enabled_for_school, require_feature
 
 
 @login_required
@@ -160,8 +161,19 @@ def _get_image_reader_for_pdf(photo_field):
 
 @login_required
 def attendance_list(request):
+    from accounts.permissions import can_mark_attendance, user_can_manage_school
+
     school = _require_school(request)
     if not school:
+        return redirect("home")
+    redir = require_feature(request, "attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not (
+        request.user.is_superuser
+        or user_can_manage_school(request.user)
+        or can_mark_attendance(request.user)
+    ):
         return redirect("home")
     from django.contrib import messages
     default_day = timezone.now().date()
@@ -194,6 +206,9 @@ def attendance_mark(request):
     school = _require_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
 
     classes = SchoolClass.objects.filter(school=school).order_by("name")
     teacher_no_assigned_classes = False
@@ -607,6 +622,9 @@ def canteen_item_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "canteen", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (
         request.user.is_superuser
         or is_school_leadership(request.user)
@@ -629,6 +647,9 @@ def bus_route_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "bus_transport", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (
         request.user.is_superuser
         or is_school_leadership(request.user)
@@ -651,6 +672,9 @@ def textbook_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "textbooks", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not (
         request.user.is_superuser
         or is_school_leadership(request.user)
@@ -673,6 +697,9 @@ def attendance_edit(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not user_can_manage_school(request.user):
         return redirect("operations:attendance_list")
     attendance = get_object_or_404(StudentAttendance, pk=pk, school=school)
@@ -694,6 +721,9 @@ def attendance_delete(request, pk):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    redir = require_feature(request, "attendance", "accounts:school_dashboard")
+    if redir:
+        return redir
     if not user_can_manage_school(request.user):
         return redirect("operations:attendance_list")
     attendance = get_object_or_404(StudentAttendance, pk=pk, school=school)
@@ -709,6 +739,8 @@ def attendance_delete(request, pk):
 @login_required
 def teacher_attendance_list(request):
     """List teacher attendance records."""
+    from accounts.permissions import is_school_leadership
+
     school = _get_school(request)
     if not school:
         return redirect("home")
@@ -1052,9 +1084,14 @@ def _redirect_no_school(request):
 @login_required
 def announcement_list(request):
     from accounts.permissions import user_can_manage_school
+    from schools.features import require_feature
+
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
+    redir = require_feature(request, "announcements", "accounts:school_dashboard")
+    if redir:
+        return redir
     # Allow school admins, teachers, and superusers to view announcements
     user_role = getattr(request.user, 'role', None)
     if not (request.user.is_superuser or user_can_manage_school(request.user) or user_role == 'teacher'):
@@ -1066,9 +1103,14 @@ def announcement_list(request):
 
 @login_required
 def announcement_create(request):
+    from schools.features import require_feature
+
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
+    redir = require_feature(request, "announcements", "accounts:school_dashboard")
+    if redir:
+        return redir
     from accounts.permissions import is_school_leadership
     # Allow school admins, teachers, and superusers to create announcements
     user_role = getattr(request.user, 'role', None)
@@ -1120,9 +1162,14 @@ def announcement_create(request):
 
 @login_required
 def announcement_delete(request, pk):
+    from schools.features import require_feature
+
     school = _get_school(request)
     if not school:
         return _redirect_no_school(request)
+    redir = require_feature(request, "announcements", "accounts:school_dashboard")
+    if redir:
+        return redir
     from accounts.permissions import is_school_leadership
     if not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect("operations:announcement_list")
@@ -1979,6 +2026,9 @@ def hostel_my(request):
     school = _get_school(request)
     if not school:
         return redirect("home")
+    if not is_feature_enabled_for_school(school.pk, "hostel"):
+        messages.info(request, "Hostel is not enabled for your school.")
+        return redirect("accounts:dashboard")
     paystack_public_key = getattr(settings, "PAYSTACK_PUBLIC_KEY", "")
     role = getattr(request.user, "role", None)
     if role == "student":
@@ -2107,11 +2157,20 @@ def admission_apply(request):
 
     from schools.models import School
 
-    schools = School.objects.filter(is_active=True).order_by("name")
+    active_schools = list(School.objects.filter(is_active=True).order_by("name"))
+    schools = [s for s in active_schools if is_feature_enabled_for_school(s.pk, "admission")]
 
     from students.models import SchoolClass
-    school_classes = list(
-        SchoolClass.objects.values_list("name", flat=True).distinct().order_by("name")
+    school_ids = [s.pk for s in schools]
+    school_classes = (
+        list(
+            SchoolClass.objects.filter(school_id__in=school_ids)
+            .values_list("name", flat=True)
+            .distinct()
+            .order_by("name")
+        )
+        if school_ids
+        else []
     )
 
     if request.method == "POST":
@@ -2156,6 +2215,20 @@ def admission_apply(request):
 
         if not school:
             _messages.error(request, "Please select a valid school.")
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
+
+        if not is_feature_enabled_for_school(school.pk, "admission"):
+            _messages.error(request, "Online admissions are not available for this school.")
+            return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
+
+        class_names = set(
+            SchoolClass.objects.filter(school=school).values_list("name", flat=True)
+        )
+        if class_names and class_applied not in class_names:
+            _messages.error(
+                request,
+                "The class you entered is not in this school's class list. Choose an existing class name or contact the school.",
+            )
             return render(request, "operations/admission_apply.html", {"schools": schools, "school_classes": school_classes})
 
         from operations.activity import client_ip_from_request
@@ -2230,9 +2303,16 @@ def admission_apply(request):
                 last_name,
                 class_applied,
             )
-            for admin in User.objects.filter(school=school, role="school_admin"):
-                if admin.phone:
-                    send_sms(admin.phone, admin_msg)
+            seen_phones = set()
+            for admin in User.objects.filter(
+                school=school,
+                role__in=("school_admin", "deputy_head", "admission_officer"),
+                is_active=True,
+            ):
+                ph = (admin.phone or "").strip()
+                if ph and ph not in seen_phones:
+                    seen_phones.add(ph)
+                    send_sms(ph, admin_msg)
         except Exception:
             logger.warning("Failed to send admission application SMS to school admins", exc_info=True)
 
@@ -2263,28 +2343,39 @@ def admission_apply(request):
 @login_required
 def admission_list(request):
     """Admin view: list all admission applications."""
-    from accounts.permissions import user_can_manage_school, can_approve_admissions
+    from accounts.permissions import can_approve_admissions
+    from django.contrib import messages
+
+    if not can_manage_admissions(request.user):
+        return redirect("home")
+
     school = _get_school(request)
 
-    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
-        return redirect('home')
+    if school:
+        redir = require_feature(request, "admission", "accounts:school_dashboard")
+        if redir:
+            return redir
 
-    if request.method == 'POST' and can_approve_admissions(request.user):
-        from django.contrib import messages
-        action = request.POST.get('bulk_action')
-        pks = request.POST.getlist('selected_ids')
-        if action in ('approve', 'reject') and pks:
+    if request.method == "POST" and can_approve_admissions(request.user):
+        action = request.POST.get("bulk_action")
+        pks = request.POST.getlist("selected_ids")
+        if action == "reject" and pks:
             qs_bulk = AdmissionApplication.objects.filter(pk__in=pks)
             if school:
                 qs_bulk = qs_bulk.filter(school=school)
             qs_bulk = qs_bulk.exclude(status__in=ADMISSION_TERMINAL_STATUSES)
             updated = qs_bulk.update(
-                status='approved' if action == 'approve' else 'rejected',
+                status="rejected",
                 reviewed_by=request.user,
                 reviewed_at=timezone.now(),
             )
-            messages.success(request, f"{updated} application(s) {action}d.")
-        return redirect('operations:admission_list')
+            messages.success(request, f"{updated} application(s) rejected.")
+        elif action == "approve" and pks:
+            messages.warning(
+                request,
+                "Bulk approve is not available. Open each application and use “Approve & enrol” to create student and parent accounts.",
+            )
+        return redirect("operations:admission_list")
 
     status_filter = request.GET.get('status', '')
     qs = AdmissionApplication.objects.all()
@@ -2325,11 +2416,14 @@ ADMISSION_PIPELINE_STATUSES = frozenset(
 @login_required
 def admission_pipeline(request):
     """Kanban-style board: applications grouped by pipeline status."""
-    from accounts.permissions import user_can_manage_school
-
     school = _get_school(request)
-    if not user_can_manage_school(request.user) and not getattr(request.user, "is_super_admin", False):
+    if not can_manage_admissions(request.user):
         return redirect("home")
+
+    if school:
+        redir = require_feature(request, "admission", "accounts:school_dashboard")
+        if redir:
+            return redir
 
     qs = AdmissionApplication.objects.select_related("school", "reviewed_by").order_by("-applied_at")
     if school:
@@ -2357,15 +2451,19 @@ def admission_pipeline(request):
 @login_required
 def admission_set_status(request, pk):
     """Move an application along the pipeline (non-terminal statuses only)."""
-    from accounts.permissions import user_can_manage_school
     from django.contrib import messages
 
     if request.method != "POST":
         return redirect("operations:admission_detail", pk=pk)
 
     school = _get_school(request)
-    if not user_can_manage_school(request.user) and not getattr(request.user, "is_super_admin", False):
+    if not can_manage_admissions(request.user):
         return redirect("home")
+
+    if school:
+        redir = require_feature(request, "admission", "accounts:school_dashboard")
+        if redir:
+            return redir
 
     if school:
         application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
@@ -2373,6 +2471,10 @@ def admission_set_status(request, pk):
         application = get_object_or_404(AdmissionApplication, pk=pk)
     else:
         return redirect("home")
+
+    if not is_feature_enabled_for_school(application.school_id, "admission"):
+        if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
+            return redirect("home")
 
     if application.status in ADMISSION_TERMINAL_STATUSES:
         messages.error(request, "This application is already finalised. Use the list view.")
@@ -2394,11 +2496,15 @@ def admission_set_status(request, pk):
 @login_required
 def admission_detail(request, pk):
     """Admin view: review application details."""
-    from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    
-    if not user_can_manage_school(request.user) and not getattr(request.user, 'is_super_admin', False):
-        return redirect('home')
+
+    if not can_manage_admissions(request.user):
+        return redirect("home")
+
+    if school:
+        redir = require_feature(request, "admission", "accounts:school_dashboard")
+        if redir:
+            return redir
     
     if school:
         application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
@@ -2406,6 +2512,10 @@ def admission_detail(request, pk):
         application = get_object_or_404(AdmissionApplication, pk=pk)
     else:
         return redirect('home')
+
+    if not is_feature_enabled_for_school(application.school_id, "admission"):
+        if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
+            return redirect("home")
 
     return render(
         request,
@@ -2430,6 +2540,11 @@ def admission_approve(request, pk):
     
     if not can_approve_admissions(request.user):
         return redirect('home')
+
+    if school:
+        redir = require_feature(request, "admission", "accounts:school_dashboard")
+        if redir:
+            return redir
     
     if school:
         application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
@@ -2437,6 +2552,10 @@ def admission_approve(request, pk):
         application = get_object_or_404(AdmissionApplication, pk=pk)
     else:
         return redirect('home')
+
+    if not is_feature_enabled_for_school(application.school_id, "admission"):
+        if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
+            return redirect("home")
 
     if application.status in ADMISSION_TERMINAL_STATUSES:
         from django.contrib import messages
@@ -2618,6 +2737,11 @@ def admission_reject(request, pk):
     
     if not can_approve_admissions(request.user):
         return redirect('home')
+
+    if school:
+        redir = require_feature(request, "admission", "accounts:school_dashboard")
+        if redir:
+            return redir
     
     if school:
         application = get_object_or_404(AdmissionApplication, pk=pk, school=school)
@@ -2625,6 +2749,10 @@ def admission_reject(request, pk):
         application = get_object_or_404(AdmissionApplication, pk=pk)
     else:
         return redirect('home')
+
+    if not is_feature_enabled_for_school(application.school_id, "admission"):
+        if not (request.user.is_superuser or getattr(request.user, "is_super_admin", False)):
+            return redirect("home")
 
     if application.status in ADMISSION_TERMINAL_STATUSES:
         from django.contrib import messages
@@ -2681,6 +2809,12 @@ def admission_reject(request, pk):
 
 def admission_track(request):
     """Public page: check status by application reference (preferred) or phone + name."""
+    ref = (request.GET.get("ref") or "").strip()
+    phone = (request.GET.get("phone") or "").strip()
+    name = (request.GET.get("name") or "").strip()
+    # Safe repopulation for templates (avoid ``{{ request.GET.name }}`` etc. — missing keys raise).
+    track_form = {"q_ref": ref, "q_phone": phone, "q_name": name}
+
     application = None
     searched = False
     error = None
@@ -2690,11 +2824,11 @@ def admission_track(request):
     track_cache_key = f"admission_track_{ip}"
     if cache.get(track_cache_key, 0) >= 20:
         error = "Too many lookups. Please try again later."
-        return render(request, "operations/admission_track.html", {"application": None, "searched": True, "error": error})
-
-    ref = (request.GET.get("ref") or "").strip()
-    phone = (request.GET.get("phone") or "").strip()
-    name = (request.GET.get("name") or "").strip()
+        return render(
+            request,
+            "operations/admission_track.html",
+            {**track_form, "application": None, "searched": True, "error": error},
+        )
 
     if ref:
         searched = True
@@ -2705,22 +2839,58 @@ def admission_track(request):
             .order_by("-applied_at")
             .first()
         )
+        if application and not is_feature_enabled_for_school(application.school_id, "admission"):
+            application = None
     elif phone and name:
         searched = True
         cache.set(track_cache_key, cache.get(track_cache_key, 0) + 1, 3600)
-        qs = AdmissionApplication.objects.select_related("school")
-        qs = qs.filter(parent_phone__icontains=phone)
-        qs = qs.filter(Q(first_name__icontains=name) | Q(last_name__icontains=name))
-        application = qs.order_by("-applied_at").first()
+        phone_stripped = phone.strip()
+        name_stripped = " ".join(name.split())
+        if not name_stripped:
+            error = "Please enter the applicant's full name."
+        else:
+            qs = AdmissionApplication.objects.select_related("school").filter(
+                parent_phone__iexact=phone_stripped
+            )
+            parts = name_stripped.split()
+            if len(parts) >= 2:
+                qs = qs.filter(
+                    first_name__iexact=parts[0],
+                    last_name__iexact=parts[-1],
+                )
+            else:
+                qs = qs.filter(
+                    Q(first_name__iexact=parts[0]) | Q(last_name__iexact=parts[0])
+                )
+            candidates = []
+            for row in qs.order_by("-applied_at"):
+                sid = row.school_id
+                if sid and not is_feature_enabled_for_school(sid, "admission"):
+                    continue
+                candidates.append(row)
+            if len(candidates) > 1:
+                error = (
+                    "Multiple applications matched these details. "
+                    "Please use your admission reference (ADM-…) from your confirmation SMS or email."
+                )
+            elif len(candidates) == 1:
+                application = candidates[0]
+            else:
+                application = None
     elif phone or name:
         searched = True
         error = "Please provide both phone number and applicant name to search without a reference."
 
-    return render(request, "operations/admission_track.html", {
-        "application": application,
-        "searched": searched,
-        "error": error,
-    })
+    return render(
+        request,
+        "operations/admission_track.html",
+        {
+            **track_form,
+            "application": application,
+            "searched": searched,
+            "error": error,
+        },
+    )
 
 
 # ==================== CERTIFICATES ====================
@@ -2738,6 +2908,9 @@ def student_my_certificates(request):
     if not student:
         messages.error(request, "No student profile is linked to your account.")
         return redirect("home")
+    if not is_feature_enabled_for_school(school.pk, "certificates"):
+        messages.info(request, "Certificates are not enabled for your school.")
+        return redirect("accounts:dashboard")
     certificates = (
         Certificate.objects.filter(student=student, school=school)
         .select_related("student", "student__user", "school")
@@ -2763,6 +2936,9 @@ def student_my_id_card(request):
     if not student:
         messages.error(request, "No student profile is linked to your account.")
         return redirect("home")
+    if not is_feature_enabled_for_school(school.pk, "id_cards"):
+        messages.info(request, "ID cards are not enabled for your school.")
+        return redirect("accounts:dashboard")
     id_card = StudentIDCard.objects.filter(student=student, school=school).first()
     if id_card:
         return redirect("operations:id_card_view", pk=id_card.pk)
@@ -2778,7 +2954,12 @@ def certificate_list(request):
     """List certificates for the school."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "certificates", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     if not user_can_manage_school(request.user):
         return redirect('home')
     
@@ -2798,7 +2979,12 @@ def certificate_create(request):
     from accounts.permissions import user_can_manage_school
     
     school = _get_school(request)
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "certificates", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     if not user_can_manage_school(request.user):
         return redirect('home')
     
@@ -2858,6 +3044,10 @@ def certificate_view(request, pk):
         ),
         pk=pk,
     )
+
+    if certificate.school_id and not is_feature_enabled_for_school(certificate.school_id, "certificates"):
+        messages.info(request, "Certificates are not enabled for this school.")
+        return redirect("home")
     
     # Check permission
     if school and certificate.school != school:
@@ -2904,6 +3094,10 @@ def certificate_pdf(request, pk):
         Certificate.objects.select_related("student", "student__user", "school"),
         pk=pk,
     )
+
+    if certificate.school_id and not is_feature_enabled_for_school(certificate.school_id, "certificates"):
+        messages.info(request, "Certificates are not enabled for this school.")
+        return redirect('home')
     
     # Check permission
     if school and certificate.school != school:
@@ -3050,6 +3244,9 @@ def certificate_pdf_open(request, pk):
         pk=pk,
     )
 
+    if certificate.school_id and not is_feature_enabled_for_school(certificate.school_id, "certificates"):
+        raise Http404
+
     if school and certificate.school_id != school.id:
         raise Http404
 
@@ -3074,7 +3271,12 @@ def certificate_delete(request, pk):
     from accounts.permissions import user_can_manage_school
     
     school = _get_school(request)
-    
+    if not school:
+        return redirect("home")
+    redir = require_feature(request, "certificates", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     if not user_can_manage_school(request.user):
         return redirect('home')
     
@@ -3105,6 +3307,8 @@ def expense_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
+    if (redir := require_feature(request, "expenses", "accounts:school_dashboard")):
+        return redir
     
     expenses_qs = Expense.objects.filter(school=school).select_related('category', 'recorded_by').order_by('-expense_date')
     total = expenses_qs.aggregate(Sum('amount'))['amount__sum'] or 0
@@ -3125,6 +3329,8 @@ def expense_create(request):
     school = _get_school(request)
     if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:expense_list')
+    if (redir := require_feature(request, "expenses", "accounts:school_dashboard")):
+        return redir
     
     categories = ExpenseCategory.objects.filter(school=school)
     
@@ -3171,6 +3377,8 @@ def expense_detail(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
+    if (redir := require_feature(request, "expenses", "accounts:school_dashboard")):
+        return redir
     
     expense = get_object_or_404(Expense, pk=pk, school=school)
     
@@ -3187,6 +3395,8 @@ def expense_edit(request, pk):
     school = _get_school(request)
     if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:expense_list')
+    if (redir := require_feature(request, "expenses", "accounts:school_dashboard")):
+        return redir
     
     expense = get_object_or_404(Expense, pk=pk, school=school)
     categories = ExpenseCategory.objects.filter(school=school)
@@ -3250,6 +3460,8 @@ def budget_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
+    if (redir := require_feature(request, "budgets", "accounts:school_dashboard")):
+        return redir
     
     budgets = Budget.objects.filter(school=school).select_related('category').order_by('-academic_year')
     
@@ -3266,6 +3478,8 @@ def budget_create(request):
     school = _get_school(request)
     if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:budget_list')
+    if (redir := require_feature(request, "budgets", "accounts:school_dashboard")):
+        return redir
     
     categories = ExpenseCategory.objects.filter(school=school)
     
@@ -3304,6 +3518,8 @@ def budget_edit(request, pk):
     school = _get_school(request)
     if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:budget_list')
+    if (redir := require_feature(request, "budgets", "accounts:school_dashboard")):
+        return redir
     
     budget = get_object_or_404(Budget, pk=pk, school=school)
     categories = ExpenseCategory.objects.filter(school=school)
@@ -3339,6 +3555,8 @@ def budget_delete(request, pk):
     school = _get_school(request)
     if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:budget_list')
+    if (redir := require_feature(request, "budgets", "accounts:school_dashboard")):
+        return redir
     
     budget = get_object_or_404(Budget, pk=pk, school=school)
     
@@ -3358,7 +3576,12 @@ def health_record_edit(request, pk):
     """Edit a health record."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
+        return redirect('home')
+    redir = require_feature(request, "health_records", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not user_can_manage_school(request.user):
         return redirect('home')
     
     record = get_object_or_404(StudentHealth, pk=pk, school=school)
@@ -3402,9 +3625,13 @@ def discipline_list(request):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+
     role = getattr(request.user, 'role', None)
-    
+    if role in ("parent", "student"):
+        if not is_feature_enabled_for_school(school.pk, "discipline"):
+            messages.info(request, "Discipline records are disabled for your school.")
+            return redirect("accounts:dashboard")
+
     # Parents see their children's incidents, students see their own
     if role == 'parent':
         children = get_children_for_parent(request.user, school=school, active_only=False)
@@ -3416,6 +3643,9 @@ def discipline_list(request):
         else:
             incidents = StudentDiscipline.objects.none()
     elif user_can_manage_school(request.user) or request.user.is_superuser:
+        redir = require_feature(request, "discipline", "accounts:school_dashboard")
+        if redir:
+            return redir
         incidents = StudentDiscipline.objects.filter(school=school).select_related('student', 'student__user', 'reported_by').order_by('-incident_date')
     else:
         return redirect('home')
@@ -3435,7 +3665,10 @@ def discipline_create(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('operations:discipline_list')
-    
+    redir = require_feature(request, "discipline", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     students = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
     
     if request.method == 'POST':
@@ -3481,7 +3714,10 @@ def discipline_detail(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "discipline", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     incident = get_object_or_404(StudentDiscipline, pk=pk, school=school)
     
     return render(request, 'operations/discipline_detail.html', {
@@ -3497,7 +3733,10 @@ def discipline_delete(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "discipline", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     incident = get_object_or_404(StudentDiscipline, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -3578,7 +3817,10 @@ def document_list(request):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "documents", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     role = getattr(request.user, 'role', None)
     
     page_obj = None
@@ -3609,7 +3851,10 @@ def document_upload(request):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "documents", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     # Only admins or the student/parent themselves can upload
     role = getattr(request.user, 'role', None)
     students = []
@@ -3718,6 +3963,9 @@ def document_download(request, pk):
             pk=pk,
         )
     else:
+        raise Http404
+
+    if doc.school_id and not is_feature_enabled_for_school(doc.school_id, "documents"):
         raise Http404
 
     allowed = False
@@ -4053,35 +4301,108 @@ def alumni_event_list(request):
 
 # ==================== TIMETABLE ====================
 
+def _normalize_ops_timetable_day(raw):
+    """Map user input (e.g. 'Monday') to TimetableSlot day codes ('monday')."""
+    if not raw:
+        return None
+    r = str(raw).strip().lower()
+    by_label = {str(label).lower(): code for code, label in TimetableSlot.DAYS}
+    by_code = {code: code for code, _ in TimetableSlot.DAYS}
+    return by_label.get(r) or by_code.get(r)
+
+
 @login_required
 def timetable_view(request):
-    """View class timetable."""
+    """View class timetable (operations TimetableSlot).
+
+    Staff see the whole school grid (with filters). Students, parents, and teachers
+    see a scoped slice only so class/teacher assignments are not enumerable school-wide.
+    """
+    from accounts.permissions import user_can_manage_school
+
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
-    class_filter = request.GET.get('class')
-    day_filter = request.GET.get('day')
-    
+
+    role = getattr(request.user, "role", None)
+    can_manage = request.user.is_superuser or user_can_manage_school(request.user)
+
+    class_filter = (request.GET.get("class") or "").strip()
+    day_filter_raw = request.GET.get("day")
+    day_filter = _normalize_ops_timetable_day(day_filter_raw) if day_filter_raw else None
+    if day_filter_raw and day_filter is None:
+        messages.warning(request, "Unrecognised day filter; showing all days.")
+
     slots = TimetableSlot.objects.filter(school=school, is_active=True)
-    
-    if class_filter:
+
+    if not can_manage:
+        if role == "student":
+            student = Student.objects.filter(user=request.user, school=school).first()
+            cn = (getattr(student, "class_name", None) or "").strip() if student else ""
+            if not cn:
+                slots = TimetableSlot.objects.none()
+            else:
+                slots = slots.filter(class_name=cn)
+                if class_filter and class_filter != cn:
+                    messages.error(request, "You can only view your own class timetable.")
+                    slots = TimetableSlot.objects.none()
+                class_filter = cn
+        elif role == "parent":
+            kids = list(get_children_for_parent(request.user, school=school, active_only=True))
+            allowed = sorted({(c.class_name or "").strip() for c in kids if (c.class_name or "").strip()})
+            if not allowed:
+                slots = TimetableSlot.objects.none()
+            else:
+                if class_filter:
+                    if class_filter not in allowed:
+                        messages.error(request, "You can only view timetables for your linked children.")
+                        slots = TimetableSlot.objects.none()
+                    else:
+                        slots = slots.filter(class_name=class_filter)
+                else:
+                    slots = slots.filter(class_name__in=allowed)
+        elif role == "teacher":
+            slots = slots.filter(teacher_id=request.user.id)
+        else:
+            messages.error(request, "You do not have access to this timetable.")
+            return redirect("home")
+
+    if can_manage and class_filter:
         slots = slots.filter(class_name=class_filter)
     if day_filter:
         slots = slots.filter(day=day_filter)
-    
-    slots = slots.select_related('subject', 'teacher').order_by('day', 'period_number')
-    
-    # Get unique classes for filter
-    classes = sorted(set(TimetableSlot.objects.filter(school=school, is_active=True).values_list('class_name', flat=True)))
-    
-    return render(request, 'operations/timetable_view.html', {
-        'slots': slots,
-        'school': school,
-        'classes': classes,
-        'class_filter': class_filter,
-        'day_filter': day_filter
-    })
+
+    slots = slots.select_related("subject", "teacher").order_by("day", "period_number")
+
+    if can_manage:
+        classes = sorted(
+            set(
+                TimetableSlot.objects.filter(school=school, is_active=True).values_list(
+                    "class_name", flat=True
+                )
+            )
+        )
+    elif role == "student":
+        classes = [class_filter] if class_filter else []
+    elif role == "parent":
+        kids = list(get_children_for_parent(request.user, school=school, active_only=True))
+        classes = sorted({(c.class_name or "").strip() for c in kids if (c.class_name or "").strip()})
+    elif role == "teacher":
+        classes = sorted(set(slots.values_list("class_name", flat=True)))
+    else:
+        classes = []
+
+    return render(
+        request,
+        "operations/timetable_view.html",
+        {
+            "slots": slots,
+            "school": school,
+            "classes": classes,
+            "class_filter": class_filter,
+            "day_filter": day_filter_raw or "",
+        },
+    )
 
 
 @login_required
@@ -4094,7 +4415,10 @@ def timetable_create(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:timetable_view')
-    
+    if not request.user.is_superuser and not is_feature_enabled(request, "timetable"):
+        messages.error(request, "Timetable tools are disabled for your school.")
+        return redirect("operations:timetable_view")
+
     subjects = Subject.objects.filter(school=school).order_by('name')
     teachers = (
         User.objects.filter(school=school)
@@ -4108,50 +4432,56 @@ def timetable_create(request):
     
     if request.method == 'POST':
         class_name = request.POST.get('class_name', '').strip()
-        day = request.POST.get('day')
-        period_number = request.POST.get('period_number')
-        subject_id = request.POST.get('subject')
-        teacher_id = request.POST.get('teacher')
-        start_time = request.POST.get('start_time')
-        end_time = request.POST.get('end_time')
-        room = request.POST.get('room', '').strip()
-        
-        if class_name and day and period_number and subject_id and start_time and end_time:
-            try:
-                from core.timetable_validation import collect_timetable_slot_conflicts
+        day_raw = request.POST.get('day')
+        day = _normalize_ops_timetable_day(day_raw)
+        if day_raw and not day:
+            messages.error(request, "Invalid day selection.")
+        else:
+            period_number = request.POST.get('period_number')
+            subject_id = request.POST.get('subject')
+            teacher_id = request.POST.get('teacher')
+            start_time = request.POST.get('start_time')
+            end_time = request.POST.get('end_time')
+            room = request.POST.get('room', '').strip()
 
-                subject = Subject.objects.get(id=subject_id, school=school)
-                teacher = User.objects.get(id=teacher_id, school=school) if teacher_id else None
-                tid = teacher.pk if teacher else None
-                conflicts = collect_timetable_slot_conflicts(
-                    school,
-                    day=day,
-                    start_time=start_time,
-                    end_time=end_time,
-                    teacher_id=tid,
-                    room=room,
-                )
-                if conflicts:
-                    for c in conflicts:
-                        messages.error(request, c)
-                else:
-                    TimetableSlot.objects.create(
-                        school=school,
-                        class_name=class_name,
+            if not day:
+                messages.error(request, "Day is required.")
+            elif class_name and day and period_number and subject_id and start_time and end_time:
+                try:
+                    from core.timetable_validation import collect_timetable_slot_conflicts
+
+                    subject = Subject.objects.get(id=subject_id, school=school)
+                    teacher = User.objects.get(id=teacher_id, school=school) if teacher_id else None
+                    tid = teacher.pk if teacher else None
+                    conflicts = collect_timetable_slot_conflicts(
+                        school,
                         day=day,
-                        period_number=int(period_number),
-                        subject=subject,
-                        teacher=teacher,
                         start_time=start_time,
                         end_time=end_time,
-                        room=room
+                        teacher_id=tid,
+                        room=room,
                     )
-                    messages.success(request, 'Timetable slot created!')
-                    return redirect('operations:timetable_view')
-            except (Subject.DoesNotExist, User.DoesNotExist):
-                messages.error(request, 'Invalid subject or teacher selection.')
-            except (ValueError, TypeError) as e:
-                messages.error(request, f'Invalid data: {e}')
+                    if conflicts:
+                        for c in conflicts:
+                            messages.error(request, c)
+                    else:
+                        TimetableSlot.objects.create(
+                            school=school,
+                            class_name=class_name,
+                            day=day,
+                            period_number=int(period_number),
+                            subject=subject,
+                            teacher=teacher,
+                            start_time=start_time,
+                            end_time=end_time,
+                            room=room
+                        )
+                        messages.success(request, 'Timetable slot created!')
+                        return redirect('operations:timetable_view')
+                except (Subject.DoesNotExist, User.DoesNotExist):
+                    messages.error(request, 'Invalid subject or teacher selection.')
+                except (ValueError, TypeError) as e:
+                    messages.error(request, f'Invalid data: {e}')
     
     return render(request, 'operations/timetable_form.html', {
         'school': school,
@@ -4168,9 +4498,12 @@ def timetable_conflicts(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    if not request.user.is_superuser and not is_feature_enabled(request, "timetable"):
+        messages.error(request, "Timetable tools are disabled for your school.")
+        return redirect("home")
+
     conflicts = TimetableConflict.objects.filter(school=school, is_resolved=False).select_related('slot_1', 'slot_2').order_by('-created_at')
-    
+
     return render(request, 'operations/timetable_conflicts.html', {
         'conflicts': conflicts,
         'school': school
@@ -4186,7 +4519,10 @@ def id_card_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     qs = StudentIDCard.objects.filter(school=school).select_related('student', 'student__user', 'created_by').order_by('-created_at')
     page_obj = paginate(request, qs, per_page=50)
     
@@ -4204,7 +4540,10 @@ def id_card_create(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('operations:id_card_list')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     students = Student.objects.filter(school=school).exclude(id_card__isnull=False).select_related('user').order_by('class_name', 'admission_number')
     
     if request.method == 'POST':
@@ -4245,7 +4584,10 @@ def id_card_view(request, pk):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
 
     can_view = user_can_manage_school(request.user) or request.user.is_superuser
@@ -4267,9 +4609,17 @@ def id_card_print(request, pk):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
-    
+
+    can_view = user_can_manage_school(request.user) or request.user.is_superuser
+    can_view = can_view or (id_card.student and id_card.student.user == request.user)
+    if not can_view:
+        return redirect('home')
+
     return render(request, 'operations/id_card_print.html', {
         'id_card': id_card,
         'school': school
@@ -4283,7 +4633,10 @@ def id_card_edit(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('operations:id_card_list')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -4325,7 +4678,10 @@ def id_card_delete(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('operations:id_card_list')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -4346,7 +4702,10 @@ def id_card_create_bulk(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('operations:id_card_list')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     if request.method == 'POST':
         class_name = request.POST.get('class_name', '').strip()
         issue_date = request.POST.get('issue_date')
@@ -4404,7 +4763,10 @@ def id_card_export_zip(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('operations:id_card_list')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     # For now, return a simple response
     # In production, you would generate actual ID card images/PDFs
     response = HttpResponse("ZIP export feature - would contain ID card images", content_type='application/zip')
@@ -4421,7 +4783,10 @@ def id_card_export_pdf(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('operations:id_card_list')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     # For now, return a simple response
     # In production, you would use a PDF library like reportlab or weasyprint
     response = HttpResponse("PDF export feature - would contain ID card PDFs", content_type='application/pdf')
@@ -4440,7 +4805,10 @@ def online_exam_results(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     # Get filter parameters
     class_filter = request.GET.get('class')
     subject_filter = request.GET.get('subject')
@@ -4531,7 +4899,10 @@ def online_exam_allow_retake(request, attempt_id):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     attempt = get_object_or_404(
         ExamAttempt.objects.select_related('student__user', 'exam'),
         pk=attempt_id,
@@ -4567,6 +4938,9 @@ def online_exam_attempt_delete(request, attempt_id):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
 
     attempt = get_object_or_404(
         ExamAttempt.objects.select_related('exam', 'student__user'),
@@ -4611,6 +4985,9 @@ def online_exam_essay_queue(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect("home")
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
 
     exam_filter = (request.GET.get("exam") or "").strip()
     class_filter = (request.GET.get("class") or "").strip()
@@ -4665,6 +5042,9 @@ def online_exam_grade_attempt(request, attempt_id):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
 
     attempt = get_object_or_404(
         ExamAttempt.objects.select_related('exam', 'student__user'),
@@ -4676,29 +5056,34 @@ def online_exam_grade_attempt(request, attempt_id):
     next_path = (request.POST.get("next") or request.GET.get("next") or "").strip()
 
     if request.method == 'POST':
-        for key, raw in request.POST.items():
-            if not key.startswith('marks_'):
-                continue
-            aid = key.replace('marks_', '')
-            ans = ExamAnswer.objects.filter(
-                pk=aid, attempt=attempt, question__exam=attempt.exam
-            ).select_related('question').first()
-            if not ans:
-                continue
-            try:
-                val = Decimal(str(raw).strip() or '0')
-            except InvalidOperation:
-                continue
-            qm = ans.question.marks
-            if val < 0:
-                val = Decimal('0')
-            if val > qm:
-                val = qm
-            ans.marks_obtained = val
-            ans.is_correct = val >= qm and qm > 0
-            ans.teacher_reviewed = True
-            ans.save(update_fields=['marks_obtained', 'is_correct', 'teacher_reviewed'])
-        _recalculate_exam_attempt_score(attempt)
+        with transaction.atomic():
+            ExamAttempt.objects.select_for_update().filter(pk=attempt.pk).first()
+            for key, raw in request.POST.items():
+                if not key.startswith('marks_'):
+                    continue
+                aid = key.replace('marks_', '')
+                ans = ExamAnswer.objects.filter(
+                    pk=aid,
+                    attempt=attempt,
+                    question__exam=attempt.exam,
+                    question__question_type="essay",
+                ).select_related('question').first()
+                if not ans:
+                    continue
+                try:
+                    val = Decimal(str(raw).strip() or '0')
+                except InvalidOperation:
+                    continue
+                qm = ans.question.marks
+                if val < 0:
+                    val = Decimal('0')
+                if val > qm:
+                    val = qm
+                ans.marks_obtained = val
+                ans.is_correct = val >= qm and qm > 0
+                ans.teacher_reviewed = True
+                ans.save(update_fields=['marks_obtained', 'is_correct', 'teacher_reviewed'])
+            _recalculate_exam_attempt_score(attempt)
         invalidate_pending_essay_attempt_cache(attempt.exam.school_id)
         messages.success(request, 'Marks saved.')
         return _safe_internal_path_redirect(
@@ -4731,7 +5116,10 @@ def online_exam_export_results(request, exam_id):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     exam = get_object_or_404(OnlineExam, pk=exam_id, school=school)
     from django.db.models import Count
 
@@ -4747,7 +5135,8 @@ def online_exam_export_results(request, exam_id):
         .annotate(c=Count("id"))
     }
 
-    rows_mode = (request.GET.get("rows") or "all").lower()
+    raw_rows = (request.GET.get("rows") or "all").lower()
+    rows_mode = raw_rows if raw_rows in ("all", "best") else "all"
     if rows_mode == "best" and attempt_list:
         best_by_student = {}
         for a in attempt_list:
@@ -4795,7 +5184,13 @@ def online_exam_export_results(request, exam_id):
             'record_basis': basis,
         })
 
-    fmt = (request.GET.get('format') or 'csv').lower()
+    raw_fmt = (request.GET.get("format") or "csv").lower()
+    if raw_fmt in ("excel", "xlsx"):
+        fmt = "excel"
+    elif raw_fmt == "csv":
+        fmt = "csv"
+    else:
+        fmt = "csv"
     suffix = "_best_per_student" if rows_mode == "best" else "_all_attempts"
     base = f"exam_results_{exam.title.replace(' ', '_')}_{exam.start_time.strftime('%Y%m%d')}{suffix}"
 
@@ -4845,7 +5240,10 @@ def staff_id_card_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     # Try to get staff ID cards, create model if needed
     try:
         from .models import StaffIDCard
@@ -4870,7 +5268,10 @@ def staff_id_card_create(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     staff_members = User.objects.filter(school=school).exclude(
         role='student'
     ).exclude(
@@ -4918,7 +5319,10 @@ def staff_id_card_edit(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     try:
         from .models import StaffIDCard
         id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
@@ -4961,7 +5365,10 @@ def staff_id_card_delete(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     try:
         from .models import StaffIDCard
         id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
@@ -4986,10 +5393,17 @@ def staff_id_card_print(request, pk):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     try:
         from .models import StaffIDCard
         id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
+        can_view = user_can_manage_school(request.user) or request.user.is_superuser
+        can_view = can_view or (id_card.staff_id == request.user.id)
+        if not can_view:
+            return redirect('home')
         return render(request, 'operations/staff_id_card_print.html', {
             'id_card': id_card,
             'school': school
@@ -5014,10 +5428,18 @@ def id_card_pdf(request, pk):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     id_card = get_object_or_404(StudentIDCard, pk=pk, school=school)
     student = id_card.student
-    
+
+    can_view = user_can_manage_school(request.user) or request.user.is_superuser
+    can_view = can_view or (student and student.user == request.user)
+    if not can_view:
+        return redirect('home')
+
     # Create PDF
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
@@ -5166,14 +5588,21 @@ def staff_id_card_pdf(request, pk):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "id_cards", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     try:
         from .models import StaffIDCard
         id_card = get_object_or_404(StaffIDCard, pk=pk, school=school)
+        can_view = user_can_manage_school(request.user) or request.user.is_superuser
+        can_view = can_view or (id_card.staff_id == request.user.id)
+        if not can_view:
+            return redirect('home')
         staff = id_card.staff
     except Exception:
         return redirect('operations:staff_id_card_list')
-    
+
     # Create PDF
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
@@ -6617,7 +7046,10 @@ def exam_hall_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     halls = ExamHall.objects.filter(school=school).order_by('name')
     
     return render(request, 'operations/exam_hall_list.html', {
@@ -6633,7 +7065,10 @@ def exam_hall_create(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:exam_hall_list')
-    
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
         rows = request.POST.get('rows')
@@ -6664,7 +7099,10 @@ def exam_hall_delete(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:exam_hall_list')
-    
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     hall = get_object_or_404(ExamHall, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -6685,7 +7123,10 @@ def seating_plan_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     plans = SeatingPlan.objects.filter(school=school).select_related('exam_schedule', 'exam_schedule__subject', 'hall', 'created_by').order_by('-created_at')[:100]
     
     return render(request, 'operations/seating_plan_list.html', {
@@ -6702,7 +7143,10 @@ def seating_plan_create(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('operations:seating_plan_list')
-    
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     exams = ExamSchedule.objects.filter(school=school).select_related('subject').order_by('-exam_date')[:50]
     halls = ExamHall.objects.filter(school=school).order_by('name')
     
@@ -6738,7 +7182,10 @@ def seating_plan_view(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "exams", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     plan = get_object_or_404(SeatingPlan, pk=pk, school=school)
     assignments = SeatAssignment.objects.filter(seating_plan=plan).select_related('student', 'student__user').order_by('row_number', 'seat_number')
     
@@ -6758,6 +7205,8 @@ def expense_category_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
+    if (redir := require_feature(request, "expenses", "accounts:school_dashboard")):
+        return redir
     
     categories = ExpenseCategory.objects.filter(school=school).order_by('name')
     
@@ -6774,6 +7223,8 @@ def expense_category_create(request):
     school = _get_school(request)
     if not school or not can_manage_school_expense_records(request.user):
         return redirect('operations:expense_category_list')
+    if (redir := require_feature(request, "expenses", "accounts:school_dashboard")):
+        return redir
     
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
@@ -7061,7 +7512,10 @@ def health_record_list(request):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    redir = require_feature(request, "health_records", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     role = getattr(request.user, 'role', None)
     
     # Parents see their children's health records, students see their own
@@ -7094,7 +7548,12 @@ def health_record_create(request):
     """Create or update student health record."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
+        return redirect('home')
+    redir = require_feature(request, "health_records", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not user_can_manage_school(request.user):
         return redirect('home')
     
     students = Student.objects.filter(school=school).exclude(
@@ -7144,7 +7603,12 @@ def health_record_delete(request, pk):
     """Delete a health record."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
+        return redirect('home')
+    redir = require_feature(request, "health_records", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not user_can_manage_school(request.user):
         return redirect('home')
     
     record = get_object_or_404(StudentHealth, pk=pk, school=school)
@@ -7160,7 +7624,12 @@ def health_visit_list(request):
     """List health clinic visits."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
+        return redirect('home')
+    redir = require_feature(request, "health_records", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not user_can_manage_school(request.user):
         return redirect('home')
     
     qs = HealthVisit.objects.filter(school=school).select_related('student', 'student__user', 'visited_by').order_by('-visit_date')
@@ -7178,7 +7647,12 @@ def health_visit_create(request):
     """Record a health clinic visit."""
     from accounts.permissions import user_can_manage_school
     school = _get_school(request)
-    if not school or not user_can_manage_school(request.user):
+    if not school:
+        return redirect('home')
+    redir = require_feature(request, "health_records", "accounts:school_dashboard")
+    if redir:
+        return redir
+    if not user_can_manage_school(request.user):
         return redirect('home')
     
     students = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
@@ -7221,7 +7695,10 @@ def inventory_category_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     categories = InventoryCategory.objects.filter(school=school).order_by('name')
     
     return render(request, 'operations/inventory_category_list.html', {
@@ -7237,7 +7714,10 @@ def inventory_category_create(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
         description = request.POST.get('description', '').strip()
@@ -7258,7 +7738,10 @@ def inventory_item_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     qs = InventoryItem.objects.filter(school=school).select_related('category').order_by('name')
     page_obj = paginate(request, qs, per_page=50)
     
@@ -7276,7 +7759,10 @@ def inventory_item_create(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     categories = InventoryCategory.objects.filter(school=school)
     
     if request.method == 'POST':
@@ -7314,7 +7800,10 @@ def inventory_item_edit(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     item = get_object_or_404(InventoryItem, pk=pk, school=school)
     categories = InventoryCategory.objects.filter(school=school)
     
@@ -7357,7 +7846,10 @@ def inventory_item_delete(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     item = get_object_or_404(InventoryItem, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -7378,7 +7870,10 @@ def inventory_category_edit(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     category = get_object_or_404(InventoryCategory, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -7405,7 +7900,10 @@ def inventory_category_delete(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     category = get_object_or_404(InventoryCategory, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -7426,7 +7924,10 @@ def inventory_transaction_list(request):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     qs = InventoryTransaction.objects.filter(school=school).select_related('item', 'recorded_by').order_by('-created_at')
     page_obj = paginate(request, qs, per_page=50)
     
@@ -7444,7 +7945,10 @@ def inventory_transaction_create(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    redir = require_feature(request, "inventory", "accounts:school_dashboard")
+    if redir:
+        return redir
+
     items = InventoryItem.objects.filter(school=school).order_by('name')
     
     if request.method == 'POST':
@@ -7773,6 +8277,41 @@ def school_event_rsvp(request, pk):
 
 # ==================== HOMEWORK FOR STUDENTS & PARENTS ====================
 
+
+def _homework_queryset_for_student(student, school):
+    """Homework rows visible to this student (school-scoped class FK or legacy class_name)."""
+    from academics.models import Homework
+
+    q = Q()
+    if getattr(student, "school_class_id", None):
+        q |= Q(school_class_id=student.school_class_id)
+    cn = (student.class_name or "").strip()
+    if cn:
+        q |= Q(class_name__iexact=cn)
+    if not q:
+        return Homework.objects.none()
+    return (
+        Homework.objects.filter(school=school)
+        .filter(q)
+        .distinct()
+        .select_related("subject")
+        .order_by("-due_date")
+    )
+
+
+def _student_may_access_homework(student, homework) -> bool:
+    """Prevent cross-class IDOR on homework_submit (homework must target this student)."""
+    if homework.school_id != student.school_id:
+        return False
+    if homework.school_class_id and student.school_class_id:
+        return homework.school_class_id == student.school_class_id
+    cn_s = (student.class_name or "").strip()
+    cn_h = (homework.class_name or "").strip()
+    if cn_s and cn_h:
+        return cn_s.lower() == cn_h.lower()
+    return False
+
+
 @login_required
 def homework_for_student(request):
     """Student sees homework and can submit. Parent sees children's homework."""
@@ -7800,7 +8339,7 @@ def homework_for_student(request):
 
     homeworks = []
     for student in students:
-        hw_list = Homework.objects.filter(school=school, class_name=student.class_name).select_related('subject').order_by('-due_date')
+        hw_list = _homework_queryset_for_student(student, school)
         for hw in hw_list:
             submission = AssignmentSubmission.objects.filter(homework=hw, student=student).first()
             homeworks.append({
@@ -7838,6 +8377,10 @@ def homework_submit(request, homework_id):
     homework = Homework.objects.filter(id=homework_id, school=school).first()
     if not homework:
         messages.error(request, 'Homework not found.')
+        return redirect('operations:homework_for_student')
+
+    if not _student_may_access_homework(student, homework):
+        messages.error(request, 'This homework is not assigned to your class.')
         return redirect('operations:homework_for_student')
 
     existing = AssignmentSubmission.objects.filter(homework=homework, student=student).first()
@@ -7930,7 +8473,17 @@ def assignment_submission_grade(request, pk):
         feedback = request.POST.get('feedback', '').strip()
         
         if grade:
-            submission.grade = grade
+            from decimal import Decimal
+            grade_s = str(grade).strip()
+            try:
+                submission.grade = Decimal(grade_s)
+            except Exception:
+                from django.contrib import messages
+                messages.error(request, "Enter a numeric grade (e.g. 85.5).")
+                return render(request, 'operations/assignment_submission_grade.html', {
+                    'submission': submission,
+                    'school': school
+                })
             submission.feedback = feedback
             submission.status = 'graded'
             submission.graded_by = request.user
@@ -7994,6 +8547,9 @@ def assignment_submission_download(request, pk):
     allowed = False
     if role == 'student':
         allowed = sub.student_id and getattr(sub.student, 'user_id', None) == request.user.id
+    elif role == 'parent':
+        from students.utils import parent_is_guardian_of
+        allowed = parent_is_guardian_of(request.user, sub.student)
     elif user_can_manage_school(request.user) or request.user.is_superuser:
         allowed = True
 
@@ -8119,6 +8675,16 @@ def _next_exam_attempt_number(exam, student):
     return (m or 0) + 1
 
 
+def _require_online_exams_enabled(request):
+    """Redirect when the school has disabled online exams (superusers bypass)."""
+    if getattr(request.user, "is_superuser", False):
+        return None
+    if not is_feature_enabled(request, "online_exams"):
+        messages.error(request, "Online exams are disabled for your school.")
+        return redirect("home")
+    return None
+
+
 @login_required
 def online_exam_list(request):
     """List online exams."""
@@ -8127,7 +8693,10 @@ def online_exam_list(request):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     # Allow both staff (can manage) and students to view exams
     is_staff = user_can_manage_school(request.user)
     
@@ -8204,7 +8773,10 @@ def online_exam_create(request):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     subjects = Subject.objects.filter(school=school).order_by('name')
     
     # Get classes from SchoolClass + enrolled students (union)
@@ -8272,7 +8844,10 @@ def online_exam_detail(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     questions = ExamQuestion.objects.filter(exam=exam).order_by('order')
     from django.db.models import Sum
@@ -8302,7 +8877,10 @@ def online_exam_add_question(request, pk):
     school = _get_school(request)
     if not school or not user_can_manage_school(request.user):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -8358,7 +8936,10 @@ def online_exam_edit(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     subjects = Subject.objects.filter(school=school).order_by('name')
     from students.models import SchoolClass as _SchoolClass
@@ -8429,7 +9010,10 @@ def online_exam_delete(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -8452,7 +9036,10 @@ def online_exam_publish(request, pk):
     school = _get_school(request)
     if not school or not (request.user.is_superuser or is_school_leadership(request.user)):
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     exam = get_object_or_404(OnlineExam, pk=pk, school=school)
     
     if request.method == 'POST':
@@ -8483,6 +9070,10 @@ def online_exam_tab_event(request, attempt_id):
     school = _get_school(request)
     if not school:
         return JsonResponse({"ok": False}, status=400)
+    if not getattr(request.user, "is_superuser", False) and not is_feature_enabled(
+        request, "online_exams"
+    ):
+        return JsonResponse({"ok": False}, status=403)
     attempt = get_object_or_404(
         ExamAttempt.objects.select_related("exam", "student"),
         pk=attempt_id,
@@ -8508,7 +9099,10 @@ def online_exam_take(request, pk):
     school = _get_school(request)
     if not school:
         return redirect('home')
-    
+    rden = _require_online_exams_enabled(request)
+    if rden:
+        return rden
+
     if not is_student(request.user):
         return redirect('home')
     
@@ -8519,10 +9113,13 @@ def online_exam_take(request, pk):
         return redirect('home')
 
     def _class_allowed():
+        import re
+
         target = (exam.class_level or "").strip()
         if not target:
             return True
-        return (student.class_name or "").strip().lower() == target.lower()
+        stu_cls = (student.class_name or "").strip()
+        return re.sub(r"\s+", " ", stu_cls).lower() == re.sub(r"\s+", " ", target).lower()
 
     now = timezone.now()
     if exam.status != 'published':
@@ -8689,9 +9286,19 @@ def online_exam_result(request, pk):
     )
     
     is_staff = user_can_manage_school(request.user)
-    if attempt.student.user != request.user and not is_staff:
+    from academics.views import _can_view_student_record
+    if not (
+        attempt.student.user == request.user
+        or is_staff
+        or _can_view_student_record(request.user, attempt.student)
+    ):
         return redirect('home')
-    
+
+    if not is_staff and not getattr(request.user, "is_superuser", False):
+        rden = _require_online_exams_enabled(request)
+        if rden:
+            return rden
+
     answers = ExamAnswer.objects.filter(attempt=attempt).select_related('question')
     show_scores = attempt.exam.show_results_immediately or is_staff
     needs_essay_grading = _exam_attempt_needs_essay_grading(attempt)

@@ -21,6 +21,7 @@ from accounts.permissions import (
 )
 from integrations.serializers import ExpenseSerializer, MeSerializer, StaffLeaveSerializer
 from operations.models import Expense, StaffLeave
+from schools.features import is_feature_enabled
 import logging
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,8 @@ class StaffLeaveListAPIView(generics.ListAPIView):
         user = self.request.user
         if not can_access_staff_leave_portal(user):
             raise PermissionDenied("You do not have access to the staff leave portal.")
+        if not is_feature_enabled(self.request, "leave_management"):
+            raise PermissionDenied("Leave management is disabled for your school.")
         school = getattr(user, "school", None)
         if not school:
             raise PermissionDenied("No school is linked to your account.")
@@ -103,6 +106,8 @@ class ExpenseListAPIView(generics.ListAPIView):
         user = self.request.user
         if not user_can_manage_school(user):
             raise PermissionDenied("You do not have permission to view school expenses.")
+        if not is_feature_enabled(self.request, "expenses"):
+            raise PermissionDenied("Expenses are disabled for your school.")
         school = getattr(user, "school", None)
         if not school:
             raise PermissionDenied("No school is linked to your account.")
@@ -148,6 +153,9 @@ class TodayAttendanceSummaryAPIView(APIView):
         school = getattr(user, "school", None)
         if not school:
             return Response({"detail": "No school context."}, status=400)
+
+        if not is_feature_enabled(request, "attendance"):
+            return Response({"detail": "Attendance is disabled for your school."}, status=403)
         today = timezone.localdate()
         agg = StudentAttendance.objects.filter(school=school, date=today).aggregate(
             present=Count("id", filter=Q(status="present")),
@@ -195,6 +203,8 @@ class StudentListAPIView(APIView):
         school = _require_school(user)
         if not (user_can_manage_school(user) or getattr(user, "is_superuser", False)):
             raise PermissionDenied("Staff or admin access required.")
+        if not is_feature_enabled(request, "student_enrollment"):
+            return Response({"detail": "Student enrollment is disabled for your school."}, status=403)
 
         qs = (
             Student.objects.filter(school=school, status="active")
@@ -244,6 +254,8 @@ class FeeStatusAPIView(APIView):
 
         if not (can_manage_finance(user) or getattr(user, "is_superuser", False)):
             raise PermissionDenied("Finance access required.")
+        if not is_feature_enabled(request, "fee_management"):
+            return Response({"detail": "Fee management is disabled for your school."}, status=403)
 
         qs = (
             Fee.objects.filter(school=school, is_active=True, deleted_at__isnull=True)
@@ -296,6 +308,8 @@ class ResultListAPIView(APIView):
 
         user = request.user
         school = _require_school(user)
+        if not is_feature_enabled(request, "results"):
+            return Response({"detail": "Results are disabled for your school."}, status=403)
 
         qs = Result.objects.filter(
             school=school, is_published=True, deleted_at__isnull=True
@@ -362,6 +376,8 @@ class TimetableAPIView(APIView):
 
         user = request.user
         school = _require_school(user)
+        if not is_feature_enabled(request, "timetable"):
+            return Response({"detail": "Timetable is disabled for your school."}, status=403)
 
         qs = Timetable.objects.filter(school=school).select_related("subject", "teacher", "school_class")
         class_filter = request.query_params.get("class_name")
@@ -426,6 +442,8 @@ class StudentTranscriptAPIView(APIView):
 
         user = request.user
         school = _require_school(user)
+        if not is_feature_enabled(request, "results"):
+            return Response({"detail": "Results are disabled for your school."}, status=403)
 
         student = Student.objects.filter(pk=student_id, school=school).first()
         if not student:

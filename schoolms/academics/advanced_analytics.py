@@ -22,7 +22,7 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from students.models import Student
+from students.models import Student, StudentGuardian
 from schools.models import School
 from academics.models import Result, Term, Homework, Quiz, Subject, OnlineMeeting, AIStudentComment
 from operations.models import StudentAttendance
@@ -31,7 +31,7 @@ try:
     from notifications.models import Notification
 except ImportError:
     Notification = None
-from schools.features import is_feature_enabled
+from schools.features import is_feature_enabled, require_feature
 from accounts.decorators import admin_required, teacher_required
 
 
@@ -166,8 +166,19 @@ def predict_student_performance(request, student_id):
     
     if not school:
         return JsonResponse({'error': 'No school found'}, status=400)
-    
+
+    if not request.user.is_superuser and not is_feature_enabled(request, 'performance_analytics'):
+        return JsonResponse({'error': 'Feature disabled'}, status=403)
+
     student = get_object_or_404(Student, id=student_id, school=school)
+
+    # Same bar as report cards: staff / self / linked guardians only (not any classmate).
+    from accounts.permissions import can_create_academic_content
+    from academics.views import _can_view_student_record
+
+    if not request.user.is_superuser:
+        if not (can_create_academic_content(request.user) or _can_view_student_record(request.user, student)):
+            return JsonResponse({'error': 'Forbidden'}, status=403)
 
     results = (
         Result.objects.filter(student=student, deleted_at__isnull=True)
@@ -442,6 +453,34 @@ def _online_classes_school(request):
     return school
 
 
+def _parse_meeting_scheduled_input(value):
+    """Parse JSON / ``datetime-local`` string into an aware datetime, or ``None``."""
+    if value is None:
+        return None
+    if isinstance(value, dt):
+        if timezone.is_aware(value):
+            return value
+        return timezone.make_aware(value)
+    s = str(value).strip()
+    if not s:
+        return None
+    try:
+        parsed = dt.fromisoformat(s.replace("Z", "+00:00"))
+        if timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed)
+        return parsed
+    except ValueError:
+        pass
+    try:
+        s2 = s.replace("T", " ")[:19].strip()
+        if len(s2) >= 16:
+            s2 = s2[:16]
+        naive = dt.strptime(s2, "%Y-%m-%d %H:%M")
+        return timezone.make_aware(naive)
+    except ValueError:
+        return None
+
+
 def online_meetings_visible_to_user(user, school):
     """
     OnlineMeeting queryset visible to this user for the given school.
@@ -518,6 +557,9 @@ def online_classes_page(request):
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
     
+    if (redir := require_feature(request, "virtual_meetings", "accounts:school_dashboard")):
+        return redir
+    
     meetings = online_meetings_visible_to_user(request.user, school)
     
     now = timezone.now()
@@ -555,7 +597,14 @@ def create_meeting(request):
         return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
 
     school = _online_classes_school(request)
-    
+    if school and not is_feature_enabled(request, "virtual_meetings"):
+        if request.method == "POST":
+            return JsonResponse(
+                {"success": False, "error": "Virtual meetings are disabled for your school."},
+                status=403,
+            )
+        return redirect("accounts:school_dashboard")
+
     if request.method == 'POST':
         if not school:
             return JsonResponse(
@@ -567,15 +616,15 @@ def create_meeting(request):
             data = json.loads(request.body)
             
             # Parse the scheduled_time - it comes as a string from JSON
-            scheduled_time_str = data.get('scheduled_time')
-            if isinstance(scheduled_time_str, str):
-                scheduled_time_str = scheduled_time_str.replace('T', ' ')[:16]
-                naive_dt = dt.strptime(scheduled_time_str, '%Y-%m-%d %H:%M')
-                scheduled_time = timezone.make_aware(naive_dt)
-            else:
-                scheduled_time = scheduled_time_str
-            
-            title = (data.get('title') or '').strip()
+            scheduled_time_str = data.get("scheduled_time")
+            scheduled_time = _parse_meeting_scheduled_input(scheduled_time_str)
+            if scheduled_time is None:
+                return JsonResponse(
+                    {"success": False, "error": "Valid date and time are required."},
+                    status=400,
+                )
+
+            title = (data.get("title") or "").strip()
             if not title:
                 return JsonResponse({'success': False, 'error': 'Title is required.'}, status=400)
 
@@ -657,6 +706,9 @@ def join_meeting(request, meeting_id):
         messages.error(request, 'No school associated with your account.')
         return redirect('home')
     
+    if (redir := require_feature(request, "virtual_meetings", "accounts:school_dashboard")):
+        return redir
+    
     # Get meeting
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
 
@@ -672,10 +724,14 @@ def join_meeting(request, meeting_id):
     
     from accounts.permissions import is_school_leadership
     is_host = meeting.teacher == request.user
+    scheduled_iso = ""
+    if meeting.scheduled_time is not None:
+        scheduled_iso = meeting.scheduled_time.isoformat()
     context = {
         'school': school,
         'meeting': meeting,
         'join_url': meeting.meeting_link,
+        'scheduled_iso': scheduled_iso,
         'is_host': is_host,
         'can_end_meeting': is_host or request.user.is_superuser or is_school_leadership(request.user),
         'now': timezone.now(),
@@ -692,6 +748,8 @@ def end_meeting(request, meeting_id):
     school = _online_classes_school(request)
     if not school:
         return JsonResponse({'error': 'No school associated with your account.'}, status=400)
+    if not is_feature_enabled(request, "virtual_meetings"):
+        return JsonResponse({"error": "Virtual meetings are disabled for your school."}, status=403)
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
     
     from accounts.permissions import is_school_leadership
@@ -713,6 +771,8 @@ def delete_meeting(request, meeting_id):
     school = _online_classes_school(request)
     if not school:
         return JsonResponse({'error': 'No school associated with your account.'}, status=400)
+    if not is_feature_enabled(request, "virtual_meetings"):
+        return JsonResponse({"error": "Virtual meetings are disabled for your school."}, status=403)
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
     
     from accounts.permissions import is_school_leadership
@@ -731,6 +791,8 @@ def edit_meeting(request, meeting_id):
     school = _online_classes_school(request)
     if not school:
         return JsonResponse({'error': 'No school associated with your account.'}, status=400)
+    if not is_feature_enabled(request, "virtual_meetings"):
+        return JsonResponse({"error": "Virtual meetings are disabled for your school."}, status=403)
     meeting = get_object_or_404(OnlineMeeting, id=meeting_id, school=school)
     from accounts.permissions import is_school_leadership
     if meeting.teacher != request.user and not request.user.is_superuser and not is_school_leadership(request.user):
@@ -754,9 +816,10 @@ def edit_meeting(request, meeting_id):
         if 'recording_url' in data:
             meeting.recording_url = data.get('recording_url', '')
         if 'scheduled_time' in data:
-            st_str = data['scheduled_time'].replace('T', ' ')[:16]
-            naive_dt = dt.strptime(st_str, '%Y-%m-%d %H:%M')
-            meeting.scheduled_time = timezone.make_aware(naive_dt)
+            st = _parse_meeting_scheduled_input(data.get("scheduled_time"))
+            if st is None:
+                return JsonResponse({"success": False, "error": "Invalid date and time."}, status=400)
+            meeting.scheduled_time = st
         meeting.save()
         return JsonResponse({'success': True, 'message': 'Meeting updated.'})
     except Exception as e:
@@ -966,10 +1029,14 @@ def create_meeting_notifications(meeting):
     Create in-app notifications for students and parents when a new online class is scheduled.
     """
     if Notification is None:
-        return
-    
+        return 0
+
+    audience = getattr(meeting, "target_audience", None) or "all"
+    if audience == "staff":
+        return 0
+
     notifications_created = 0
-    
+
     # Get students in the class
     if meeting.class_name:
         students = Student.objects.filter(
@@ -980,7 +1047,7 @@ def create_meeting_notifications(meeting):
         students = Student.objects.filter(
             school=meeting.school
         ).select_related('user')
-    
+
     # Create notification for each student
     for student in students:
         try:
@@ -992,121 +1059,143 @@ def create_meeting_notifications(meeting):
                 link=f"/academics/online-classes/"
             )
             notifications_created += 1
-            
-            # Also notify parent if exists
-            try:
-                from students.models import StudentParent
-                parent_links = StudentParent.objects.filter(student=student)
-                for link in parent_links:
-                    if link.parent:
-                        Notification.objects.create(
-                            user=link.parent,
-                            title=f"Online Class for {student.user.get_full_name()}",
-                            message=f"A new online class '{meeting.title}' has been scheduled for {student.user.get_full_name()} (Class: {meeting.class_name or 'all'}) on {meeting.scheduled_time.strftime('%d %b at %H:%M')}. Subject: {meeting.subject or 'General'}",
-                            notification_type="info",
-                            link=f"/academics/online-classes/"
-                        )
-                        notifications_created += 1
-            except Exception:
-                pass  # Parent notification is optional
+
+            for g in StudentGuardian.objects.filter(student=student).select_related("guardian"):
+                gu = g.guardian
+                if gu and getattr(gu, "pk", None):
+                    Notification.objects.create(
+                        user=gu,
+                        title=f"Online Class for {student.user.get_full_name()}",
+                        message=f"A new online class '{meeting.title}' has been scheduled for {student.user.get_full_name()} (Class: {meeting.class_name or 'all'}) on {meeting.scheduled_time.strftime('%d %b at %H:%M')}. Subject: {meeting.subject or 'General'}",
+                        notification_type="info",
+                        link=f"/academics/online-classes/"
+                    )
+                    notifications_created += 1
+            parent = getattr(student, "parent", None)
+            if parent and getattr(parent, "pk", None):
+                if not StudentGuardian.objects.filter(student=student, guardian=parent).exists():
+                    Notification.objects.create(
+                        user=parent,
+                        title=f"Online Class for {student.user.get_full_name()}",
+                        message=f"A new online class '{meeting.title}' has been scheduled for {student.user.get_full_name()} (Class: {meeting.class_name or 'all'}) on {meeting.scheduled_time.strftime('%d %b at %H:%M')}. Subject: {meeting.subject or 'General'}",
+                        notification_type="info",
+                        link=f"/academics/online-classes/"
+                    )
+                    notifications_created += 1
         except Exception:
             logger.warning(
                 "Failed to create online class notification for student",
                 extra={"student_id": student.id},
                 exc_info=True,
             )
-    
+
     return notifications_created
 
 
 def send_online_class_sms(meeting, user):
     """
-    Send SMS notifications about an online class.
-    - If user is School Admin/Deputy Head: notify ALL STAFF (teachers, HODs, accountants, librarians, etc.)
-    - If user is Teacher: notify students and parents
-    
-    Returns a dict with 'sent_count' and 'failed_count'.
+    Send SMS notifications for a virtual / online class meeting.
+
+    Recipients follow ``meeting.target_audience`` (``staff``, ``students``, ``all``).
+    Phone numbers may include spaces or local ``0…`` forms; they are normalized for MNotify.
+
+    Returns ``{'sent_count': int, 'failed_count': int}``.
     """
     from accounts.models import User
-    
-    # Determine notification type based on user role
-    user_role = user.role if hasattr(user, 'role') else 'teacher'
-    is_staff_meeting = user_role in ['school_admin', 'deputy_head', 'hod']
-    
-    # Collect phone numbers based on role
-    phone_numbers = set()
-    
-    if is_staff_meeting:
-        # Get all staff members in the school (teacher, accountant, librarian, hod, etc.)
-        staff_roles = ['teacher', 'accountant', 'librarian', 'hod', 'deputy_head', 
-                       'admission_officer', 'school_nurse', 'admin_assistant', 'staff']
-        
-        staff_users = User.objects.filter(
-            school=meeting.school,
-            role__in=staff_roles,
-            phone__isnull=False
-        ).exclude(phone='')
-        
-        for staff_user in staff_users:
-            if staff_user.phone:
-                phone_numbers.add(staff_user.phone)
-        
-        # Message for staff meeting
-        scheduled_date = meeting.scheduled_time.strftime('%d/%m/%Y')
-        scheduled_time = meeting.scheduled_time.strftime('%H:%M')
-        
-        message = f"📹 STAFF MEETING\n\n"
-        message += f"Title: {meeting.title}\n"
-        if meeting.description:
-            message += f"Details: {meeting.description[:50]}...\n" if len(meeting.description) > 50 else f"Details: {meeting.description}\n"
-        message += f"Date: {scheduled_date}\n"
-        message += f"Time: {scheduled_time}\n"
-        message += f"Duration: {meeting.duration} min\n"
-        message += f"\nJoin: {meeting.meeting_link}\n"
-        message += f"- Mastex SchoolOS"
-    else:
-        # Get students in the class (if class_name is specified)
-        if meeting.class_name:
-            students = Student.objects.filter(
-                school=meeting.school,
-                class_name=meeting.class_name
-            ).select_related('user')
-        else:
-            # If no class specified, notify all students in school
-            students = Student.objects.filter(
-                school=meeting.school
-            ).select_related('user')
-        
-        for student in students:
-            # Add student's phone if available
-            if student.user.phone:
-                phone_numbers.add(student.user.phone)
-            
-            # Get parent's phone
-            try:
-                from students.models import StudentParent
-                parent_links = StudentParent.objects.filter(student=student)
-                for link in parent_links:
-                    if link.parent and link.parent.phone:
-                        phone_numbers.add(link.parent.phone)
-            except Exception:
-                pass
-        
-        # Message for online class (students/parents)
-        scheduled_date = meeting.scheduled_time.strftime('%d/%m/%Y')
-        scheduled_time = meeting.scheduled_time.strftime('%H:%M')
-        
-        message = f"📹 ONLINE CLASS\n\n"
-        message += f"Title: {meeting.title}\n"
-        if meeting.subject:
-            message += f"Subject: {meeting.subject}\n"
-        message += f"Date: {scheduled_date}\n"
-        message += f"Time: {scheduled_time}\n"
-        message += f"Duration: {meeting.duration} min\n"
-        message += f"\nJoin: {meeting.meeting_link}\n"
-        message += f"- Mastex SchoolOS"
-    
 
+    STAFF_SMS_ROLES = (
+        "school_admin",
+        "deputy_head",
+        "hod",
+        "exam_officer",
+        "teacher",
+        "accountant",
+        "librarian",
+        "admission_officer",
+        "school_nurse",
+        "admin_assistant",
+        "staff",
+        "board",
+        "school_board",
+    )
+
+    phone_numbers: set[str] = set()
+
+    def _add_staff_phones():
+        for row in (
+            User.objects.filter(school=meeting.school, role__in=STAFF_SMS_ROLES)
+            .exclude(phone__isnull=True)
+            .exclude(phone="")
+            .values_list("phone", flat=True)
+        ):
+            if row and str(row).strip():
+                phone_numbers.add(str(row).strip())
+
+    def _add_student_family_phones():
+        if meeting.class_name:
+            studs = Student.objects.filter(school=meeting.school, class_name=meeting.class_name).select_related(
+                "user", "parent"
+            )
+        else:
+            studs = Student.objects.filter(school=meeting.school).select_related("user", "parent")
+        for stu in studs:
+            up = getattr(stu.user, "phone", None)
+            if up and str(up).strip():
+                phone_numbers.add(str(up).strip())
+            for g in StudentGuardian.objects.filter(student=stu).select_related("guardian"):
+                gp = getattr(g.guardian, "phone", None)
+                if gp and str(gp).strip():
+                    phone_numbers.add(str(gp).strip())
+            par = getattr(stu, "parent", None)
+            if par and getattr(par, "phone", None) and str(par.phone).strip():
+                phone_numbers.add(str(par.phone).strip())
+
+    audience = getattr(meeting, "target_audience", None) or "all"
+    if audience == "staff":
+        _add_staff_phones()
+        label = "STAFF MEETING"
+    elif audience == "students":
+        _add_student_family_phones()
+        label = "ONLINE CLASS"
+    else:
+        _add_staff_phones()
+        _add_student_family_phones()
+        label = "ONLINE CLASS / MEETING"
+
+    st = getattr(meeting, "scheduled_time", None)
+    if st is not None:
+        scheduled_date = st.strftime("%d/%m/%Y")
+        sched_time = st.strftime("%H:%M")
+    else:
+        scheduled_date = "—"
+        sched_time = "—"
+
+    join_link = getattr(meeting, "meeting_link", None) or ""
+    message = f"📹 {label}\n\n"
+    message += f"Title: {meeting.title}\n"
+    desc = getattr(meeting, "description", "") or ""
+    if desc:
+        message += (f"Details: {desc[:50]}...\n" if len(desc) > 50 else f"Details: {desc}\n")
+    if getattr(meeting, "subject", None):
+        message += f"Subject: {meeting.subject}\n"
+    message += f"Date: {scheduled_date}\n"
+    message += f"Time: {sched_time}\n"
+    message += f"Duration: {getattr(meeting, 'duration', 60) or 60} min\n"
+    message += f"\nJoin: {join_link}\n"
+    message += "- Mastex SchoolOS"
+
+    school_name = getattr(meeting.school, "name", None)
+    sent_count = 0
+    failed_count = 0
+    for raw in phone_numbers:
+        try:
+            SMSService.send_sms(raw, message, school_name=school_name)
+            sent_count += 1
+        except Exception:
+            logger.warning("Online class SMS failed for raw=%r", raw, exc_info=True)
+            failed_count += 1
+
+    return {"sent_count": sent_count, "failed_count": failed_count}
 # ====================================================================================
 # DS-3 — Cohort Analysis: track performance by admission year across terms
 # ====================================================================================

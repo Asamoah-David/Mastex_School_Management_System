@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from schools.features import is_feature_enabled
+from schools.features import is_feature_enabled, require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +42,9 @@ def early_warning_list(request):
     school = _school(request)
     if not school:
         return redirect("home")
-    if not is_feature_enabled(request, "early_warning"):
-        from django.contrib import messages
-        messages.error(request, "Early Warning is not enabled for your school.")
-        return redirect("home")
+    block = require_feature(request, "early_warning", "accounts:school_dashboard")
+    if block:
+        return block
 
     if not _require_roles(request, "school_admin", "admin", "teacher", "hod", "deputy_head", "counsellor"):
         return HttpResponseForbidden("Access denied.")

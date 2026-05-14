@@ -1,5 +1,6 @@
 """Teaching scope (attendance + results), management vs teacher rules, and light URL smoke checks."""
 
+import uuid
 from datetime import time
 from decimal import Decimal
 from unittest.mock import patch
@@ -339,6 +340,9 @@ class StaffPayrollBulkAndPayslipTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.school = School.objects.create(name="Bulk PS School", subdomain="bulk-ps-sch-01")
+        SchoolFeature.objects.update_or_create(
+            school=cls.school, key="staff_management", defaults={"enabled": True}
+        )
         cls.accountant = User.objects.create_user(
             username="bulk_acct",
             password="pass12345",
@@ -360,6 +364,12 @@ class StaffPayrollBulkAndPayslipTests(TestCase):
 
     def setUp(self):
         self.client = Client()
+        from django.core.cache import cache
+
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="staff_management", defaults={"enabled": True}
+        )
+        cache.delete(School._feature_cache_key(self.school.pk))
 
     def test_bulk_record_creates_lines(self):
         self.client.login(username="bulk_acct", password="pass12345")
@@ -464,3 +474,265 @@ class TimetableOverlapTests(TestCase):
             Timetable.objects.filter(school=self.school, class_name="JHS 1A").count(),
             1,
         )
+
+
+class PeopleAccountsFeatureGateTests(TestCase):
+    """People / accounts views respect staff_management and student_enrollment flags."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="People Gate School", subdomain=f"ppl-gate-{uuid.uuid4().hex[:10]}")
+        for key in ("staff_management", "student_enrollment", "leave_management"):
+            SchoolFeature.objects.update_or_create(
+                school=cls.school, key=key, defaults={"enabled": True}
+            )
+        cls.admin = User.objects.create_user(
+            username="ppl_gate_admin",
+            password="pw12345",
+            school=cls.school,
+            role="school_admin",
+        )
+
+    def setUp(self):
+        self.client = Client()
+        for key in ("staff_management", "student_enrollment", "leave_management"):
+            SchoolFeature.objects.update_or_create(
+                school=self.school, key=key, defaults={"enabled": True}
+            )
+
+    def test_staff_list_redirects_when_staff_management_disabled(self):
+        """Non-leadership staff with directory access are gated; heads bypass (see staff_list docstring)."""
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="staff_management", defaults={"enabled": False}
+        )
+        User.objects.create_user(
+            username="ppl_gate_teacher",
+            password="pw12345",
+            school=self.school,
+            role="teacher",
+        )
+        self.client.login(username="ppl_gate_teacher", password="pw12345")
+        r = self.client.get(reverse("accounts:staff_list"))
+        self.assertRedirects(r, reverse("accounts:school_dashboard"), fetch_redirect_response=False)
+
+    def test_parent_list_accessible_to_leadership_when_student_enrollment_disabled(self):
+        """Parent list is leadership-only; enrollment flag does not lock out head/deputy/HOD."""
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="student_enrollment", defaults={"enabled": False}
+        )
+        self.client.login(username="ppl_gate_admin", password="pw12345")
+        r = self.client.get(reverse("accounts:parent_list"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_user_management_redirects_when_both_people_modules_disabled(self):
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="staff_management", defaults={"enabled": False}
+        )
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="student_enrollment", defaults={"enabled": False}
+        )
+        self.client.login(username="ppl_gate_admin", password="pw12345")
+        r = self.client.get(reverse("accounts:user_management"))
+        self.assertRedirects(r, reverse("accounts:school_dashboard"), fetch_redirect_response=False)
+
+    def test_leave_policy_list_redirects_when_leave_management_disabled(self):
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="leave_management", defaults={"enabled": False}
+        )
+        self.client.login(username="ppl_gate_admin", password="pw12345")
+        r = self.client.get(reverse("accounts:leave_policy_list"))
+        self.assertRedirects(r, reverse("accounts:school_dashboard"), fetch_redirect_response=False)
+
+    def test_admin_reset_requests_redirects_when_both_people_modules_disabled(self):
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="staff_management", defaults={"enabled": False}
+        )
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="student_enrollment", defaults={"enabled": False}
+        )
+        self.client.login(username="ppl_gate_admin", password="pw12345")
+        r = self.client.get(reverse("accounts:admin_reset_requests"))
+        self.assertRedirects(r, reverse("accounts:school_dashboard"), fetch_redirect_response=False)
+
+
+class ApiCheckIdentifierTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="API ID School", subdomain="api-id-sch-1")
+        cls.admin = User.objects.create_user(
+            username="api_id_admin",
+            email="admin@apiid.test",
+            password="pw12345",
+            school=cls.school,
+            role="school_admin",
+        )
+
+    def setUp(self):
+        self.client = Client()
+        self.url = reverse("accounts:api_check_identifier")
+
+    def test_anonymous_username_taken(self):
+        r = self.client.get(self.url, {"kind": "username", "value": "api_id_admin"})
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertFalse(data["available"])
+
+    def test_anonymous_username_available(self):
+        r = self.client.get(self.url, {"kind": "username", "value": "totally_unused_xyz_99"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["available"])
+
+    def test_admission_number_requires_login(self):
+        r = self.client.get(self.url, {"kind": "admission_number", "value": "ADM001"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_admission_number_scoped_to_school(self):
+        st = Student.objects.create(
+            school=self.school,
+            user=User.objects.create_user(
+                username="stu_adm1", password="pw12345", school=self.school, role="student"
+            ),
+            admission_number="ADM-SCOPE-1",
+            class_name="Form 1A",
+        )
+        self.client.login(username="api_id_admin", password="pw12345")
+        r = self.client.get(self.url, {"kind": "admission_number", "value": "ADM-SCOPE-1"})
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.json()["available"])
+        r_same = self.client.get(
+            self.url,
+            {
+                "kind": "admission_number",
+                "value": "ADM-SCOPE-1",
+                "exclude_student": str(st.pk),
+            },
+        )
+        self.assertTrue(r_same.json()["available"])
+        r2 = self.client.get(self.url, {"kind": "admission_number", "value": "ADM-NEW-999"})
+        self.assertTrue(r2.json()["available"])
+
+    def test_email_exclude_current_user(self):
+        self.client.login(username="api_id_admin", password="pw12345")
+        r = self.client.get(
+            self.url,
+            {"kind": "email", "value": "admin@apiid.test", "exclude": str(self.admin.pk)},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["available"])
+
+    @override_settings(API_IDENTIFIER_CHECK_PER_MINUTE=5)
+    def test_identifier_check_rate_limit(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        for i in range(5):
+            r = self.client.get(self.url, {"kind": "username", "value": f"probe_{i}_xyz"})
+            self.assertEqual(r.status_code, 200, msg=f"iteration {i}")
+        r6 = self.client.get(self.url, {"kind": "username", "value": "probe_6_xyz"})
+        self.assertEqual(r6.status_code, 429)
+        self.assertIn("Too many", r6.json().get("error", ""))
+
+
+class TwoFaNextSanitizationTests(TestCase):
+    """Open-redirect hardening for post-login 2FA flows."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="2FA Next Sch", subdomain="2fa-next-sch-1")
+        cls.user = User.objects.create_user(
+            username="twofa_next_user",
+            password="pw12345",
+            school=cls.school,
+            role="teacher",
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_challenge_page_sanitizes_external_next_query(self):
+        import time as _time
+        from accounts.totp_views import SESSION_KEY_2FA_USER, SESSION_KEY_2FA_TS
+
+        s = self.client.session
+        s[SESSION_KEY_2FA_USER] = self.user.pk
+        s[SESSION_KEY_2FA_TS] = _time.time()
+        s.save()
+        r = self.client.get(
+            reverse("accounts:2fa_challenge") + "?next=https://evil.example/phish",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'name="next"')
+        self.assertNotContains(r, "evil.example")
+        self.assertContains(r, 'value="/"')
+
+    def test_login_redirect_to_challenge_strips_external_next(self):
+        u = User.objects.create_user(
+            username="twofa_enabled_u",
+            password="pw12345",
+            school=self.school,
+            role="teacher",
+        )
+        u.totp_enabled = True
+        u.save(update_fields=["totp_enabled"])
+        r = self.client.post(
+            reverse("accounts:login") + "?next=https://evil.example/phish",
+            {"username": "twofa_enabled_u", "password": "pw12345"},
+            follow=False,
+        )
+        self.assertEqual(r.status_code, 302)
+        loc = r["Location"]
+        self.assertIn("/accounts/2fa/challenge/", loc)
+        self.assertNotIn("evil", loc)
+        self.assertIn("next=%2F", loc)
+
+
+class StaffManagementLeadershipBypassTests(TestCase):
+    """Head / deputy / HOD can open staff profiles when the staff_management flag is off."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Bypass Sch", subdomain="bypass-sch-1")
+        cls.head = User.objects.create_user(
+            username="bypass_head", password="pw12345", school=cls.school, role="school_admin"
+        )
+        cls.teacher = User.objects.create_user(
+            username="bypass_teacher", password="pw12345", school=cls.school, role="teacher"
+        )
+
+    def setUp(self):
+        self.client = Client()
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="staff_management", defaults={"enabled": False}
+        )
+
+    def test_teacher_redirected_from_staff_detail_when_feature_off(self):
+        self.client.login(username="bypass_teacher", password="pw12345")
+        r = self.client.get(reverse("accounts:staff_detail", args=[self.head.pk]))
+        self.assertRedirects(r, reverse("accounts:school_dashboard"), fetch_redirect_response=False)
+
+    def test_school_admin_reaches_staff_detail_when_feature_off(self):
+        self.client.login(username="bypass_head", password="pw12345")
+        r = self.client.get(reverse("accounts:staff_detail", args=[self.teacher.pk]))
+        self.assertEqual(r.status_code, 200)
+
+
+class StudentEnrollmentLeadershipBypassTests(TestCase):
+    """School leadership can manage parents when student_enrollment is disabled."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = School.objects.create(name="Enroll Bypass Sch", subdomain="enroll-bypass-sch-1")
+        cls.head = User.objects.create_user(
+            username="enroll_bypass_head", password="pw12345", school=cls.school, role="school_admin"
+        )
+
+    def setUp(self):
+        self.client = Client()
+        SchoolFeature.objects.update_or_create(
+            school=self.school, key="student_enrollment", defaults={"enabled": False}
+        )
+
+    def test_school_admin_reaches_parent_list_when_enrollment_feature_off(self):
+        self.client.login(username="enroll_bypass_head", password="pw12345")
+        r = self.client.get(reverse("accounts:parent_list"))
+        self.assertEqual(r.status_code, 200)

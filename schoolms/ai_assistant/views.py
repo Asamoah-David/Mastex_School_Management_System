@@ -110,6 +110,14 @@ def chatbot_respond(request):
 def ai_chat(request):
     """AI Assistant full-page chat (non-AJAX fallback)."""
     school = _get_school(request)
+    if school and not school.has_feature("ai_assistant"):
+        from django.shortcuts import render as _render
+        return _render(
+            request,
+            "core/feature_disabled.html",
+            {"disabled_features": ["ai_assistant"]},
+            status=403,
+        )
     if request.method == "POST":
         user_message = request.POST.get("message", "").strip()
         if not user_message:

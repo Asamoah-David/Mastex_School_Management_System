@@ -1,52 +1,74 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Create Homework - {{ school.name }}{% endblock %}
-{% block page_title %}Create Homework Assignment{% endblock %}
+{% block title %}{% if homework %}Edit{% else %}Create{% endif %} Homework - {{ school.name }}{% endblock %}
+{% block page_title %}{% if homework %}Edit{% else %}Create{% endif %} Homework Assignment{% endblock %}
 {% block content %}
 <div class="content-card">
-    <h2>📚 Create Homework Assignment</h2>
-    
+    <h2>📚 {% if homework %}Edit{% else %}Create{% endif %} Homework Assignment</h2>
+
     <form method="POST" enctype="multipart/form-data" class="form-styled">
         {% csrf_token %}
-        
+
         <div class="form-group">
             <label for="subject">Subject *</label>
             <select name="subject" id="subject" required class="form-control searchable-select" data-placeholder="Search for a subject...">
                 <option value="">Select Subject</option>
                 {% for subject in subjects %}
-                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                <option value="{{ subject.id }}" {% if homework and homework.subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
                 {% endfor %}
             </select>
         </div>
-        
+
+        {% if structured_classes %}
         <div class="form-group">
-            <label for="class_name">Class *</label>
-            <input type="text" name="class_name" id="class_name" required placeholder="e.g., JHS 1, SSS 2" class="form-control">
+            <label for="school_class_id">Class (from roster) *</label>
+            <select name="school_class_id" id="school_class_id" class="form-control">
+                <option value="">— Use free-text class below instead —</option>
+                {% for sc in structured_classes %}
+                <option value="{{ sc.id }}" {% if homework and homework.school_class_id == sc.id %}selected{% endif %}>{{ sc.name }}</option>
+                {% endfor %}
+            </select>
+            <small class="form-text text-muted">Prefer this when students are assigned to structured classes; it matches the student portal reliably.</small>
         </div>
-        
+        {% endif %}
+
+        <div class="form-group">
+            <label for="class_name">Class (free text){% if not structured_classes %} *{% endif %}</label>
+            <input type="text" name="class_name" id="class_name" {% if not structured_classes %}required{% endif %} placeholder="e.g., JHS 1, SSS 2" class="form-control"
+                   value="{% if homework %}{{ homework.class_name }}{% endif %}">
+            {% if structured_classes %}
+            <small class="form-text text-muted">Optional if you selected a roster class above.</small>
+            {% endif %}
+        </div>
+
         <div class="form-group">
             <label for="title">Title *</label>
-            <input type="text" name="title" id="title" required placeholder="Homework title" class="form-control">
+            <input type="text" name="title" id="title" required placeholder="Homework title" class="form-control"
+                   value="{% if homework %}{{ homework.title }}{% endif %}">
         </div>
-        
+
         <div class="form-group">
             <label for="description">Instructions / Description</label>
-            <textarea name="description" id="description" rows="4" placeholder="Detailed instructions for students..." class="form-control"></textarea>
+            <textarea name="description" id="description" rows="4" placeholder="Detailed instructions for students..." class="form-control">{% if homework %}{{ homework.description }}{% endif %}</textarea>
         </div>
-        
+
         <div class="form-group">
             <label for="attachment">Attachment (Optional)</label>
             <input type="file" name="attachment" id="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip">
             <small class="form-text text-muted">Upload PDF, Word documents, images, or ZIP files (Max 10MB)</small>
+            {% if homework and homework.attachment %}
+            <p class="small text-muted mt-1">Current file: <a href="{{ homework.attachment.url }}" target="_blank" rel="noopener">Open</a> (upload a new file to replace)</p>
+            {% endif %}
         </div>
-        
+
         <div class="form-group">
             <label for="due_date">Due Date *</label>
-            <input type="date" name="due_date" id="due_date" required class="form-control">
+            <input type="date" name="due_date" id="due_date" required class="form-control"
+                   value="{% if homework %}{{ homework.due_date|date:'Y-m-d' }}{% endif %}">
         </div>
-        
+
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">💾 Create Homework</button>
+            <button type="submit" class="btn btn-primary">💾 {% if homework %}Save changes{% else %}Create Homework{% endif %}</button>
             <a href="{% url 'academics:homework_list' %}" class="btn btn-secondary">↩️ Cancel</a>
         </div>
     </form>

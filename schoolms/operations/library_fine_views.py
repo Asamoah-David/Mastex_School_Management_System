@@ -1,6 +1,9 @@
 """Library fine management views."""
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -39,9 +42,10 @@ def library_fine_list(request):
         qs = qs.filter(status=status_filter)
     if student_q:
         qs = qs.filter(
-            issue__student__user__first_name__icontains=student_q
-        ) | qs.filter(
-            issue__student__user__last_name__icontains=student_q
+            Q(issue__student__user__first_name__icontains=student_q)
+            | Q(issue__student__user__last_name__icontains=student_q)
+            | Q(issue__student__user__username__icontains=student_q)
+            | Q(issue__student__admission_number__icontains=student_q)
         )
 
     counts = {
@@ -69,6 +73,9 @@ def library_fine_mark_paid(request, pk):
     school = get_school(request)
     if not school:
         return redirect("home")
+    if not is_feature_enabled(request, "library"):
+        messages.error(request, "Library feature is not enabled for your school.")
+        return redirect("home")
     if not _require_library_manager(request):
         messages.error(request, "Access denied.")
         return redirect("operations:library_fine_list")
@@ -80,10 +87,10 @@ def library_fine_mark_paid(request, pk):
 
     amount_str = request.POST.get("amount", "").strip()
     try:
-        amount = float(amount_str)
+        amount = Decimal(str(amount_str))
         if amount <= 0:
             raise ValueError
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, InvalidOperation):
         messages.error(request, "Enter a valid positive amount.")
         return redirect("operations:library_fine_list")
 
@@ -100,6 +107,9 @@ def library_fine_waive(request, pk):
 
     school = get_school(request)
     if not school:
+        return redirect("home")
+    if not is_feature_enabled(request, "library"):
+        messages.error(request, "Library feature is not enabled for your school.")
         return redirect("home")
     if not _require_library_manager(request):
         messages.error(request, "Access denied.")

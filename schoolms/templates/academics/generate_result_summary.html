@@ -46,17 +46,32 @@
                 {% endfor %}
             </select>
         </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Subject (optional)</label>
+            <select name="subject" style="width: 100%; max-width: 400px; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <option value="">All subjects</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+            </select>
+            <p style="margin: 0.35rem 0 0; color: #6b7280; font-size: 0.8125rem;">Leave as “All subjects” for the whole class; otherwise only that subject is processed.</p>
+        </div>
         
         <div style="background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
             <p style="margin: 0; color: #92400E; font-size: 0.875rem;">
-                ⚠️ <strong>Note:</strong> Running this will update existing result summaries. 
-                Make sure all CA and Exam scores have been uploaded first.
+                ⚠️ <strong>Note:</strong> Saving <strong>CA</strong> or <strong>exam</strong> scores (bulk upload screens, Django admin, or normal saves) refreshes each affected student’s <code>StudentResultSummary</code> for that subject + term after the database transaction commits. Legacy <strong>Result</strong> rows (with a term) do the same when there is no CA/exam data for that subject—once CA or exam scores exist, those take priority. Use <strong>Generate</strong> for a full class pass (recomputes from CA + exam only). Use <strong>Reconcile summaries</strong> to repair stored rows from CA, exam, legacy <strong>Result</strong>, or orphaned summaries—useful after bulk <code>QuerySet.update</code> that skipped signals. Enhanced report cards and PDFs prefer these summaries.
             </p>
         </div>
         
-        <button type="submit" class="button" style="padding: 0.75rem 2rem;">
-            🚀 Generate Result Summaries
-        </button>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
+            <button type="submit" name="action" value="generate" class="button" style="padding: 0.75rem 2rem;">
+                🚀 Generate Result Summaries
+            </button>
+            <button type="submit" name="action" value="reconcile" class="button" style="padding: 0.75rem 2rem; background: #374151;">
+                🔧 Reconcile summaries
+            </button>
+        </div>
     </form>
 </div>
 
@@ -102,9 +117,9 @@
         <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: #f3f4f6; border-radius: 8px;">
             <div style="width: 32px; height: 32px; border-radius: 50%; background: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">5</div>
             <div>
-                <strong>View Enhanced Report Card</strong>
+                <strong>View / print report cards</strong>
                 <p style="margin: 0.25rem 0 0; color: #6b7280; font-size: 0.875rem;">
-                    Access report cards with CA, Exam, Final scores, Grade, GPA, and Position.
+                    Use Academics → Report cards (or the generator) once summaries exist. Optional: Assessment schemes → “Report card scores” for scheme-based rows used when publishing stored PDFs.
                 </p>
             </div>
         </div>
