@@ -26,6 +26,8 @@ from accounts.permissions import (
     can_unlock_locked_academic_results,
     can_upload_results,
     can_bulk_promote_students,
+    is_school_leadership,
+    can_manage_finance,
 )
 from accounts.teaching_scope import teacher_result_subject_ids
 from .models import (
@@ -3872,11 +3874,16 @@ def question_bank_delete(request, pk):
 
 @login_required
 def year_start_playbook(request):
-    """Leadership checklist: new academic year / term (fees vs promotions vs timetables)."""
+    """Leadership checklist: new academic year / term (fees vs promotions vs timetables).
+
+    Gated to school leadership or finance staff (not general teachers); term CRUD remains on term_list.
+    """
     school = _get_school(request)
     if not school:
         return redirect("accounts:dashboard") if request.user.is_authenticated else redirect("home")
     if not _user_can_manage_school(request):
+        return redirect("accounts:school_dashboard")
+    if not (is_school_leadership(request.user) or can_manage_finance(request.user)):
         return redirect("accounts:school_dashboard")
     if (redir := require_any_feature(request, ACADEMIC_TERM_FEATURE_KEYS, "accounts:school_dashboard")):
         return redir

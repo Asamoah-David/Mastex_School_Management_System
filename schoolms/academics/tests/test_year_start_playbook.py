@@ -25,6 +25,12 @@ class YearStartPlaybookTests(TestCase):
             school=cls.school,
             role="teacher",
         )
+        cls.accountant = User.objects.create_user(
+            username="pb_accountant",
+            password="pw12345",
+            school=cls.school,
+            role="accountant",
+        )
 
     def setUp(self):
         self.client = Client()
@@ -33,9 +39,14 @@ class YearStartPlaybookTests(TestCase):
         r = self.client.get(reverse("academics:year_start_playbook"))
         self.assertEqual(r.status_code, 302)
 
-    def test_teacher_can_view_when_features_enabled(self):
-        """Staff with school + term-related features see the playbook (same gate as term_list)."""
+    def test_teacher_redirects(self):
+        """Class teachers are not the intended audience (leadership / finance only)."""
         self.client.login(username="pb_teacher", password="pw12345")
+        r = self.client.get(reverse("academics:year_start_playbook"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_accountant_can_view_when_features_enabled(self):
+        self.client.login(username="pb_accountant", password="pw12345")
         r = self.client.get(reverse("academics:year_start_playbook"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "New academic year")
