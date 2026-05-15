@@ -1534,6 +1534,30 @@ class RecordPaymentOfflineFlowTests(TestCase):
             ).exists()
         )
 
+    def test_combined_payment_accepts_extra_school_fee_by_id(self):
+        fee = Fee.objects.create(
+            school=self.school,
+            student=self.student,
+            amount=Decimal("300.00"),
+            amount_paid=Decimal("0"),
+            description="By ID line",
+        )
+        self.client.login(username="rec_flow_admin", password="pw12345")
+        url = reverse("operations:record_payment")
+        r = self.client.post(
+            url,
+            {
+                "payment_type": "combined",
+                "payment_method": "cash",
+                "student": str(self.student.pk),
+                "combined_manual_fee_id": str(fee.pk),
+                "combined_manual_fee_amount": "75.00",
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        fee.refresh_from_db()
+        self.assertEqual(fee.amount_paid, Decimal("75.00"))
+
     def test_combined_payment_rolls_back_if_bus_amount_invalid(self):
         fee = Fee.objects.create(
             school=self.school,

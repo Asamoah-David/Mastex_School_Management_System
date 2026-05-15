@@ -1560,6 +1560,51 @@ def _process_combined_record_payment(request, school, payment_method):
             )
         sf_ops.append((fee, amt))
 
+    fee_pks_in_ops = {f.pk for f, _ in sf_ops}
+    man_id = (request.POST.get("combined_manual_fee_id") or "").strip()
+    man_amt_s = (request.POST.get("combined_manual_fee_amount") or "").strip()
+    if man_id or man_amt_s:
+        if not fee_on:
+            return "School fee lines are not available (fee management is disabled for this school)."
+        if not (man_id and man_amt_s):
+            return "For the extra school fee line, enter both Fee ID and amount, or leave both blank."
+        try:
+            manual_pk = int(man_id)
+        except (TypeError, ValueError):
+            return "Extra school fee ID must be a number."
+        if manual_pk in fee_pks_in_ops:
+            return (
+                f"School fee #{manual_pk} appears twice (in the table and in the extra Fee ID field). "
+                "Use only one."
+            )
+        try:
+            man_amt = Decimal(str(man_amt_s)).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            return "Invalid amount for the extra school fee."
+        if man_amt <= 0:
+            return "Extra school fee amount must be greater than zero."
+        fee = (
+            Fee.objects.filter(
+                pk=manual_pk,
+                student=student,
+                school=school,
+                deleted_at__isnull=True,
+                is_active=True,
+            )
+            .select_related("student")
+            .first()
+        )
+        if not fee:
+            return (
+                f"School fee #{manual_pk} was not found for the selected student, or it is inactive."
+            )
+        bal = ((fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))).quantize(Decimal("0.01"))
+        if man_amt > bal:
+            return (
+                f"School fee #{manual_pk}: amount GHS {man_amt} exceeds remaining balance GHS {bal}."
+            )
+        sf_ops.append((fee, man_amt))
+
     # --- Canteen ---
     canteen_amount = Decimal("0")
     canteen_payload = None
@@ -2284,8 +2329,9 @@ def record_payment(request):
         .select_related('student__user', 'hostel')
         .order_by('-id')[:400]
     )
+    fee_management_enabled = is_feature_enabled_for_school(school.pk, "fee_management")
     unpaid_school_fees = []
-    if is_feature_enabled_for_school(school.pk, "fee_management"):
+    if fee_management_enabled:
         unpaid_school_fees = list(
             Fee.objects.filter(
                 school=school,
@@ -2302,6 +2348,7 @@ def record_payment(request):
         'bus_routes': bus_routes,
         'hostel_fees': hostel_fees,
         'unpaid_school_fees': unpaid_school_fees,
+        'fee_management_enabled': fee_management_enabled,
         'show_hostel_payment': is_feature_enabled_for_school(school.pk, 'hostel'),
         'page_title': 'Record Payment',
     }
