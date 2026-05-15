@@ -47,7 +47,7 @@
 
                     <div class="col-md-4 mb-3" id="student-field-wrapper">
                         <label for="student" class="form-label">Student</label>
-                        <select name="student" id="student" class="form-select searchable-select" data-placeholder="Type name or admission #…">
+                        <select name="student" id="student" class="form-select searchable-select" data-placeholder="Type name or admission #…" data-min-search="1">
                             <option value="">Select Student</option>
                             {% for student in students %}
                             <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
@@ -120,7 +120,7 @@
                     <div class="row">
                         <div class="col-md-5 mb-2">
                             <label class="form-label small" for="combined-bus-route">Route</label>
-                            <select name="combined_bus_route_id" id="combined-bus-route" class="form-select" onchange="syncCombinedBusDailyUnitsField()">
+                            <select name="combined_bus_route_id" id="combined-bus-route" class="form-select searchable-select" data-placeholder="Search route…" onchange="syncCombinedBusDailyUnitsField()">
                                 <option value="">— Skip bus —</option>
                                 {% for r in bus_routes %}
                                 <option value="{{ r.id }}" data-frequency="{{ r.payment_frequency }}">{{ r.name }} — {{ r.get_payment_frequency_display }} (GHS {{ r.fee_per_term }})</option>
@@ -147,7 +147,7 @@
                     <div class="row">
                         <div class="col-md-8 mb-2">
                             <label class="form-label small" for="combined-hostel-fee">Hostel fee record</label>
-                            <select name="combined_hostel_fee_id" id="combined-hostel-fee" class="form-select">
+                            <select name="combined_hostel_fee_id" id="combined-hostel-fee" class="form-select searchable-select" data-placeholder="Search hostel fee…" data-min-search="1">
                                 <option value="">— Skip hostel —</option>
                                 {% for hf in hostel_fees %}
                                 <option value="{{ hf.id }}" data-student-id="{{ hf.student_id }}">{{ hf.student.user.get_full_name }} — {{ hf.hostel.name }} — {{ hf.term }} (balance GHS {{ hf.balance }})</option>
@@ -165,7 +165,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-2">
                             <label class="form-label small" for="combined-textbook">Book</label>
-                            <select name="combined_textbook" id="combined-textbook" class="form-select" onchange="updateCombinedTextbookTotal()">
+                            <select name="combined_textbook" id="combined-textbook" class="form-select searchable-select" data-placeholder="Search textbook…" data-min-search="1" onchange="updateCombinedTextbookTotal()">
                                 <option value="">— Skip textbook —</option>
                                 {% for tb in textbooks %}
                                 <option value="{{ tb.id }}" data-price="{{ tb.price }}">{{ tb.title }} — GHS {{ tb.price }} ({{ tb.stock }} in stock)</option>
@@ -251,7 +251,7 @@
                     <div class="row">
                         <div class="col-md-8 mb-3">
                             <label for="hostel-fee" class="form-label">Hostel fee</label>
-                            <select name="hostel_fee_id" id="hostel-fee" class="form-select searchable-select" data-placeholder="Search hostel fee…">
+                            <select name="hostel_fee_id" id="hostel-fee" class="form-select searchable-select" data-placeholder="Search hostel fee…" data-min-search="1">
                                 <option value="">Select fee record</option>
                                 {% for hf in hostel_fees %}
                                 <option value="{{ hf.id }}" data-student-id="{{ hf.student_id }}">
@@ -277,7 +277,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="textbook" class="form-label">Textbook</label>
-                            <select name="textbook" id="textbook" class="form-select searchable-select" data-placeholder="Search for a textbook...">
+                            <select name="textbook" id="textbook" class="form-select searchable-select" data-placeholder="Search for a textbook…" data-min-search="1">
                                 <option value="">Select Textbook</option>
                                 {% for tb in textbooks %}
                                 <option value="{{ tb.id }}" data-price="{{ tb.price }}">{{ tb.title }} - GHS {{ tb.price }} ({{ tb.stock }} in stock)</option>
@@ -304,7 +304,7 @@
                     <div class="row">
                         <div class="col-md-12 mb-3">
                             <label for="school-fee-pick" class="form-label">Pick outstanding fee (optional)</label>
-                            <select id="school-fee-pick" class="form-select">
+                            <select id="school-fee-pick" class="form-select searchable-select" data-placeholder="Search outstanding fee…" data-min-search="1">
                                 <option value="">— Choose to fill fee ID and student —</option>
                                 {% for f in unpaid_school_fees %}
                                 <option value="{{ f.id }}" data-student-id="{{ f.student_id }}">
@@ -320,7 +320,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="school-fee-student-id" class="form-label">Student</label>
-                            <select name="school_fee_student_id" id="school-fee-student-id" class="form-select searchable-select" data-placeholder="Type name or admission #…" disabled>
+                            <select name="school_fee_student_id" id="school-fee-student-id" class="form-select searchable-select" data-placeholder="Type name or admission #…" data-min-search="1" disabled>
                                 <option value="">Select Student</option>
                                 {% for student in students %}
                                 <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
@@ -402,9 +402,15 @@ function _setFieldState(id, opts) {
         if (opts.required) el.setAttribute('required', '');
         else el.removeAttribute('required');
     }
-    // Re-sync Select2 (if used) so the disabled state shows in the UI.
+    // Keep Select2 UI in sync with the native disabled state.
     if (window.jQuery && jQuery.fn.select2 && el.classList.contains('searchable-select')) {
-        try { jQuery(el).trigger('change.select2'); } catch (e) { /* noop */ }
+        try {
+            var $el = jQuery(el);
+            if ($el.data('select2') && typeof opts.disabled === 'boolean') {
+                $el.prop('disabled', opts.disabled);
+            }
+            $el.trigger('change.select2');
+        } catch (e) { /* noop */ }
     }
 }
 
@@ -415,6 +421,17 @@ function _setCombinedGroupDisabled(disabled) {
         el.disabled = disabled;
         el.removeAttribute('required');
     });
+    if (window.jQuery && jQuery.fn.select2) {
+        g.querySelectorAll('select.searchable-select').forEach(function (el) {
+            try {
+                var $el = jQuery(el);
+                if ($el.data('select2')) {
+                    $el.prop('disabled', disabled);
+                    $el.trigger('change.select2');
+                }
+            } catch (e) { /* noop */ }
+        });
+    }
 }
 
 function syncCombinedStudentRows() {
@@ -445,6 +462,21 @@ function syncCombinedHostelOptions() {
         }
         var osid = o.getAttribute('data-student-id');
         o.disabled = !!(sid && osid && osid !== sid);
+    }
+    var cur = sel.options[sel.selectedIndex];
+    if (cur && cur.value && cur.disabled) {
+        sel.selectedIndex = 0;
+        if (window.jQuery && jQuery.fn.select2 && sel.classList.contains('searchable-select')) {
+            try { jQuery(sel).val(null).trigger('change'); } catch (e) { /* noop */ }
+        }
+    }
+    if (window.jQuery && jQuery.fn.select2 && sel.classList.contains('searchable-select')) {
+        try {
+            var $s = jQuery(sel);
+            if ($s.data('select2')) {
+                $s.trigger('change.select2');
+            }
+        } catch (e) { /* noop */ }
     }
 }
 
@@ -607,7 +639,13 @@ function toggleFields() {
         }
         if (type === 'school_fee') {
             var sfp = document.getElementById('school-fee-pick');
-            if (sfp) sfp.selectedIndex = 0;
+            if (sfp) {
+                if (window.jQuery && jQuery.fn.select2 && jQuery(sfp).data('select2')) {
+                    try { jQuery(sfp).val(null).trigger('change'); } catch (e) { sfp.selectedIndex = 0; }
+                } else {
+                    sfp.selectedIndex = 0;
+                }
+            }
         }
     }
 }
