@@ -1497,9 +1497,417 @@ def student_payment_history(request, student_id):
     return render(request, 'operations/student_payment_history.html', context)
 
 
+def _process_combined_record_payment(request, school, payment_method):
+    """
+    Record multiple manual payment lines (school fees, canteen, bus, textbook, hostel)
+    for one student in a single atomic transaction (all succeed or none).
+
+    Returns an error string, or (success_message, student_id) on success.
+    """
+    from finance.models import Fee, FeePayment
+
+    student_id = (request.POST.get("student") or "").strip()
+    if not student_id:
+        return "Select a student for the combined payment."
+    try:
+        student = Student.objects.get(id=int(student_id), school=school, status="active")
+    except (ValueError, TypeError, Student.DoesNotExist):
+        return "Student not found or not active for this school."
+
+    batch = uuid.uuid4().hex[:12].upper()
+    batch_meta = {"combined_batch": batch, "payment_method": payment_method}
+
+    fee_on = is_feature_enabled_for_school(school.pk, "fee_management")
+    canteen_on = is_feature_enabled_for_school(school.pk, "canteen")
+    bus_on = is_feature_enabled_for_school(school.pk, "bus_transport")
+    tb_on = is_feature_enabled_for_school(school.pk, "textbooks")
+    hostel_on = is_feature_enabled_for_school(school.pk, "hostel")
+
+    # --- School fee lines (combined_sf_amount_<fee_pk>) ---
+    sf_ops = []
+    pfx_sf = "combined_sf_amount_"
+    for key, raw in request.POST.items():
+        if not key.startswith(pfx_sf):
+            continue
+        fee_pk = key[len(pfx_sf) :].strip()
+        if not fee_pk.isdigit():
+            continue
+        try:
+            amt = Decimal(str(raw or "0")).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            return f"Invalid amount for school fee #{fee_pk}."
+        if amt <= 0:
+            continue
+        if not fee_on:
+            return "School fee lines are not available (fee management is disabled for this school)."
+        fee = (
+            Fee.objects.filter(
+                pk=int(fee_pk),
+                student=student,
+                school=school,
+                deleted_at__isnull=True,
+                is_active=True,
+            )
+            .select_related("student")
+            .first()
+        )
+        if not fee:
+            return f"School fee #{fee_pk} was not found for the selected student, or it is inactive."
+        bal = ((fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))).quantize(Decimal("0.01"))
+        if amt > bal:
+            return (
+                f"School fee #{fee_pk}: amount GHS {amt} exceeds remaining balance GHS {bal}."
+            )
+        sf_ops.append((fee, amt))
+
+    # --- Canteen ---
+    canteen_amount = Decimal("0")
+    canteen_payload = None
+    raw_can = (request.POST.get("combined_canteen_amount") or "").strip()
+    if raw_can:
+        if not canteen_on:
+            return "Canteen payments are not enabled for this school."
+        try:
+            canteen_amount = Decimal(str(raw_can)).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            return "Invalid canteen amount."
+        if canteen_amount > 0:
+            payment_frequency = (request.POST.get("combined_payment_frequency") or "single").strip()
+            daily_units = 0
+            if payment_frequency == "daily":
+                try:
+                    daily_units = int(request.POST.get("combined_daily_units") or "0")
+                except (TypeError, ValueError):
+                    daily_units = 0
+                if daily_units <= 0:
+                    return "For daily canteen payments, enter the number of days."
+            description = (request.POST.get("combined_description") or "").strip()
+            canteen_payload = {
+                "amount": canteen_amount,
+                "payment_frequency": payment_frequency,
+                "daily_units": daily_units,
+                "description": description,
+            }
+
+    # --- Bus ---
+    bus_payload = None
+    route_id = (request.POST.get("combined_bus_route_id") or "").strip()
+    if route_id:
+        if not bus_on:
+            return "Bus payments are not enabled for this school."
+        try:
+            route_pk = int(route_id)
+        except (TypeError, ValueError):
+            return "Invalid bus route selection."
+        route = BusRoute.objects.filter(pk=route_pk, school=school).first()
+        if not route:
+            return "Selected bus route was not found."
+        raw_ba = (request.POST.get("combined_bus_amount") or "").strip()
+        try:
+            bus_amount = Decimal(str(raw_ba or "0")).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            return "Invalid bus amount."
+        if bus_amount <= 0:
+            return "Enter a positive bus amount when a route is selected."
+        term = (request.POST.get("combined_bus_term") or "").strip()
+        if not term:
+            return "Enter the term period for the bus payment (e.g. Term 1 2026)."
+        try:
+            bus_daily_units = int(request.POST.get("combined_bus_daily_units") or "0")
+        except (TypeError, ValueError):
+            bus_daily_units = 0
+        if route.payment_frequency == "daily":
+            if bus_daily_units <= 0:
+                return "Enter how many days this daily bus payment covers."
+            expected = (Decimal(str(route.fee_per_term or 0)) * bus_daily_units).quantize(Decimal("0.01"))
+            if bus_amount != expected:
+                return (
+                    f"For this daily route, bus amount must be GHS {expected} "
+                    f"(GHS {route.fee_per_term} × {bus_daily_units} days)."
+                )
+        else:
+            bus_daily_units = 0
+            expected_period = Decimal(str(route.fee_per_term or 0)).quantize(Decimal("0.01"))
+            if bus_amount != expected_period:
+                freq_label = str(route.get_payment_frequency_display())
+                return (
+                    f"For this {freq_label.lower()} route, the bus amount must be GHS {expected_period}."
+                )
+        bus_payload = {
+            "route": route,
+            "amount": bus_amount,
+            "term": term,
+            "daily_units": bus_daily_units,
+        }
+
+    # --- Textbook ---
+    textbook_payload = None
+    tb_id = (request.POST.get("combined_textbook") or "").strip()
+    if tb_id:
+        if not tb_on:
+            return "Textbook sales are not enabled for this school."
+        try:
+            tb_pk = int(tb_id)
+        except (TypeError, ValueError):
+            return "Invalid textbook selection."
+        try:
+            qty = max(1, int(request.POST.get("combined_textbook_quantity") or "1"))
+        except (TypeError, ValueError):
+            qty = 1
+        textbook = Textbook.objects.filter(id=tb_pk, school=school).first()
+        if not textbook:
+            return "Selected textbook was not found."
+        if textbook.stock < qty:
+            return f"Only {textbook.stock} copies of '{textbook.title}' remain in stock."
+        sale_amount = (Decimal(str(textbook.price)) * qty).quantize(Decimal("0.01"))
+        textbook_payload = {"textbook": textbook, "quantity": qty, "amount": sale_amount}
+
+    # --- Hostel ---
+    hostel_payload = None
+    hf_id = (request.POST.get("combined_hostel_fee_id") or "").strip()
+    if hf_id:
+        if not hostel_on:
+            return "Hostel payments are not enabled for this school."
+        try:
+            hf_pk = int(hf_id)
+        except (TypeError, ValueError):
+            return "Invalid hostel fee selection."
+        fee = HostelFee.objects.filter(pk=hf_pk, school=school).first()
+        if not fee:
+            return "Selected hostel fee was not found."
+        if fee.student_id != student.pk:
+            return "The selected hostel fee does not belong to the selected student."
+        if fee.paid:
+            return "The selected hostel fee is already fully paid."
+        raw_ha = (request.POST.get("combined_hostel_amount") or "").strip()
+        try:
+            h_amt = Decimal(str(raw_ha or "0")).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            return "Invalid hostel amount."
+        if h_amt <= 0:
+            return "Enter a positive amount for the hostel fee."
+        h_bal = ((fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))).quantize(Decimal("0.01"))
+        if h_amt > h_bal:
+            return f"Hostel amount exceeds remaining balance (GHS {h_bal})."
+        hostel_payload = {"fee": fee, "amount": h_amt}
+
+    if not sf_ops and not canteen_payload and not bus_payload and not textbook_payload and not hostel_payload:
+        return (
+            "Enter at least one payment line: school fee amount(s), canteen, bus, textbook, or hostel."
+        )
+
+    summary_bits = []
+
+    try:
+        with transaction.atomic():
+            if sf_ops:
+                fee_ids = [f.pk for f, _ in sf_ops]
+                locked = {
+                    x.pk: x
+                    for x in Fee.objects.select_for_update().filter(
+                        pk__in=fee_ids, student=student, school=school
+                    )
+                }
+                if len(locked) != len(fee_ids):
+                    raise ValueError("One or more school fee rows are no longer available — please retry.")
+
+            for fee, amount in sf_ops:
+                fee_row = locked[fee.pk]
+                bal = (
+                    (fee_row.amount or Decimal("0")) - (fee_row.amount_paid or Decimal("0"))
+                ).quantize(Decimal("0.01"))
+                if amount > bal:
+                    raise ValueError(
+                        f"School fee #{fee_row.pk}: amount exceeds remaining balance (GHS {bal})."
+                    )
+                ref = f"CASH_COMBINED_{batch}_SF_{fee_row.pk}_{uuid.uuid4().hex[:6].upper()}"
+                fp = FeePayment.objects.create(
+                    fee=fee_row,
+                    amount=amount,
+                    payment_method=payment_method,
+                    status="completed",
+                )
+                Fee.objects.filter(pk=fee_row.pk).update(amount_paid=F("amount_paid") + amount)
+                fee_row.refresh_from_db()
+                fee_row.save()
+                record_payment_transaction(
+                    provider="manual",
+                    reference=ref,
+                    school_id=school.pk,
+                    amount=amount,
+                    status="completed",
+                    payment_type=PaymentTypes.SCHOOL_FEE_MANUAL,
+                    object_id=str(fee_row.pk),
+                    metadata={**batch_meta, "fee_payment_id": fp.pk, "fee_id": fee_row.pk},
+                )
+                try:
+                    from finance.services.school_funds import record_fee_collected
+
+                    record_fee_collected(
+                        school_id=school.pk,
+                        amount=amount,
+                        reference=ref,
+                        description=f"Manual school fee (fee #{fee_row.pk}, combined)",
+                        currency=getattr(settings, "PAYSTACK_CURRENCY", "GHS"),
+                        metadata={
+                            "fee_id": fee_row.pk,
+                            "fee_payment_id": fp.pk,
+                            "manual": True,
+                            "payment_method": payment_method,
+                            "combined_batch": batch,
+                        },
+                    )
+                except Exception:
+                    logger.exception(
+                        "combined record_payment: school_funds ledger failed ref=%s (non-fatal)",
+                        ref,
+                    )
+                summary_bits.append(f"school fee #{fee_row.pk}: GHS {amount}")
+
+            if canteen_payload:
+                ref = f"CASH_COMBINED_{batch}_CANT_{uuid.uuid4().hex[:6].upper()}"
+                today = timezone.localdate()
+                hist = [
+                    {
+                        "amount": str(canteen_payload["amount"]),
+                        "date": str(today),
+                        "reference": ref,
+                    }
+                ]
+                obj = CanteenPayment.objects.create(
+                    school=school,
+                    student=student,
+                    amount=canteen_payload["amount"],
+                    amount_paid=canteen_payload["amount"],
+                    description=canteen_payload["description"],
+                    payment_reference=ref,
+                    payment_status="completed",
+                    recorded_by=request.user,
+                    payment_frequency=canteen_payload["payment_frequency"],
+                    daily_units=canteen_payload["daily_units"],
+                    payment_history=hist,
+                )
+                record_payment_transaction(
+                    provider="manual",
+                    reference=ref,
+                    school_id=school.pk,
+                    amount=canteen_payload["amount"],
+                    status="completed",
+                    payment_type=PaymentTypes.CANTEEN,
+                    object_id=str(obj.pk),
+                    metadata={**batch_meta, "canteen_payment_id": obj.pk},
+                )
+                summary_bits.append(f"canteen: GHS {canteen_payload['amount']}")
+
+            if bus_payload:
+                ref = f"CASH_COMBINED_{batch}_BUS_{uuid.uuid4().hex[:6].upper()}"
+                route = bus_payload["route"]
+                amt = bus_payload["amount"]
+                obj = BusPayment.objects.create(
+                    school=school,
+                    student=student,
+                    route=route,
+                    amount=amt,
+                    amount_paid=Decimal("0"),
+                    term_period=bus_payload["term"],
+                    daily_units=bus_payload["daily_units"],
+                    payment_date=timezone.localdate(),
+                    payment_reference=ref,
+                    payment_status="pending",
+                    paid=False,
+                )
+                if not obj.add_payment(
+                    amt,
+                    payment_reference=ref,
+                    recorded_by=request.user,
+                ):
+                    raise ValueError("Could not apply bus payment.")
+                record_payment_transaction(
+                    provider="manual",
+                    reference=ref,
+                    school_id=school.pk,
+                    amount=amt,
+                    status="completed",
+                    payment_type=PaymentTypes.BUS,
+                    object_id=str(obj.pk),
+                    metadata={
+                        **batch_meta,
+                        "term": bus_payload["term"],
+                        "route_id": route.pk,
+                        "daily_units": bus_payload["daily_units"],
+                    },
+                )
+                summary_bits.append(f"bus ({route.name}): GHS {amt}")
+
+            if textbook_payload:
+                ref = f"CASH_COMBINED_{batch}_TB_{uuid.uuid4().hex[:6].upper()}"
+                textbook = textbook_payload["textbook"]
+                qty = textbook_payload["quantity"]
+                sale_amount = textbook_payload["amount"]
+                tb_row = Textbook.objects.select_for_update().get(pk=textbook.pk, school=school)
+                if tb_row.stock < qty:
+                    raise ValueError(
+                        f"Only {tb_row.stock} copies of '{tb_row.title}' remain in stock."
+                    )
+                obj = TextbookSale.objects.create(
+                    school=school,
+                    student=student,
+                    textbook=tb_row,
+                    quantity=qty,
+                    amount=sale_amount,
+                    payment_reference=ref,
+                    payment_status="completed",
+                    recorded_by=request.user,
+                )
+                updated = Textbook.objects.filter(pk=tb_row.pk, stock__gte=qty).update(stock=F("stock") - qty)
+                if not updated:
+                    raise ValueError("Textbook stock changed concurrently — please retry.")
+                record_payment_transaction(
+                    provider="manual",
+                    reference=ref,
+                    school_id=school.pk,
+                    amount=sale_amount,
+                    status="completed",
+                    payment_type=PaymentTypes.TEXTBOOK,
+                    object_id=str(obj.pk),
+                    metadata={**batch_meta, "textbook": textbook.title, "quantity": qty},
+                )
+                summary_bits.append(f"textbook ({textbook.title} ×{qty}): GHS {sale_amount}")
+
+            if hostel_payload:
+                ref = f"CASH_COMBINED_{batch}_HOST_{uuid.uuid4().hex[:6].upper()}"
+                hfee = hostel_payload["fee"]
+                hfee = HostelFee.objects.select_for_update().get(pk=hfee.pk, school=school)
+                if hfee.student_id != student.pk:
+                    raise ValueError("Hostel fee no longer matches the selected student.")
+                applied = mark_hostel_fee_completed(
+                    fee=hfee,
+                    reference=ref,
+                    paid_amount=hostel_payload["amount"],
+                    recorded_by=request.user,
+                    provider="manual",
+                )
+                if applied <= 0:
+                    raise ValueError("Could not record hostel payment.")
+                summary_bits.append(f"hostel: GHS {hostel_payload['amount']}")
+
+    except ValueError as exc:
+        return str(exc)
+    except Exception as exc:
+        logger.exception("combined record_payment failed: %s", exc)
+        return f"Could not record combined payment: {exc}"
+
+    msg = "Combined payment recorded — " + "; ".join(summary_bits) + f" (batch {batch})."
+    return (msg, student.pk)
+
+
 @login_required
 def record_payment(request):
-    """Manually record a cash/offline payment for a student."""
+    """Manually record a cash/offline payment for a student.
+
+    Supports ``payment_type=combined``: one student, multiple lines (fees,
+    canteen, bus, textbook, hostel) in a single atomic transaction.
+    """
     from finance.models import Fee, FeePayment
 
     if request.method == 'POST':
@@ -1526,6 +1934,15 @@ def record_payment(request):
     if request.method == 'POST':
         payment_type = request.POST.get('payment_type', '')
         payment_method = request.POST.get('payment_method', 'cash')
+
+        if payment_type == 'combined':
+            res = _process_combined_record_payment(request, school, payment_method)
+            if isinstance(res, str):
+                messages.error(request, res)
+                return redirect("operations:record_payment")
+            msg, stud_pk = res
+            messages.success(request, msg)
+            return redirect("operations:student_payment_history", student_id=stud_pk)
 
         if payment_type in ('canteen', 'bus', 'textbook', 'hostel'):
             feat_key = {

@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from finance.models import Fee
+from finance.models import Fee, FeePayment
 from academics.models import Subject
 from operations.models import (
     AdmissionApplication,
@@ -1502,3 +1502,64 @@ class RecordPaymentOfflineFlowTests(TestCase):
         fee.refresh_from_db()
         self.assertEqual(fee.amount_paid, Decimal("50.00"))
         self.assertFalse(fee.paid)
+
+    def test_combined_payment_records_school_fee_and_canteen_atomically(self):
+        fee = Fee.objects.create(
+            school=self.school,
+            student=self.student,
+            amount=Decimal("200.00"),
+            amount_paid=Decimal("0"),
+            description="Term fees",
+        )
+        self.client.login(username="rec_flow_admin", password="pw12345")
+        url = reverse("operations:record_payment")
+        body = {
+            "payment_type": "combined",
+            "payment_method": "cash",
+            "student": str(self.student.pk),
+            f"combined_sf_amount_{fee.pk}": "40.00",
+            "combined_canteen_amount": "12.00",
+            "combined_payment_frequency": "single",
+            "combined_description": "Lunch bundle",
+        }
+        r = self.client.post(url, body)
+        self.assertEqual(r.status_code, 302)
+        fee.refresh_from_db()
+        self.assertEqual(fee.amount_paid, Decimal("40.00"))
+        self.assertTrue(
+            CanteenPayment.objects.filter(
+                student=self.student,
+                amount=Decimal("12.00"),
+                payment_status="completed",
+            ).exists()
+        )
+
+    def test_combined_payment_rolls_back_if_bus_amount_invalid(self):
+        fee = Fee.objects.create(
+            school=self.school,
+            student=self.student,
+            amount=Decimal("100.00"),
+            amount_paid=Decimal("0"),
+            description="Only fee",
+        )
+        self.client.login(username="rec_flow_admin", password="pw12345")
+        url = reverse("operations:record_payment")
+        r = self.client.post(
+            url,
+            {
+                "payment_type": "combined",
+                "payment_method": "cash",
+                "student": str(self.student.pk),
+                f"combined_sf_amount_{fee.pk}": "25.00",
+                "combined_bus_route_id": str(self.route_term.pk),
+                "combined_bus_amount": "99.00",
+                "combined_bus_term": "T1",
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        fee.refresh_from_db()
+        self.assertEqual(fee.amount_paid, Decimal("0"))
+        self.assertFalse(FeePayment.objects.filter(fee=fee).exists())
+        self.assertFalse(
+            BusPayment.objects.filter(student=self.student, school=self.school, term_period="T1").exists()
+        )

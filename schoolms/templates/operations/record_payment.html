@@ -3,7 +3,7 @@
 
 {% block title %}Record payment · MastexEDU{% endblock %}
 {% block page_title %}Record payment{% endblock %}
-{% block page_subtitle %}Record cash, mobile money, or bank transfer collections for canteen, bus, textbooks{% if show_hostel_payment %}, or hostel{% endif %}{% endblock %}
+{% block page_subtitle %}Record cash, mobile money, or bank transfer — single category or <strong>combined</strong> (one student, multiple lines, one submit){% if show_hostel_payment %}; includes hostel{% endif %}{% endblock %}
 
 {% block content %}
 {% include "includes/finance_subnav.html" %}
@@ -25,6 +25,7 @@
                         <label for="payment_type" class="form-label">Payment Type</label>
                         <select name="payment_type" id="payment_type" class="form-select" required onchange="toggleFields()">
                             <option value="">Select Payment Type</option>
+                            <option value="combined">Combined (student + multiple lines at once)</option>
                             <option value="canteen">Canteen</option>
                             <option value="bus">Bus Fee</option>
                             <option value="textbook">Textbook</option>
@@ -52,6 +53,133 @@
                             <option value="{{ student.id }}">{{ student.user.get_full_name }} - {{ student.admission_number }}</option>
                             {% endfor %}
                         </select>
+                    </div>
+                </div>
+
+                <!-- Combined payment: one student, optional lines, single atomic submit -->
+                <div id="combined-fields" style="display: none;">
+                    <p class="text-muted small mb-3">
+                        Select the student above, then enter amounts only for the lines you are collecting now.
+                        Leave lines blank or zero to skip. All lines succeed together or none are saved.
+                    </p>
+
+                    <h6 class="mt-2">School fees <span class="badge bg-secondary">optional</span></h6>
+                    {% if unpaid_school_fees %}
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm align-middle">
+                            <thead><tr><th>Fee</th><th>Balance</th><th>Pay now (GHS)</th></tr></thead>
+                            <tbody>
+                                {% for f in unpaid_school_fees %}
+                                <tr class="combined-sf-row" data-student-id="{{ f.student_id }}" style="display: none;">
+                                    <td>
+                                        #{{ f.id }} —
+                                        {% if f.description %}{{ f.description }}{% elif f.fee_structure %}{{ f.fee_structure.name }}{% else %}School fee{% endif %}
+                                    </td>
+                                    <td>{{ f.remaining_balance }}</td>
+                                    <td style="max-width: 8rem;">
+                                        <input type="number" step="0.01" min="0" name="combined_sf_amount_{{ f.id }}"
+                                               class="form-control form-control-sm combined-sf-amt" placeholder="—">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="small text-muted">No outstanding school fees in the recent list, or fee management is off.</p>
+                    {% endif %}
+
+                    <h6 class="mt-3">Canteen <span class="badge bg-secondary">optional</span></h6>
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small" for="combined-canteen-amount">Amount (GHS)</label>
+                            <input type="number" step="0.01" name="combined_canteen_amount" id="combined-canteen-amount" class="form-control" placeholder="0 = skip">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small" for="combined-payment-frequency">Frequency</label>
+                            <select name="combined_payment_frequency" id="combined-payment-frequency" class="form-select" onchange="toggleCombinedDailyUnits()">
+                                <option value="single">Single</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="term">Per term</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2" id="combined-daily-units-field" style="display: none;">
+                            <label class="form-label small" for="combined_daily_units">Days</label>
+                            <input type="number" name="combined_daily_units" id="combined_daily_units" class="form-control" value="1" min="1">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 mb-2">
+                            <label class="form-label small" for="combined_description">Description</label>
+                            <input type="text" name="combined_description" id="combined_description" class="form-control" placeholder="e.g. Lunch">
+                        </div>
+                    </div>
+
+                    <h6 class="mt-3">Bus <span class="badge bg-secondary">optional</span></h6>
+                    <div class="row">
+                        <div class="col-md-5 mb-2">
+                            <label class="form-label small" for="combined-bus-route">Route</label>
+                            <select name="combined_bus_route_id" id="combined-bus-route" class="form-select" onchange="syncCombinedBusDailyUnitsField()">
+                                <option value="">— Skip bus —</option>
+                                {% for r in bus_routes %}
+                                <option value="{{ r.id }}" data-frequency="{{ r.payment_frequency }}">{{ r.name }} — {{ r.get_payment_frequency_display }} (GHS {{ r.fee_per_term }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label small" for="combined-bus-amount">Amount</label>
+                            <input type="number" step="0.01" name="combined_bus_amount" id="combined-bus-amount" class="form-control" placeholder="0">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small" for="combined-bus-term">Term</label>
+                            <input type="text" name="combined_bus_term" id="combined-bus-term" class="form-control" placeholder="e.g. Term 1 2026">
+                        </div>
+                        <div class="col-md-2 mb-2" id="combined-bus-daily-units-wrap" style="display: none;">
+                            <label class="form-label small" for="combined_bus_daily_units">Days</label>
+                            <input type="number" name="combined_bus_daily_units" id="combined_bus_daily_units" class="form-control" value="1" min="1">
+                        </div>
+                    </div>
+                    <p id="combined-bus-amount-hint" class="small text-muted">If you select a route, amount and term must match the route rules (same as single bus payment).</p>
+
+                    {% if show_hostel_payment %}
+                    <h6 class="mt-3">Hostel <span class="badge bg-secondary">optional</span></h6>
+                    <div class="row">
+                        <div class="col-md-8 mb-2">
+                            <label class="form-label small" for="combined-hostel-fee">Hostel fee record</label>
+                            <select name="combined_hostel_fee_id" id="combined-hostel-fee" class="form-select">
+                                <option value="">— Skip hostel —</option>
+                                {% for hf in hostel_fees %}
+                                <option value="{{ hf.id }}" data-student-id="{{ hf.student_id }}">{{ hf.student.user.get_full_name }} — {{ hf.hostel.name }} — {{ hf.term }} (balance GHS {{ hf.balance }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label small" for="combined-hostel-amount">Amount (GHS)</label>
+                            <input type="number" step="0.01" name="combined_hostel_amount" id="combined-hostel-amount" class="form-control" placeholder="0">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <h6 class="mt-3">Textbook <span class="badge bg-secondary">optional</span></h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label small" for="combined-textbook">Book</label>
+                            <select name="combined_textbook" id="combined-textbook" class="form-select" onchange="updateCombinedTextbookTotal()">
+                                <option value="">— Skip textbook —</option>
+                                {% for tb in textbooks %}
+                                <option value="{{ tb.id }}" data-price="{{ tb.price }}">{{ tb.title }} — GHS {{ tb.price }} ({{ tb.stock }} in stock)</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small" for="combined-textbook-quantity">Qty</label>
+                            <input type="number" name="combined_textbook_quantity" id="combined-textbook-quantity" class="form-control" value="1" min="1" oninput="updateCombinedTextbookTotal()">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small">Line total</label>
+                            <p id="combined-textbook-total" class="form-control-plaintext small fw-bold mb-0">—</p>
+                        </div>
                     </div>
                 </div>
 
@@ -248,6 +376,7 @@ function syncSchoolFeePick() {
 // Fields not in the active group are disabled so the browser does NOT
 // validate hidden `required` inputs (which would silently block submit).
 var PAYMENT_REQUIRED_FIELDS = {
+    combined:   ['student'],
     canteen:    ['student', 'canteen-amount'],
     bus:        ['student', 'bus-amount', 'bus-route'],
     textbook:   ['student', 'textbook', 'quantity'],
@@ -276,6 +405,103 @@ function _setFieldState(id, opts) {
     // Re-sync Select2 (if used) so the disabled state shows in the UI.
     if (window.jQuery && jQuery.fn.select2 && el.classList.contains('searchable-select')) {
         try { jQuery(el).trigger('change.select2'); } catch (e) { /* noop */ }
+    }
+}
+
+function _setCombinedGroupDisabled(disabled) {
+    var g = document.getElementById('combined-fields');
+    if (!g) return;
+    g.querySelectorAll('input, select, textarea').forEach(function (el) {
+        el.disabled = disabled;
+        el.removeAttribute('required');
+    });
+}
+
+function syncCombinedStudentRows() {
+    var typeEl = document.getElementById('payment_type');
+    if (!typeEl || typeEl.value !== 'combined') return;
+    var sid = document.getElementById('student').value;
+    document.querySelectorAll('.combined-sf-row').forEach(function (row) {
+        var rsid = row.getAttribute('data-student-id');
+        if (!sid || rsid !== sid) {
+            row.style.display = 'none';
+            row.querySelectorAll('input').forEach(function (inp) { inp.value = ''; });
+        } else {
+            row.style.display = '';
+        }
+    });
+    syncCombinedHostelOptions();
+}
+
+function syncCombinedHostelOptions() {
+    var sel = document.getElementById('combined-hostel-fee');
+    if (!sel) return;
+    var sid = document.getElementById('student').value;
+    for (var i = 0; i < sel.options.length; i++) {
+        var o = sel.options[i];
+        if (!o.value) {
+            o.disabled = false;
+            continue;
+        }
+        var osid = o.getAttribute('data-student-id');
+        o.disabled = !!(sid && osid && osid !== sid);
+    }
+}
+
+function toggleCombinedDailyUnits() {
+    var freq = document.getElementById('combined-payment-frequency');
+    var dailyUnitsField = document.getElementById('combined-daily-units-field');
+    if (freq && dailyUnitsField) {
+        dailyUnitsField.style.display = freq.value === 'daily' ? 'block' : 'none';
+    }
+}
+
+function syncCombinedBusDailyUnitsField() {
+    var sel = document.getElementById('combined-bus-route');
+    var wrap = document.getElementById('combined-bus-daily-units-wrap');
+    var units = document.getElementById('combined_bus_daily_units');
+    if (!sel || !wrap || !units) return;
+    var opt = sel.options[sel.selectedIndex];
+    var freq = opt ? opt.getAttribute('data-frequency') : '';
+    if (freq === 'daily') {
+        wrap.style.display = 'block';
+        units.disabled = false;
+    } else {
+        wrap.style.display = 'none';
+        units.value = '1';
+        units.disabled = true;
+    }
+    updateCombinedBusAmountHint();
+}
+
+function updateCombinedBusAmountHint() {
+    var hint = document.getElementById('combined-bus-amount-hint');
+    var sel = document.getElementById('combined-bus-route');
+    if (!hint || !sel) return;
+    var opt = sel.options[sel.selectedIndex];
+    var freq = opt ? opt.getAttribute('data-frequency') : '';
+    if (!sel.value || !freq) {
+        hint.textContent = 'If you select a route, amount and term must match the route rules (same as single bus payment).';
+        return;
+    }
+    if (freq === 'daily') {
+        hint.textContent = 'Per day: amount = daily rate × days covered.';
+    } else {
+        hint.textContent = 'Enter exactly the route amount shown.';
+    }
+}
+
+function updateCombinedTextbookTotal() {
+    var sel = document.getElementById('combined-textbook');
+    var qtyEl = document.getElementById('combined-textbook-quantity');
+    if (!sel || !qtyEl) return;
+    var qty = parseInt(qtyEl.value, 10) || 1;
+    var opt = sel.options[sel.selectedIndex];
+    var price = opt ? parseFloat(opt.getAttribute('data-price') || '0') : 0;
+    var total = document.getElementById('combined-textbook-total');
+    var totalAmount = price * qty;
+    if (total) {
+        total.textContent = price > 0 ? 'GHS ' + totalAmount.toFixed(2) : '—';
     }
 }
 
@@ -318,7 +544,7 @@ function updateBusAmountHint() {
 
 function toggleFields() {
     var type = document.getElementById('payment_type').value;
-    var groups = ['canteen-fields', 'bus-fields', 'textbook-fields', 'school-fee-fields'];
+    var groups = ['canteen-fields', 'bus-fields', 'textbook-fields', 'school-fee-fields', 'combined-fields'];
     if (document.getElementById('hostel-fields')) {
         groups.push('hostel-fields');
     }
@@ -328,13 +554,17 @@ function toggleFields() {
     groups.forEach(function (gid) {
         var g = document.getElementById(gid);
         if (g) g.style.display = 'none';
+        if (gid === 'combined-fields') {
+            _setCombinedGroupDisabled(true);
+            return;
+        }
         (PAYMENT_GROUP_FIELDS[gid] || []).forEach(function (fid) {
             _setFieldState(fid, { disabled: true, required: false });
         });
     });
 
     // Always-visible top "student" select: only required for the cash flows
-    // (canteen / bus / textbook). For school_fee the dedicated school-fee
+    // (canteen / bus / textbook / combined). For school_fee the dedicated school-fee
     // student select is used instead.
     _setFieldState('student', { disabled: false, required: false });
 
@@ -344,6 +574,19 @@ function toggleFields() {
     else if (type === 'textbook') activeGroup = 'textbook-fields';
     else if (type === 'school_fee') activeGroup = 'school-fee-fields';
     else if (type === 'hostel') activeGroup = 'hostel-fields';
+    else if (type === 'combined') {
+        var gc = document.getElementById('combined-fields');
+        if (gc) {
+            gc.style.display = 'block';
+            _setCombinedGroupDisabled(false);
+        }
+        _setFieldState('student', { disabled: false, required: true });
+        syncCombinedStudentRows();
+        syncCombinedBusDailyUnitsField();
+        updateCombinedTextbookTotal();
+        toggleCombinedDailyUnits();
+        return;
+    }
 
     if (activeGroup) {
         var g = document.getElementById(activeGroup);
@@ -401,6 +644,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (busRoute) busRoute.addEventListener('change', syncBusDailyUnitsField);
     var schoolFeePick = document.getElementById('school-fee-pick');
     if (schoolFeePick) schoolFeePick.addEventListener('change', syncSchoolFeePick);
+    var studentSel = document.getElementById('student');
+    if (studentSel) {
+        studentSel.addEventListener('change', function () {
+            syncCombinedStudentRows();
+        });
+    }
+    var combinedBusRoute = document.getElementById('combined-bus-route');
+    if (combinedBusRoute) combinedBusRoute.addEventListener('change', syncCombinedBusDailyUnitsField);
 });
 
 function updateTextbookTotal() {
@@ -436,6 +687,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var qtyIn = document.getElementById('quantity');
     if (tbSel) tbSel.addEventListener('change', updateTextbookTotal);
     if (qtyIn) qtyIn.addEventListener('input', updateTextbookTotal);
+    var ctb = document.getElementById('combined-textbook');
+    var cqty = document.getElementById('combined-textbook-quantity');
+    if (ctb) ctb.addEventListener('change', updateCombinedTextbookTotal);
+    if (cqty) cqty.addEventListener('input', updateCombinedTextbookTotal);
 });
 </script>
 {% endblock %}
