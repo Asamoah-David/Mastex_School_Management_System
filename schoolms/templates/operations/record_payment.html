@@ -373,11 +373,47 @@
                     </button>
                 </div>
             </form>
+            {{ record_payment_initial|json_script:"record-payment-initial-json" }}
         </div>
     </div>
 </div>
 
 <script>
+function applyRecordPaymentInitialFromQuery() {
+    var el = document.getElementById('record-payment-initial-json');
+    if (!el) return;
+    var cfg;
+    try {
+        cfg = JSON.parse(el.textContent);
+    } catch (e) {
+        return;
+    }
+    if (!cfg) return;
+    var stud = document.getElementById('student');
+    var pt = document.getElementById('payment_type');
+    if (cfg.payment_type && pt) {
+        var wanted = String(cfg.payment_type);
+        var opt = pt.querySelector('option[value="' + wanted.replace(/"/g, '') + '"]');
+        if (opt) {
+            pt.value = wanted;
+        }
+    }
+    if (cfg.student_id != null && stud) {
+        var sid = String(cfg.student_id);
+        stud.value = sid;
+        if (window.jQuery && jQuery.fn.select2 && jQuery(stud).data('select2')) {
+            try {
+                jQuery(stud).val(sid).trigger('change');
+            } catch (e) { /* noop */ }
+        }
+        if (typeof syncCombinedStudentRows === 'function') {
+            syncCombinedStudentRows();
+        }
+    }
+    if (typeof toggleFields === 'function') {
+        toggleFields();
+    }
+}
 function syncSchoolFeePick() {
     var pick = document.getElementById('school-fee-pick');
     var fid = document.getElementById('fee_id');
@@ -723,6 +759,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Run once on load to sync state with the (empty) initial selection.
     toggleFields();
+    setTimeout(function () {
+        applyRecordPaymentInitialFromQuery();
+    }, 80);
 
     var busRoute = document.getElementById('bus-route');
     if (busRoute) busRoute.addEventListener('change', syncBusDailyUnitsField);

@@ -13,6 +13,10 @@
     <a href="{% url 'academics:student_transcript' student.id %}" class="btn btn-secondary">&#x1F4DC; Transcript</a>
     <a href="{% url 'students:student_edit' student.id %}" class="btn btn-warning">✏️ Edit name &amp; contact</a>
     <a href="{% url 'operations:student_payment_history' student.id %}" class="btn btn-secondary">💳 Payment History</a>
+    {% if can_record_cash_payments %}
+    <a href="{% url 'operations:record_payment' %}?student={{ student.id }}&amp;type=combined" class="btn btn-success">💰 Combined payment</a>
+    <a href="{% url 'operations:record_payment' %}?student={{ student.id }}" class="btn btn-outline-success">Record payment</a>
+    {% endif %}
     <a href="{% url 'accounts:reset_user_password' student.user.id %}?next={% url 'students:student_detail' student.id %}" class="btn btn-warning">🔑 Reset Password</a>
     {% if student.status != "active" or not student.user.is_active %}
         <a href="{% url 'students:student_reactivate' student.id %}" class="btn btn-success">Reactivate</a>

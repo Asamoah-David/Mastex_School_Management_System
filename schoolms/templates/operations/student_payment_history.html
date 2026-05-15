@@ -11,7 +11,15 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-person-badge"></i> Payment History - {{ student.user.get_full_name }}</h2>
-        <div>
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+            {% if can_record_cash_payments %}
+            <a href="{% url 'operations:record_payment' %}?student={{ student.id }}&amp;type=combined" class="btn btn-success">
+                <i class="bi bi-stack"></i> Combined payment
+            </a>
+            <a href="{% url 'operations:record_payment' %}?student={{ student.id }}" class="btn btn-outline-success">
+                <i class="bi bi-cash"></i> Record payment
+            </a>
+            {% endif %}
             <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Dashboard
             </a>

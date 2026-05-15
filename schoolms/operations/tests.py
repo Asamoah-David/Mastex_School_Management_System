@@ -1558,6 +1558,15 @@ class RecordPaymentOfflineFlowTests(TestCase):
         fee.refresh_from_db()
         self.assertEqual(fee.amount_paid, Decimal("75.00"))
 
+    def test_record_payment_get_prefill_json(self):
+        self.client.login(username="rec_flow_admin", password="pw12345")
+        url = reverse("operations:record_payment")
+        r = self.client.get(url, {"student": str(self.student.pk), "type": "combined"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "record-payment-initial-json")
+        self.assertContains(r, f'"student_id": {self.student.pk}')
+        self.assertContains(r, '"payment_type": "combined"')
+
     def test_combined_payment_rolls_back_if_bus_amount_invalid(self):
         fee = Fee.objects.create(
             school=self.school,

@@ -788,6 +788,7 @@ def student_detail(request, pk):
     from operations.models import CanteenPayment, StudentAttendance
     from operations.models.transport import BusPayment, TextbookSale
     from students.models import StudentGuardian
+    from accounts.permissions import can_manage_finance
 
     # ── Fees ────────────────────────────────────────────────────────────────
     fees_qs = Fee.objects.filter(student=student, school=school).select_related("term", "fee_structure").order_by("-created_at")
@@ -839,6 +840,9 @@ def student_detail(request, pk):
         "attend_late": attend_late,
         "discipline_records": discipline_records,
         "guardians": guardians,
+        "can_record_cash_payments": (
+            getattr(request.user, "is_superuser", False) or can_manage_finance(request.user)
+        ),
     }
     return render(request, "students/student_detail.html", ctx)
 

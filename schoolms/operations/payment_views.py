@@ -1475,6 +1475,9 @@ def student_payment_history(request, student_id):
     textbook_total = sum((s.amount or Decimal('0')) for s in textbook_sales)
     overall_total = school_fees_paid + canteen_total + bus_total + textbook_total
 
+    can_record_cash_payments = bool(school) and (
+        getattr(request.user, "is_superuser", False) or can_manage_finance(request.user)
+    )
     context = {
         'student': student,
         'payments': all_payments,
@@ -1492,6 +1495,7 @@ def student_payment_history(request, student_id):
         'bus_total': bus_total,
         'textbook_total': textbook_total,
         'overall_total': overall_total,
+        'can_record_cash_payments': can_record_cash_payments,
         'page_title': f'Payment History - {student.user.get_full_name()}',
     }
     return render(request, 'operations/student_payment_history.html', context)
@@ -1946,12 +1950,30 @@ def _process_combined_record_payment(request, school, payment_method):
     return (msg, student.pk)
 
 
+def _record_payment_query_defaults(request, school):
+    """Parse safe GET defaults for ``?student=&type=`` on the record payment form."""
+    allowed = {"combined", "canteen", "bus", "textbook", "school_fee"}
+    if is_feature_enabled_for_school(school.pk, "hostel"):
+        allowed.add("hostel")
+    raw_type = (request.GET.get("type") or "").strip().lower()
+    payment_type = raw_type if raw_type in allowed else None
+    student_id = None
+    raw_sid = (request.GET.get("student") or "").strip()
+    if raw_sid.isdigit() and Student.objects.filter(
+        pk=int(raw_sid), school=school, status="active"
+    ).exists():
+        student_id = int(raw_sid)
+    return {"student_id": student_id, "payment_type": payment_type}
+
+
 @login_required
 def record_payment(request):
     """Manually record a cash/offline payment for a student.
 
     Supports ``payment_type=combined``: one student, multiple lines (fees,
     canteen, bus, textbook, hostel) in a single atomic transaction.
+
+    GET query (optional): ``?student=<pk>&type=<combined|canteen|bus|...>`` pre-fills the form.
     """
     from finance.models import Fee, FeePayment
 
@@ -2350,6 +2372,7 @@ def record_payment(request):
         'unpaid_school_fees': unpaid_school_fees,
         'fee_management_enabled': fee_management_enabled,
         'show_hostel_payment': is_feature_enabled_for_school(school.pk, 'hostel'),
+        'record_payment_initial': _record_payment_query_defaults(request, school),
         'page_title': 'Record Payment',
     }
     return render(request, 'operations/record_payment.html', context)
