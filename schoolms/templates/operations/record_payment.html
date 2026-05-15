@@ -77,8 +77,14 @@
                             <thead><tr><th>Fee</th><th>Balance</th><th>Pay now (GHS)</th></tr></thead>
                             <tbody>
                                 {% for f in unpaid_school_fees %}
-                                <tr class="combined-sf-row" data-student-id="{{ f.student_id }}" style="display: none;">
+                                <tr class="combined-sf-row" data-student-id="{{ f.student.pk }}"
+                                    {% if record_payment_initial.student_id and record_payment_initial.student_id == f.student_id %}
+                                    style=""
+                                    {% else %}
+                                    style="display: none;"
+                                    {% endif %}>
                                     <td>
+                                        <span class="text-muted small">{{ f.student.user.get_full_name }} · {{ f.student.admission_number }}</span><br>
                                         #{{ f.id }} —
                                         {% if f.description %}{{ f.description }}{% elif f.fee_structure %}{{ f.fee_structure.name }}{% else %}School fee{% endif %}
                                     </td>
@@ -398,6 +404,10 @@ function applyRecordPaymentInitialFromQuery() {
             pt.value = wanted;
         }
     }
+    /* Show the correct field group (e.g. combined) before syncing fee rows. */
+    if (typeof toggleFields === 'function') {
+        toggleFields();
+    }
     if (cfg.student_id != null && stud) {
         var sid = String(cfg.student_id);
         stud.value = sid;
@@ -406,13 +416,16 @@ function applyRecordPaymentInitialFromQuery() {
                 jQuery(stud).val(sid).trigger('change');
             } catch (e) { /* noop */ }
         }
+    }
+    function runSync() {
         if (typeof syncCombinedStudentRows === 'function') {
             syncCombinedStudentRows();
         }
     }
-    if (typeof toggleFields === 'function') {
-        toggleFields();
-    }
+    runSync();
+    setTimeout(runSync, 0);
+    setTimeout(runSync, 120);
+    setTimeout(runSync, 350);
 }
 function syncSchoolFeePick() {
     var pick = document.getElementById('school-fee-pick');
@@ -499,7 +512,7 @@ function getCombinedStudentId() {
     if (window.jQuery && jQuery.fn.select2 && jQuery(el).data('select2')) {
         var v = jQuery(el).val();
         if (v === null || v === undefined) return '';
-        return String(v);
+        return String(v).trim();
     }
     return (el.value || '').trim();
 }
@@ -508,11 +521,12 @@ function syncCombinedStudentRows() {
     var typeEl = document.getElementById('payment_type');
     if (!typeEl || typeEl.value !== 'combined') return;
     var sid = getCombinedStudentId();
+    var sidNorm = sid ? String(sid) : '';
     var hint = document.getElementById('combined-school-fee-hint');
     var visibleCount = 0;
     document.querySelectorAll('.combined-sf-row').forEach(function (row) {
-        var rsid = row.getAttribute('data-student-id');
-        if (!sid || rsid !== sid) {
+        var rsid = String(row.getAttribute('data-student-id') || '').trim();
+        if (!sidNorm || rsid !== sidNorm) {
             row.style.display = 'none';
             row.querySelectorAll('input').forEach(function (inp) { inp.value = ''; });
         } else {
@@ -521,7 +535,7 @@ function syncCombinedStudentRows() {
         }
     });
     if (hint) {
-        if (!sid) {
+        if (!sidNorm) {
             hint.textContent = 'Select a student at the top to load their outstanding school fee lines.';
         } else if (visibleCount === 0) {
             hint.textContent = 'No outstanding school fees for this student in the current list — use Fee ID + amount below if you still need to post a fee.';
@@ -542,8 +556,8 @@ function syncCombinedHostelOptions() {
             o.disabled = false;
             continue;
         }
-        var osid = o.getAttribute('data-student-id');
-        o.disabled = !!(sid && osid && osid !== sid);
+        var osid = String(o.getAttribute('data-student-id') || '').trim();
+        o.disabled = !!(sid && osid && osid !== String(sid).trim());
     }
     var cur = sel.options[sel.selectedIndex];
     if (cur && cur.value && cur.disabled) {
@@ -769,9 +783,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (schoolFeePick) schoolFeePick.addEventListener('change', syncSchoolFeePick);
     var studentSel = document.getElementById('student');
     if (studentSel) {
-        studentSel.addEventListener('change', function () {
+        var onStudentChange = function () {
             syncCombinedStudentRows();
-        });
+        };
+        studentSel.addEventListener('change', onStudentChange);
+        if (window.jQuery && jQuery.fn.select2) {
+            try {
+                jQuery(studentSel).on('select2:select select2:clear', onStudentChange);
+            } catch (e) { /* noop */ }
+        }
     }
     var combinedBusRoute = document.getElementById('combined-bus-route');
     if (combinedBusRoute) combinedBusRoute.addEventListener('change', syncCombinedBusDailyUnitsField);
