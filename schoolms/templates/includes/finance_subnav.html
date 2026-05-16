@@ -1,5 +1,5 @@
-{# Shared ERP finance navigation. Requires: user_can_manage_school, request #}
-{% if user_can_manage_school or user.is_superuser %}
+{# Shared ERP finance navigation. Shown for school managers, superusers, and accountants. #}
+{% if user_can_manage_school or user.is_superuser or can_manage_finance %}
 {% with ns=request.resolver_match.namespace|default:'' rn=request.resolver_match.url_name|default:'' %}
 <nav class="content-card finance-subnav" style="padding:0.75rem 1rem; margin-bottom:1.25rem;" aria-label="Finance modules">
     <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-soft, #94a3b8); margin-bottom:0.5rem;">Finance &amp; treasury</div>
@@ -7,6 +7,7 @@
         <a href="{% url 'finance:fee_list' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'fee_list' %}btn-primary{% else %}btn-secondary{% endif %}">School fees</a>
         <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'payment_dashboard' %}btn-primary{% else %}btn-secondary{% endif %}">Payment dashboard</a>
         <a href="{% url 'operations:record_payment' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'record_payment' %}btn-primary{% else %}btn-secondary{% endif %}">Record payment</a>
+        <a href="{% url 'operations:partial_payment_default' %}" class="btn btn-sm {% if ns == 'operations' and rn == 'partial_payment_default' or ns == 'operations' and rn == 'partial_payment' %}btn-primary{% else %}btn-secondary{% endif %}" title="Pick a student, then view balances and top-ups">Partial pay hub</a>
         <a href="{% url 'finance:payment_history_list' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_history_list' %}btn-primary{% else %}btn-secondary{% endif %}">Payment history</a>
         <a href="{% url 'finance:payment_ledger_list' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_ledger_list' %}btn-primary{% else %}btn-secondary{% endif %}">Unified ledger</a>
         <a href="{% url 'finance:payment_ledger_queue_page' %}" class="btn btn-sm {% if ns == 'finance' and rn == 'payment_ledger_queue_page' %}btn-primary{% else %}btn-secondary{% endif %}">Reconciliation queue</a>

@@ -12,7 +12,7 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
             <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Class</label>
-                <select name="class" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <select name="class" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
                     <option value="">Select Class</option>
                     {% for c in classes %}
                     <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
@@ -21,7 +21,7 @@
             </div>
             <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Term</label>
-                <select name="term" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <select name="term" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
                     <option value="">Select Term</option>
                     {% for t in terms %}
                     <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
@@ -29,6 +29,7 @@
                 </select>
             </div>
         </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Apply filters</button>
     </form>
     
     {# Rankings Table #}

@@ -10,7 +10,7 @@
         <div class="form-grid">
             <div class="form-group full-width">
                 <label for="id_student">Child</label>
-                <select id="id_student" name="student" class="form-control" onchange="this.form.submit()">
+                <select id="id_student" name="student" class="form-control">
                     {% for c in children %}
                     <option value="{{ c.id }}" {% if active_child and active_child.id == c.id %}selected{% endif %}>
                         {{ c.user.get_full_name|default:c.user.username }} · {{ c.admission_number }} · {{ c.class_name|default:"—" }}
@@ -20,7 +20,7 @@
             </div>
             <div class="form-group">
                 <label for="id_term">Term</label>
-                <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+                <select id="id_term" name="term" class="form-control">
                     <option value="">All</option>
                     {% for t in terms %}
                     <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
@@ -29,13 +29,16 @@
             </div>
             <div class="form-group">
                 <label for="id_exam_type">Exam type</label>
-                <select id="id_exam_type" name="exam_type" class="form-control" onchange="this.form.submit()">
+                <select id="id_exam_type" name="exam_type" class="form-control">
                     <option value="">All</option>
                     {% for e in exam_types %}
                     <option value="{{ e.id }}" {% if selected_exam_type == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
                     {% endfor %}
                 </select>
             </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Apply filters</button>
         </div>
     </form>
     {% endif %}
@@ -47,7 +50,7 @@
         <div class="form-grid">
             <div class="form-group">
                 <label for="id_term">Term</label>
-                <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+                <select id="id_term" name="term" class="form-control">
                     <option value="">All</option>
                     {% for t in terms %}
                     <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
@@ -56,13 +59,16 @@
             </div>
             <div class="form-group">
                 <label for="id_exam_type">Exam type</label>
-                <select id="id_exam_type" name="exam_type" class="form-control" onchange="this.form.submit()">
+                <select id="id_exam_type" name="exam_type" class="form-control">
                     <option value="">All</option>
                     {% for e in exam_types %}
                     <option value="{{ e.id }}" {% if selected_exam_type == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
                     {% endfor %}
                 </select>
             </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Apply filters</button>
         </div>
     </form>
 {% endif %}

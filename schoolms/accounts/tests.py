@@ -106,6 +106,15 @@ class TeachingScopeAndSmokeTests(TestCase):
         self.assertContains(r, "Form 1A")
         self.assertNotContains(r, ">Form 1B</option>")
 
+    def test_teacher_two_homerooms_sees_both_classes(self):
+        self.class_b.class_teacher = self.teacher_homeroom
+        self.class_b.save(update_fields=["class_teacher"])
+        self.client.login(username="scope_th", password="pass12345")
+        r = self.client.get(reverse("operations:attendance_mark"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, ">Form 1A</option>")
+        self.assertContains(r, ">Form 1B</option>")
+
     def test_teacher_timetable_sees_only_timetable_class(self):
         self.client.login(username="scope_tt", password="pass12345")
         r = self.client.get(reverse("operations:attendance_mark"))

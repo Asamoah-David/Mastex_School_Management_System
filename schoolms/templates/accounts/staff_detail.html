@@ -65,8 +65,8 @@
     </div>
     <div class="stat-card">
         <div class="stat-content">
-            <div class="stat-value">{% if staff_homeroom_class %}{{ staff_homeroom_class.name }}{% else %}—{% endif %}</div>
-            <div class="stat-label">Homeroom Class</div>
+            <div class="stat-value">{% if staff_homeroom_classes %}{% for h in staff_homeroom_classes %}{{ h.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %}</div>
+            <div class="stat-label">Homeroom class(es)</div>
         </div>
     </div>
 </div>
@@ -253,19 +253,19 @@
     </form>
     <form method="POST" action="{% url 'accounts:staff_assign_homeroom_save' staff.id %}">
         {% csrf_token %}
-        <label style="display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:0.35rem;">Homeroom class</label>
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-            <select name="school_class_id" style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(148, 163, 184, 0.5); padding: 0.45rem 1rem; border-radius: 8px; color: var(--text-main); min-width: 12rem;">
-                <option value="">— None —</option>
-                {% for c in school_classes %}
-                <option value="{{ c.id }}" {% if staff_homeroom_class and staff_homeroom_class.id == c.id %}selected{% endif %}>{{ c.name }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit" class="btn btn-secondary">Save homeroom</button>
+        <label style="display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:0.35rem;">Homeroom classes</label>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 10rem; overflow-y: auto; padding: 0.5rem; background: rgba(15,23,42,0.6); border-radius: 0.5rem;">
+            {% for c in school_classes %}
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: #e5e7eb;">
+                <input type="checkbox" name="school_class_ids" value="{{ c.id }}"
+                    {% if c.id in staff_homeroom_ids %}checked{% endif %}>
+                {{ c.name }}
+            </label>
+            {% empty %}
+            <span style="color:#9ca3af;">No classes defined for this school.</span>
+            {% endfor %}
         </div>
-        {% if staff_homeroom_class %}
-        <p style="color:#6ee7b7; font-size:0.8rem; margin-top:0.5rem;">Current homeroom: <strong>{{ staff_homeroom_class.name }}</strong></p>
-        {% endif %}
+        <button type="submit" class="btn btn-secondary mt-sm">Save homeroom classes</button>
     </form>
 </div>
 

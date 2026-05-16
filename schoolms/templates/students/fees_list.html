@@ -18,7 +18,7 @@
 <div class="content-card" style="margin-bottom:1rem;padding:0.75rem 1rem;">
     <form method="get" action="" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
         <label for="id_fee_child" style="font-size:0.88rem;">Child</label>
-        <select name="student" id="id_fee_child" onchange="this.form.submit()" style="padding:0.45rem;border-radius:8px;min-width:14rem;">
+        <select name="student" id="id_fee_child" style="padding:0.45rem;border-radius:8px;min-width:14rem;">
             <option value="">All children</option>
             {% for c in children %}
             <option value="{{ c.pk }}" {% if active_child and active_child.pk == c.pk %}selected{% endif %}>
@@ -26,9 +26,15 @@
             </option>
             {% endfor %}
         </select>
+        <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
     </form>
 </div>
 {% endif %}
+
+<div class="content-card" style="margin-bottom:1rem;padding:0.75rem 1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+    <a href="{% url 'operations:partial_payment_default' %}{% if mode == 'parent' and active_child %}?student={{ active_child.pk }}{% endif %}" class="btn btn-sm btn-primary">Top-up / partial payment hub</a>
+    <span class="text-sm text-muted" style="max-width:36rem;">Pay toward school fees, transport, canteen, hostel, and more. Parents with several children can pick a child above first so the hub opens for the right learner.</span>
+</div>
 
 {% if fees %}
 <div class="table-card">

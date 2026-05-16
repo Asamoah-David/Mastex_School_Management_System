@@ -761,6 +761,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'operations:services_hub' %}" class="nav-item"><span class="nav-item-icon">🏫</span><div class="nav-item-label"><span class="nav-item-title">Services Hub</span><span class="nav-item-sub">Canteen, fees, library…</span></div></a></li>
                                 <li><a href="/admin/" class="nav-item"><span class="nav-item-icon">⚙️</span><div class="nav-item-label"><span class="nav-item-title">Django Admin</span></div></a></li>
                                 <li><a href="{% url 'messaging:superuser_send_message' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Broadcast to Schools</span></div></a></li>
+                                <li><a href="{% url 'recruitment:platform_dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BC;</span><div class="nav-item-label"><span class="nav-item-title">Recruitment overview</span><span class="nav-item-sub">Jobs &amp; applications (all schools)</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -797,7 +798,7 @@ background: rgba(2, 6, 23, 0.98);
                                 {% if feature_omr_marking %}<li><a href="{% url 'omr:dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F7;</span><div class="nav-item-label"><span class="nav-item-title">OMR Marking</span><span class="nav-item-sub">Scan &amp; auto-mark sheets</span></div></a></li>{% endif %}
                                 {% if feature_question_bank %}<li><a href="{% url 'academics:question_bank_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F5C3;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Question Bank</span><span class="nav-item-sub">Reusable exam questions</span></div></a></li>{% endif %}
                                 {% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-                                <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}
+                                {% if user_can_manage_school %}<li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays{% if pending_essay_queue_count %} <span style="display:inline-block;min-width:1.25rem;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:700;line-height:1;text-align:center;border-radius:999px;background:#ca8a04;color:#fff;">{% if pending_essay_queue_count > 99 %}99+{% else %}{{ pending_essay_queue_count }}{% endif %}</span>{% endif %}</span></div></a></li>{% endif %}{% endif %}
                                 {% if feature_virtual_meetings %}<li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>{% endif %}
                             </ul>
                         </div>
@@ -806,7 +807,8 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-header" onclick="toggleSection(this)"><span>&#x1F4C8; Analytics</span><span class="toggle-icon">&#x25BE;</span></div>
                         <div class="nav-section-items">
                             <ul class="nav-list">
-                                {% if feature_performance_analytics %}<li><a href="{% url 'academics:performance_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C8;</span><div class="nav-item-label"><span class="nav-item-title">Performance</span></div></a></li>{% endif %}
+                                {% if feature_performance_analytics %}<li><a href="{% url 'academics:performance_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C8;</span><div class="nav-item-label"><span class="nav-item-title">Performance</span></div></a></li>
+                                <li><a href="{% url 'academics:performance_dashboard' %}" class="nav-item"><span class="nav-item-icon">&#x1F4CA;</span><div class="nav-item-label"><span class="nav-item-title">Performance dashboard</span><span class="nav-item-sub">Charts &amp; overview</span></div></a></li>{% endif %}
                                 {% if feature_performance_analytics %}<li><a href="{% url 'academics:predictive_analytics' %}" class="nav-item"><span class="nav-item-icon">&#x1F52E;</span><div class="nav-item-label"><span class="nav-item-title">Predictions</span></div></a></li>{% endif %}
                                 {% if feature_performance_analytics %}<li><a href="{% url 'academics:trend_analysis' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C9;</span><div class="nav-item-label"><span class="nav-item-title">Trends</span></div></a></li>{% endif %}
                                 {% if feature_performance_analytics %}<li><a href="{% url 'academics:cohort_analysis' %}" class="nav-item"><span class="nav-item-icon">&#x1F393;</span><div class="nav-item-label"><span class="nav-item-title">Cohorts</span></div></a></li>{% endif %}
@@ -986,7 +988,7 @@ background: rgba(2, 6, 23, 0.98);
                         <div class="nav-section-items">
                             <ul class="nav-list">
                                 {% if feature_online_exams %}<li><a href="{% url 'operations:online_exam_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4BB;</span><div class="nav-item-label"><span class="nav-item-title">Online Exams</span></div></a></li>
-                                <li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays</span></div></a></li>{% endif %}
+                                {% if user_can_manage_school %}<li><a href="{% url 'operations:online_exam_essay_queue' %}" class="nav-item"><span class="nav-item-icon">&#x270F;&#xFE0F;</span><div class="nav-item-label"><span class="nav-item-title">Grade Essays</span></div></a></li>{% endif %}{% endif %}
                                 {% if feature_virtual_meetings %}<li><a href="{% url 'academics:online_classes' %}" class="nav-item"><span class="nav-item-icon">&#x1F4F9;</span><div class="nav-item-label"><span class="nav-item-title">Virtual Meetings</span></div></a></li>{% endif %}
                                 {% if feature_quiz %}<li><a href="{% url 'academics:quiz_list' %}" class="nav-item"><span class="nav-item-icon">&#x2753;</span><div class="nav-item-label"><span class="nav-item-title">Quizzes</span></div></a></li>{% endif %}
                                 {% if feature_exams %}<li><a href="{% url 'academics:exam_schedule_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C5;</span><div class="nav-item-label"><span class="nav-item-title">Exam Schedule</span></div></a></li>{% endif %}
@@ -1058,6 +1060,7 @@ background: rgba(2, 6, 23, 0.98);
                                 {% if feature_hostel %}<li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>{% endif %}
                                 {% if feature_textbooks %}<li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'operations:my_payments' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payment History</span></div></a></li>
+                                <li><a href="{% url 'operations:partial_payment_default' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B3;</span><div class="nav-item-label"><span class="nav-item-title">Top-up / partial pay</span><span class="nav-item-sub">School &amp; other balances</span></div></a></li>
                             </ul>
                         </div>
                     </div>
@@ -1088,6 +1091,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
                                 <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">💬</span><div class="nav-item-label"><span class="nav-item-title">Messages</span></div></a></li>
                                 {% if feature_ai_assistant %}<li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>{% endif %}
+                                {% if feature_documents %}<li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C1;</span><div class="nav-item-label"><span class="nav-item-title">Documents</span><span class="nav-item-sub">Files shared with you</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">🔔</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
                             </ul>
                         </div>
@@ -1133,6 +1137,7 @@ background: rgba(2, 6, 23, 0.98);
                                 {% if feature_hostel %}<li><a href="{% url 'operations:hostel_my' %}" class="nav-item"><span class="nav-item-icon">🏠</span><div class="nav-item-label"><span class="nav-item-title">Hostel Fees</span></div></a></li>{% endif %}
                                 {% if feature_textbooks %}<li><a href="{% url 'operations:textbook_my' %}" class="nav-item"><span class="nav-item-icon">📕</span><div class="nav-item-label"><span class="nav-item-title">Textbook Fees</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'operations:my_payments' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payment History</span></div></a></li>
+                                <li><a href="{% url 'operations:partial_payment_default' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B3;</span><div class="nav-item-label"><span class="nav-item-title">Top-up / partial pay</span><span class="nav-item-sub">Per-child hub (use child filter)</span></div></a></li>
                                 {% if feature_class_supplies %}<li><a href="{% url 'operations:parent_supply_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F392;</span><div class="nav-item-label"><span class="nav-item-title">Class Supplies</span><span class="nav-item-sub">Items needed for your child</span></div></a></li>{% endif %}
                             </ul>
                         </div>
@@ -1164,6 +1169,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'students:announcements_list' %}" class="nav-item"><span class="nav-item-icon">📢</span><div class="nav-item-label"><span class="nav-item-title">Announcements</span></div></a></li>
                                 <li><a href="{% url 'messaging:chat_view' %}" class="nav-item"><span class="nav-item-icon">💬</span><div class="nav-item-label"><span class="nav-item-title">Messages</span></div></a></li>
                                 {% if feature_ai_assistant %}<li><a href="{% url 'ai_assistant:chatbot' %}" class="nav-item"><span class="nav-item-icon">🤖</span><div class="nav-item-label"><span class="nav-item-title">AI Assistant</span></div></a></li>{% endif %}
+                                {% if feature_documents %}<li><a href="{% url 'operations:document_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F4C1;</span><div class="nav-item-label"><span class="nav-item-title">Documents</span><span class="nav-item-sub">Children’s files</span></div></a></li>{% endif %}
                                 <li><a href="{% url 'notifications:list' %}" class="nav-item"><span class="nav-item-icon">🔔</span><div class="nav-item-label"><span class="nav-item-title">Notifications</span></div></a></li>
                             </ul>
                         </div>
@@ -1181,6 +1187,7 @@ background: rgba(2, 6, 23, 0.98);
                                 <li><a href="{% url 'finance:fee_list' %}" class="nav-item"><span class="nav-item-icon">💵</span><div class="nav-item-label"><span class="nav-item-title">Fee Structures</span></div></a></li>
                                 <li><a href="{% url 'operations:payment_dashboard' %}" class="nav-item"><span class="nav-item-icon">💳</span><div class="nav-item-label"><span class="nav-item-title">Payments</span></div></a></li>
                                 <li><a href="{% url 'operations:record_payment' %}" class="nav-item"><span class="nav-item-icon">✏️</span><div class="nav-item-label"><span class="nav-item-title">Record Payment</span></div></a></li>
+                                <li><a href="{% url 'operations:partial_payment_default' %}" class="nav-item"><span class="nav-item-icon">&#x1F4B3;</span><div class="nav-item-label"><span class="nav-item-title">Partial pay hub</span><span class="nav-item-sub">Pick student, top-ups</span></div></a></li>
                                 <li><a href="{% url 'finance:parent_fee_list' %}" class="nav-item"><span class="nav-item-icon">👨‍👩‍👧</span><div class="nav-item-label"><span class="nav-item-title">Parent Fees</span></div></a></li>
                                 {% if feature_finance_admin %}<li><a href="{% url 'finance:purchase_order_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F6D2;</span><div class="nav-item-label"><span class="nav-item-title">Purchase Orders</span></div></a></li>
                                 <li><a href="{% url 'finance:bank_account_list' %}" class="nav-item"><span class="nav-item-icon">&#x1F3E6;</span><div class="nav-item-label"><span class="nav-item-title">Bank Accounts</span></div></a></li>
@@ -1814,7 +1821,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% if user.is_authenticated %}
 <nav class="mobile-bottom-nav" aria-label="Quick navigation">
-    <div class="mobile-bottom-nav-inner{% if is_school_leadership or is_super_admin %} mobile-bottom-nav-inner--dense{% endif %}">
+    <div class="mobile-bottom-nav-inner{% if is_school_leadership or is_super_admin or nav_portal_profile == 'student' or nav_portal_profile == 'parent' %} mobile-bottom-nav-inner--dense{% endif %}">
         {% if is_school_leadership or is_super_admin %}
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Dashboard</a>
         <a href="{% url 'students:student_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F393;</span>Students</a>
@@ -1834,7 +1841,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <a href="{% url 'home' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F3E0;</span>Home</a>
         <a href="{% url 'students:results_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Results</a>
         <a href="{% url 'students:fees_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B5;</span>Fees</a>
+        <a href="{% url 'operations:partial_payment_default' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B3;</span>Top-up</a>
+        {% if feature_homework %}<a href="{% url 'operations:homework_for_student' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DD;</span>Homework</a>{% endif %}
+        {% if feature_online_exams %}<a href="{% url 'operations:online_exam_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4BB;</span>Exams</a>{% endif %}
         <a href="{% url 'academics:timetable_my' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x23F0;</span>Timetable</a>
+        {% if feature_documents %}<a href="{% url 'operations:document_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4C1;</span>Files</a>{% endif %}
         <a href="{% url 'students:announcements_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4E2;</span>News</a>
         <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
         <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>
@@ -1842,6 +1853,9 @@ document.addEventListener('DOMContentLoaded', function() {
         <a href="{% url 'students:parent_dashboard' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F3E0;</span>Home</a>
         <a href="{% url 'students:results_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4CA;</span>Results</a>
         <a href="{% url 'finance:parent_fee_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B5;</span>Fees</a>
+        <a href="{% url 'operations:partial_payment_default' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4B3;</span>Top-up</a>
+        {% if feature_homework %}<a href="{% url 'operations:homework_for_student' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4DD;</span>Homework</a>{% endif %}
+        {% if feature_documents %}<a href="{% url 'operations:document_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4C1;</span>Files</a>{% endif %}
         <a href="{% url 'students:announcements_list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4E2;</span>News</a>
         <a href="{% url 'messaging:chat_view' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F4AC;</span>Messages</a>
         <a href="{% url 'notifications:list' %}" class="mobile-nav-item"><span class="mobile-nav-icon">&#x1F514;</span>Alerts</a>

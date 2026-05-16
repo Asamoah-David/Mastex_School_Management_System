@@ -16,6 +16,7 @@ from django.utils.dateparse import parse_date
 from django.conf import settings
 import uuid
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
 from accounts.decorators import login_required, parent_required, student_required
 from accounts.permissions import (
@@ -1294,8 +1295,10 @@ def payment_dashboard(request):
     
     # Sort by date descending
     recent_payments.sort(key=lambda x: x['date'], reverse=True)
+    recent_payments_merged_count = len(recent_payments)
     recent_payments = recent_payments[:50]  # Limit to 50 most recent
-    
+    payment_dashboard_recent_activity_truncated = recent_payments_merged_count > 50
+
     # Count variables for template
     canteen_count = canteen_filtered.count()
     bus_count = bus_filtered.count()
@@ -1314,12 +1317,15 @@ def payment_dashboard(request):
     bus_payments_page_obj = bus_payments_paginator.get_page(bus_payments_page_number)
     canteen_payments_page_obj = canteen_payments_paginator.get_page(canteen_payments_page_number)
     
-    outstanding_students = (
+    outstanding_os_cap = 10
+    outstanding_slice = list(
         Student.objects.filter(school=school, fee__paid=False)
         .distinct()
-        .select_related('user')
-        .order_by('user__last_name', 'user__first_name')[:10]
+        .select_related("user")
+        .order_by("user__last_name", "user__first_name")[: outstanding_os_cap + 1]
     )
+    payment_dashboard_outstanding_students_truncated = len(outstanding_slice) > outstanding_os_cap
+    outstanding_students = outstanding_slice[:outstanding_os_cap]
 
     # Daily collections — use PaymentTransaction as the unified ledger
     from django.db.models.functions import TruncDate
@@ -1330,14 +1336,17 @@ def payment_dashboard(request):
         daily_qs = daily_qs.filter(created_at__date__gte=range_start)
     if range_end:
         daily_qs = daily_qs.filter(created_at__date__lte=range_end)
-    daily_collections = list(
-        daily_qs
-        .annotate(day=TruncDate('created_at'))
+    daily_raw = list(
+        daily_qs.annotate(day=TruncDate('created_at'))
         .values('day')
         .annotate(total=_Sum('amount'))
-        .order_by('-day')[:30]
+        .order_by('-day')[:31]
     )
+    payment_dashboard_daily_chart_truncated = len(daily_raw) > 30
+    daily_collections = daily_raw[:30]
     grand_total = sum((r['total'] or Decimal('0')) for r in daily_collections)
+
+    payment_dashboard_school_fee_rows_truncated = school_fees_filtered.count() > 20
 
     context = {
         'fees': school_fees_filtered[:20],
@@ -1372,6 +1381,14 @@ def payment_dashboard(request):
         'canteen_payments_page_obj': canteen_payments_page_obj,
         'daily_collections': daily_collections,
         'grand_total': grand_total,
+        'payment_dashboard_recent_activity_truncated': payment_dashboard_recent_activity_truncated,
+        'payment_dashboard_recent_activity_cap': 50,
+        'payment_dashboard_outstanding_students_truncated': payment_dashboard_outstanding_students_truncated,
+        'payment_dashboard_outstanding_students_cap': outstanding_os_cap,
+        'payment_dashboard_daily_chart_truncated': payment_dashboard_daily_chart_truncated,
+        'payment_dashboard_daily_chart_cap': 30,
+        'payment_dashboard_school_fee_rows_truncated': payment_dashboard_school_fee_rows_truncated,
+        'payment_dashboard_school_fee_rows_cap': 20,
     }
     return render(request, 'operations/payment_dashboard.html', context)
 
@@ -1966,6 +1983,32 @@ def _record_payment_query_defaults(request, school):
     return {"student_id": student_id, "payment_type": payment_type}
 
 
+def _record_payment_error_redirect(request):
+    """Redirect back to record payment, preserving student and payment type in the query string."""
+    q = {}
+    pt = (request.POST.get("payment_type") or "").strip()
+    if pt:
+        q["type"] = pt
+    sid = (
+        (request.POST.get("student") or request.POST.get("school_fee_student_id") or "")
+        .strip()
+    )
+    if sid.isdigit():
+        q["student"] = sid
+    if not q.get("student"):
+        gs = (request.GET.get("student") or "").strip()
+        if gs.isdigit():
+            q["student"] = gs
+    if not q.get("type"):
+        gt = (request.GET.get("type") or "").strip()
+        if gt:
+            q["type"] = gt
+    base = reverse("operations:record_payment")
+    if q:
+        return redirect(f"{base}?{urlencode(q)}")
+    return redirect(base)
+
+
 @login_required
 def record_payment(request):
     """Manually record a cash/offline payment for a student.
@@ -2006,7 +2049,7 @@ def record_payment(request):
             res = _process_combined_record_payment(request, school, payment_method)
             if isinstance(res, str):
                 messages.error(request, res)
-                return redirect("operations:record_payment")
+                return _record_payment_error_redirect(request)
             msg, stud_pk = res
             messages.success(request, msg)
             return redirect("operations:student_payment_history", student_id=stud_pk)
@@ -2029,7 +2072,7 @@ def record_payment(request):
                 
                 if payment_frequency == 'daily' and daily_units <= 0:
                     messages.error(request, 'Enter number of days for daily payment.')
-                    return redirect('operations:record_payment')
+                    return _record_payment_error_redirect(request)
             elif payment_type == 'textbook':
                 amount_str = request.POST.get('textbook_amount', '0')
             elif payment_type == 'hostel':
@@ -2043,10 +2086,10 @@ def record_payment(request):
                     raise ValueError("Amount must be positive.")
             except Student.DoesNotExist:
                 messages.error(request, "Student not found.")
-                return redirect('operations:record_payment')
+                return _record_payment_error_redirect(request)
             except (ValueError, InvalidOperation) as exc:
                 messages.error(request, f"Invalid amount: {exc}")
-                return redirect('operations:record_payment')
+                return _record_payment_error_redirect(request)
 
             reference = f"CASH_{payment_type.upper()}_{uuid.uuid4().hex[:10].upper()}"
             success_amount = amount_decimal
@@ -2090,11 +2133,11 @@ def record_payment(request):
                     route_id = (request.POST.get('bus_route_id') or '').strip()
                     if not route_id:
                         messages.error(request, "Select a bus route for this payment.")
-                        return redirect('operations:record_payment')
+                        return _record_payment_error_redirect(request)
                     route = BusRoute.objects.filter(pk=route_id, school=school).first()
                     if not route:
                         messages.error(request, "Bus route not found.")
-                        return redirect('operations:record_payment')
+                        return _record_payment_error_redirect(request)
                     try:
                         bus_daily_units = int(request.POST.get('bus_daily_units', '0'))
                     except (TypeError, ValueError):
@@ -2102,7 +2145,7 @@ def record_payment(request):
                     if route.payment_frequency == 'daily':
                         if bus_daily_units <= 0:
                             messages.error(request, "Enter how many days this daily bus payment covers.")
-                            return redirect('operations:record_payment')
+                            return _record_payment_error_redirect(request)
                         expected = (
                             Decimal(str(route.fee_per_term or 0)) * bus_daily_units
                         ).quantize(Decimal('0.01'))
@@ -2112,7 +2155,7 @@ def record_payment(request):
                                 f"For this daily route, amount must be GHS {expected} "
                                 f"(GHS {route.fee_per_term} × {bus_daily_units} days).",
                             )
-                            return redirect('operations:record_payment')
+                            return _record_payment_error_redirect(request)
                     else:
                         bus_daily_units = 0
                         expected_period = Decimal(str(route.fee_per_term or 0)).quantize(Decimal('0.01'))
@@ -2122,7 +2165,7 @@ def record_payment(request):
                                 request,
                                 f"For this {freq_label.lower()} route, the amount must be GHS {expected_period}.",
                             )
-                            return redirect('operations:record_payment')
+                            return _record_payment_error_redirect(request)
 
                     with transaction.atomic():
                         obj = BusPayment.objects.create(
@@ -2209,7 +2252,7 @@ def record_payment(request):
                     hostel_fee_id = (request.POST.get('hostel_fee_id') or '').strip()
                     if not hostel_fee_id:
                         messages.error(request, "Select a hostel fee to pay.")
-                        return redirect('operations:record_payment')
+                        return _record_payment_error_redirect(request)
                     with transaction.atomic():
                         fee = HostelFee.objects.select_for_update().get(pk=hostel_fee_id, school=school)
                         if fee.student_id != student.pk:
@@ -2217,10 +2260,10 @@ def record_payment(request):
                                 request,
                                 "The selected hostel fee does not belong to the selected student.",
                             )
-                            return redirect('operations:record_payment')
+                            return _record_payment_error_redirect(request)
                         if fee.paid:
                             messages.error(request, "This hostel fee is already fully paid.")
-                            return redirect('operations:record_payment')
+                            return _record_payment_error_redirect(request)
                         balance = ((fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))).quantize(
                             Decimal("0.01")
                         )
@@ -2229,7 +2272,7 @@ def record_payment(request):
                                 request,
                                 f"Amount exceeds remaining hostel balance (GHS {balance}).",
                             )
-                            return redirect('operations:record_payment')
+                            return _record_payment_error_redirect(request)
                         applied = mark_hostel_fee_completed(
                             fee=fee,
                             reference=reference,
@@ -2239,18 +2282,21 @@ def record_payment(request):
                         )
                     if applied <= 0:
                         messages.error(request, "Could not record hostel payment.")
-                        return redirect('operations:record_payment')
+                        return _record_payment_error_redirect(request)
 
                 messages.success(request, f"{payment_type.title()} payment of GHS {success_amount} recorded.")
                 return redirect('operations:payment_dashboard')
 
             except Textbook.DoesNotExist:
                 messages.error(request, "Textbook not found.")
+                return _record_payment_error_redirect(request)
             except HostelFee.DoesNotExist:
                 messages.error(request, "Hostel fee not found.")
+                return _record_payment_error_redirect(request)
             except Exception as exc:
                 logger.exception("record_payment: failed to record %s cash payment: %s", payment_type, exc)
                 messages.error(request, f"Failed to record payment: {exc}")
+                return _record_payment_error_redirect(request)
 
         elif payment_type == 'school_fee':
             if (redir := require_feature(request, "fee_management", "accounts:dashboard", school=school)):
@@ -2261,13 +2307,13 @@ def record_payment(request):
             amount = request.POST.get('school_fee_amount')
             if not (student_id and fee_id and amount):
                 messages.error(request, "Please select a student, enter a fee ID, and enter an amount.")
-                return redirect('operations:record_payment')
+                return _record_payment_error_redirect(request)
             try:
                 student = Student.objects.get(id=student_id, school=school)
                 amount_decimal = Decimal(str(amount)).quantize(Decimal('0.01'))
                 if amount_decimal <= 0:
                     messages.error(request, "Amount must be positive")
-                    return redirect('operations:record_payment')
+                    return _record_payment_error_redirect(request)
                 with transaction.atomic():
                     fee = (
                         Fee.objects.select_for_update()
@@ -2282,7 +2328,7 @@ def record_payment(request):
                     )
                     if not fee:
                         messages.error(request, "Fee not found, or it is inactive/archived.")
-                        return redirect('operations:record_payment')
+                        return _record_payment_error_redirect(request)
                     balance = (
                         (fee.amount or Decimal("0")) - (fee.amount_paid or Decimal("0"))
                     ).quantize(Decimal("0.01"))
@@ -2291,7 +2337,7 @@ def record_payment(request):
                             request,
                             f"Amount exceeds remaining fee balance (GHS {balance}).",
                         )
-                        return redirect('operations:record_payment')
+                        return _record_payment_error_redirect(request)
                     fp = FeePayment.objects.create(
                         fee=fee,
                         amount=amount_decimal,
@@ -2337,24 +2383,30 @@ def record_payment(request):
                 return redirect('operations:student_payment_history', student_id=student.id)
             except Student.DoesNotExist:
                 messages.error(request, "Student not found")
+                return _record_payment_error_redirect(request)
             except (ValueError, InvalidOperation, TypeError):
                 messages.error(request, "Invalid amount")
+                return _record_payment_error_redirect(request)
         else:
             messages.error(request, "Please select a payment type before submitting.")
-            return redirect('operations:record_payment')
+            return _record_payment_error_redirect(request)
 
     students = Student.objects.filter(school=school, status='active').select_related('user').order_by('user__first_name')
     textbooks = Textbook.objects.filter(school=school, stock__gt=0).order_by('title')
     bus_routes = BusRoute.objects.filter(school=school).order_by('name')
-    hostel_fees = (
+    _rp_list_cap = 400
+    hostel_prefetch = list(
         HostelFee.objects.filter(school=school, paid=False)
         .select_related('student__user', 'hostel')
-        .order_by('-id')[:400]
+        .order_by('-id')[: _rp_list_cap + 1]
     )
+    record_payment_hostel_list_truncated = len(hostel_prefetch) > _rp_list_cap
+    hostel_fees = hostel_prefetch[:_rp_list_cap]
     fee_management_enabled = is_feature_enabled_for_school(school.pk, "fee_management")
     unpaid_school_fees = []
+    record_payment_unpaid_school_fees_truncated = False
     if fee_management_enabled:
-        unpaid_school_fees = list(
+        unpaid_prefetch = list(
             Fee.objects.filter(
                 school=school,
                 deleted_at__isnull=True,
@@ -2362,8 +2414,10 @@ def record_payment(request):
             )
             .filter(amount__gt=F("amount_paid"))
             .select_related("student__user", "term", "fee_structure")
-            .order_by("-created_at")[:400]
+            .order_by("-created_at")[: _rp_list_cap + 1]
         )
+        record_payment_unpaid_school_fees_truncated = len(unpaid_prefetch) > _rp_list_cap
+        unpaid_school_fees = unpaid_prefetch[:_rp_list_cap]
     context = {
         'students': students,
         'textbooks': textbooks,
@@ -2374,6 +2428,9 @@ def record_payment(request):
         'show_hostel_payment': is_feature_enabled_for_school(school.pk, 'hostel'),
         'record_payment_initial': _record_payment_query_defaults(request, school),
         'page_title': 'Record Payment',
+        'record_payment_list_cap': _rp_list_cap,
+        'record_payment_hostel_list_truncated': record_payment_hostel_list_truncated,
+        'record_payment_unpaid_school_fees_truncated': record_payment_unpaid_school_fees_truncated,
     }
     return render(request, 'operations/record_payment.html', context)
 

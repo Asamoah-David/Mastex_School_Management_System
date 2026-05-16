@@ -31,7 +31,8 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Case, DecimalField, F, Sum, Value, When
+from django.db.models.functions import Coalesce
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -42,6 +43,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+
+PARTIAL_HUB_HISTORY_LINE_CAP = 50
 
 FEE_LABELS = {
     "school_fees": "School Fees",
@@ -178,12 +181,12 @@ def _resolve_student(request: HttpRequest, school):
 _ZERO = Decimal("0")
 
 
-def _collect_school_fees(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
+def _collect_school_fees(school, student) -> Tuple[Decimal, Decimal, Decimal, list, dict]:
     try:
         from finance.models import Fee, FeePayment
     except Exception:
         logger.exception("partial_payment: finance models unavailable")
-        return _ZERO, _ZERO, _ZERO, []
+        return _ZERO, _ZERO, _ZERO, [], {}
 
     fees = (
         Fee.objects.filter(school=school, student=student, is_active=True, deleted_at__isnull=True)
@@ -211,15 +214,15 @@ def _collect_school_fees(school, student) -> Tuple[Decimal, Decimal, Decimal, li
             "action_label": "Pay online" if balance > 0 else "Paid",
             "kind": "school_fees",
         })
-    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows
+    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows, {}
 
 
-def _collect_bus(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
+def _collect_bus(school, student) -> Tuple[Decimal, Decimal, Decimal, list, dict]:
     try:
         from operations.models import BusPayment
     except Exception:
         logger.exception("partial_payment: BusPayment model unavailable")
-        return _ZERO, _ZERO, _ZERO, []
+        return _ZERO, _ZERO, _ZERO, [], {}
 
     qs = (
         BusPayment.objects.filter(school=school, student=student)
@@ -249,15 +252,15 @@ def _collect_bus(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
             "action_label": "Pay online" if balance > 0 else "Paid",
             "kind": "bus",
         })
-    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows
+    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows, {}
 
 
-def _collect_hostel(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
+def _collect_hostel(school, student) -> Tuple[Decimal, Decimal, Decimal, list, dict]:
     try:
         from operations.models import HostelFee
     except Exception:
         logger.exception("partial_payment: HostelFee model unavailable")
-        return _ZERO, _ZERO, _ZERO, []
+        return _ZERO, _ZERO, _ZERO, [], {}
 
     qs = (
         HostelFee.objects.filter(school=school, student=student)
@@ -286,88 +289,126 @@ def _collect_hostel(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
             "action_label": "Pay online" if balance > 0 else "Paid",
             "kind": "hostel",
         })
-    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows
+    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows, {}
 
 
-def _collect_canteen(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
+def _collect_canteen(school, student) -> Tuple[Decimal, Decimal, Decimal, list, dict]:
     try:
         from operations.models import CanteenPayment
     except Exception:
         logger.exception("partial_payment: CanteenPayment model unavailable")
-        return _ZERO, _ZERO, _ZERO, []
+        return _ZERO, _ZERO, _ZERO, [], {}
 
-    qs = (
-        CanteenPayment.objects.filter(school=school, student=student)
-        .order_by("-id")[:50]
+    D = DecimalField(max_digits=16, decimal_places=2)
+    base = CanteenPayment.objects.filter(school=school, student=student)
+    agg = base.aggregate(
+        total_billed=Coalesce(Sum("amount"), Value(0, output_field=D), output_field=D),
+        total_paid=Coalesce(
+            Sum(
+                Case(
+                    When(payment_status="completed", then=F("amount")),
+                    default=Coalesce(F("amount_paid"), Value(0, output_field=D)),
+                    output_field=D,
+                )
+            ),
+            Value(0, output_field=D),
+            output_field=D,
+        ),
     )
+    total_billed = Decimal(str(agg["total_billed"] or 0))
+    total_paid = Decimal(str(agg["total_paid"] or 0))
+    balance = max(total_billed - total_paid, _ZERO)
+
+    cap = PARTIAL_HUB_HISTORY_LINE_CAP
+    slice_objs = list(base.order_by("-id")[: cap + 1])
+    truncated = len(slice_objs) > cap
+    slice_objs = slice_objs[:cap]
     rows = []
-    total_billed = _ZERO
-    total_paid = _ZERO
-    for cp in qs:
+    for cp in slice_objs:
         amt = Decimal(str(cp.amount or 0))
         if cp.payment_status == "completed":
             paid = amt
         else:
             paid = Decimal(str(cp.amount_paid or 0))
-        balance = max(amt - paid, _ZERO)
-        total_billed += amt
-        total_paid += paid
+        balance_row = max(amt - paid, _ZERO)
         rows.append({
             "id": cp.id,
             "label": f"Canteen — {cp.description or 'Meal'}",
             "term": "",
             "amount": amt,
             "paid": paid,
-            "balance": balance,
+            "balance": balance_row,
             "status": cp.payment_status,
-            "action_label": "Pay online" if balance > 0 else "Paid",
+            "action_label": "Pay online" if balance_row > 0 else "Paid",
             "kind": "canteen",
         })
-    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows
+    meta = {}
+    if truncated:
+        meta["line_history_cap"] = cap
+        meta["line_history_truncated"] = True
+    return total_billed, total_paid, balance, rows, meta
 
 
-def _collect_textbook(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
+def _collect_textbook(school, student) -> Tuple[Decimal, Decimal, Decimal, list, dict]:
     try:
         from operations.models import TextbookSale
     except Exception:
         logger.exception("partial_payment: TextbookSale model unavailable")
-        return _ZERO, _ZERO, _ZERO, []
+        return _ZERO, _ZERO, _ZERO, [], {}
 
-    qs = (
-        TextbookSale.objects.filter(school=school, student=student)
-        .select_related("textbook")
-        .order_by("-id")[:50]
+    D = DecimalField(max_digits=16, decimal_places=2)
+    base = TextbookSale.objects.filter(school=school, student=student).select_related("textbook")
+    agg = base.aggregate(
+        total_billed=Coalesce(Sum("amount"), Value(0, output_field=D), output_field=D),
+        total_paid=Coalesce(
+            Sum(
+                Case(
+                    When(payment_status="completed", then=F("amount")),
+                    default=Value(0, output_field=D),
+                    output_field=D,
+                )
+            ),
+            Value(0, output_field=D),
+            output_field=D,
+        ),
     )
+    total_billed = Decimal(str(agg["total_billed"] or 0))
+    total_paid = Decimal(str(agg["total_paid"] or 0))
+    balance = max(total_billed - total_paid, _ZERO)
+
+    cap = PARTIAL_HUB_HISTORY_LINE_CAP
+    slice_objs = list(base.order_by("-id")[: cap + 1])
+    truncated = len(slice_objs) > cap
+    slice_objs = slice_objs[:cap]
     rows = []
-    total_billed = _ZERO
-    total_paid = _ZERO
-    for ts in qs:
+    for ts in slice_objs:
         amt = Decimal(str(ts.amount or 0))
-        # TextbookSale doesn't track partial payments; it's all-or-nothing.
         paid = amt if ts.payment_status == "completed" else _ZERO
-        balance = amt - paid
-        total_billed += amt
-        total_paid += paid
+        balance_row = amt - paid
         rows.append({
             "id": ts.id,
             "label": f"Textbook — {ts.textbook.title if ts.textbook_id else 'Book removed'} × {ts.quantity}",
             "term": "",
             "amount": amt,
             "paid": paid,
-            "balance": balance,
+            "balance": balance_row,
             "status": ts.payment_status,
-            "action_label": "Pay online" if balance > 0 else "Paid",
+            "action_label": "Pay online" if balance_row > 0 else "Paid",
             "kind": "textbook",
         })
-    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows
+    meta = {}
+    if truncated:
+        meta["line_history_cap"] = cap
+        meta["line_history_truncated"] = True
+    return total_billed, total_paid, balance, rows, meta
 
 
-def _collect_library(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
+def _collect_library(school, student) -> Tuple[Decimal, Decimal, Decimal, list, dict]:
     try:
         from operations.models import LibraryFine
     except Exception:
         logger.exception("partial_payment: LibraryFine model unavailable")
-        return _ZERO, _ZERO, _ZERO, []
+        return _ZERO, _ZERO, _ZERO, [], {}
 
     qs = (
         LibraryFine.objects.filter(school=school, issue__student=student)
@@ -395,7 +436,7 @@ def _collect_library(school, student) -> Tuple[Decimal, Decimal, Decimal, list]:
             "action_label": "Pay in person" if balance > 0 else "Paid",
             "kind": "library",
         })
-    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows
+    return total_billed, total_paid, max(total_billed - total_paid, _ZERO), rows, {}
 
 
 COLLECTORS = {
@@ -437,6 +478,43 @@ def partial_payment_page(request: HttpRequest, fee_type: str = "school_fees") ->
     if (redir := _partial_hub_product_gate(request, school, fee_type, require_online_paystack=False)):
         return redir
 
+    role = getattr(request.user, "role", None)
+    raw_stu = (request.GET.get("student") or request.POST.get("student_id") or "").strip()
+    if role not in ("student", "parent"):
+        from accounts.permissions import can_manage_finance, user_can_manage_school
+
+        if not (
+            user_can_manage_school(request.user)
+            or can_manage_finance(request.user)
+            or getattr(request.user, "is_superuser", False)
+            or getattr(request.user, "is_super_admin", False)
+        ):
+            messages.error(request, "You do not have access to this payment hub.")
+            return redirect("home")
+        if not raw_stu:
+            from students.models import Student
+
+            pick_cap = 400
+            st_qs = Student.objects.filter(school=school).select_related("user").order_by(
+                "class_name", "admission_number"
+            )
+            st_pref = list(st_qs[: pick_cap + 1])
+            staff_pick_students_truncated = len(st_pref) > pick_cap
+            staff_pick_students = st_pref[:pick_cap]
+            return render(
+                request,
+                "operations/partial_payment.html",
+                {
+                    "school": school,
+                    "staff_student_pick_required": True,
+                    "fee_type": fee_type,
+                    "fee_type_label": FEE_LABELS.get(fee_type, fee_type),
+                    "staff_pick_students": staff_pick_students,
+                    "staff_pick_students_truncated": staff_pick_students_truncated,
+                    "staff_pick_cap": pick_cap,
+                },
+            )
+
     student, err = _resolve_student(request, school)
     if err is not None:
         return err
@@ -449,14 +527,16 @@ def partial_payment_page(request: HttpRequest, fee_type: str = "school_fees") ->
         # show empty summary and direct user to bursar / Record Payment.
         total_billed = total_paid = balance = _ZERO
         rows: list = []
+        hub_notes: dict = {}
     else:
         try:
-            total_billed, total_paid, balance, rows = collector(school, student)
+            total_billed, total_paid, balance, rows, hub_notes = collector(school, student)
         except Exception:
             logger.exception("partial_payment_page: collector failed for fee_type=%s student=%s",
                              fee_type, getattr(student, "id", None))
             total_billed = total_paid = balance = _ZERO
             rows = []
+            hub_notes = {}
             messages.error(request, "Could not load fees. Please try again or contact the bursar.")
 
     daily_rate, weekly_rate, monthly_rate, termly_rate = _compute_rates(balance)
@@ -518,6 +598,8 @@ def partial_payment_page(request: HttpRequest, fee_type: str = "school_fees") ->
         "outstanding_rows": rows,
         "payments": payments,
         "back_url": back_url,
+        "hub_notes": hub_notes,
+        "staff_student_pick_required": False,
     })
 
 

@@ -40,7 +40,7 @@ from operations.alumni_sync import sync_alumni_from_graduated_student
 from core.utils import log_activity
 from schools.models import School
 from core.pagination import paginate
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from schools.features import is_feature_enabled_for_school, require_feature
 
 
@@ -675,11 +675,33 @@ def parent_child_detail(request, pk):
     if exam_type_id:
         results_qs = results_qs.filter(exam_type_id=exam_type_id)
 
+    results_cap = 200
+    fees_cap = 200
+    attendance_cap = 30
+    absence_cap = 50
+
+    results_pref = list(results_qs[: results_cap + 1])
+    parent_portal_results_truncated = len(results_pref) > results_cap
+    results = results_pref[:results_cap]
+
     fees_qs = Fee.objects.filter(student=child).order_by("-created_at")
-    fees_list = list(fees_qs[:200])
-    first_unpaid_fee = next((f for f in fees_list if not f.is_fully_paid), None)
-    attendance_qs = StudentAttendance.objects.filter(student=child).order_by("-date")[:30]
-    absence_qs = AbsenceRequest.objects.filter(student=child).select_related("decided_by").order_by("-created_at")[:50]
+    fees_pref = list(fees_qs[: fees_cap + 1])
+    parent_portal_fees_truncated = len(fees_pref) > fees_cap
+    fees_list = fees_pref[:fees_cap]
+    parent_portal_fees_total = fees_qs.count()
+    first_unpaid_fee = fees_qs.filter(amount__gt=F("amount_paid")).order_by("-created_at").first()
+
+    att_pref = list(StudentAttendance.objects.filter(student=child).order_by("-date")[: attendance_cap + 1])
+    parent_portal_attendance_truncated = len(att_pref) > attendance_cap
+    attendance = att_pref[:attendance_cap]
+
+    abs_pref = list(
+        AbsenceRequest.objects.filter(student=child)
+        .select_related("decided_by")
+        .order_by("-created_at")[: absence_cap + 1]
+    )
+    parent_portal_absence_truncated = len(abs_pref) > absence_cap
+    absence_requests = abs_pref[:absence_cap]
 
     terms = Term.objects.filter(school=child.school).order_by("-is_current", "-id")
     exam_types = ExamType.objects.filter(school=child.school).order_by("name")
@@ -689,15 +711,24 @@ def parent_child_detail(request, pk):
         "students/parent_child_detail.html",
         {
             "child": child,
-            "results": results_qs[:200],
+            "results": results,
             "fees": fees_list,
             "first_unpaid_fee": first_unpaid_fee,
-            "attendance": attendance_qs,
-            "absence_requests": absence_qs,
+            "attendance": attendance,
+            "absence_requests": absence_requests,
             "terms": terms,
             "exam_types": exam_types,
             "selected_term": term_id,
             "selected_exam_type": exam_type_id,
+            "parent_portal_results_truncated": parent_portal_results_truncated,
+            "parent_portal_results_cap": results_cap,
+            "parent_portal_fees_truncated": parent_portal_fees_truncated,
+            "parent_portal_fees_cap": fees_cap,
+            "parent_portal_fees_total": parent_portal_fees_total,
+            "parent_portal_attendance_truncated": parent_portal_attendance_truncated,
+            "parent_portal_attendance_cap": attendance_cap,
+            "parent_portal_absence_truncated": parent_portal_absence_truncated,
+            "parent_portal_absence_cap": absence_cap,
         },
     )
 
@@ -713,6 +744,7 @@ def student_list(request):
       empty state instead of redirecting in circles.
     """
     if not _user_can_manage_school(request) and not getattr(request.user, "is_super_admin", False):
+        page_obj = paginate(request, Student.objects.none(), per_page=30)
         return render(
             request,
             "students/student_list.html",
@@ -721,6 +753,7 @@ def student_list(request):
                 "students_by_class": {},
                 "school": None,
                 "no_access": True,
+                "page_obj": page_obj,
             },
         )
 
@@ -740,6 +773,7 @@ def student_list(request):
         )
     else:
         # School-scoped user but no school attached: show explanatory state
+        page_obj = paginate(request, Student.objects.none(), per_page=30)
         return render(
             request,
             "students/student_list.html",
@@ -748,18 +782,25 @@ def student_list(request):
                 "students_by_class": {},
                 "school": None,
                 "no_school": True,
+                "page_obj": page_obj,
             },
         )
 
-    # Group students by class for display
+    page_obj = paginate(request, students, per_page=30)
+
+    # Group only the current page of students by class so pagination matches the table.
     students_by_class = {}
-    for student in students:
+    for student in page_obj.object_list:
         cls = student.class_name or "Unassigned"
         if cls not in students_by_class:
             students_by_class[cls] = []
         students_by_class[cls].append(student)
-
-    page_obj = paginate(request, students, per_page=30)
+    students_by_class = OrderedDict(
+        sorted(
+            students_by_class.items(),
+            key=lambda kv: (kv[0] == "Unassigned", str(kv[0]).lower()),
+        )
+    )
 
     return render(
         request,

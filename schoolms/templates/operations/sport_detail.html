@@ -122,6 +122,9 @@
             </tbody>
         </table>
     </div>
+    {% if pending_total > pending_members|length %}
+    <p style="color:var(--text-soft);font-size:0.85rem;margin-top:0.5rem;">Showing {{ pending_members|length }} of {{ pending_total }} pending requests (newest first). Approve or decline in batches, or add pagination later.</p>
+    {% endif %}
 </div>
 {% endif %}
 

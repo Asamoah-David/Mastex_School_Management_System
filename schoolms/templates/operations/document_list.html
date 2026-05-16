@@ -4,6 +4,11 @@
 {% block content %}
 <div class="content-card">
     <h2>📄 Documents</h2>
+    {% if parent_document_list_truncated %}
+    <div class="empty-state" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;text-align:left;margin-bottom:1rem;">
+        Showing the {{ parent_document_list_cap }} most recent documents across your children. Older files still exist — ask the school office if you need a specific document.
+    </div>
+    {% endif %}
     {% if documents %}
     <table class="data-table">
         <thead><tr><th>Student</th><th>Type</th><th>Title</th><th>File</th><th>Uploaded</th></tr></thead>
@@ -25,6 +30,7 @@
         {% endfor %}
         </tbody>
     </table>
+    {% if page_obj %}{% include 'includes/pagination.html' %}{% endif %}
     {% else %}
     <p class="empty-state">📭 No documents found.</p>
     {% endif %}

@@ -11,11 +11,12 @@
 <div class="content-card" style="margin-bottom: 1rem;">
     <form method="get" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
         <label for="portal-student" style="color: #e5e7eb;">Paying for</label>
-        <select id="portal-student" name="student" onchange="this.form.submit()" style="padding: 0.4rem 0.75rem; border-radius: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5);">
+        <select id="portal-student" name="student" style="padding: 0.4rem 0.75rem; border-radius: 0.4rem; background: #0f172a; color: #fff; border: 1px solid rgba(148,163,184,0.5);">
             {% for c in portal_children %}
             <option value="{{ c.id }}" {% if c.id == portal_student.id %}selected{% endif %}>{{ c.user.get_full_name|default:c.admission_number }} ({{ c.class_name|default:"—" }})</option>
             {% endfor %}
         </select>
+        <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
     </form>
 </div>
 {% endif %}
@@ -100,8 +101,14 @@
 </div>
 {% endif %}
 
-{% if my_payments %}
-<h3 class="section-title">📜 My Bus Payment History</h3>
+<div class="content-card" style="margin-top: 1rem;">
+    <h3 class="section-title">📜 My Bus Payment History</h3>
+    {% if portal_bus_payments_truncated %}
+    <div class="empty-state" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;text-align:left;margin-bottom:1rem;padding:0.75rem 1rem;">
+        Showing the {{ portal_bus_payment_cap }} most recent payments only. Older rows are not listed here; ask the office for a full statement if needed.
+    </div>
+    {% endif %}
+    {% if my_payments %}
     <div class="table-responsive">
         <table class="table table-striped">
             <thead>
@@ -124,13 +131,10 @@
             </tbody>
         </table>
     </div>
-    {% if page_obj %}
-        {% include "includes/pagination.html" with page_obj=page_obj %}
-    {% endif %}
-{% else %}
+    {% else %}
     <p>No payment history yet.</p>
+    {% endif %}
 </div>
-{% endif %}
 
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script>

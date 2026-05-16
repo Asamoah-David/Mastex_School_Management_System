@@ -12,6 +12,16 @@
 </div>
 {% endif %}
 
+{% if library_issue_student_list_truncated or library_issue_book_list_truncated %}
+<div class="content-card" style="margin-bottom: 1rem; background:#fffbeb;border:1px solid #fcd34d;color:#92400e;">
+    <p style="margin:0;font-size:0.9rem;">
+        {% if library_issue_student_list_truncated %}Student picker lists the first {{ library_issue_pick_cap }} students (alphabetically by class/admission). {% endif %}
+        {% if library_issue_book_list_truncated %}Book picker lists the first {{ library_issue_pick_cap }} titles. {% endif %}
+        Use search in the dropdowns, or narrow from the student / catalog screens first.
+    </p>
+</div>
+{% endif %}
+
 <div class="content-card">
     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
         <div style="width: 48px; height: 48px; border-radius: 1rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">📚</div>
@@ -27,7 +37,7 @@
             <!-- Student Selection -->
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label class="required">👨‍🎓 Student</label>
-                <select name="student" id="student" class="searchable-select" data-placeholder="Search for a student..." required>
+                <select name="student" id="student" class="searchable-select" data-placeholder="Search for a student..." data-min-search="1" required>
                     <option value="">Select Student</option>
                     {% for student in students %}
                     <option value="{{ student.id }}">{{ student.user.get_full_name }} ({{ student.class_name }})</option>
@@ -39,7 +49,7 @@
             <!-- Book Selection -->
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label class="required">📖 Book</label>
-                <select name="book" id="book" class="searchable-select" data-placeholder="Search for a book..." required>
+                <select name="book" id="book" class="searchable-select" data-placeholder="Search for a book..." data-min-search="1" required>
                     <option value="">Select Book</option>
                     {% for book in books %}
                     <option value="{{ book.id }}" data-available="{{ book.available_copies }}">{{ book.title }} by {{ book.author }} ({{ book.available_copies }} available)</option>

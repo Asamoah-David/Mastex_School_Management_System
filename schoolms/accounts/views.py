@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Sum, Q, Count
+from django.db.models import Sum, Q, Count, Prefetch
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -31,14 +31,15 @@ from accounts.permissions import (
 from academics.models import Subject, Timetable, Term
 from schools.models import School
 from schools.features import is_feature_enabled, is_feature_enabled_for_school, require_feature
-from students.models import Student, SchoolClass
+from students.models import Student, SchoolClass, StudentGuardian
+from students.utils import get_children_for_parent
 from finance.models import Fee, FeePayment, FeeStructure
 from finance.staff_payroll_paystack import school_staff_paystack_allowed
 from operations.models import StudentAttendance, TeacherAttendance, AcademicCalendar
 from operations.activity import client_ip_from_request, recent_activities_for_dashboard
 from core.pagination import paginate
 from core.phone_utils import phone_search_q
-from core.utils import safe_internal_redirect_path
+from core.utils import safe_internal_redirect_path, get_school
 from accounts.dashboard_insights import (
     build_academic_insights,
     build_ar_aging_chart,
@@ -1430,8 +1431,9 @@ def staff_detail(request, pk):
         )
         ctx["school_subjects"] = list(Subject.objects.filter(school=school_obj).order_by("name"))
         ctx["school_classes"] = list(SchoolClass.objects.filter(school=school_obj).order_by("name"))
-        homeroom = SchoolClass.objects.filter(school=school_obj, class_teacher=staff).first()
-        ctx["staff_homeroom_class"] = homeroom
+        homeroom_qs = SchoolClass.objects.filter(school=school_obj, class_teacher=staff).order_by("name")
+        ctx["staff_homeroom_classes"] = list(homeroom_qs)
+        ctx["staff_homeroom_ids"] = {c.id for c in ctx["staff_homeroom_classes"]}
         if can_manage_finance(request.user):
             ctx["staff_payroll"] = list(
                 StaffPayrollPayment.objects.filter(user=staff, school=school_obj).order_by("-paid_on", "-id")[:60]
@@ -1444,7 +1446,8 @@ def staff_detail(request, pk):
         ctx["staff_role_logs"] = []
         ctx["school_subjects"] = []
         ctx["school_classes"] = []
-        ctx["staff_homeroom_class"] = None
+        ctx["staff_homeroom_classes"] = []
+        ctx["staff_homeroom_ids"] = set()
         ctx["staff_payroll"] = []
     return render(request, "accounts/staff_detail.html", ctx)
 
@@ -1661,7 +1664,7 @@ def staff_register(request):
 
 @login_required
 def parent_list(request):
-    """List all parents for the school."""
+    """List all parents for the school, grouped by their children's class_name."""
     # Only school admins (or platform admins) can manage parents
     if not _user_is_school_admin(request):
         return redirect("accounts:school_dashboard")
@@ -1671,9 +1674,77 @@ def parent_list(request):
     redir = _require_student_enrollment_or_leadership(request)
     if redir:
         return redir
-    parents = User.objects.filter(school=school, role="parent").order_by("username")
-    page_obj = paginate(request, parents, per_page=30)
-    return render(request, "accounts/parent_list.html", {"parents": page_obj, "school": school, "page_obj": page_obj})
+    from collections import defaultdict
+
+    parent_qs = User.objects.filter(school=school, role="parent").order_by("username")
+    parent_by_id = {p.id: p for p in parent_qs}
+    parent_ids = list(parent_by_id.keys())
+
+    buckets = defaultdict(dict)
+    linked_parent_ids = set()
+
+    if parent_ids:
+        students = (
+            Student.objects.filter(school=school)
+            .filter(Q(parent_id__in=parent_ids) | Q(guardians__guardian_id__in=parent_ids))
+            .select_related("user", "parent")
+            .prefetch_related(
+                Prefetch(
+                    "guardians",
+                    queryset=StudentGuardian.objects.filter(guardian_id__in=parent_ids),
+                )
+            )
+            .distinct()
+        )
+        for st in students:
+            cls = (st.class_name or "").strip() or "— No class —"
+            child_label = (st.user.get_full_name() or "").strip() or (st.user.username or "").strip() or st.admission_number
+            if st.parent_id and st.parent_id in parent_by_id:
+                linked_parent_ids.add(st.parent_id)
+                row = buckets[cls].setdefault(
+                    st.parent_id,
+                    {"parent": parent_by_id[st.parent_id], "children": []},
+                )
+                if child_label not in row["children"]:
+                    row["children"].append(child_label)
+            for sg in st.guardians.all():
+                gid = sg.guardian_id
+                if gid in parent_by_id:
+                    linked_parent_ids.add(gid)
+                    row = buckets[cls].setdefault(
+                        gid,
+                        {"parent": parent_by_id[gid], "children": []},
+                    )
+                    if child_label not in row["children"]:
+                        row["children"].append(child_label)
+
+    unlinked_key = "— No linked student —"
+    for pid, p in parent_by_id.items():
+        if pid not in linked_parent_ids:
+            buckets[unlinked_key][pid] = {"parent": p, "children": []}
+
+    def _class_sort_key(name):
+        if name.startswith("—"):
+            return (1, name)
+        return (0, name.lower())
+
+    grouped_parents = []
+    for class_name in sorted(buckets.keys(), key=_class_sort_key):
+        rows = list(buckets[class_name].values())
+        if not rows:
+            continue
+        rows.sort(key=lambda r: (r["parent"].get_full_name() or r["parent"].username or "").lower())
+        grouped_parents.append({"class_name": class_name, "rows": rows})
+
+    return render(
+        request,
+        "accounts/parent_list.html",
+        {
+            "grouped_parents": grouped_parents,
+            "school": school,
+            "total_parents": len(parent_by_id),
+        },
+    )
 
 
 @login_required
@@ -2367,7 +2438,25 @@ def superuser_edit_credentials(request, pk):
 def global_search(request):
     """Search across students, staff, parents, and fees in one place."""
     q = request.GET.get("q", "").strip()
-    school = getattr(request.user, "school", None)
+    school = get_school(request)
+    if not school and not request.user.is_superuser:
+        role = getattr(request.user, "role", None)
+        if role == "student":
+            st = (
+                Student.objects.filter(user=request.user)
+                .select_related("school")
+                .first()
+            )
+            if st:
+                school = st.school
+        elif role == "parent":
+            ch = (
+                get_children_for_parent(request.user, active_only=False)
+                .select_related("school")
+                .first()
+            )
+            if ch and getattr(ch, "school_id", None):
+                school = ch.school
     results = {
         "students": [],
         "staff": [],
@@ -2383,7 +2472,9 @@ def global_search(request):
                 .filter(
                     Q(user__first_name__icontains=q)
                     | Q(user__last_name__icontains=q)
+                    | Q(user__username__icontains=q)
                     | Q(admission_number__icontains=q)
+                    | Q(class_name__icontains=q)
                 )
                 .select_related("user")[:10]
             ) if is_feature_enabled(request, "student_enrollment") else []
@@ -2436,7 +2527,9 @@ def global_search(request):
                 Student.objects.filter(
                     Q(user__first_name__icontains=q)
                     | Q(user__last_name__icontains=q)
+                    | Q(user__username__icontains=q)
                     | Q(admission_number__icontains=q)
+                    | Q(class_name__icontains=q)
                 )
                 .select_related("user", "school")[:10]
             )

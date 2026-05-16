@@ -17,7 +17,7 @@
       {% csrf_token %}
       <div style="margin-bottom:1rem;">
         <label style="display:block;font-weight:600;margin-bottom:.25rem;">Fee Structure</label>
-        <select name="fee_structure" title="Fee structure" required style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
+        <select name="fee_structure" title="Fee structure" class="searchable-select" data-placeholder="Search fee structure…" data-min-search="1" required style="width:100%;padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.375rem;">
           <option value="">— select a fee structure —</option>
           {% for s in structures %}
           <option value="{{ s.pk }}">{{ s.name }}{% if s.class_name %} ({{ s.class_name }}){% else %} (All classes){% endif %} — {{ s.amount }} GHS</option>

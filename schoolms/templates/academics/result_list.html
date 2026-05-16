@@ -8,7 +8,7 @@
     <div class="form-grid">
         <div class="form-group">
             <label for="id_class">Class</label>
-            <select id="id_class" name="class" class="form-control" onchange="this.form.submit()">
+            <select id="id_class" name="class" class="form-control">
                 <option value="">All</option>
                 {% for c in classes %}
                 <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
@@ -17,7 +17,7 @@
         </div>
         <div class="form-group">
             <label for="id_subject">Subject</label>
-            <select id="id_subject" name="subject" class="form-control" onchange="this.form.submit()">
+            <select id="id_subject" name="subject" class="form-control">
                 <option value="">All</option>
                 {% for s in subjects %}
                 <option value="{{ s.id }}" {% if selected_subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
@@ -26,13 +26,16 @@
         </div>
         <div class="form-group">
             <label for="id_term">Term</label>
-            <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+            <select id="id_term" name="term" class="form-control">
                 <option value="">All</option>
                 {% for t in terms %}
                 <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
                 {% endfor %}
             </select>
         </div>
+    </div>
+    <div class="button-row" style="margin-top: 0.75rem;">
+        <button type="submit" class="btn btn-primary">Apply filters</button>
     </div>
 </form>
 

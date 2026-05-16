@@ -12,7 +12,7 @@
         <span class="rc-gen-step {% if selected_student %}rc-gen-step--active{% endif %}"><span class="rc-gen-step__num">4</span> Open / PDF / ZIP</span>
     </div>
     <p style="margin:0 0 1rem;font-size:.88rem;color:var(--text-secondary);line-height:1.5;">
-        Pick a class, then a student and term. Use <strong>Open report card</strong> for the on-screen layout (print-friendly), <strong>Download PDF</strong> for a single file, or <strong>Export class PDFs</strong> for every learner in the class.
+        Pick a class, student, and term, then click <strong>Apply selections</strong> to refresh the list. Use <strong>Open report card</strong> for the on-screen layout (print-friendly), <strong>Download PDF</strong> for a single file, or <strong>Export class PDFs</strong> for every learner in the class.
     </p>
 
     <form method="get" class="card card-flush" style="box-shadow:none;border:1px solid rgba(148,163,184,0.2);">
@@ -20,7 +20,7 @@
             <div class="form-grid">
                 <div class="form-group full-width">
                     <label for="id_class">1. Class</label>
-                    <select id="id_class" name="class" class="form-control" onchange="this.form.submit()">
+                    <select id="id_class" name="class" class="form-control">
                         <option value="">— Select class —</option>
                         {% for c in classes %}
                         <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
@@ -29,7 +29,7 @@
                 </div>
                 <div class="form-group full-width">
                     <label for="id_student">2. Student</label>
-                    <select id="id_student" name="student" class="form-control" {% if not selected_class %}disabled{% endif %} onchange="this.form.submit()">
+                    <select id="id_student" name="student" class="form-control" {% if not selected_class %}disabled{% endif %}>
                         <option value="">— Select student —</option>
                         {% for s in students %}
                         <option value="{{ s.id }}" {% if selected_student == s.id|stringformat:"s" %}selected{% endif %}>
@@ -40,7 +40,7 @@
                 </div>
                 <div class="form-group full-width">
                     <label for="id_term">3. Term (optional)</label>
-                    <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+                    <select id="id_term" name="term" class="form-control">
                         <option value="">All terms</option>
                         {% for t in terms %}
                         <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}{% if t.is_current %} (current){% endif %}</option>
@@ -49,6 +49,7 @@
                 </div>
             </div>
             <div class="button-row mt-sm" style="flex-wrap:wrap;">
+                <button type="submit" class="btn btn-secondary">Apply selections</button>
                 {% if selected_student %}
                 <a class="btn btn-primary" href="{% url 'academics:report_card' selected_student %}{% if selected_term %}?term={{ selected_term }}{% endif %}">Open report card</a>
                 <a class="btn btn-secondary" href="{% url 'academics:report_card_pdf' selected_student %}{% if selected_term %}?term={{ selected_term }}{% endif %}">Download PDF</a>

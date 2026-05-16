@@ -1507,12 +1507,28 @@ def fee_structure_list(request):
     if not school and not request.user.is_superuser:
         return redirect("accounts:dashboard")
     if not school:
-        structures = FeeStructure.objects.all().select_related("school")[:100]
-        return render(request, "finance/fee_structure_list.html", {"structures": structures, "school": None})
+        fscap = 100
+        structures_pref = list(
+            FeeStructure.objects.all()
+            .select_related("school")
+            .order_by("school__name", "name", "class_name")[: fscap + 1]
+        )
+        fee_structure_list_truncated = len(structures_pref) > fscap
+        structures = structures_pref[:fscap]
+        return render(
+            request,
+            "finance/fee_structure_list.html",
+            {
+                "structures": structures,
+                "school": None,
+                "fee_structure_list_truncated": fee_structure_list_truncated,
+                "fee_structure_list_cap": fscap,
+            },
+        )
     if (redir := require_feature(request, "fee_management", "accounts:dashboard")):
         return redir
     structures = FeeStructure.objects.filter(school=school).order_by("name", "class_name")
-    return render(request, "finance/fee_structure_list.html", {"structures": structures, "school": school})
+    return render(request, "finance/fee_structure_list.html", {"structures": structures, "school": school, "fee_structure_list_truncated": False, "fee_structure_list_cap": 100})
 
 
 @login_required
@@ -2263,11 +2279,12 @@ def payment_ledger_health(request):
         .order_by("provider", "payment_type", "status")
     )
 
-    recent_failed = (
-        qs.filter(status="failed")
-        .order_by("-created_at")
-        [:50]
+    recent_failed_cap = 50
+    recent_failed_pref = list(
+        qs.filter(status="failed").order_by("-created_at")[: recent_failed_cap + 1]
     )
+    payment_ledger_recent_failed_truncated = len(recent_failed_pref) > recent_failed_cap
+    recent_failed = recent_failed_pref[:recent_failed_cap]
 
     return render(
         request,
@@ -2279,6 +2296,8 @@ def payment_ledger_health(request):
             "filter_to": date_to,
             "by_type_provider": list(by_type_provider),
             "recent_failed": recent_failed,
+            "payment_ledger_recent_failed_truncated": payment_ledger_recent_failed_truncated,
+            "payment_ledger_recent_failed_cap": recent_failed_cap,
         },
     )
 

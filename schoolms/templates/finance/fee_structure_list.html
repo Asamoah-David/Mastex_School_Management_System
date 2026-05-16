@@ -7,6 +7,11 @@
 {% block content %}
 {% include "includes/finance_subnav.html" %}
 <div class="content-card">
+    {% if fee_structure_list_truncated %}
+    <div class="empty-state" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;text-align:left;margin-bottom:1rem;">
+        Platform view lists at most {{ fee_structure_list_cap }} fee structures (all schools). Use school admin login or search by school in the database admin if you need more.
+    </div>
+    {% endif %}
     {% if user.is_superuser or school and is_school_leadership %}
     <div style="margin-bottom:1rem;">
         <a href="{% url 'finance:fee_structure_create' %}" class="btn btn-primary">➕ Add Fee Type</a>

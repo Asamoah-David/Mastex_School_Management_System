@@ -7,12 +7,13 @@
 <div class="report-card-page">
     <div class="report-card-actions no-print">
         <form method="get" class="button-row" style="margin:0;align-items:center;gap:.5rem;flex-wrap:wrap;">
-            <select id="rc-term" name="term" class="form-control" title="Filter by term" aria-label="Filter by term" onchange="this.form.submit()" style="max-width:220px;">
+            <select id="rc-term" name="term" class="form-control" title="Filter by term" aria-label="Filter by term" style="max-width:220px;">
                 <option value="">All terms</option>
                 {% for t in terms %}
                 <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}{% if t.is_current %} (current){% endif %}</option>
                 {% endfor %}
             </select>
+            <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
         </form>
         <a href="{% url 'academics:report_card_pdf' student.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}" class="btn btn-primary btn-sm">Download PDF</a>
         <a href="javascript:window.print()" class="btn btn-secondary btn-sm">Print</a>

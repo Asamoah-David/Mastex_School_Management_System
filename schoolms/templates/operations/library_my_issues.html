@@ -4,6 +4,11 @@
 {% block content %}
 <div class="content-card">
     <h2>My Library Issues</h2>
+    {% if library_my_issues_truncated %}
+    <div class="empty-state" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;text-align:left;margin-bottom:1rem;">
+        Showing the {{ library_my_issues_cap }} most recent issues only. Ask the librarian for older records.
+    </div>
+    {% endif %}
     {% if issues %}
     <table>
         <thead><tr><th>Book</th><th>Issue Date</th><th>Due Date</th><th>Status</th></tr></thead>

@@ -15,7 +15,7 @@
     <form method="get" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;">
         <div>
             <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">Class</label>
-            <select name="class" onchange="this.form.submit()" style="padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.375rem;min-width:180px;">
+            <select name="class" style="padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.375rem;min-width:180px;">
                 <option value="">— Select class —</option>
                 {% for c in classes %}
                 <option value="{{ c.name }}" {% if selected_class == c.name %}selected{% endif %}>{{ c.name }}</option>
@@ -24,8 +24,9 @@
         </div>
         <div>
             <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">Date</label>
-            <input type="date" name="date" value="{{ date|date:'Y-m-d' }}" onchange="this.form.submit()" style="padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.375rem;">
+            <input type="date" name="date" value="{{ date|date:'Y-m-d' }}" style="padding:.5rem .75rem;border:1px solid var(--border-color,#d1d5db);border-radius:.375rem;">
         </div>
+        <button type="submit" class="btn btn-primary">Load class</button>
     </form>
 </div>
 

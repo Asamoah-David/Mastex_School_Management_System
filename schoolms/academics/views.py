@@ -1901,10 +1901,22 @@ def timetable_list(request):
         .values_list("class_name", flat=True)
         .distinct()
     )
+    timetable_cap = 800
+    items_prefetch = list(qs.order_by("class_name", "day_of_week", "start_time")[: timetable_cap + 1])
+    timetable_list_truncated = len(items_prefetch) > timetable_cap
+    items = items_prefetch[:timetable_cap]
     return render(
         request,
         "academics/timetable_list.html",
-        {"school": school, "items": qs[:800], "classes": classes, "selected_class": class_name, "selected_day": day},
+        {
+            "school": school,
+            "items": items,
+            "classes": classes,
+            "selected_class": class_name,
+            "selected_day": day,
+            "timetable_list_truncated": timetable_list_truncated,
+            "timetable_list_cap": timetable_cap,
+        },
     )
 
 

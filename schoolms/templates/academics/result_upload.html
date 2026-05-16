@@ -45,10 +45,11 @@
     {% endif %}
     
     <form method="get" class="filter-form">
+        <p class="text-muted" style="margin: 0 0 0.75rem; font-size: 0.88rem;">Choose class, subject, exam type, and term, then click <strong>Load students</strong> — filters no longer reload the page on every change.</p>
         <div class="form-row">
             <div class="form-group">
                 <label for="class">Class</label>
-                <select name="class" id="class" onchange="this.form.submit()">
+                <select name="class" id="class">
                     <option value="">Select class</option>
                     {% for c in classes %}
                     <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
@@ -57,7 +58,7 @@
             </div>
             <div class="form-group">
                 <label for="subject">Subject</label>
-                <select name="subject" id="subject" onchange="this.form.submit()">
+                <select name="subject" id="subject">
                     <option value="">Select subject</option>
                     {% for s in subjects %}
                     <option value="{{ s.id }}" {% if selected_subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
@@ -66,7 +67,7 @@
             </div>
             <div class="form-group">
                 <label for="exam_type">Exam Type</label>
-                <select name="exam_type" id="exam_type" onchange="this.form.submit()">
+                <select name="exam_type" id="exam_type">
                     <option value="">Select exam type</option>
                     {% for e in exam_types %}
                     <option value="{{ e.id }}" {% if selected_exam_type == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
@@ -75,13 +76,16 @@
             </div>
             <div class="form-group">
                 <label for="term">Term</label>
-                <select name="term" id="term" onchange="this.form.submit()">
+                <select name="term" id="term">
                     <option value="">Select term</option>
                     {% for t in terms %}
                     <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}{% if t.is_current %} (Current){% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
+        </div>
+        <div class="button-row mt-sm">
+            <button type="submit" class="btn btn-primary">Load students</button>
         </div>
     </form>
     
@@ -144,7 +148,7 @@
     </div>
     {% elif not error %}
     <div class="empty-state">
-        Select a class, subject, exam type, and term to start entering results.
+        Select a class, subject, exam type, and term, then click <strong>Load students</strong> to start entering results.
     </div>
     {% endif %}
 </div>

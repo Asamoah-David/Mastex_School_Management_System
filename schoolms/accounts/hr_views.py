@@ -329,23 +329,36 @@ def staff_assign_homeroom_save(request, pk: int):
     if not school:
         messages.error(request, "Staff member has no school.")
         return redirect("accounts:staff_detail", pk=pk)
-    # Clear previous homerooms for this teacher at this school
-    SchoolClass.objects.filter(school=school, class_teacher=staff).update(class_teacher=None)
-    sc_raw = request.POST.get("school_class_id", "").strip()
-    if sc_raw:
+    raw_ids = request.POST.getlist("school_class_ids")
+    id_set = set()
+    for x in raw_ids:
         try:
-            sc_id = int(sc_raw)
-        except ValueError:
-            sc_id = None
-        if sc_id:
-            klass = get_object_or_404(SchoolClass, pk=sc_id, school=school)
-            klass.class_teacher = staff
-            klass.save(update_fields=["class_teacher"])
-            messages.success(request, f"Homeroom set to {klass.name}.")
-        else:
-            messages.success(request, "Homeroom cleared.")
+            id_set.add(int(x))
+        except (TypeError, ValueError):
+            continue
+
+    classes = list(SchoolClass.objects.filter(school=school))
+    to_update = []
+    for klass in classes:
+        want = klass.pk in id_set
+        if want:
+            if klass.class_teacher_id != staff.id:
+                klass.class_teacher = staff
+                to_update.append(klass)
+        elif klass.class_teacher_id == staff.id:
+            klass.class_teacher = None
+            to_update.append(klass)
+    if to_update:
+        SchoolClass.objects.bulk_update(to_update, ["class_teacher"])
+
+    n = len(id_set)
+    if n == 0:
+        messages.success(request, "Homeroom classes cleared for this staff member.")
+    elif n == 1:
+        name = next((c.name for c in classes if c.pk in id_set), "class")
+        messages.success(request, f"Homeroom set to {name}.")
     else:
-        messages.success(request, "Homeroom cleared.")
+        messages.success(request, f"Homeroom set for {n} classes.")
     return redirect("accounts:staff_detail", pk=pk)
 
 

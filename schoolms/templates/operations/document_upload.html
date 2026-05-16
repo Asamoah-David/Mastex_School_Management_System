@@ -16,6 +16,23 @@
     <form method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         <div style="display: grid; gap: 1rem;">
+            {% if students %}
+            {% if document_upload_student_pick_truncated %}
+            <div style="font-size:0.85rem;color:#ca8a04;background:rgba(250,204,21,0.12);border:1px solid rgba(250,204,21,0.35);padding:0.6rem 0.75rem;border-radius:0.5rem;">
+                Student picker lists the first {{ document_upload_student_pick_cap }} students (alphabetically by class). If the student is missing, search from <strong>Students</strong> or ask an admin to upload on their behalf.
+            </div>
+            {% endif %}
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Student *</label>
+                <select name="student" required style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
+                    {% for s in students %}
+                    <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} — {{ s.admission_number }} ({{ s.class_name|default:"—" }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% else %}
+            <div class="empty-state" style="margin-bottom:0;">No student profile is available for upload. Contact the school office.</div>
+            {% endif %}
             <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Document Title *</label>
                 <input type="text" name="title" required placeholder="e.g. Birth Certificate, Medical Report" style="width: 100%; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.9); color: var(--text-main);">
@@ -41,7 +58,7 @@
             </div>
         </div>
         <div class="button-row mt-sm">
-            <button type="submit" class="btn btn-primary">Upload Document</button>
+            <button type="submit" class="btn btn-primary" {% if not students %}disabled{% endif %}>Upload Document</button>
             <a href="{% url 'operations:document_list' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>

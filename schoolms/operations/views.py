@@ -479,18 +479,35 @@ def bus_my(request):
     routes = BusRoute.objects.filter(school=school).order_by("name")
     
     # Get student's/children's bus payment history
+    portal_bus_payments_truncated = False
+    portal_bus_payment_cap = 50 if role == "student" else 100
     if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
-        my_payments = BusPayment.objects.filter(school=school, student=student).select_related("route").order_by("-payment_date")[:50] if student else []
+        if student:
+            pay_base = BusPayment.objects.filter(school=school, student=student).select_related("route").order_by(
+                "-payment_date"
+            )
+            pay_pref = list(pay_base[: portal_bus_payment_cap + 1])
+            portal_bus_payments_truncated = len(pay_pref) > portal_bus_payment_cap
+            my_payments = pay_pref[:portal_bus_payment_cap]
+        else:
+            my_payments = []
     else:
         children = get_children_for_parent(request.user, school=school)
-        my_payments = BusPayment.objects.filter(school=school, student__in=children).select_related("route", "student", "student__user").order_by("-payment_date")[:100]
+        pay_base = BusPayment.objects.filter(school=school, student__in=children).select_related(
+            "route", "student", "student__user"
+        ).order_by("-payment_date")
+        pay_pref = list(pay_base[: portal_bus_payment_cap + 1])
+        portal_bus_payments_truncated = len(pay_pref) > portal_bus_payment_cap
+        my_payments = pay_pref[:portal_bus_payment_cap]
     
     return render(request, "operations/bus_my.html", {
         "routes": routes,
         "my_payments": my_payments,
         "school": school,
-        "mode": role
+        "mode": role,
+        "portal_bus_payments_truncated": portal_bus_payments_truncated,
+        "portal_bus_payment_cap": portal_bus_payment_cap,
     })
 
 
@@ -584,19 +601,41 @@ def textbook_my(request):
     books = Textbook.objects.filter(school=school).order_by("title")
     
     # Get student's/children's purchase history
+    portal_textbook_purchases_truncated = False
+    portal_textbook_purchase_cap = 50 if role == "student" else 100
     if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
-        my_purchases = TextbookSale.objects.filter(school=school, student=student).select_related("textbook").order_by("-sale_date")[:50] if student else []
+        if student:
+            pur_base = TextbookSale.objects.filter(school=school, student=student).select_related("textbook").order_by(
+                "-sale_date"
+            )
+            pur_pref = list(pur_base[: portal_textbook_purchase_cap + 1])
+            portal_textbook_purchases_truncated = len(pur_pref) > portal_textbook_purchase_cap
+            my_purchases = pur_pref[:portal_textbook_purchase_cap]
+        else:
+            my_purchases = []
     else:
         children = get_children_for_parent(request.user, school=school)
-        my_purchases = TextbookSale.objects.filter(school=school, student__in=children).select_related("textbook", "student", "student__user").order_by("-sale_date")[:100]
+        pur_base = TextbookSale.objects.filter(school=school, student__in=children).select_related(
+            "textbook", "student", "student__user"
+        ).order_by("-sale_date")
+        pur_pref = list(pur_base[: portal_textbook_purchase_cap + 1])
+        portal_textbook_purchases_truncated = len(pur_pref) > portal_textbook_purchase_cap
+        my_purchases = pur_pref[:portal_textbook_purchase_cap]
     
-    return render(request, "operations/textbook_my.html", {
-        "books": books,
-        "my_purchases": my_purchases,
-        "school": school,
-        "mode": role
-    })
+    return render(
+        request,
+        "operations/textbook_my.html",
+        {
+            "books": books,
+            "textbooks": books,
+            "my_purchases": my_purchases,
+            "school": school,
+            "mode": role,
+            "portal_textbook_purchases_truncated": portal_textbook_purchases_truncated,
+            "portal_textbook_purchase_cap": portal_textbook_purchase_cap,
+        },
+    )
 
 
 @login_required
@@ -1584,8 +1623,15 @@ def library_issue_create(request):
         return redir
     if not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:library_catalog")
-    students = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
-    books = LibraryBook.objects.filter(school=school).order_by("title", "author")
+    stu_qs = Student.objects.filter(school=school).select_related("user").order_by("class_name", "admission_number")
+    book_qs = LibraryBook.objects.filter(school=school).order_by("title", "author")
+    issue_pick_cap = 400
+    stu_pref = list(stu_qs[: issue_pick_cap + 1])
+    library_issue_student_list_truncated = len(stu_pref) > issue_pick_cap
+    students = stu_pref[:issue_pick_cap]
+    bk_pref = list(book_qs[: issue_pick_cap + 1])
+    library_issue_book_list_truncated = len(bk_pref) > issue_pick_cap
+    books = bk_pref[:issue_pick_cap]
     if request.method == "POST":
         from datetime import datetime, timedelta
         student_id = request.POST.get("student")
@@ -1682,22 +1728,48 @@ def library_my_issues(request):
     role = getattr(request.user, "role", None)
     if role == "student":
         student = Student.objects.filter(user=request.user, school=school).first()
-        issues = (
-            LibraryIssue.objects.filter(school=school, student=student)
-            .select_related("book")
-            .order_by("-issue_date")[:200]
-            if student
-            else []
+        lib_cap = 200
+        if student:
+            iss_base = LibraryIssue.objects.filter(school=school, student=student).select_related("book").order_by(
+                "-issue_date"
+            )
+            iss_pref = list(iss_base[: lib_cap + 1])
+            library_my_issues_truncated = len(iss_pref) > lib_cap
+            issues = iss_pref[:lib_cap]
+        else:
+            issues = []
+            library_my_issues_truncated = False
+        return render(
+            request,
+            "operations/library_my_issues.html",
+            {
+                "issues": issues,
+                "school": school,
+                "mode": "student",
+                "library_my_issues_truncated": library_my_issues_truncated,
+                "library_my_issues_cap": lib_cap,
+            },
         )
-        return render(request, "operations/library_my_issues.html", {"issues": issues, "school": school, "mode": "student"})
     if role == "parent":
         children = get_children_for_parent(request.user, school=school, active_only=False)
-        issues = (
-            LibraryIssue.objects.filter(school=school, student__in=children)
-            .select_related("book", "student", "student__user")
-            .order_by("-issue_date")[:300]
+        lib_cap = 300
+        iss_base = LibraryIssue.objects.filter(school=school, student__in=children).select_related(
+            "book", "student", "student__user"
+        ).order_by("-issue_date")
+        iss_pref = list(iss_base[: lib_cap + 1])
+        library_my_issues_truncated = len(iss_pref) > lib_cap
+        issues = iss_pref[:lib_cap]
+        return render(
+            request,
+            "operations/library_my_issues.html",
+            {
+                "issues": issues,
+                "school": school,
+                "mode": "parent",
+                "library_my_issues_truncated": library_my_issues_truncated,
+                "library_my_issues_cap": lib_cap,
+            },
         )
-        return render(request, "operations/library_my_issues.html", {"issues": issues, "school": school, "mode": "parent"})
     return redirect("home")
 
 
@@ -3822,14 +3894,21 @@ def document_list(request):
         return redir
 
     role = getattr(request.user, 'role', None)
-    
+    parent_document_list_truncated = False
+    parent_document_list_cap = 200
+
     page_obj = None
     if role == 'student':
         student = Student.objects.filter(user=request.user, school=school).first()
         documents = StudentDocument.objects.filter(student=student).order_by('-uploaded_at') if student else []
     elif role == 'parent':
         children = get_children_for_parent(request.user, school=school, active_only=False)
-        documents = StudentDocument.objects.filter(student__in=children).select_related('student', 'student__user').order_by('-uploaded_at')[:200]
+        doc_base = StudentDocument.objects.filter(student__in=children).select_related(
+            'student', 'student__user'
+        ).order_by('-uploaded_at')
+        doc_pref = list(doc_base[: parent_document_list_cap + 1])
+        parent_document_list_truncated = len(doc_pref) > parent_document_list_cap
+        documents = doc_pref[:parent_document_list_cap]
     elif user_can_manage_school(request.user) or request.user.is_superuser:
         qs = StudentDocument.scoped.for_school(school).select_related('student', 'student__user', 'uploaded_by').order_by('-uploaded_at')
         page_obj = paginate(request, qs, per_page=50)
@@ -3840,7 +3919,9 @@ def document_list(request):
     return render(request, 'operations/document_list.html', {
         'documents': documents,
         'page_obj': page_obj,
-        'school': school
+        'school': school,
+        'parent_document_list_truncated': parent_document_list_truncated,
+        'parent_document_list_cap': parent_document_list_cap,
     })
 
 
@@ -3858,13 +3939,18 @@ def document_upload(request):
     # Only admins or the student/parent themselves can upload
     role = getattr(request.user, 'role', None)
     students = []
-    
+    document_upload_student_pick_truncated = False
+    document_upload_student_pick_cap = 100
+
     if role == 'student':
         students = [Student.objects.filter(user=request.user, school=school).first()]
     elif role == 'parent':
         students = list(get_children_for_parent(request.user, school=school, active_only=False))
     elif user_can_manage_school(request.user) or request.user.is_superuser:
-        students = list(Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')[:100])
+        st_base = Student.objects.filter(school=school).select_related('user').order_by('class_name', 'admission_number')
+        st_pref = list(st_base[: document_upload_student_pick_cap + 1])
+        document_upload_student_pick_truncated = len(st_pref) > document_upload_student_pick_cap
+        students = st_pref[:document_upload_student_pick_cap]
     else:
         return redirect('home')
     
@@ -3938,7 +4024,9 @@ def document_upload(request):
     
     return render(request, 'operations/document_upload.html', {
         'school': school,
-        'students': students
+        'students': students,
+        'document_upload_student_pick_truncated': document_upload_student_pick_truncated,
+        'document_upload_student_pick_cap': document_upload_student_pick_cap,
     })
 
 
@@ -4104,11 +4192,14 @@ def alumni_create(request):
     if not school or not (request.user.is_superuser or user_can_manage_school(request.user)):
         return redirect("operations:alumni_list")
 
-    graduated = list(
+    grad_cap = 500
+    grad_pref = list(
         Student.objects.filter(school=school, status="graduated")
         .select_related("user")
-        .order_by("-exit_date", "admission_number")[:500]
+        .order_by("-exit_date", "admission_number")[: grad_cap + 1]
     )
+    alumni_graduated_pick_truncated = len(grad_pref) > grad_cap
+    graduated = grad_pref[:grad_cap]
 
     if request.method == "POST":
         from django.contrib import messages
@@ -4191,11 +4282,14 @@ def alumni_edit(request, pk):
         return redirect("operations:alumni_list")
 
     alumni = get_object_or_404(Alumni, pk=pk, school=school)
-    graduated = list(
+    grad_cap = 500
+    grad_pref = list(
         Student.objects.filter(school=school, status="graduated")
         .select_related("user")
-        .order_by("-exit_date", "admission_number")[:500]
+        .order_by("-exit_date", "admission_number")[: grad_cap + 1]
     )
+    alumni_graduated_pick_truncated = len(grad_pref) > grad_cap
+    graduated = grad_pref[:grad_cap]
 
     if request.method == "POST":
         data = _alumni_form_from_post(request, school)
@@ -4251,6 +4345,8 @@ def alumni_edit(request, pk):
             "school": school,
             "alumni_instance": alumni,
             "graduated_students": graduated,
+            "alumni_graduated_pick_truncated": alumni_graduated_pick_truncated,
+            "alumni_graduated_pick_cap": grad_cap,
         },
     )
 
@@ -5013,10 +5109,18 @@ def online_exam_essay_queue(request):
 
     attempts = qs.order_by("submitted_at")
 
-    exam_options = OnlineExam.objects.filter(school=school).order_by("-start_time")[:200]
-    class_names = sorted(
-        {c for c in Student.objects.filter(school=school).values_list("class_name", flat=True) if c}
+    exam_cap = 200
+    exam_pref = list(
+        OnlineExam.objects.filter(school=school).select_related("subject").order_by("-start_time")[: exam_cap + 1]
     )
+    online_exam_filter_dropdown_truncated = len(exam_pref) > exam_cap
+    exam_options = exam_pref[:exam_cap]
+
+    class_cap = 300
+    raw_classes = sorted({c for c in Student.objects.filter(school=school).values_list("class_name", flat=True) if c})
+    class_pref = raw_classes[: class_cap + 1]
+    online_exam_essay_class_filter_truncated = len(class_pref) > class_cap
+    class_names = class_pref[:class_cap]
 
     return render(
         request,
@@ -5028,6 +5132,10 @@ def online_exam_essay_queue(request):
             "class_names": class_names,
             "filter_exam": exam_filter,
             "filter_class": class_filter,
+            "online_exam_filter_dropdown_truncated": online_exam_filter_dropdown_truncated,
+            "online_exam_essay_class_filter_truncated": online_exam_essay_class_filter_truncated,
+            "online_exam_essay_exam_filter_cap": exam_cap,
+            "online_exam_essay_class_filter_cap": class_cap,
         },
     )
 
@@ -7520,16 +7628,34 @@ def health_record_list(request):
     
     # Parents see their children's health records, students see their own
     page_obj = None
+    health_record_list_truncated = False
+    health_record_list_cap = 200
+    health_record_list_total = None
+
     if role == 'parent':
         children = get_children_for_parent(request.user, school=school, active_only=False)
-        records = StudentHealth.objects.filter(school=school, student__in=children).select_related('student', 'student__user').order_by('-last_updated')[:200]
+        rec_base = StudentHealth.objects.filter(school=school, student__in=children)
+        health_record_list_total = rec_base.count()
+        rec_pref = list(
+            rec_base.select_related('student', 'student__user').order_by('-last_updated')[: health_record_list_cap + 1]
+        )
+        health_record_list_truncated = len(rec_pref) > health_record_list_cap
+        records = rec_pref[:health_record_list_cap]
     elif role == 'student':
         student = Student.objects.filter(user=request.user, school=school).first()
         if student:
-            records = StudentHealth.objects.filter(school=school, student=student).select_related('student', 'student__user').order_by('-last_updated')[:200]
+            rec_base = StudentHealth.objects.filter(school=school, student=student)
+            health_record_list_total = rec_base.count()
+            rec_pref = list(
+                rec_base.select_related('student', 'student__user').order_by('-last_updated')[: health_record_list_cap + 1]
+            )
+            health_record_list_truncated = len(rec_pref) > health_record_list_cap
+            records = rec_pref[:health_record_list_cap]
         else:
             records = []
     elif user_can_manage_school(request.user) or request.user.is_superuser:
+        health_record_list_truncated = False
+        health_record_list_total = None
         qs = StudentHealth.objects.filter(school=school).select_related('student', 'student__user').order_by('-last_updated')
         page_obj = paginate(request, qs, per_page=50)
         records = page_obj
@@ -7539,7 +7665,10 @@ def health_record_list(request):
     return render(request, 'operations/health_record_list.html', {
         'records': records,
         'page_obj': page_obj,
-        'school': school
+        'school': school,
+        'health_record_list_truncated': health_record_list_truncated,
+        'health_record_list_cap': health_record_list_cap,
+        'health_record_list_total': health_record_list_total,
     })
 
 

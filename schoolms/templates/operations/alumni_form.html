@@ -7,6 +7,11 @@
     <form method="post">
         {% csrf_token %}
         {% if graduated_students %}
+        {% if alumni_graduated_pick_truncated %}
+        <div style="font-size:0.85rem;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;padding:0.6rem 0.75rem;border-radius:0.5rem;margin-bottom:0.75rem;">
+            The “link to graduate” list shows the {{ alumni_graduated_pick_cap }} most recent graduates only. Use manual fields or pick from <strong>Students → graduated</strong> if someone is missing.
+        </div>
+        {% endif %}
         <div class="form-group full-width">
             <label for="id_link_student">Link to graduated student (optional)</label>
             <select id="id_link_student" name="link_student_id" class="form-control">

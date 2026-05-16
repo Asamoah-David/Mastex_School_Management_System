@@ -26,10 +26,10 @@
 {% else %}
 <div class="content-card">
         {% if students|length > 1 %}
-    <form method="get" action="" class="erp-table-controls">
+    <form method="get" action="" class="erp-table-controls" style="display:flex;flex-wrap:wrap;gap:0.65rem;align-items:flex-end;">
         <div class="erp-table-controls__group">
             <label for="id_student_filter">Show fees for</label>
-            <select name="student" id="id_student_filter" onchange="this.form.submit()" class="erp-filter-input">
+            <select name="student" id="id_student_filter" class="erp-filter-input">
             <option value="">All children</option>
             {% for s in students %}
             <option value="{{ s.pk }}" {% if active_student and active_student.pk == s.pk %}selected{% endif %}>
@@ -38,8 +38,13 @@
             {% endfor %}
         </select>
         </div>
+        <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
     </form>
     {% endif %}
+    <div style="margin-top:0.75rem;display:flex;flex-wrap:wrap;gap:0.65rem;align-items:center;">
+        <a href="{% url 'operations:partial_payment_default' %}{% if active_student %}?student={{ active_student.pk }}{% endif %}" class="btn btn-sm btn-primary">Top-up / partial payment hub</a>
+        <span class="text-sm text-muted" style="max-width:32rem;">Use this when you want to pay part of a balance (not only full fee lines). If you filter by child above, the hub targets that child.</span>
+    </div>
     {% if not paystack_available %}
     <div class="alert alert-warning">
         <strong>Note:</strong> Online payment system is not configured. Please contact the school for payment options.

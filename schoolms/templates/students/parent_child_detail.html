@@ -5,6 +5,16 @@
 {% block page_subtitle %}Admission: {{ child.admission_number }} · Class: {{ child.class_name|default:"—" }}{% endblock %}
 {% block content %}
 
+{% if parent_portal_results_truncated or parent_portal_fees_truncated or parent_portal_attendance_truncated or parent_portal_absence_truncated %}
+<div class="table-card" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;font-size:0.9rem;margin-bottom:1rem;">
+    <strong>Note:</strong> some sections only show the newest rows to keep this page fast.
+    {% if parent_portal_results_truncated %}<span> Results: newest {{ parent_portal_results_cap }}.</span>{% endif %}
+    {% if parent_portal_fees_truncated %}<span> Fees table: newest {{ parent_portal_fees_cap }} of {{ parent_portal_fees_total }} items — use the full fee list from the main menu if needed.</span>{% endif %}
+    {% if parent_portal_attendance_truncated %}<span> Attendance: newest {{ parent_portal_attendance_cap }} days.</span>{% endif %}
+    {% if parent_portal_absence_truncated %}<span> Absence requests: newest {{ parent_portal_absence_cap }}.</span>{% endif %}
+</div>
+{% endif %}
+
 <div class="button-row mt-sm">
     <a class="btn btn-secondary" href="{% url 'students:parent_dashboard' %}">Back</a>
     <a class="btn btn-primary" href="{% url 'academics:report_card' child.id %}{% if selected_term %}?term={{ selected_term }}{% endif %}">View report card</a>
@@ -21,8 +31,8 @@
     </section>
     <section class="metric">
         <div class="metric-label">Fees</div>
-        <div class="metric-value">{{ fees|length }}</div>
-        <div class="metric-caption">Total fee items</div>
+        <div class="metric-value">{{ parent_portal_fees_total }}</div>
+        <div class="metric-caption">{% if parent_portal_fees_truncated %}Table shows newest {{ parent_portal_fees_cap }} · {% endif %}Total fee items</div>
     </section>
     <section class="metric">
         <div class="metric-label">Absence requests</div>
@@ -36,7 +46,7 @@
     <div class="form-grid">
         <div class="form-group">
             <label for="id_term">Term</label>
-            <select id="id_term" name="term" class="form-control" onchange="this.form.submit()">
+            <select id="id_term" name="term" class="form-control">
                 <option value="">All</option>
                 {% for t in terms %}
                 <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
@@ -45,13 +55,16 @@
         </div>
         <div class="form-group">
             <label for="id_exam_type">Exam type</label>
-            <select id="id_exam_type" name="exam_type" class="form-control" onchange="this.form.submit()">
+            <select id="id_exam_type" name="exam_type" class="form-control">
                 <option value="">All</option>
                 {% for e in exam_types %}
                 <option value="{{ e.id }}" {% if selected_exam_type == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
                 {% endfor %}
             </select>
         </div>
+    </div>
+    <div class="button-row mt-sm">
+        <button type="submit" class="btn btn-primary">Apply filters</button>
     </div>
 </form>
 

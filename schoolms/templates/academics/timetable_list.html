@@ -37,6 +37,11 @@
 </div>
 
 {% if items %}
+{% if timetable_list_truncated %}
+<div class="empty-state" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;text-align:left;margin-bottom:1rem;">
+    Showing the first {{ timetable_list_cap }} timetable rows for this filter. Narrow by <strong>class</strong> or <strong>day</strong> to see everything, or add pagination later.
+</div>
+{% endif %}
 <div class="table-card" style="margin-top:1rem;">
     <table>
         <thead>

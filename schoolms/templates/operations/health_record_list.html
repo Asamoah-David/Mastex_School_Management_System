@@ -14,6 +14,12 @@
         </div>
     </div>
     
+    {% if health_record_list_truncated %}
+    <div class="empty-state" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;text-align:left;margin-bottom:1rem;">
+        Showing the {{ health_record_list_cap }} most recently updated records{% if health_record_list_total is not None %} ({{ health_record_list_total }} total){% endif %}. Use CSV/Excel export for a full copy, or ask the nurse’s office.
+    </div>
+    {% endif %}
+
     {% if records %}
     <table class="data-table">
         <thead>
@@ -42,6 +48,7 @@
         {% endfor %}
         </tbody>
     </table>
+    {% if page_obj %}{% include 'includes/pagination.html' %}{% endif %}
     {% else %}
     <p class="empty-state">📭 No health records found.</p>
     {% endif %}

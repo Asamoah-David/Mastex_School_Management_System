@@ -19,11 +19,18 @@
         </div>
     </div>
 
+    {% if online_exam_filter_dropdown_truncated or online_exam_essay_class_filter_truncated %}
+    <p class="text-muted small mb-2">
+        {% if online_exam_filter_dropdown_truncated %}Exam filter shows the {{ online_exam_essay_exam_filter_cap }} most recent exams only. Clear the filter or open Online exams for the full list.{% endif %}
+        {% if online_exam_essay_class_filter_truncated %}{% if online_exam_filter_dropdown_truncated %} {% endif %}Class filter shows {{ online_exam_essay_class_filter_cap }} class names (alphabetically); if yours is missing, clear the class filter.{% endif %}
+    </p>
+    {% endif %}
+
     <form method="get" class="filter-bar mb-3" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label class="form-label fw-bold mb-1">Exam</label>
-                <select name="exam" class="form-control" onchange="this.form.submit()">
+                <select name="exam" class="form-control searchable-select" data-placeholder="Search exam…" data-min-search="1" onchange="this.form.submit()">
                     <option value="">All exams</option>
                     {% for e in exam_options %}
                     <option value="{{ e.pk }}" {% if filter_exam == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.title }} — {{ e.subject.name }}</option>
@@ -32,7 +39,7 @@
             </div>
             <div class="col-md-3">
                 <label class="form-label fw-bold mb-1">Class</label>
-                <select name="class" class="form-control" onchange="this.form.submit()">
+                <select name="class" class="form-control searchable-select" data-placeholder="Search class…" data-min-search="1" onchange="this.form.submit()">
                     <option value="">All classes</option>
                     {% for c in class_names %}
                     <option value="{{ c }}" {% if filter_class == c %}selected{% endif %}>{{ c }}</option>

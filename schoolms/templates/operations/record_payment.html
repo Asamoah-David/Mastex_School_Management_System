@@ -19,7 +19,17 @@
         <div class="card-body">
             <form method="post">
                 {% csrf_token %}
-                
+                {% if record_payment_unpaid_school_fees_truncated or record_payment_hostel_list_truncated %}
+                <div class="alert alert-warning py-2 small mb-3" role="status">
+                    {% if record_payment_unpaid_school_fees_truncated %}
+                    <div><strong>School fees list is capped.</strong> Only the {{ record_payment_list_cap }} most recent unpaid fee rows are shown in the combined table below. Older rows still exist — use the <strong>Fee ID</strong> line or finance tools to pay them.</div>
+                    {% endif %}
+                    {% if record_payment_hostel_list_truncated %}
+                    <div class="{% if record_payment_unpaid_school_fees_truncated %}mt-2{% endif %}"><strong>Hostel list is capped.</strong> Only the {{ record_payment_list_cap }} newest unpaid hostel fees are listed. If a balance is missing, use the hostel fee selector / ID path or ask the bursar.</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 <div class="row">
                     <div class="col-md-4 mb-3">
                         <label for="payment_type" class="form-label">Payment Type</label>

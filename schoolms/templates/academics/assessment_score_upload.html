@@ -12,7 +12,7 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
             <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Class</label>
-                <select name="class" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <select name="class" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
                     <option value="">Select Class</option>
                     {% for c in classes %}
                     <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
@@ -21,7 +21,7 @@
             </div>
             <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Subject</label>
-                <select name="subject" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <select name="subject" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
                     <option value="">Select Subject</option>
                     {% for s in subjects %}
                     <option value="{{ s.id }}" {% if selected_subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
@@ -30,7 +30,7 @@
             </div>
             <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Term</label>
-                <select name="term" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <select name="term" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
                     <option value="">Select Term</option>
                     {% for t in terms %}
                     <option value="{{ t.id }}" {% if selected_term == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
@@ -39,7 +39,7 @@
             </div>
             <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Assessment Type</label>
-                <select name="assessment_type" onchange="this.form.submit()" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                <select name="assessment_type" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
                     <option value="">Select Type</option>
                     {% for at in assessment_types %}
                     <option value="{{ at.id }}" {% if selected_assessment_type == at.id|stringformat:"s" %}selected{% endif %}>{{ at.name }}</option>
@@ -47,6 +47,7 @@
                 </select>
             </div>
         </div>
+        <button type="submit" class="btn btn-primary">Load students</button>
     </form>
     
     {# Upload Form #}
@@ -101,7 +102,7 @@
         {% if selected_class and selected_subject and selected_term and selected_assessment_type %}
         No students found in the selected class.
         {% else %}
-        Please select Class, Subject, Term, and Assessment Type to upload scores.
+        Please select Class, Subject, Term, and Assessment Type, then click <strong>Load students</strong>.
         {% endif %}
     </div>
     {% endif %}

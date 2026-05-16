@@ -124,6 +124,24 @@
         </div>
     </div>
 
+    {% if payment_dashboard_recent_activity_truncated or payment_dashboard_outstanding_students_truncated or payment_dashboard_daily_chart_truncated or payment_dashboard_school_fee_rows_truncated %}
+    <div class="alert alert-info small mb-4" role="status">
+        <strong>Display limits (totals above still use your full date filters):</strong>
+        {% if payment_dashboard_recent_activity_truncated %}
+        <span class="d-block">“Recent payments” merges all types then shows the {{ payment_dashboard_recent_activity_cap }} newest rows.</span>
+        {% endif %}
+        {% if payment_dashboard_school_fee_rows_truncated %}
+        <span class="d-block">School fees tab lists at most {{ payment_dashboard_school_fee_rows_cap }} matching fee rows — use export or student history for more.</span>
+        {% endif %}
+        {% if payment_dashboard_daily_chart_truncated %}
+        <span class="d-block">Daily collections chart shows the {{ payment_dashboard_daily_chart_cap }} most recent days with activity.</span>
+        {% endif %}
+        {% if payment_dashboard_outstanding_students_truncated %}
+        <span class="d-block">Outstanding students card shows {{ payment_dashboard_outstanding_students_cap }} names — filter fees or use exports for a full list.</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Daily Collections Breakdown -->
     {% if daily_collections %}
     <div class="card mb-4">

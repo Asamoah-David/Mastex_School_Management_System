@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Parents · MastexEDU{% endblock %}
 {% block page_title %}Parents{% endblock %}
-{% block page_subtitle %}Registered parents of your school.{% endblock %}
+{% block page_subtitle %}Registered parents ({{ total_parents }}), grouped by student class. A parent with children in more than one class appears under each class.{% endblock %}
 {% block content %}
 <div class="button-row">
     <a href="{% url 'accounts:parent_register' %}" class="btn btn-primary">Register new parent</a>
 </div>
 
-{% if parents %}
-<div class="table-card">
+{% if grouped_parents %}
+{% for group in grouped_parents %}
+<div class="table-card" style="margin-bottom:1.25rem;">
+    <h3 class="section-title" style="margin:0 0 0.75rem;padding-bottom:0.35rem;border-bottom:1px solid rgba(148,163,184,0.35);">{{ group.class_name }}</h3>
     <div class="table-responsive">
         <table>
             <thead>
@@ -19,12 +21,13 @@
                     <th>Phone</th>
                     <th>Parent Type</th>
                     <th>Registered on</th>
-                    <th>Children</th>
+                    <th>Children (this class)</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for parent in parents %}
+                {% for row in group.rows %}
+                {% with parent=row.parent %}
                 <tr>
                     <td>{{ parent.get_full_name|default:parent.username }}</td>
                     <td>{{ parent.username }}</td>
@@ -33,13 +36,11 @@
                     <td>{{ parent.get_parent_type_display|default:"—" }}</td>
                     <td>{{ parent.date_joined|date:"Y-m-d" }}</td>
                     <td>
-                        {% with children_count=parent.student_set.count %}
-                            {% if children_count > 0 %}
-                                <a href="{% url 'accounts:parent_detail' parent.pk %}">{{ children_count }} child(ren)</a>
-                            {% else %}
-                                —
-                            {% endif %}
-                        {% endwith %}
+                        {% if row.children %}
+                            {{ row.children|join:", " }}
+                        {% else %}
+                            —
+                        {% endif %}
                     </td>
                     <td class="actions-cell">
                         <a href="{% url 'accounts:parent_edit' parent.pk %}" class="btn btn-warning btn-sm">Edit</a>
@@ -47,11 +48,13 @@
                         <a href="{% url 'accounts:parent_delete' parent.pk %}" class="btn btn-danger btn-sm">Delete</a>
                     </td>
                 </tr>
+                {% endwith %}
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+{% endfor %}
 {% else %}
 <div class="table-card">
     <div class="empty-state">No parents registered yet. <a href="{% url 'accounts:parent_register' %}">Register parent</a>.</div>
@@ -67,7 +70,6 @@
     background: linear-gradient(135deg, #f97373, #dc2626) !important;
     color: #ffffff !important;
 }
-/* Horizontal scroll container for table */
 .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -77,7 +79,6 @@
 .table-responsive table {
     min-width: 800px;
 }
-/* Fix for action buttons being cut off */
 .actions-cell {
     white-space: nowrap;
     min-width: 150px;
@@ -91,5 +92,4 @@ table th:last-child, table td:last-child {
     min-width: 160px;
 }
 </style>
-{% include 'includes/pagination.html' %}
 {% endblock %}

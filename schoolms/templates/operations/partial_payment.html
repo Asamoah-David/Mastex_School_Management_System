@@ -1,7 +1,41 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Pay {{ fee_type_label }} | {{ school.name }}{% endblock %}
+{% block title %}{% if staff_student_pick_required %}Pick student · Partial pay | {{ school.name }}{% else %}Pay {{ fee_type_label }} | {{ school.name }}{% endif %}{% endblock %}
 {% block content %}
+{% if staff_student_pick_required %}
+<div class="content-card" style="margin-bottom:1rem;">
+  <div class="page-heading">
+    <div>
+      <h1 class="page-title">&#128178; Partial payment hub</h1>
+      <p class="page-subtitle">Choose a student to view balances and pay online ({{ fee_type_label }})</p>
+    </div>
+    <a href="{% url 'operations:payment_dashboard' %}" class="btn btn-secondary">&#8592; Payment dashboard</a>
+  </div>
+</div>
+<div class="content-card" style="max-width:560px;">
+  {% if staff_pick_students_truncated %}
+  <div class="empty-state" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;text-align:left;margin-bottom:1rem;padding:0.75rem 1rem;">
+    Showing the first {{ staff_pick_cap }} students (by class / admission). Use search below or open from the student profile if someone is missing.
+  </div>
+  {% endif %}
+  {% if staff_pick_students %}
+  <form method="get" action="{{ request.path }}" style="display:flex;flex-direction:column;gap:1rem;">
+    <div class="form-group">
+      <label class="required" for="staff-partial-student">Student</label>
+      <select name="student" id="staff-partial-student" class="searchable-select" data-placeholder="Search student…" data-min-search="1" required>
+        <option value="">— Select —</option>
+        {% for s in staff_pick_students %}
+        <option value="{{ s.pk }}">{{ s.user.get_full_name|default:s.user.username }} ({{ s.class_name|default:"—" }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Continue to balances</button>
+  </form>
+  {% else %}
+  <p class="text-muted">No students found for this school.</p>
+  {% endif %}
+</div>
+{% else %}
 <div class="content-card" style="margin-bottom:1rem;">
   <div class="page-heading">
     <div>
@@ -27,6 +61,13 @@
       </div>
     </div>
   </div>
+
+  {% if hub_notes.line_history_truncated %}
+  <div class="content-card" style="max-width:550px;margin-bottom:1rem;background:#fffbeb;border:1px solid #fcd34d;color:#92400e;font-size:.85rem;padding:.75rem 1rem;">
+    <strong>Note:</strong> totals above include your <em>full</em> payment history.
+    The item table shows only the {{ hub_notes.line_history_cap }} most recent rows. Use the portal history or ask the bursar for older lines.
+  </div>
+  {% endif %}
 
   {% if outstanding_rows %}
   <div style="margin-bottom:1.5rem;">
@@ -175,4 +216,5 @@ function updateAmount(period) {
   if (map[period]) setAmount(map[period]);
 }
 </script>
+{% endif %}
 {% endblock %}

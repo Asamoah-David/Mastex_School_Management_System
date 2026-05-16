@@ -62,6 +62,13 @@
 </div>
 {% else %}
 
+{% if students_by_class and page_obj.paginator.count %}
+<p style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #6b7280;">
+    Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} students
+    (grouped by class on this page).
+</p>
+{% endif %}
+
 {% if students_by_class %}
     {% for class_name, class_students in students_by_class.items %}
     <div class="class-section">

@@ -64,6 +64,11 @@
 
 <div class="content-card">
     <h3 style="margin:0 0 0.75rem;">Recent failed references</h3>
+    {% if payment_ledger_recent_failed_truncated %}
+    <p style="font-size:0.85rem;color:var(--text-soft,#94a3b8);margin:0 0 0.75rem;">
+        Showing the {{ payment_ledger_recent_failed_cap }} most recent failures in this period. Use the ledger list with filters for the full set.
+    </p>
+    {% endif %}
     {% if not recent_failed %}
         <div class="empty-state">No failed transactions in this period.</div>
     {% else %}

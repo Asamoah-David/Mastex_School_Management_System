@@ -79,6 +79,7 @@
             <a href="{% url 'operations:canteen_my' %}" class="btn btn-sm btn-secondary">&#x1F371; Canteen</a>
             <a href="{% url 'operations:bus_my' %}" class="btn btn-sm btn-secondary">&#x1F68C; Transport</a>
             <a href="{% url 'operations:textbook_my' %}" class="btn btn-sm btn-secondary">&#x1F4D5; Textbooks</a>
+            <a href="{% url 'operations:partial_payment_default' %}?student={{ child.id }}" class="btn btn-sm btn-secondary">&#x1F4B3; Top-up / partial pay</a>
         </div>
     </div>
 
